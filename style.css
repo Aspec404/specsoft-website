@@ -1823,6 +1823,12 @@ body.light-mode .punctuation { color: #383a42; }
     .geo-ring-2 { width: 150px; height: 150px; }
 }
 
+/* --- Mobile (≤ 850px) --- */
+@media (max-width: 850px) {
+    .mobile-header {
+        display: flex;
+    }
+
     .sidebar {
         transform: translateX(-100%);
         width: min(300px, 85vw);
