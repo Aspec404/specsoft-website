@@ -291,10 +291,35 @@
         });
     }
 
+      /* ==========================================================================
+       8. INJECT FAVICON (auto-adds to every page's <head>)
+       ========================================================================== */
+    function injectFavicon() {
+        const existing = document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
+        if (existing) return;
+
+        const favicon = document.createElement('link');
+        favicon.rel = 'icon';
+        favicon.type = 'image/png';
+        favicon.href = 'logo.png';
+        document.head.appendChild(favicon);
+
+        const shortcut = document.createElement('link');
+        shortcut.rel = 'shortcut icon';
+        shortcut.href = 'logo.png';
+        document.head.appendChild(shortcut);
+
+        const apple = document.createElement('link');
+        apple.rel = 'apple-touch-icon';
+        apple.href = 'logo.png';
+        document.head.appendChild(apple);
+    }
+
     /* ==========================================================================
-       8. INITIALIZE EVERYTHING
+       9. INITIALIZE EVERYTHING
        ========================================================================== */
     document.addEventListener('DOMContentLoaded', function () {
+        injectFavicon();
         injectLayout();
         highlightActiveNav();
         initThemeToggle();
