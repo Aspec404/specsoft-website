@@ -1932,4 +1932,17 @@ body.light-mode .punctuation { color: #383a42; }
         width: 26px;
         height: 26px;
     }
+
+    /* Hide scrollbar on mobile only */
+@media (max-width: 850px) {
+    * {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    
+    *::-webkit-scrollbar {
+        display: none;
+    }
+}
+
 }
