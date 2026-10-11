@@ -291,10 +291,10 @@ body.light-mode .scanlines {
     border-left: 40px solid transparent;
     border-right: 40px solid transparent;
     border-bottom: 70px solid var(--border-hover);
-    bottom: 25%;
-    left: 15%;
+    bottom: 15%;
+    left: 8%;
     animation: floatGeo 8s ease-in-out infinite;
-    opacity: 0.7;
+    opacity: 0.5;
 }
 
 .geo-square {

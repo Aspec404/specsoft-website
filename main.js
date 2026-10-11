@@ -290,14 +290,21 @@
         });
     }
 
-    /* ==========================================================================
-       8. INJECT FAVICON (with dark/light mode variants)
+       /* ==========================================================================
+       8. INJECT FAVICON (system dark/light mode)
        ========================================================================== */
     function injectFavicon() {
         const existing = document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
         if (existing) return;
 
-        // Dark mode favicon (white logo)
+        // Fallback (no media query) — most browsers will use this as default
+        const fallback = document.createElement('link');
+        fallback.rel = 'icon';
+        fallback.type = 'image/png';
+        fallback.href = 'logo.png';
+        document.head.appendChild(fallback);
+
+        // Dark system mode → white logo
         const darkFavicon = document.createElement('link');
         darkFavicon.rel = 'icon';
         darkFavicon.type = 'image/png';
@@ -305,7 +312,7 @@
         darkFavicon.media = '(prefers-color-scheme: dark)';
         document.head.appendChild(darkFavicon);
 
-        // Light mode favicon (black logo)
+        // Light system mode → black logo
         const lightFavicon = document.createElement('link');
         lightFavicon.rel = 'icon';
         lightFavicon.type = 'image/png';
@@ -313,14 +320,7 @@
         lightFavicon.media = '(prefers-color-scheme: light)';
         document.head.appendChild(lightFavicon);
 
-        // Fallback (older browsers that don't support prefers-color-scheme)
-        const fallback = document.createElement('link');
-        fallback.rel = 'icon';
-        fallback.type = 'image/png';
-        fallback.href = 'logo.png';
-        document.head.appendChild(fallback);
-
-        // Apple touch icon
+        // Apple touch icon (iOS home screen)
         const apple = document.createElement('link');
         apple.rel = 'apple-touch-icon';
         apple.href = 'logo.png';
