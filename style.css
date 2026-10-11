@@ -13,8 +13,8 @@
     --text-primary: #f5f5f5;
     --text-secondary: #999999;
     --text-tertiary: #4a4a4a;
-    --border-subtle: #151515;
-    --border-hover: #2e2e2e;
+    --border-subtle: #202020;
+    --border-hover: #404040;
 
     --accent: #ffffff;
     --accent-dim: rgba(255, 255, 255, 0.05);
@@ -236,14 +236,14 @@ body.light-mode .scanlines {
     position: fixed;
     pointer-events: none;
     z-index: 0;
-    opacity: 0.5;
+    opacity: 0.8;
     transition: border-color 0.5s ease, opacity 0.5s ease;
 }
 
 .geo-ring {
     width: 400px;
     height: 400px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid var(--border-hover);
     border-radius: 50%;
     top: 15%;
     right: 10%;
@@ -290,11 +290,11 @@ body.light-mode .scanlines {
     height: 0;
     border-left: 40px solid transparent;
     border-right: 40px solid transparent;
-    border-bottom: 70px solid var(--border-subtle);
+    border-bottom: 70px solid var(--border-hover);
     bottom: 25%;
     left: 15%;
     animation: floatGeo 8s ease-in-out infinite;
-    opacity: 0.4;
+    opacity: 0.7;
 }
 
 .geo-square {
@@ -1996,4 +1996,30 @@ body.light-mode .punctuation { color: #383a42; }
         width: 26px;
         height: 26px;
     }
+}
+
+/* ==========================================================================
+   25. LOGO AUTO-SWAP (dark/light theme)
+   ========================================================================== */
+
+/* Default (dark mode): show white logo, hide black */
+.logo-img.logo-dark,
+.footer-logo.logo-dark {
+    display: none !important;
+}
+
+.logo-img.logo-light,
+.footer-logo.logo-light {
+    display: block !important;
+}
+
+/* Light mode: hide white logo, show black */
+body.light-mode .logo-img.logo-light,
+body.light-mode .footer-logo.logo-light {
+    display: none !important;
+}
+
+body.light-mode .logo-img.logo-dark,
+body.light-mode .footer-logo.logo-dark {
+    display: block !important;
 }
