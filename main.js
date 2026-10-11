@@ -12,7 +12,7 @@
     const SIDEBAR_HTML = `
         <div class="sidebar-top">
             <a href="index.html" class="logo">
-                <img src="https://i.postimg.cc/XvXW6MbC/logo-png.png"
+                <img src="logo.png"
                      alt="SPECSOFT Logo"
                      class="logo-img"
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
@@ -139,7 +139,7 @@
        ========================================================================== */
     const MOBILE_HEADER_HTML = `
         <a href="index.html" class="logo">
-            <img src="https://i.postimg.cc/XvXW6MbC/logo-png.png"
+            <img src="logo.png"
                  alt="SPECSOFT Logo"
                  class="logo-img"
                  onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
