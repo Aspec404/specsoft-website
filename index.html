@@ -3,7 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPECSOFT® | Software, Games & Roblox Community</title>
+    <title>SPECSOFT® Official Website</title>
+
+    <!-- =========================================
+         INTRO GATE
+         Runs before anything else paints.
+         - First visit in this session → redirect to intro.html
+         - Refresh in same tab → skipped (sessionStorage survives refresh)
+         - Close tab & reopen → plays again (sessionStorage wiped)
+         ========================================= -->
+    <script>
+    (function () {
+        var KEY = 'specsoft-intro-seen';
+
+        // Skip intro for users who've opted out of motion
+        var reduceMotion = window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduceMotion) {
+            sessionStorage.setItem(KEY, '1');
+            return;
+        }
+
+        // Already seen this session → let the page render normally
+        if (sessionStorage.getItem(KEY) === '1') return;
+
+        // Mark as seen BEFORE redirecting so a refresh of index.html
+        // (or a failed redirect) doesn't loop.
+        sessionStorage.setItem(KEY, '1');
+
+        // replace() so the homepage isn't duplicated in history
+        window.location.replace('intro.html');
+    })();
+    </script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -239,6 +270,6 @@
          JAVASCRIPT
          ========================================= -->
     <script src="main.js"></script>
-
+    <script src="gate.js"></script>
 </body>
 </html>

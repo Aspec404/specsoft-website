@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SPECSOFT® Convergence</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@800;900&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;overflow:hidden;color:#fff;font-family:"Space Grotesk",Arial,sans-serif}
+#stage{position:fixed;inset:0;background:#000;overflow:hidden;cursor:pointer}
+#world{position:absolute;inset:0;perspective:1400px;perspective-origin:50% 50%}
+.pl{position:absolute;left:50%;top:50%;width:100vmax;height:100vmax;margin:-50vmax 0 0 -50vmax;opacity:0;background-image:linear-gradient(rgba(255,255,255,.2) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.2) 1px,transparent 1px);background-size:90px 90px;-webkit-mask-image:radial-gradient(closest-side,#000 20%,transparent 100%);mask-image:radial-gradient(closest-side,#000 20%,transparent 100%)}
+.shp{position:absolute;left:50%;top:50%;opacity:0;overflow:visible}
+.ic{position:absolute;left:50%;top:50%;overflow:visible;opacity:0}
+.ic path{stroke:#fff;stroke-width:2.6;fill:none;stroke-dasharray:1;stroke-dashoffset:1}
+.hl{position:absolute;top:50%;height:1px;width:36vw;opacity:0;box-shadow:0 0 8px #fff;z-index:2}
+#vl{position:absolute;left:50%;top:50%;width:1px;height:0;margin-left:-.5px;opacity:0;background:linear-gradient(#fff,rgba(255,255,255,.35));box-shadow:0 0 8px #fff;z-index:2}
+#fl{position:absolute;left:50%;top:50%;width:80vmin;height:80vmin;margin:-40vmin 0 0 -40vmin;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.9),rgba(255,255,255,.25) 30%,transparent 65%);opacity:0;pointer-events:none;z-index:3}
+#wmw{position:absolute;left:50%;transform:translateX(-50%);overflow:hidden;padding:.25em .6em;z-index:4}
+#wm{font-family:Orbitron,Eurostile,"Arial Black",sans-serif;font-weight:900;letter-spacing:.1em;text-indent:.1em;line-height:1.15;white-space:nowrap;color:#fff;opacity:0}
+#wm sup{font-size:.28em;vertical-align:top;position:relative;top:.35em;margin-left:.15em}
+#sw{position:absolute;top:0;bottom:0;left:-30%;width:18%;transform:skewX(-20deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);opacity:0;pointer-events:none}
+#rp{position:fixed;z-index:9;right:calc(env(safe-area-inset-right,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);opacity:0;pointer-events:none;transition:opacity 1s;font:500 10px "Space Grotesk",Arial,sans-serif;letter-spacing:.4em;text-transform:uppercase;color:#fff;background:none;border:1px solid rgba(255,255,255,.4);padding:9px 14px;cursor:pointer}
+#rp.on{opacity:.5;pointer-events:auto}
+#rp.on:hover{opacity:.9;border-color:#fff}
+#sk{position:fixed;z-index:9;left:calc(env(safe-area-inset-left,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);opacity:0;pointer-events:none;transition:opacity .6s;font:500 10px "Space Grotesk",Arial,sans-serif;letter-spacing:.4em;text-transform:uppercase;color:#fff;background:none;border:1px solid rgba(255,255,255,.25);padding:9px 14px;cursor:pointer}
+#sk.on{opacity:.4;pointer-events:auto}
+#sk.on:hover{opacity:.85;border-color:#fff}
+#cv{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;filter:drop-shadow(0 0 6px #fff)}
+.rg{position:absolute;left:50%;top:50%;width:30vmin;height:30vmin;margin:-15vmin 0 0 -15vmin;border:1px solid #fff;border-radius:50%;opacity:0;z-index:3;pointer-events:none}
+#world{will-change:transform}
+</style>
+</head>
+<body>
+<div id="stage">
+ <svg width="0" height="0" style="position:absolute"><defs>
+  <linearGradient id="sv" gradientUnits="userSpaceOnUse" x1="90" y1="160" x2="890" y2="950"><stop offset="0" stop-color="#7a7a7a"/><stop offset=".28" stop-color="#f6f6f6"/><stop offset=".52" stop-color="#9a9a9a"/><stop offset=".78" stop-color="#ececec"/><stop offset="1" stop-color="#858585"/></linearGradient>
+  <linearGradient id="bd"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <clipPath id="cp"><polygon points="485,157 589,262 300,551 344,595 761,180 865,283 740,410 888,560 784,663 634,515 344,804 91,550"/><polygon points="634,606 738,710 494,954 390,849"/></clipPath>
+ </defs></svg>
+ <div id="world"><div class="pl" id="p1"></div><div class="pl" id="p2"></div></div>
+ <svg id="cv"><path id="t1" fill="none" stroke="#fff" stroke-width="1.4" pathLength="1" style="stroke-dasharray:1;opacity:.35"/><path id="t2" fill="none" stroke="#fff" stroke-width="1.4" pathLength="1" style="stroke-dasharray:1;opacity:.35"/><path id="c1" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" pathLength="1" style="stroke-dasharray:.3 2"/><path id="c2" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" pathLength="1" style="stroke-dasharray:.3 2"/></svg>
+ <div class="rg" id="r1"></div><div class="rg" id="r2"></div>
+ <div id="vl"></div><div id="fl"></div>
+ <div id="wmw"><div id="wm">SPECSOFT<sup>®</sup></div><div id="sw"></div></div>
+ <button id="sk" aria-label="Skip intro">Skip ›</button>
+ <button id="rp" aria-label="Replay intro">Replay</button>
+</div>
+<script>
+(function () {
+'use strict';
+
+/* ==========================================================================
+   1. REDUCED-MOTION + ROUTING CONFIG
+   ========================================================================== */
+const HOME = 'index.html';
+const INTRO_DURATION = 8600;   // ms — matches animation timeline
+const SKIP_GRACE = 1200;       // ms — ignore early clicks/taps (accidental)
+
+const reduceMotion = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Anyone who's opted out of motion skips the show entirely
+if (reduceMotion) {
+    window.location.replace(HOME);
+    return;
+}
+
+/* ==========================================================================
+   2. ORIGINAL TIMELINE SETUP
+   ========================================================================== */
+const NS = 'http://www.w3.org/2000/svg';
+const world = document.getElementById('world');
+const stage = document.getElementById('stage');
+
+const $ = id => document.getElementById(id);
+const p1 = $('p1'), p2 = $('p2'), fl = $('fl');
+const wmw = $('wmw'), wm = $('wm'), sw = $('sw');
+const rp = $('rp'), sk = $('sk');
+const cv = $('cv'), r1 = $('r1'), r2 = $('r2');
+
+const cl = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const sm = x => { x = cl(x); return x * x * (3 - 2 * x); };
+const bell = x => Math.sin(cl(x) * Math.PI);
+const eio = x => { x = cl(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+
+const dB = 'M494 954L390 849L634 606L738 710Z';
+const dM = 'M344 804L91 550L485 157L589 262L300 551L344 595L761 180L865 283L740 410L888 560L784 663L634 515Z';
+
+let W, H, W0, SC, SPY, t0 = 0, last = 0, ang = 0;
+let endTimer = null;   // auto-redirect to HOME
+let uiTimer = null;    // shows Replay/Skip buttons
+let skipTimer = null;  // enables skipping after grace period
+let canSkip = false;
+let phase = 'idle';    // 'playing' | 'done' | 'idle'
+
+/* ==========================================================================
+   3. BUILD THE SCENE (unchanged from your original)
+   ========================================================================== */
+const mk = (ghost, extra) => {
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('viewBox', '60 130 860 850');
+    s.classList.add('ic');
+    s.innerHTML = `<path class="bp" pathLength="1" d="${dB}"/><path class="mp" pathLength="1" d="${dM}"/>` + (extra || '');
+    if (ghost) s.querySelectorAll('path').forEach(p => { p.style.strokeDashoffset = 0; p.style.strokeWidth = 1.6; });
+    world.appendChild(s);
+    return s;
+};
+
+const GH = [];
+for (let i = 0; i < 4; i++) for (let g = 0; g < 2; g++) GH.push({ e: mk(true), i, lag: .08 * (g + 1), o: [.35, .17][g] });
+
+const IC = [0, 1, 2, 3].map(i => mk(false, i ? '' : '<g clip-path="url(#cp)"><g transform="skewX(-20)"><rect id="band" x="-500" y="100" width="240" height="950" fill="url(#bd)"/></g></g>'));
+IC.forEach(e => { e.bp = e.querySelector('.bp'); e.mp = e.querySelector('.mp'); });
+
+const band = $('band');
+IC[0].bp.style.fill = IC[0].mp.style.fill = 'url(#sv)';
+IC[0].bp.style.fillOpacity = IC[0].mp.style.fillOpacity = 0;
+
+const SH = [...Array(12)].map(() => {
+    const k = Math.floor(Math.random() * 3), sz = 40 + Math.random() * 70;
+    const e = document.createElementNS(NS, 'svg');
+    e.setAttribute('viewBox', '0 0 100 100');
+    e.classList.add('shp');
+    e.style.width = e.style.height = sz + 'px';
+    e.style.marginLeft = e.style.marginTop = -sz / 2 + 'px';
+    e.innerHTML = ['<rect x="8" y="8" width="84" height="84"/>', '<circle cx="50" cy="50" r="44"/>', '<polygon points="50,8 92,90 8,90"/>'][k]
+        .replace('/>', ' fill="none" stroke="#fff" stroke-width="1.5" vector-effect="non-scaling-stroke"/>');
+    world.insertBefore(e, IC[0]);
+    return {
+        e, x: Math.random() - .5, y: Math.random() - .5, z: -900 + Math.random() * 850,
+        vx: (Math.random() - .5) * 28, vy: (Math.random() - .5) * 28,
+        vz: 40 + Math.random() * 60, r: Math.random() * 360, vr: (Math.random() - .5) * 30,
+        o: .12 + Math.random() * .18
+    };
+});
+
+const cvp = ['t1', 'c1', 't2', 'c2'].map($);
+
+function rs() {
+    W = innerWidth; H = innerHeight;
+    W0 = Math.min(.34 * H, .34 * W);
+    SC = Math.min(.18 * H, .3 * W) / W0;
+    SPY = 1.25 * SC * W0 * 850 / 860;
+    const h = W0 * 850 / 860;
+    [...IC, ...GH.map(g => g.e)].forEach(e => {
+        e.style.width = W0 + 'px'; e.style.height = h + 'px';
+        e.style.marginLeft = -W0 / 2 + 'px'; e.style.marginTop = -h / 2 + 'px';
+    });
+    wmw.style.fontSize = Math.max(22, Math.min(.06 * W, .09 * H, 84)) + 'px';
+    wmw.style.top = (H / 2 - .08 * H + .5 * W0 * .88 + .05 * H) + 'px';
+    cv.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const L = `M-20 ${H * .85} C${W * .22} ${H * .85} ${W * .3} ${H * .12} ${W / 2} ${H / 2}`;
+    const R = `M${W + 20} ${H * .15} C${W * .78} ${H * .15} ${W * .7} ${H * .88} ${W / 2} ${H / 2}`;
+    [L, L, R, R].forEach((d, i) => cvp[i].setAttribute('d', d));
+}
+addEventListener('resize', rs);
+rs();
+
+/* ==========================================================================
+   4. POSE + RENDER LOOP (unchanged)
+   ========================================================================== */
+function pose(i, t) {
+    const k = i - 1.5, ph = t - 1.9;
+    const ce = sm((t - 1.9) / .3) * (1 - sm((t - 3.3) / .4));
+    const st = (i == 0 || i == 3) ? 1.9 : 2.05;
+    const c = eio((t - st) / (3.7 - st));
+    const fs = sm((t - 4.3) / .7);
+    const arc = Math.sin(Math.PI * c);
+    const x = k * .14 * W0 * arc;
+    const y = k * SPY * (1 - c) - .08 * H * fs;
+    const z = Math.sin(ph * 3 + i * .9) * 90 * ce;
+    const rx = Math.sin(ph * 3.2 + i * 1.2) * 18 * ce;
+    const ry = (i % 2 ? 1 : -1) * Math.sin(ph * 2.8 + i * .7) * 26 * ce;
+    const rz = k * 4 * arc;
+    const s = (SC + (1 - SC) * c) * (1 - .12 * fs);
+    const op = i ? 1 - sm((t - 3.6) / .3) : 1;
+    return [x, y, z, rx, ry, s, op, rz];
+}
+const tr = a => `translate3d(${a[0]}px,${a[1]}px,${a[2]}px) rotateX(${a[3]}deg) rotateY(${a[4]}deg) rotateZ(${a[7]}deg) scale(${a[5]})`;
+const ring = (el, t, s, sz) => {
+    const k = cl((t - s) / .6);
+    el.style.opacity = t > s ? .8 * (1 - k) : 0;
+    el.style.transform = `scale(${.1 + sz * (1 - Math.pow(1 - k, 3))})`;
+};
+
+function frame(now) {
+    requestAnimationFrame(frame);
+    const t = Math.min((now - t0) / 1000, 8);
+    const dt = Math.max(0, Math.min(.05, t - last));
+    last = t;
+
+    ang += 16 * (1 - sm((t - 3.4) / 1.4)) * dt;
+    const g = sm(t / .7) * (1 - sm((t - 3.6) / 1.2));
+    p1.style.transform = `translateY(34vh) rotateX(74deg) rotateZ(${ang}deg)`;
+    p2.style.transform = `translateY(-34vh) rotateX(-74deg) rotateZ(${-ang}deg)`;
+    p1.style.opacity = p2.style.opacity = g;
+
+    const se = sm((t - .2) / .6) * (1 - sm((t - 3.2) / .8));
+    SH.forEach(s => {
+        s.e.style.transform = `translate3d(${s.x * W * .9 + s.vx * t}px,${s.y * H * .8 + s.vy * t}px,${s.z + s.vz * t}px) rotate(${s.r + s.vr * t}deg)`;
+        s.e.style.opacity = s.o * se;
+    });
+
+    const pe = Math.pow(cl((t - .2) / .9), 1.8);
+    cv.style.opacity = t < 1.1 ? 1 : 1 - sm((t - 1.1) / .25);
+    cvp[0].style.strokeDashoffset = cvp[2].style.strokeDashoffset = 1 - pe;
+    cvp[1].style.strokeDashoffset = cvp[3].style.strokeDashoffset = .3 - pe;
+
+    fl.style.opacity = .5 * bell((t - 1) / .35) + .6 * bell((t - 3.65) / .5);
+    ring(r1, t, 1.1, 4);
+    ring(r2, t, 3.65, 6);
+
+    world.style.transform = `scale(${1 + .035 * bell((t - 3.65) / .35)})`;
+    const gl = 3 + 7 * bell((t - 3.2) / 1.2);
+
+    IC.forEach((e, i) => {
+        const ts = (i == 1 || i == 2) ? 1.2 : 1.35;
+        const u = cl((t - ts) / .75);
+        const ue = 1 - Math.pow(1 - u, 3);
+        e.bp.style.strokeDashoffset = 1 - cl(ue / .22);
+        e.mp.style.strokeDashoffset = 1 - cl((ue - .22) / .78);
+        const a = pose(i, t), b = pose(i, t + .016), c = pose(i, t - .016);
+        const v = (Math.abs(b[0] - c[0]) + Math.abs(b[1] - c[1])) / .032;
+        const bl = cl((v - 200) / 400 * 2, 0, 2);
+        e.style.transform = tr(a);
+        e.style.opacity = t > ts ? a[6] : 0;
+        e.style.filter = (bl > .2 ? `blur(${bl.toFixed(2)}px) ` : '') + `drop-shadow(0 0 ${gl.toFixed(1)}px rgba(255,255,255,.75))`;
+    });
+
+    GH.forEach(o => {
+        const a = pose(o.i, t - o.lag);
+        const vis = sm((t - 2) / .3) * (1 - sm((t - 3.7) / .6));
+        o.e.style.transform = tr(a);
+        o.e.style.opacity = o.o * vis * a[6];
+    });
+
+    const f = sm((t - 3.6) / .5);
+    IC[0].bp.style.fillOpacity = IC[0].mp.style.fillOpacity = f;
+    band.setAttribute('x', -500 + 1900 * sm((t - 4) / .55));
+
+    let wo = 0, j = 0;
+    if (t >= 5.15) wo = 1;
+    else if (t >= 4.7) {
+        wo = (Math.sin(t * 180) + Math.sin(t * 97 + 1.3) > .2 ? 1 : .15) * (.4 + .6 * (t - 4.7) / .45);
+        j = Math.sin(t * 300) * 5;
+    }
+    wm.style.opacity = wo;
+    wm.style.transform = `translateX(${j}px) scale(${1 + .1 * (1 - sm((t - 4.7) / .6))})`;
+    sw.style.left = (-30 + 130 * sm((t - 5.25) / .6)) + '%';
+    sw.style.opacity = bell((t - 5.25) / .6);
+}
+
+/* ==========================================================================
+   5. PLAYBACK CONTROL + ROUTING
+   ========================================================================== */
+function clearTimers() {
+    clearTimeout(endTimer);
+    clearTimeout(uiTimer);
+    clearTimeout(skipTimer);
+    endTimer = uiTimer = skipTimer = null;
+}
+
+function goHome() {
+    clearTimers();
+    window.location.replace(HOME);
+}
+
+function play() {
+    clearTimers();
+    phase = 'playing';
+    canSkip = false;
+    rp.classList.remove('on');
+    sk.classList.remove('on');
+    t0 = performance.now();
+    last = 0;
+    ang = 0;
+
+    // Enable skipping after a short grace period (avoid accidental taps)
+    skipTimer = setTimeout(() => {
+        canSkip = true;
+        sk.classList.add('on');
+    }, SKIP_GRACE);
+
+    // Show replay when the animation completes
+    uiTimer = setTimeout(() => {
+        phase = 'done';
+        rp.classList.add('on');
+        sk.classList.remove('on');
+    }, INTRO_DURATION);
+
+    // Auto-redirect home
+    endTimer = setTimeout(goHome, INTRO_DURATION);
+}
+
+/* --- Interaction wiring --- */
+stage.addEventListener('click', () => {
+    if (phase === 'playing' && canSkip) {
+        goHome();
+    }
+    // phase === 'done' → do nothing (Replay button handles it)
+});
+
+sk.addEventListener('click', e => {
+    e.stopPropagation();
+    goHome();
+});
+
+rp.addEventListener('click', e => {
+    e.stopPropagation();
+    play(); // restart intro; new timers replace old ones
+});
+
+document.addEventListener('keydown', e => {
+    if ((e.key === 'Escape' || e.key === 'Enter') && phase === 'playing' && canSkip) {
+        goHome();
+    }
+});
+
+/* ==========================================================================
+   6. GO
+   ========================================================================== */
+play();
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
