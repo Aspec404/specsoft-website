@@ -1,5 +1,13 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Events, EmbedBuilder } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  Events,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require('discord.js');
 const readline = require('readline');
 
 const client = new Client({
@@ -24,23 +32,34 @@ const COLOR_MAP = {
   black: 0x000000,
   white: 0xFFFFFF,
   blurple: 0x5865F2,
+  gray: 0x95A5A6,
+  grey: 0x95A5A6,
 };
+
+const BUTTON_STYLES = {
+  primary: ButtonStyle.Primary,
+  secondary: ButtonStyle.Secondary,
+  success: ButtonStyle.Success,
+  danger: ButtonStyle.Danger,
+};
+
+// Store pending button configs (in-memory only)
+const pendingButtons = new Map();
 
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ Logged in as ${c.user.tag}`);
   console.log(`💀 Terminal troll mode ready.\n`);
-  console.log(`   PLAIN MODE:`);
+  console.log(`   PLAIN:`);
   console.log(`     hello world                → plain message`);
   console.log(`     @username hi               → plain message with mention`);
   console.log(`     r:ID hey                   → plain reply\n`);
-  console.log(`   EMBED MODE (prefix with /e):`);
-  console.log(`     /e hello world             → embed with description`);
-  console.log(`     /e Title | Body text       → embed with title + description`);
-  console.log(`     /e red Title | Body        → embed with red color`);
-  console.log(`     /e r:ID Title | Body       → embed reply\n`);
-  console.log(`   REACT MODE:`);
-  console.log(`     react:ID 💀                 → react to specific message`);
-  console.log(`     reactlast 💀                → react to most recent message\n`);
+  console.log(`   EMBED (instant, no cooldown):`);
+  console.log(`     /e red Title | Body        → simple embed`);
+  console.log(`     /e white T | D | button:LABEL | RESPONSE | clickcolor:red`);
+  console.log(`                                → embed + button that recolors on click\n`);
+  console.log(`   REACT:`);
+  console.log(`     react:ID 💀                 → react to message`);
+  console.log(`     reactlast 💀                → react to latest message\n`);
   console.log(`   exit                          → quit\n`);
 
   const rl = readline.createInterface({
@@ -67,6 +86,30 @@ client.once(Events.ClientReady, (c) => {
       if (!channel || !channel.isTextBased()) {
         console.log('❌ Channel not found or not text-based.');
         return rl.prompt();
+      }
+
+      // ============================================
+      // ⌨️ TYPING INDICATOR (conditional delay)
+      // - Plain messages: short natural delay
+      // - Embed commands (/e): INSTANT, no delay
+      // - React commands: no typing at all
+      // ============================================
+      const isReactCommand = /^react:|^reactlast/.test(raw);
+      const isEmbedCommand = raw.startsWith('/e ');
+
+      if (!isReactCommand) {
+        await channel.sendTyping().catch(() => {});
+
+        if (isEmbedCommand) {
+          // Embeds fire instantly
+          console.log('   ⚡ embed mode — instant send');
+        } else {
+          // Plain messages get a short natural delay
+          process.stdout.write('   ⌨️  typing...');
+          const delay = Math.min(300 + raw.length * 15, 1800);
+          await new Promise((r) => setTimeout(r, delay));
+          process.stdout.write('\r                \r');
+        }
       }
 
       // ============================================
@@ -135,26 +178,76 @@ client.once(Events.ClientReady, (c) => {
       // --- Build payload ---
       const payload = {};
 
+      // Declared OUTSIDE embed block so both branches can use them
+      let buttonLabel = null;
+      let buttonResponse = null;
+      let clickColor = 0xED4245;
+      let buttonStyle = ButtonStyle.Primary;
+
       if (isEmbed) {
-        let color = 0x5865F2; // blurple default
+        // Check for color keyword
+        let color = 0x5865F2;
         const firstWord = text.split(/\s+/)[0]?.toLowerCase();
         if (COLOR_MAP[firstWord]) {
           color = COLOR_MAP[firstWord];
           text = text.slice(firstWord.length).trim();
         }
 
-        const embed = new EmbedBuilder().setColor(color);
+        // Split by | for parts
+        const parts = text.split('|').map((p) => p.trim());
+        const title = parts[0] || null;
+        const desc = parts[1] || null;
 
-        if (text.includes('|')) {
-          const [titlePart, ...rest] = text.split('|');
-          embed.setTitle(titlePart.trim() || null);
-          const desc = rest.join('|').trim();
-          if (desc) embed.setDescription(desc);
-        } else {
-          embed.setDescription(text || '​');
+        for (let i = 2; i < parts.length; i++) {
+          const part = parts[i];
+          if (!part) continue;
+
+          const btnMatch = part.match(
+            /^button(?:\.(primary|secondary|success|danger))?:\s*(.+)$/i
+          );
+          if (btnMatch) {
+            if (btnMatch[1]) {
+              buttonStyle = BUTTON_STYLES[btnMatch[1].toLowerCase()] ?? ButtonStyle.Primary;
+            }
+            buttonLabel = btnMatch[2].trim();
+            continue;
+          }
+
+          const colorMatch = part.match(/^clickcolor:\s*(\w+)$/i);
+          if (colorMatch) {
+            const c = colorMatch[1].toLowerCase();
+            if (COLOR_MAP[c]) clickColor = COLOR_MAP[c];
+            continue;
+          }
+
+          if (buttonLabel && !buttonResponse) {
+            buttonResponse = part;
+          }
         }
 
+        const embed = new EmbedBuilder().setColor(color);
+        if (title) embed.setTitle(title);
+        if (desc) embed.setDescription(desc);
+
         payload.embeds = [embed];
+
+        if (buttonLabel) {
+          const customId = `btn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          const button = new ButtonBuilder()
+            .setCustomId(customId)
+            .setLabel(buttonLabel)
+            .setStyle(buttonStyle);
+
+          const row = new ActionRowBuilder().addComponents(button);
+          payload.components = [row];
+
+          pendingButtons.set(customId, {
+            clickColor,
+            buttonResponse: buttonResponse || '▸ ACKNOWLEDGED.',
+            originalEmbed: embed.toJSON(),
+            channelId: channel.id,
+          });
+        }
 
         // Keep mentions pinging even inside embeds
         if (text.match(/<@!?\d+>|<@&\d+>|<@everyone>|<@here>/)) {
@@ -169,13 +262,42 @@ client.once(Events.ClientReady, (c) => {
       }
 
       await channel.send(payload);
-      console.log(`✅ Sent ${isEmbed ? '[EMBED]' : '[PLAIN]'}: ${text}${replyTo ? ' (reply)' : ''}`);
+      console.log(
+        `✅ Sent ${isEmbed ? '[EMBED]' : '[PLAIN]'}${buttonLabel ? ' [BUTTON]' : ''}: ${text}`
+      );
     } catch (err) {
       console.error('❌ Failed:', err.message);
     }
 
     rl.prompt();
   });
+});
+
+// ============================================
+// 🖱️ BUTTON INTERACTION HANDLER
+// ============================================
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  const config = pendingButtons.get(interaction.customId);
+  if (!config) {
+    return interaction.reply({
+      content: '▸ STALE BUTTON. NO CONFIG FOUND.',
+      ephemeral: true,
+    });
+  }
+
+  try {
+    await interaction.reply({ content: config.buttonResponse, ephemeral: true });
+
+    const updatedEmbed = EmbedBuilder.from(config.originalEmbed).setColor(config.clickColor);
+    await interaction.message.edit({ embeds: [updatedEmbed] });
+
+    // Uncomment to remove the button after one click:
+    // await interaction.message.edit({ embeds: [updatedEmbed], components: [] });
+  } catch (err) {
+    console.error('❌ Button interaction failed:', err.message);
+  }
 });
 
 // ============================================

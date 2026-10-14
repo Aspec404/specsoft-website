@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community | SPECSOFT®</title>
+    <meta name="description" content="Join the SPECSOFT® community: developers, players and clan leaders building games, software and Roblox experiences together.">
+
+    <!-- Link preview (Discord, X, etc.) -->
+    <meta property="og:title" content="Community | SPECSOFT®">
+    <meta property="og:description" content="Developers, players and clan leaders building games, software and Roblox experiences together.">
+    <meta property="og:type" content="website">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheets (credits.css MUST come after style.css) -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="credits.css">
+</head>
+<body>
+
+    <!-- =========================================
+         FUTURISTIC BACKGROUND LAYERS (same as index.html)
+         ========================================= -->
+    <div class="grid-bg"></div>
+    <div class="grid-glow" id="gridGlow"></div>
+    <div class="scanner-line"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="geo-shape geo-ring"></div>
+    <div class="geo-shape geo-ring-2"></div>
+    <div class="geo-shape geo-triangle"></div>
+    <div class="geo-shape geo-square"></div>
+    <div class="geo-dot-grid"></div>
+
+    <div class="crosshair tl"></div>
+    <div class="crosshair tr"></div>
+    <div class="crosshair bl"></div>
+    <div class="crosshair br"></div>
+
+    <!-- MOBILE HEADER + SIDEBAR (content injected by main.js) -->
+    <div class="mobile-header"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <!-- =========================================
+         MAIN CONTENT
+         ========================================= -->
+    <main class="main-content">
+
+        <!-- HUD BAR -->
+        <div class="hud-bar">
+            <div class="hud-left">
+                <div class="hud-item"><span class="hud-dot"></span> SYSTEM.ACTIVE</div>
+                <div class="hud-item">COMMUNITY.NODE</div>
+            </div>
+            <div class="hud-right">
+                <div class="hud-item">JOIN: OPEN</div>
+            </div>
+        </div>
+
+        <!-- =====================================
+             HERO
+             ===================================== -->
+        <section class="cm-hero" id="home">
+            <div class="cm-hero-left">
+                <div class="status-badge">
+                    <span class="dot"></span> COMMUNITY OPEN TO EVERYONE
+                </div>
+
+                <h1 class="cm-h1">
+                    MAKE.<br>
+                    PLAY.<br>
+                    <span class="text-outline" data-text="BELONG.">BELONG.</span>
+                </h1>
+
+                <p class="cm-hero-desc">
+                    SPECSOFT® is more than a studio. It is a community of developers, players and clan
+                    leaders making things together: games, tools, events and the occasional wild experiment.
+                    Jump in, say hi, and see what we are building next.
+                </p>
+
+                <div class="cm-hero-actions">
+                    <a href="chats.html" class="btn-primary">
+                        CHAT WITH THE COMMUNITY
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                    <a href="#teams" class="btn-secondary">
+                        MEET THE TEAMS
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="cm-hero-right">
+                <div class="cm-hero-panel">
+                    <div class="cm-hero-panel-head">
+                        <span class="cm-dot"></span><span class="cm-dot"></span><span class="cm-dot"></span>
+                        <span class="cm-hero-panel-title">community.ts</span>
+                    </div>
+                    <div class="cm-hero-panel-body">
+                        <div class="cm-hero-line"><span class="cm-hero-num">1</span><span class="cm-hero-txt"><span class="cm-hero-key">const</span> community = {</span></div>
+                        <div class="cm-hero-line"><span class="cm-hero-num">2</span><span class="cm-hero-txt">  members: <span class="cm-hero-str" id="cmMemberCount" data-target="247">0</span>,</span></div>
+                        <div class="cm-hero-line"><span class="cm-hero-num">3</span><span class="cm-hero-txt">  clans: [<span class="cm-hero-str">'APEX'</span>],</span></div>
+                        <div class="cm-hero-line"><span class="cm-hero-num">4</span><span class="cm-hero-txt">};</span></div>
+                        <div class="cm-hero-line"><span class="cm-hero-num">5</span><span class="cm-hero-txt"><span class="cm-hero-ok">✔ open to everyone</span></span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =====================================
+             01 — WHAT WE DO
+             ===================================== -->
+        <section class="section" id="what-we-do">
+            <div class="section-header">
+                <span class="section-num">01</span>
+                <h2>WHAT SPECSOFT DOES</h2>
+                <div class="section-line"><div class="line"></div></div>
+            </div>
+
+            <div class="cm-do-grid">
+                <article class="cm-do-card">
+                    <div class="cm-do-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="8 7 3 12 8 17"/><polyline points="16 7 21 12 16 17"/><line x1="14" y1="5" x2="10" y2="19"/></svg>
+                    </div>
+                    <h3>Software</h3>
+                    <p>Digital products and tools built independently, from small utilities to bigger experiments.</p>
+                </article>
+
+                <article class="cm-do-card">
+                    <div class="cm-do-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="7" width="19" height="10" rx="5"/><path d="M7 10v4M5 12h4"/><circle cx="15.5" cy="11" r=".7"/><circle cx="18" cy="13" r=".7"/></svg>
+                    </div>
+                    <h3>Original games</h3>
+                    <p>We design and develop our own games, and the community gets to watch (and shape) them as they grow.</p>
+                </article>
+
+                <article class="cm-do-card">
+                    <div class="cm-do-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M9 3v2M15 3v2M9 19v2M15 19v2"/></svg>
+                    </div>
+                    <h3>AI experiments</h3>
+                    <p>Project Spectra is our official AI and mascot, and the starting point for how we play with AI.</p>
+                </article>
+
+                <article class="cm-do-card">
+                    <div class="cm-do-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+                    </div>
+                    <h3>Roblox community</h3>
+                    <p>Events, competitive clans and original Roblox experiences. Developer, clan leader or just here to hang out, there is a place for you.</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- =====================================
+             02 — TEAMS
+             ===================================== -->
+        <section class="section" id="teams">
+            <div class="section-header">
+                <span class="section-num">02</span>
+                <h2>THE TEAMS</h2>
+                <div class="section-line"><div class="line"></div></div>
+            </div>
+
+            <div class="cm-teams-grid">
+                <article class="cm-team-card">
+                    <div class="cm-team-head">
+                        <span class="cm-team-badge">◈</span>
+                        <span class="cm-team-size">CORE</span>
+                    </div>
+                    <h3>Development</h3>
+                    <p>Builds the software, games and tools. Code, systems, and the occasional late-night bug hunt.</p>
+                </article>
+
+                <article class="cm-team-card">
+                    <div class="cm-team-head">
+                        <span class="cm-team-badge">◈</span>
+                        <span class="cm-team-size">GROWING</span>
+                    </div>
+                    <h3>Roblox &amp; Games</h3>
+                    <p>Original Roblox experiences, game design, playtesting and the competitive side with Apex Clan.</p>
+                </article>
+
+                <article class="cm-team-card">
+                    <div class="cm-team-head">
+                        <span class="cm-team-badge">◈</span>
+                        <span class="cm-team-size">OPEN</span>
+                    </div>
+                    <h3>Community</h3>
+                    <p>Moderation, events and keeping the vibe good. These are the people who make new members feel at home.</p>
+                </article>
+
+                <article class="cm-team-card">
+                    <div class="cm-team-head">
+                        <span class="cm-team-badge">◈</span>
+                        <span class="cm-team-size">OPEN</span>
+                    </div>
+                    <h3>Creative</h3>
+                    <p>Art, UI, motion graphics and branding. Everything you see on SPECSOFT® started as someone's sketch.</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- =====================================
+             CHAT CTA BANNER
+             ===================================== -->
+        <section class="section" id="chat">
+            <div class="cm-chat-cta">
+                <div class="cm-chat-cta-glow"></div>
+                <div class="cm-chat-cta-body">
+                    <div class="cm-chat-cta-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                    </div>
+                    <span class="cm-chat-cta-kicker">Come say hi</span>
+                    <h2 class="cm-chat-cta-title">Chat with the community</h2>
+                    <p class="cm-chat-cta-desc">
+                        Ask questions, share what you are making, find a clan or a teammate.
+                        The best ideas here started as a message.
+                    </p>
+                    <a href="chats.html" class="btn-primary cm-chat-cta-btn" style="display: inline-flex;">
+                        CHAT WITH THE COMMUNITY
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- =====================================
+             03 — CAREERS
+             ===================================== -->
+        <section class="section" id="careers">
+            <div class="section-header">
+                <span class="section-num">03</span>
+                <h2>CAREERS</h2>
+                <div class="section-line"><div class="line"></div></div>
+            </div>
+
+            <p class="cm-careers-lead">
+                SPECSOFT® is independent and growing. If you like building things with people who care about
+                the craft, there is probably a spot for you. Pick a role below, or pitch your own.
+            </p>
+
+            <div class="cm-careers-grid">
+                <article class="cm-career-card">
+                    <div class="cm-career-meta">
+                        <span class="cm-career-tag">OPEN</span>
+                        <span class="cm-career-type">COMMUNITY</span>
+                    </div>
+                    <h3>Community Moderator</h3>
+                    <p>Keep chats friendly, welcome new members and help us grow a community people actually want to hang out in.</p>
+                    <a href="contact.html" class="cm-career-link">
+                        Apply
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                </article>
+
+                <article class="cm-career-card">
+                    <div class="cm-career-meta">
+                        <span class="cm-career-tag">OPEN</span>
+                        <span class="cm-career-type">DEVELOPMENT</span>
+                    </div>
+                    <h3>Roblox Developer</h3>
+                    <p>Script systems, build features and help ship original Roblox experiences with the rest of the team.</p>
+                    <a href="contact.html" class="cm-career-link">
+                        Apply
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                </article>
+
+                <article class="cm-career-card">
+                    <div class="cm-career-meta">
+                        <span class="cm-career-tag">OPEN</span>
+                        <span class="cm-career-type">CREATIVE</span>
+                    </div>
+                    <h3>UI &amp; Motion Designer</h3>
+                    <p>Shape how SPECSOFT® looks and moves: interfaces, logos, intros and everything in between.</p>
+                    <a href="contact.html" class="cm-career-link">
+                        Apply
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                </article>
+
+                <article class="cm-career-card cm-career-card--add">
+                    <div class="cm-career-meta">
+                        <span class="cm-career-tag">YOUR IDEA</span>
+                        <span class="cm-career-type">ANYTHING</span>
+                    </div>
+                    <h3>Don't see your role?</h3>
+                    <p>Tell us what you want to build or run. If it makes the community better, we want to hear it.</p>
+                    <a href="contact.html" class="cm-career-link">
+                        Pitch it
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                </article>
+            </div>
+        </section>
+
+        <!-- =====================================
+             04 — CREDITS (filled by main.js, needs these exact ids)
+             ===================================== -->
+        <section class="section" id="credits">
+            <div class="section-header">
+                <span class="section-num">04</span>
+                <h2>CREDITS</h2>
+                <div class="section-line"><div class="line"></div></div>
+            </div>
+
+            <p class="cm-careers-lead">The people who build, run and shape SPECSOFT®.</p>
+
+            <div class="cm-credits cr-root" id="cmCredits">
+
+                <!-- LIVE badge + who is around -->
+                <div class="cr-bar">
+                    <span class="cr-live" id="crLive" data-live="false" role="status">
+                        <span class="cr-live-dot"></span><span id="crLiveText">STATUS</span>
+                    </span>
+                    <span class="cr-summary" id="crSummary"></span>
+                    <span class="cr-hint" id="crHint">DRAG OR SWIPE</span>
+                </div>
+
+                <!-- 3D cards (built by main.js) -->
+                <div class="cr-carousel" id="crCarousel" role="region" aria-roledescription="carousel" aria-label="Credits" tabindex="0">
+                    <div class="cr-stage" id="crStage">
+                        <div class="cr-floor" aria-hidden="true"></div>
+                        <div class="cr-track" id="crTrack"></div>
+                    </div>
+
+                    <div class="cr-nav" id="crNav">
+                        <button type="button" class="cr-arrow" id="crPrev" aria-label="Previous credit">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </button>
+                        <div class="cr-dots" id="crDots" aria-label="Choose a credit"></div>
+                        <span class="cr-counter" id="crCounter"></span>
+                        <button type="button" class="cr-arrow" id="crNext" aria-label="Next credit">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Status legend -->
+                <ul class="cr-legend" aria-label="Status legend">
+                    <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#23a55a"/></svg> ACTIVE</li>
+                    <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#f23f43"/><rect class="cr-dnd-bar" x="4.5" y="8.4" width="11" height="3.2" rx="1.6"/></svg> DO NOT DISTURB</li>
+                    <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#f0b232"/></svg> IDLE</li>
+                    <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#80848e"/></svg> OFFLINE</li>
+                </ul>
+
+                <p class="cr-sr" id="crAnnounce" aria-live="polite"></p>
+            </div>
+        </section>
+
+        <!-- FOOTER CTA (same as index.html) -->
+        <section class="footer-cta" id="contact">
+            <img src="logo.png" alt="SPECSOFT Logo" class="footer-logo logo-light" onerror="this.style.display='none';">
+            <img src="logo-dark.png" alt="SPECSOFT Logo" class="footer-logo logo-dark" onerror="this.style.display='none';">
+
+            <h2>READY TO JOIN THE BUILD?</h2>
+            <p>Whether you want to code, create, moderate or just hang out, there is a seat for you.</p>
+            <a href="chats.html" class="btn-primary" style="display: inline-flex;">
+                CHAT WITH THE COMMUNITY
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </section>
+
+    </main>
+
+    <!-- Your existing main.js already contains the community counter and the credits carousel -->
+    <script src="main.js"></script>
+    <script src="gate.js"></script>
+
+</body>
+</html>

@@ -1,10 +1,11 @@
 /* ==========================================================================
-   SPECSOFT® — Main JavaScript
-   Combines:
+      Combines:
      • Global layout (sidebar, theme, mobile menu, dropdowns, favicon)
-     • Projects Hub (feed, filters, dialog, likes/saves)
-   Load at the bottom of <body>. On pages without #phGrid, the projects
-   half exits immediately — zero cost.
+     • Projects Hub (feed, filters, dialog, likes/saves)  → needs #phGrid
+     • Community (animated member counter)                → needs #cmMemberCount
+     • Credits Carousel (3D coverflow)                    → needs #cmCredits
+   Load at the bottom of <body>. Each page-specific module self-guards and
+   exits immediately if its target elements are not on the page.
    ========================================================================== */
 
 (function () {
@@ -155,9 +156,9 @@
                  alt="SPECSOFT Logo"
                  class="logo-img logo-dark"
                  onerror="this.style.display='none';">
-            SPECSOFT® [BETA]
+            SPECSOFT®
         </a>
-        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle Navigation">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle Navigation" aria-expanded="false" aria-controls="sidebar">
             <span></span>
             <span></span>
             <span></span>
@@ -183,12 +184,12 @@
         const pageKey = currentPage.replace('.html', '');
 
         const navMap = {
-            '': 'home',
-            'index': 'home',
-            'home': 'home',
+            '':          'home',
+            'index':     'home',
+            'home':      'home',
             'community': 'community',
-            'store': 'store',
-            'roblox': 'roblox'
+            'store':     'store',
+            'roblox':    'roblox'
         };
 
         const activeKey = navMap[pageKey] || null;
@@ -208,7 +209,7 @@
        ---------------------------------------------------------------------- */
     function initThemeToggle() {
         const themeToggle = document.getElementById('themeToggle');
-        const themeLabel = document.getElementById('themeLabel');
+        const themeLabel  = document.getElementById('themeLabel');
 
         if (!themeToggle) return;
 
@@ -219,15 +220,9 @@
         }
 
         themeToggle.addEventListener('click', function () {
-            document.body.classList.toggle('light-mode');
-
-            if (document.body.classList.contains('light-mode')) {
-                localStorage.setItem('specsoft-theme', 'light');
-                if (themeLabel) themeLabel.textContent = 'LIGHT MODE';
-            } else {
-                localStorage.setItem('specsoft-theme', 'dark');
-                if (themeLabel) themeLabel.textContent = 'DARK MODE';
-            }
+            const isLight = document.body.classList.toggle('light-mode');
+            localStorage.setItem('specsoft-theme', isLight ? 'light' : 'dark');
+            if (themeLabel) themeLabel.textContent = isLight ? 'LIGHT MODE' : 'DARK MODE';
         });
     }
 
@@ -236,53 +231,64 @@
        ---------------------------------------------------------------------- */
     function initMobileSidebar() {
         const hamburgerBtn = document.getElementById('hamburgerBtn');
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebarOverlay');
+        const sidebar      = document.getElementById('sidebar');
+        const overlay      = document.getElementById('sidebarOverlay');
 
         if (!hamburgerBtn || !sidebar || !overlay) return;
 
-        function toggleSidebar() {
-            hamburgerBtn.classList.toggle('active');
-            sidebar.classList.toggle('open');
-            overlay.classList.toggle('active');
-
-            document.body.style.overflow =
-                sidebar.classList.contains('open') ? 'hidden' : '';
+        function setOpen(open) {
+            hamburgerBtn.classList.toggle('active', open);
+            sidebar.classList.toggle('open', open);
+            overlay.classList.toggle('active', open);
+            hamburgerBtn.setAttribute('aria-expanded', String(open));
+            document.body.style.overflow = open ? 'hidden' : '';
         }
 
-        function closeSidebar() {
-            hamburgerBtn.classList.remove('active');
-            sidebar.classList.remove('open');
-            overlay.classList.remove('active');
-            document.body.style.overflow = '';
-        }
+        hamburgerBtn.addEventListener('click', () => {
+            setOpen(!sidebar.classList.contains('open'));
+        });
 
-        hamburgerBtn.addEventListener('click', toggleSidebar);
-        overlay.addEventListener('click', closeSidebar);
+        overlay.addEventListener('click', () => setOpen(false));
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-                closeSidebar();
+                setOpen(false);
             }
         });
 
-        window.closeSidebar = closeSidebar;
+        window.closeSidebar = () => setOpen(false);
     }
 
     /* ----------------------------------------------------------------------
        1.7 PROJECTS DROPDOWN
        ---------------------------------------------------------------------- */
     function initProjectsDropdown() {
-        const projectsToggle = document.getElementById('projectsToggle');
+        const projectsToggle   = document.getElementById('projectsToggle');
         const projectsDropdown = document.getElementById('projectsDropdown');
 
         if (!projectsToggle || !projectsDropdown) return;
 
+        function setOpen(open) {
+            projectsToggle.classList.toggle('dropdown-open', open);
+            projectsDropdown.classList.toggle('open', open);
+            projectsToggle.setAttribute('aria-expanded', String(open));
+        }
+
+        projectsToggle.setAttribute('role', 'button');
+        projectsToggle.setAttribute('tabindex', '0');
+        projectsToggle.setAttribute('aria-expanded', 'false');
+
         projectsToggle.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            projectsToggle.classList.toggle('dropdown-open');
-            projectsDropdown.classList.toggle('open');
+            setOpen(!projectsToggle.classList.contains('dropdown-open'));
+        });
+
+        projectsToggle.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setOpen(!projectsToggle.classList.contains('dropdown-open'));
+            }
         });
     }
 
@@ -290,37 +296,27 @@
        1.8 INJECT FAVICON (system dark/light mode)
        ---------------------------------------------------------------------- */
     function injectFavicon() {
-        const existing = document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
-        if (existing) return;
+        if (document.querySelector('link[rel="icon"], link[rel="shortcut icon"]')) return;
 
-        const fallback = document.createElement('link');
-        fallback.rel = 'icon';
-        fallback.type = 'image/png';
-        fallback.href = 'logo.png';
-        document.head.appendChild(fallback);
+        const links = [
+            { rel: 'icon',             href: 'logo.png',      media: null },
+            { rel: 'icon',             href: 'logo.png',      media: '(prefers-color-scheme: dark)' },
+            { rel: 'icon',             href: 'logo-dark.png', media: '(prefers-color-scheme: light)' },
+            { rel: 'apple-touch-icon', href: 'logo.png',      media: null }
+        ];
 
-        const darkFavicon = document.createElement('link');
-        darkFavicon.rel = 'icon';
-        darkFavicon.type = 'image/png';
-        darkFavicon.href = 'logo.png';
-        darkFavicon.media = '(prefers-color-scheme: dark)';
-        document.head.appendChild(darkFavicon);
-
-        const lightFavicon = document.createElement('link');
-        lightFavicon.rel = 'icon';
-        lightFavicon.type = 'image/png';
-        lightFavicon.href = 'logo-dark.png';
-        lightFavicon.media = '(prefers-color-scheme: light)';
-        document.head.appendChild(lightFavicon);
-
-        const apple = document.createElement('link');
-        apple.rel = 'apple-touch-icon';
-        apple.href = 'logo.png';
-        document.head.appendChild(apple);
+        links.forEach(function (item) {
+            const link = document.createElement('link');
+            link.rel = item.rel;
+            link.href = item.href;
+            if (item.rel === 'icon') link.type = 'image/png';
+            if (item.media) link.media = item.media;
+            document.head.appendChild(link);
+        });
     }
 
     /* ======================================================================
-       PART 2 — PROJECTS HUB (only runs on pages that have #phGrid)
+       PART 2 — PROJECTS HUB (needs #phGrid)
        ====================================================================== */
     function initProjectsHub() {
         const grid = document.getElementById('phGrid');
@@ -396,7 +392,10 @@
            ------------------------------------------------------------------ */
         const $  = (s, r = document) => r.querySelector(s);
         const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-        const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
 
         const svg = inner =>
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + inner + '</svg>';
@@ -428,7 +427,9 @@
                 } catch (e) { return fallback; }
             },
             set(key, value) {
-                try { localStorage.setItem('specsoft.hub.' + key, JSON.stringify(value)); } catch (e) { /* storage blocked */ }
+                try {
+                    localStorage.setItem('specsoft.hub.' + key, JSON.stringify(value));
+                } catch (e) { /* storage blocked */ }
             }
         };
 
@@ -442,18 +443,25 @@
         const empty    = $('#phEmpty');
         const emptyTxt = $('#phEmptyText');
 
-        const byId  = {};
+        const byId = {};
         PROJECTS.forEach(p => { byId[p.id] = p; });
 
         const liked = new Set(store.get('liked', []));
         const saved = new Set(store.get('saved', []));
-        const state = { q: '', cat: 'all', sort: 'newest', view: store.get('view', 'grid'), onlySaved: false };
+
+        const state = {
+            q: '',
+            cat: 'all',
+            sort: 'newest',
+            view: store.get('view', 'grid'),
+            onlySaved: false
+        };
 
         let lastFocus = null;
         let toastEl = null;
         let toastTimer = null;
 
-        const catLabel = id => (CATEGORIES.find(c => c.id === id) || {}).label || id;
+        const catLabel  = id => (CATEGORIES.find(c => c.id === id) || {}).label || id;
         const likeCount = p => (p.likes || 0) + (liked.has(p.id) ? 1 : 0);
 
         /* ------------------------------------------------------------------
@@ -489,7 +497,8 @@
         }
 
         function actionsHTML(p) {
-            const id = esc(p.id), name = esc(p.title);
+            const id = esc(p.id);
+            const name = esc(p.title);
             return '<button type="button" class="ph-act" data-like data-id="' + id + '" aria-pressed="false" aria-label="Like ' + name + '">' +
                     ICON.heart + '<span class="ph-count"></span></button>' +
                 '<button type="button" class="ph-act" data-share data-id="' + id + '" aria-label="Copy link to ' + name + '" title="Copy link">' +
@@ -500,13 +509,18 @@
 
         function cardHTML(p, i) {
             const id = esc(p.id);
+
             const media = p.teaser
                 ? '<div class="ph-media">' + mediaInner(p) + '</div>'
                 : '<button type="button" class="ph-media" data-open data-id="' + id + '" aria-label="Open ' + esc(p.title) + '">' + mediaInner(p) + '</button>';
+
             const title = p.teaser
                 ? esc(p.title)
                 : '<button type="button" data-open data-id="' + id + '">' + esc(p.title) + '</button>';
-            const actions = p.teaser ? '' : '<div class="ph-actions">' + actionsHTML(p) + '</div>';
+
+            const actions = p.teaser
+                ? ''
+                : '<div class="ph-actions">' + actionsHTML(p) + '</div>';
 
             return '<article class="ph-card" data-id="' + id + '" style="--i:' + i + '">' +
                 headHTML(p) + media + actions +
@@ -531,12 +545,15 @@
             $('#phViewList').innerHTML   = ICON.list;
             $('#phDClose').innerHTML     = ICON.close;
 
-            const stories = PROJECTS.filter(p => p.featured && !p.teaser).map(p =>
-                '<button type="button" class="ph-story" role="listitem" data-open data-id="' + esc(p.id) + '">' +
-                    '<span class="ph-ring"><span class="ph-ring-core">' + (ICON[p.category] || ICON.software) + '</span></span>' +
-                    '<span class="ph-story-label">' + esc(p.title) + '</span>' +
-                '</button>'
-            ).join('');
+            const stories = PROJECTS
+                .filter(p => p.featured && !p.teaser)
+                .map(p =>
+                    '<button type="button" class="ph-story" role="listitem" data-open data-id="' + esc(p.id) + '">' +
+                        '<span class="ph-ring"><span class="ph-ring-core">' + (ICON[p.category] || ICON.software) + '</span></span>' +
+                        '<span class="ph-story-label">' + esc(p.title) + '</span>' +
+                    '</button>'
+                ).join('');
+
             $('#phStories').innerHTML = stories +
                 '<a class="ph-story ph-story--add" role="listitem" href="contact.html">' +
                     '<span class="ph-ring"><span class="ph-ring-core">' + ICON.plus + '</span></span>' +
@@ -544,10 +561,13 @@
                 '</a>';
 
             const chips = [{ id: 'all', label: 'All' }].concat(CATEGORIES).map(c => {
-                const n = c.id === 'all' ? PROJECTS.length : PROJECTS.filter(p => p.category === c.id).length;
+                const n = c.id === 'all'
+                    ? PROJECTS.length
+                    : PROJECTS.filter(p => p.category === c.id).length;
                 return '<button type="button" class="ph-chip" data-cat="' + c.id + '" aria-pressed="' + (c.id === 'all') + '">' +
                     esc(c.label) + ' <span class="ph-chip-n">' + n + '</span></button>';
             }).join('');
+
             $('#phChips').innerHTML = chips;
 
             grid.innerHTML = PROJECTS.map(cardHTML).join('');
@@ -574,7 +594,8 @@
             let shown = 0;
 
             PROJECTS.forEach(p => {
-                const hay = [p.title, p.summary, p.type, catLabel(p.category), (p.tags || []).join(' ')].join(' ').toLowerCase();
+                const hay = [p.title, p.summary, p.type, catLabel(p.category), (p.tags || []).join(' ')]
+                    .join(' ').toLowerCase();
                 const ok = (state.cat === 'all' || p.category === state.cat) &&
                            (!q || hay.includes(q)) &&
                            (!state.onlySaved || saved.has(p.id));
@@ -582,7 +603,9 @@
                 if (ok) shown++;
             });
 
-            PROJECTS.slice().sort(sorters[state.sort]).forEach((p, i) => { cardEls[p.id].style.order = i; });
+            PROJECTS.slice().sort(sorters[state.sort]).forEach((p, i) => {
+                cardEls[p.id].style.order = i;
+            });
 
             grid.dataset.view = state.view;
             $$('[data-view-btn]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.viewBtn === state.view)));
@@ -607,6 +630,7 @@
         function sync(id, pop) {
             const p = byId[id];
             if (!p) return;
+
             const n = likeCount(p);
 
             $$('[data-like][data-id="' + id + '"]').forEach(b => {
@@ -659,6 +683,7 @@
         async function share(id) {
             const p = byId[id];
             if (!p) return;
+
             const url = location.href.split('#')[0] + '#' + id;
 
             if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
@@ -704,11 +729,11 @@
 
             if (!dlg.open) lastFocus = document.activeElement;
 
-            $('#phDMedia').innerHTML = mediaInner(p);
-            $('#phDHead').innerHTML  = headHTML(p);
+            $('#phDMedia').innerHTML   = mediaInner(p);
+            $('#phDHead').innerHTML    = headHTML(p);
             $('#phDTitle').textContent = p.title;
             $('#phDText').textContent  = p.details || p.summary;
-            $('#phDMeta').innerHTML = [['Type', p.type], ['Year', p.year], ['Status', STATUS[p.status] || '']]
+            $('#phDMeta').innerHTML    = [['Type', p.type], ['Year', p.year], ['Status', STATUS[p.status] || '']]
                 .map(row => '<div><dt>' + row[0] + '</dt><dd>' + esc(row[1]) + '</dd></div>').join('');
             $('#phDTags').innerHTML    = tagsHTML(p);
             $('#phDActions').innerHTML = actionsHTML(p);
@@ -736,7 +761,9 @@
             if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
         });
 
-        dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+        dlg.addEventListener('click', e => {
+            if (e.target === dlg) dlg.close();
+        });
 
         function openFromHash() {
             const id = decodeURIComponent(location.hash.slice(1));
@@ -766,14 +793,28 @@
             apply();
         });
 
-        search.addEventListener('input', () => { state.q = search.value; apply(); });
-        search.addEventListener('keydown', e => {
-            if (e.key === 'Escape' && search.value) { search.value = ''; state.q = ''; apply(); }
+        search.addEventListener('input', () => {
+            state.q = search.value;
+            apply();
         });
 
-        sortSel.addEventListener('change', () => { state.sort = sortSel.value; apply(); });
+        search.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && search.value) {
+                search.value = '';
+                state.q = '';
+                apply();
+            }
+        });
 
-        $('#phSaved').addEventListener('click', () => { state.onlySaved = !state.onlySaved; apply(); });
+        sortSel.addEventListener('change', () => {
+            state.sort = sortSel.value;
+            apply();
+        });
+
+        $('#phSaved').addEventListener('click', () => {
+            state.onlySaved = !state.onlySaved;
+            apply();
+        });
 
         $$('[data-view-btn]').forEach(b => b.addEventListener('click', () => {
             state.view = b.dataset.viewBtn;
@@ -782,7 +823,9 @@
         }));
 
         $('#phClear').addEventListener('click', () => {
-            state.q = ''; state.cat = 'all'; state.onlySaved = false;
+            state.q = '';
+            state.cat = 'all';
+            state.onlySaved = false;
             search.value = '';
             apply();
         });
@@ -801,17 +844,649 @@
            2.10 INIT
            ------------------------------------------------------------------ */
         build();
+
         if (state.view !== 'grid' && state.view !== 'list') state.view = 'grid';
+
         PROJECTS.forEach(p => { if (!p.teaser) sync(p.id); });
+
         apply();
         openFromHash();
     }
 
     /* ======================================================================
+       PART 2.5 — COMMUNITY (needs #cmMemberCount)
+       ====================================================================== */
+    function initCommunity() {
+        const counter = document.getElementById('cmMemberCount');
+        if (!counter) return;
+
+        const target = parseInt(counter.dataset.target, 10) || 247;
+
+        const reduceMotion = window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        if (reduceMotion) {
+            counter.textContent = target.toLocaleString();
+            return;
+        }
+
+        const DURATION = 1400;
+        const easeOut = t => 1 - Math.pow(1 - t, 3);
+
+        let startTime = null;
+
+        function step(now) {
+            if (startTime === null) startTime = now;
+            const t = Math.min((now - startTime) / DURATION, 1);
+            counter.textContent = Math.round(easeOut(t) * target).toLocaleString();
+            if (t < 1) requestAnimationFrame(step);
+        }
+
+        requestAnimationFrame(step);
+    }
+
+    /* ======================================================================
+       PART 2.6 — CREDITS: 3D SWIPEABLE CARDS + PRESENCE (needs #cmCredits)
+       ----------------------------------------------------------------------
+       • Drag / swipe / arrow keys / dots / click a side card
+       • Discord-style status icons: active, do not disturb, idle, offline
+       • LIVE badge: turns on when presence is pulled from Discord (see notes)
+       ====================================================================== */
+    function initCreditsCarousel() {
+        const root = document.getElementById('cmCredits');
+        if (!root) return;
+
+        /* ------------------------------------------------------------------
+           2.6.1 CREDITS DATA — edit this to add/remove people
+           ------------------------------------------------------------------
+           status    'online' (green) | 'dnd' (red + bar) | 'idle' (yellow moon) | 'offline' (grey)
+                     This is the manual fallback. It is replaced automatically
+                     when a discordId is set and the live lookup works.
+           discordId OPTIONAL. A Discord user ID (Settings > Advanced > Developer
+                     Mode, then right-click the profile > Copy User ID).
+                     The person must also join the Lanyard Discord server
+                     (discord.gg/lanyard) for live status to work.
+           avatar    OPTIONAL image path/URL. Empty = Discord avatar (if live)
+                     or the initial letter.
+           tags      OPTIONAL small chips.
+           links     OPTIONAL buttons: { label, url }.
+           placeholder  true = dashed "open slot" card (no status icon).
+           ------------------------------------------------------------------ */
+        const CREDITS = [
+            {
+                initial: 'S',
+                name: 'SPECSOFT® Founder',
+                handle: '@aspec_404',
+                role: 'Founder / Lead Developer',
+                bio: 'Building SPECSOFT from the ground up. Software, games, and everything in between.',
+                status: 'dnd',
+                discordId: '',
+                avatar: 'https://cdn.discordapp.com/avatars/952887396339437578/47f036ea387e4527969112aa2debb024.png?size=1024',
+                tags: ['Development', 'Softwares'],
+                links: []
+            },
+            {
+                initial: 'K',
+                name: 'SPECSOFT® Community Head Management',
+                handle: '@nothingtazuna',
+                role: 'Community Manager / Supporter',
+                bio: 'Join the community and help build what comes next.',
+                status: 'online',
+                discordId: '',
+                avatar: 'https://cdn.discordapp.com/avatars/888045612606578708/9a16271ee03525e5eaa66e02878897b2.png?size=1024',
+                tags: ['Development', 'Support'],
+                links: []
+            },
+            {
+                initial: 'U',
+                name: 'SPECSOFT® Operations Chairman',
+                handle: '@solarnamer',
+                role: 'Contributor / Operations / Recruitment',
+                bio: 'Join the community and help build what comes next.',
+                status: 'idle',
+                discordId: '',
+                avatar: 'https://cdn.discordapp.com/avatars/991653286719524997/56c02f007eb5bee3c8cc823f1eabe136.png?size=1024',
+                tags: ['Recruitment', 'Operations'],
+                links: []
+            },
+            {
+                initial: 'A',
+                name: 'SPECSOFT® Moderation Team',
+                handle: '@.ynn4v1',
+                role: 'Enforcer / Moderator',
+                bio: 'Keeping the community safe and fun for everyone, away from the chaos.',
+                status: 'idle',
+                discordId: '',
+                avatar: 'https://cdn.discordapp.com/avatars/1524043677696135309/e8ef21c447f8450d4d9a5eb80c12f1ab.png?size=1024',
+                tags: ['Moderation'],
+                links: []
+            },
+            {
+                initial: 'E',
+                name: 'SPECSOFT® Early Supporter',
+                handle: '@escobedo1233037',
+                role: 'Early Supporter / VIP',
+                bio: 'Supporting the community and helping it grow from the start. "Yeah i\'m helping the community grow and i will be here for a long time." - Escobedo1233037',
+                status: 'online',
+                discordId: '',
+                avatar: 'https://cdn.discordapp.com/avatars/753396554462789693/5361cc9a2465362cf30c5a43839a4d63.png?size=1024',
+                tags: ['Supporter', 'VIP'],
+                links: []
+            },
+            {
+                initial: 'R',
+                name: 'SPECSOFT® Community Management',
+                handle: '@itztwilight_',
+                role: 'Community Manager / Development',
+                bio: 'Helping the community grow and assisting in development. "I\'m here to help the community grow and make it a better place." - itztwilight_',
+                status: 'idle',
+                discordId: '',
+                avatar: 'https://cdn.discordapp.com/avatars/1218806016339214386/488729882cd45640fbb95c551fd0fb2a.png?size=1024',
+                tags: ['Community', 'Development'],
+                links: []
+            },
+            {
+                initial: '+',
+                name: 'Join the team!',
+                handle: '@yournamehere',
+                role: 'Open Position',
+                bio: 'We\'re always looking for talented individuals to join our team. If you\'re interested in contributing to the community and helping us grow, reach out to us!',
+                status: 'offline',
+                discordId: '',
+                avatar: '',
+                placeholder: true,
+                links: [{ label: 'Join the team!', url: 'https://discord.gg/a3FEnaMh85' }]
+            }
+        ];
+
+        const PRESENCE_URL = 'https://api.lanyard.rest/v1/users/';
+        const POLL_MS = 45000;
+
+        /* ------------------------------------------------------------------
+           2.6.2 ELEMENTS + HELPERS
+           ------------------------------------------------------------------ */
+        const stage     = document.getElementById('crStage');
+        const track     = document.getElementById('crTrack');
+        const nav       = document.getElementById('crNav');
+        const prevBtn   = document.getElementById('crPrev');
+        const nextBtn   = document.getElementById('crNext');
+        const dotsEl    = document.getElementById('crDots');
+        const counterEl = document.getElementById('crCounter');
+        const liveEl    = document.getElementById('crLive');
+        const liveText  = document.getElementById('crLiveText');
+        const summaryEl = document.getElementById('crSummary');
+        const hintEl    = document.getElementById('crHint');
+        const announce  = document.getElementById('crAnnounce');
+        const carousel  = document.getElementById('crCarousel');
+
+        if (!stage || !track || !carousel) return;
+
+        const total = CREDITS.length;
+        if (!total) { root.hidden = true; return; }
+
+        const reduceMotion = window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+        const safeUrl = u => /^\s*(javascript|data|vbscript):/i.test(u) ? '#' : u;
+        const mod = (n, m) => ((n % m) + m) % m;
+        const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+        const STATUS = {
+            online:  { label: 'ACTIVE',         aria: 'Active' },
+            dnd:     { label: 'DO NOT DISTURB', aria: 'Do not disturb' },
+            idle:    { label: 'IDLE',           aria: 'Idle' },
+            offline: { label: 'OFFLINE',        aria: 'Offline' }
+        };
+
+        /* Status icons (same shapes as Discord): circle, circle + bar, moon, grey circle */
+        function statusIcon(s) {
+            switch (s) {
+                case 'dnd':
+                    return '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">' +
+                           '<circle cx="10" cy="10" r="10" fill="#f23f43"/>' +
+                           '<rect class="cr-dnd-bar" x="4.5" y="8.4" width="11" height="3.2" rx="1.6"/></svg>';
+                case 'idle':
+                    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+                           '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#f0b232"/></svg>';
+                case 'offline':
+                    return '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">' +
+                           '<circle cx="10" cy="10" r="10" fill="#80848e"/></svg>';
+                default:
+                    return '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">' +
+                           '<circle cx="10" cy="10" r="10" fill="#23a55a"/></svg>';
+            }
+        }
+
+        /* ------------------------------------------------------------------
+           2.6.3 BUILD CARDS
+           ------------------------------------------------------------------ */
+        function presenceHTML(c) {
+            if (c.placeholder) return '<span class="cr-slot">OPEN SLOT</span>';
+            const m = STATUS[c.status] || STATUS.offline;
+            return statusIcon(c.status) + '<span>' + m.label + '</span><span class="cr-live-tag">LIVE</span>';
+        }
+
+        function avatarHTML(c) {
+            const src = c.avatar || c.avatarUrl;
+            return '<span class="cr-initial">' + esc(c.initial) + '</span>' +
+                   (src ? '<img src="' + esc(safeUrl(src)) + '" alt="" loading="lazy" onerror="this.remove()">' : '');
+        }
+
+        function cardHTML(c, i) {
+            const status = c.placeholder ? 'slot' : (STATUS[c.status] ? c.status : 'offline');
+            const badge = c.placeholder ? '' :
+                '<span class="cr-status" role="img" aria-label="' + esc((STATUS[status] || STATUS.offline).aria) + '">' +
+                statusIcon(status) + '</span>';
+
+            const tags = (c.tags || []).map(t => '<span>' + esc(t) + '</span>').join('');
+            const links = (c.links || []).map(l => {
+                const url = safeUrl(l.url || '#');
+                const ext = /^https?:\/\//i.test(url);
+                return '<a class="cr-link" href="' + esc(url) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '>' + esc(l.label) + '</a>';
+            }).join('');
+
+            return '<article class="cr-card' + (c.placeholder ? ' cr-card--placeholder' : '') + '"' +
+                    ' data-index="' + i + '" data-status="' + status + '" data-live="false"' +
+                    ' role="group" aria-roledescription="slide" aria-label="' + (i + 1) + ' of ' + total + '">' +
+                '<div class="cr-card-inner">' +
+                    '<div class="cr-surface"><div class="cr-shine"></div><div class="cr-dim"></div></div>' +
+                    '<div class="cr-content">' +
+                        '<i class="cr-bracket cr-bracket--tl"></i><i class="cr-bracket cr-bracket--br"></i>' +
+                        '<div class="cr-top">' +
+                            '<span class="cr-id">ID ' + String(i + 1).padStart(3, '0') + '</span>' +
+                            '<span class="cr-presence">' + presenceHTML(c) + '</span>' +
+                        '</div>' +
+                        '<div class="cr-avatar-wrap">' +
+                            '<span class="cr-avatar-ring"></span>' +
+                            '<span class="cr-avatar">' + avatarHTML(c) + '</span>' +
+                            badge +
+                        '</div>' +
+                        '<h3 class="cr-name">' + esc(c.name) + '</h3>' +
+                        '<p class="cr-handle">' + esc(c.handle) + '</p>' +
+                        '<p class="cr-role">' + esc(c.role) + '</p>' +
+                        '<p class="cr-bio">' + esc(c.bio) + '</p>' +
+                        (tags ? '<div class="cr-tags">' + tags + '</div>' : '') +
+                        (links ? '<div class="cr-links">' + links + '</div>' : '') +
+                    '</div>' +
+                '</div>' +
+            '</article>';
+        }
+
+        track.innerHTML = CREDITS.map(cardHTML).join('');
+        const cards = Array.from(track.children);
+
+        let dots = [];
+        if (total > 1) {
+            dotsEl.innerHTML = CREDITS.map((c, i) =>
+                '<button type="button" class="cr-dot" data-index="' + i + '" aria-label="Show ' + esc(c.name) + '"></button>'
+            ).join('');
+            dots = Array.from(dotsEl.children);
+        } else {
+            if (nav) nav.hidden = true;
+            if (hintEl) hintEl.hidden = true;
+        }
+
+        /* ------------------------------------------------------------------
+           2.6.4 3D LAYOUT (continuous position so dragging feels physical)
+           ------------------------------------------------------------------ */
+        const wrap = total >= 3;          // loop around when there are 3+ cards
+        let pos = 0;                      // current (fractional) position
+        let target = 0;                   // where we are animating to
+        let raf = 0;
+        let stepX = 260;                  // horizontal distance between cards
+        let spread = reduceMotion ? 1 : 0; // intro: cards fan out from the middle
+        let curIdx = -1;
+
+        function measure() {
+            stepX = clamp(stage.clientWidth * 0.31, 80, 270);
+        }
+
+        function offsetOf(i) {
+            let d = i - pos;
+            if (wrap) d -= total * Math.round(d / total);
+            return d;
+        }
+
+        function render() {
+            const near = wrap ? mod(Math.round(pos), total) : clamp(Math.round(pos), 0, total - 1);
+
+            for (let i = 0; i < total; i++) {
+                const d = offsetOf(i);
+                const a = Math.abs(d);
+                const dir = d < 0 ? -1 : 1;
+
+                const x = dir * (a <= 1 ? a * stepX : stepX + (a - 1) * stepX * 0.3) * spread;
+                const z = -Math.min(a, 2.5) * 150;
+                const rot = -dir * Math.min(a, 1) * 42 * spread;
+                const sc = 1 - Math.min(a, 2) * 0.09;
+
+                let op = a <= 1 ? 1 - a * 0.18 : Math.max(0, 0.82 - (a - 1) * 0.9);
+                if (wrap) op *= clamp((total / 2 - a) / 0.5, 0, 1);
+
+                const el = cards[i];
+                el.style.transform = 'translate3d(' + x.toFixed(1) + 'px,0,' + z.toFixed(1) + 'px) rotateY(' + rot.toFixed(1) + 'deg) scale(' + sc.toFixed(3) + ')';
+                el.style.opacity = op.toFixed(3);
+                el.style.zIndex = String(Math.round(100 - a * 10));
+                el.style.setProperty('--dim', (Math.min(a, 1) * 0.5).toFixed(3));
+                el.style.pointerEvents = op < 0.05 ? 'none' : '';
+            }
+
+            if (near !== curIdx) setActive(near);
+        }
+
+        function setActive(i) {
+            curIdx = i;
+            cards.forEach((el, n) => {
+                const on = n === i;
+                el.classList.toggle('is-active', on);
+                el.setAttribute('aria-hidden', on ? 'false' : 'true');
+                el.querySelectorAll('a, button').forEach(f => { f.tabIndex = on ? 0 : -1; });
+            });
+            dots.forEach((d, n) => d.setAttribute('aria-current', String(n === i)));
+            if (counterEl) counterEl.textContent = String(i + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+            resetTilt();
+
+            if (announce) {
+                const c = CREDITS[i];
+                const st = c.placeholder ? 'open slot' : (STATUS[c.status] || STATUS.offline).aria;
+                announce.textContent = (i + 1) + ' of ' + total + ': ' + c.name + ', ' + st;
+            }
+        }
+
+        function tick() {
+            const diff = target - pos;
+            if (Math.abs(diff) < 0.0008) {
+                pos = target;
+                raf = 0;
+                render();
+                return;
+            }
+            pos += diff * 0.16;
+            render();
+            raf = requestAnimationFrame(tick);
+        }
+
+        function animate() {
+            if (reduceMotion) { pos = target; render(); return; }
+            if (!raf) raf = requestAnimationFrame(tick);
+        }
+
+        function goTo(i) {
+            const base = Math.round(target);
+            if (wrap) {
+                let d = mod(i - base, total);
+                if (d > total / 2) d -= total;
+                target = base + d;
+            } else {
+                target = clamp(i, 0, total - 1);
+            }
+            animate();
+        }
+
+        function step(n) {
+            const base = Math.round(target) + n;
+            target = wrap ? base : clamp(base, 0, total - 1);
+            animate();
+        }
+
+        /* ------------------------------------------------------------------
+           2.6.5 DRAG / SWIPE (with momentum)
+           ------------------------------------------------------------------ */
+        let drag = null;
+        let justDragged = false;
+
+        function onDown(e) {
+            if (total < 2) return;
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            if (e.target.closest('a, button')) return;
+            drag = {
+                id: e.pointerId, x: e.clientX, y: e.clientY, pos0: pos,
+                lastX: e.clientX, lastT: performance.now(), v: 0, axis: null
+            };
+        }
+
+        function onMove(e) {
+            if (!drag || e.pointerId !== drag.id) return;
+            const dx = e.clientX - drag.x;
+            const dy = e.clientY - drag.y;
+
+            if (!drag.axis) {
+                if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+                drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+                if (drag.axis === 'x') {
+                    try { stage.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                    stage.classList.add('is-dragging');
+                    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+                    resetTilt();
+                }
+            }
+            if (drag.axis !== 'x') return;
+
+            const now = performance.now();
+            const dt = Math.max(1, now - drag.lastT);
+            drag.v = 0.8 * drag.v + 0.2 * ((e.clientX - drag.lastX) / dt);
+            drag.lastX = e.clientX;
+            drag.lastT = now;
+
+            let np = drag.pos0 - dx / stepX;
+            if (!wrap) {
+                if (np < 0) np *= 0.35;
+                if (np > total - 1) np = (total - 1) + (np - (total - 1)) * 0.35;
+            }
+            pos = np;
+            target = np;
+            render();
+        }
+
+        function onUp(e) {
+            if (!drag || (e && e.pointerId !== drag.id)) return;
+            const d = drag;
+            drag = null;
+            stage.classList.remove('is-dragging');
+
+            if (d.axis === 'x') {
+                const cardsPerSec = (-d.v * 1000) / stepX;
+                const base = Math.round(d.pos0);
+                let t = Math.round(pos + cardsPerSec * 0.18);
+                t = clamp(t, base - 2, base + 2);
+                target = wrap ? t : clamp(t, 0, total - 1);
+                justDragged = true;
+                setTimeout(() => { justDragged = false; }, 60);
+                animate();
+            }
+        }
+
+        stage.addEventListener('pointerdown', onDown);
+        stage.addEventListener('pointermove', onMove);
+        stage.addEventListener('pointerup', onUp);
+        stage.addEventListener('pointercancel', onUp);
+
+        /* ------------------------------------------------------------------
+           2.6.6 CLICK / KEYBOARD / BUTTONS
+           ------------------------------------------------------------------ */
+        cards.forEach((el, i) => {
+            el.addEventListener('click', e => {
+                if (justDragged) return;
+                if (i !== curIdx && !e.target.closest('a')) goTo(i);
+            });
+        });
+
+        dots.forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
+        if (prevBtn) prevBtn.addEventListener('click', () => step(-1));
+        if (nextBtn) nextBtn.addEventListener('click', () => step(1));
+
+        carousel.addEventListener('keydown', e => {
+            if (total < 2) return;
+            if (e.key === 'ArrowRight')     { e.preventDefault(); step(1); }
+            else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+            else if (e.key === 'Home')      { e.preventDefault(); goTo(0); }
+            else if (e.key === 'End')       { e.preventDefault(); goTo(total - 1); }
+        });
+
+        /* ------------------------------------------------------------------
+           2.6.7 TILT + SHINE on the front card (mouse only)
+           ------------------------------------------------------------------ */
+        const canTilt = !reduceMotion && window.matchMedia &&
+            window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+        function resetTilt() {
+            cards.forEach(el => {
+                el.classList.remove('is-tilting');
+                const inner = el.firstElementChild;
+                inner.style.removeProperty('--rx');
+                inner.style.removeProperty('--ry');
+            });
+        }
+
+        if (canTilt) {
+            stage.addEventListener('pointermove', e => {
+                if (drag || curIdx < 0) return;
+                const el = cards[curIdx];
+                const r = el.getBoundingClientRect();
+                const nx = (e.clientX - r.left) / r.width - 0.5;
+                const ny = (e.clientY - r.top) / r.height - 0.5;
+                if (Math.abs(nx) > 0.6 || Math.abs(ny) > 0.6) { resetTilt(); return; }
+                const inner = el.firstElementChild;
+                inner.style.setProperty('--rx', (-ny * 12).toFixed(2) + 'deg');
+                inner.style.setProperty('--ry', (nx * 16).toFixed(2) + 'deg');
+                el.style.setProperty('--mx', ((nx + 0.5) * 100).toFixed(1) + '%');
+                el.style.setProperty('--my', ((ny + 0.5) * 100).toFixed(1) + '%');
+                el.classList.add('is-tilting');
+            });
+            stage.addEventListener('pointerleave', resetTilt);
+        }
+
+        /* ------------------------------------------------------------------
+           2.6.8 PRESENCE UI (LIVE badge, summary, per-card status)
+           ------------------------------------------------------------------ */
+        let liveOk = false;
+
+        function paintCard(i) {
+            const c = CREDITS[i];
+            if (c.placeholder) return;
+            const el = cards[i];
+            const status = STATUS[c.status] ? c.status : 'offline';
+
+            el.dataset.status = status;
+            el.dataset.live = c.live ? 'true' : 'false';
+            el.querySelector('.cr-presence').innerHTML = presenceHTML(Object.assign({}, c, { status: status }));
+
+            const badge = el.querySelector('.cr-status');
+            badge.innerHTML = statusIcon(status);
+            badge.setAttribute('aria-label', STATUS[status].aria);
+
+            if (c.avatarUrl && !c.avatar && !el.querySelector('.cr-avatar img')) {
+                el.querySelector('.cr-avatar').insertAdjacentHTML('beforeend',
+                    '<img src="' + esc(c.avatarUrl) + '" alt="" loading="lazy" onerror="this.remove()">');
+            }
+        }
+
+        function paintSummary() {
+            const people = CREDITS.filter(c => !c.placeholder);
+            const n = s => people.filter(c => c.status === s).length;
+            const parts = [];
+            if (n('online')) parts.push(n('online') + ' ACTIVE');
+            if (n('idle'))   parts.push(n('idle') + ' IDLE');
+            if (n('dnd'))    parts.push(n('dnd') + ' DND');
+
+            if (summaryEl) {
+                summaryEl.textContent = parts.length ? parts.join('   ') : (people.length ? 'EVERYONE IS OFFLINE' : '');
+            }
+            if (liveEl) liveEl.dataset.live = String(liveOk);
+            if (liveText) liveText.textContent = liveOk ? 'LIVE' : 'STATUS';
+        }
+
+        function paintAll() {
+            for (let i = 0; i < total; i++) paintCard(i);
+            paintSummary();
+        }
+
+        /* ------------------------------------------------------------------
+           2.6.9 LIVE PRESENCE (optional, uses the free Lanyard API)
+           Only runs for people who have a discordId. If anything fails, the
+           manual status above stays in place and nothing breaks.
+           ------------------------------------------------------------------ */
+        async function pullPresence() {
+            const people = CREDITS.filter(c => c.discordId);
+            if (!people.length || !window.fetch) return;
+
+            let ok = 0;
+            await Promise.all(people.map(async c => {
+                try {
+                    const res = await fetch(PRESENCE_URL + encodeURIComponent(c.discordId), { cache: 'no-store' });
+                    if (!res.ok) return;
+                    const json = await res.json();
+                    if (!json || !json.success || !json.data) return;
+
+                    const s = json.data.discord_status;
+                    c.status = STATUS[s] ? s : 'offline';
+                    c.live = true;
+
+                    const u = json.data.discord_user;
+                    if (u && u.avatar && !c.avatar) {
+                        c.avatarUrl = 'https://cdn.discordapp.com/avatars/' + encodeURIComponent(c.discordId) + '/' + encodeURIComponent(u.avatar) + '.png?size=256';
+                    }
+                    ok++;
+                } catch (err) { /* keep manual status */ }
+            }));
+
+            liveOk = ok > 0;
+            paintAll();
+        }
+
+        if (CREDITS.some(c => c.discordId)) {
+            pullPresence();
+            setInterval(() => { if (!document.hidden) pullPresence(); }, POLL_MS);
+            document.addEventListener('visibilitychange', () => { if (!document.hidden) pullPresence(); });
+        }
+
+        /* ------------------------------------------------------------------
+           2.6.10 INIT + ONE-TIME INTRO (cards fan out when scrolled into view)
+           ------------------------------------------------------------------ */
+        function runIntro() {
+            if (spread >= 1) return;
+            const start = performance.now();
+            const DUR = 1000;
+            (function frame(now) {
+                const t = clamp((now - start) / DUR, 0, 1);
+                spread = 1 - Math.pow(1 - t, 3);
+                render();
+                if (t < 1) requestAnimationFrame(frame);
+            })(start);
+        }
+
+        measure();
+        render();
+        paintAll();
+
+        if ('ResizeObserver' in window) {
+            new ResizeObserver(() => { measure(); render(); }).observe(stage);
+        } else {
+            window.addEventListener('resize', () => { measure(); render(); });
+        }
+
+        if (spread < 1) {
+            if ('IntersectionObserver' in window) {
+                const io = new IntersectionObserver(entries => {
+                    if (entries.some(en => en.isIntersecting)) { io.disconnect(); runIntro(); }
+                }, { threshold: 0.35 });
+                io.observe(stage);
+            } else {
+                spread = 1;
+                render();
+            }
+        }
+    }
+
+
+/* ======================================================================
        PART 3 — BOOTSTRAP
        ====================================================================== */
     document.addEventListener('DOMContentLoaded', function () {
-        // Global — runs on every page
+        // Global — every page
         injectFavicon();
         injectLayout();
         highlightActiveNav();
@@ -819,8 +1494,10 @@
         initMobileSidebar();
         initProjectsDropdown();
 
-        // Projects hub — no-op on pages without #phGrid
+        // Page-specific — each self-guards and exits if its elements aren't present
         initProjectsHub();
+        initCommunity();
+        initCreditsCarousel();
     });
 
 })();

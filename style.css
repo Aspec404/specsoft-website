@@ -2860,3 +2860,1631 @@ button.ph-media { cursor: pointer; }
     .ph-card,
     .ph-chip { transition: none; }
 }
+
+/* ==========================================================================
+   SPECSOFT® — Community Page (community.css)
+   Append this to style.css. Every class is prefixed "cm-" so nothing in the
+   base stylesheet gets overridden. Reuses your CSS variables, so light mode
+   works automatically.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. HERO
+   ========================================================================== */
+.cm-hero {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 64px;
+    align-items: center;
+    padding: 80px 0 60px;
+    position: relative;
+}
+
+.cm-hero::before,
+.cm-hero::after {
+    content: '';
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border-color: var(--border-hover);
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.cm-hero::before {
+    top: 0;
+    left: 0;
+    border-top: 1px solid;
+    border-left: 1px solid;
+}
+
+.cm-hero::after {
+    bottom: 0;
+    right: 0;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+}
+
+.cm-hero-left { min-width: 0; }
+
+.cm-h1 {
+    font-size: 76px;
+    line-height: 1.02;
+    font-weight: 400;
+    letter-spacing: -3.5px;
+    margin-bottom: 28px;
+    text-transform: uppercase;
+    animation: fadeInUp 0.8s ease-out 0.1s both;
+    word-wrap: break-word;
+}
+
+.cm-hero-desc {
+    color: var(--text-secondary);
+    max-width: 540px;
+    font-size: 16px;
+    line-height: 1.7;
+    margin-bottom: 40px;
+    font-weight: 300;
+    animation: fadeInUp 0.8s ease-out 0.2s both;
+}
+
+.cm-hero-actions {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 48px;
+    flex-wrap: wrap;
+    animation: fadeInUp 0.8s ease-out 0.3s both;
+}
+
+/* Hero panel (terminal-style card on the right) */
+.cm-hero-right {
+    min-width: 0;
+    animation: fadeInUp 0.8s ease-out 0.3s both;
+}
+
+.cm-hero-panel {
+    background: var(--code-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+        0 30px 60px rgba(0, 0, 0, 0.4),
+        0 0 40px var(--glow-color),
+        inset 0 1px 0 var(--accent-dim);
+    transition: border-color 0.4s ease, transform 0.4s ease, box-shadow 0.4s ease;
+    position: relative;
+}
+
+.cm-hero-panel::before,
+.cm-hero-panel::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-color: var(--accent-strong);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 5;
+}
+
+.cm-hero-panel::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+}
+
+.cm-hero-panel::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+}
+
+.cm-hero-panel:hover::before,
+.cm-hero-panel:hover::after {
+    opacity: 1;
+}
+
+.cm-hero-panel:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-4px);
+    box-shadow:
+        0 40px 80px rgba(0, 0, 0, 0.5),
+        0 0 60px var(--accent-glow),
+        inset 0 1px 0 var(--accent-dim);
+}
+
+.cm-hero-panel-head {
+    background: var(--code-header-bg);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.cm-hero-panel-title {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    letter-spacing: 1px;
+}
+
+.cm-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border-hover);
+}
+
+.cm-dot:nth-child(1) { background: #ff5f56; }
+.cm-dot:nth-child(2) { background: #ffbd2e; }
+.cm-dot:nth-child(3) { background: #27c93f; }
+
+.cm-hero-panel-body {
+    padding: 22px 22px 26px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.9;
+}
+
+.cm-hero-line {
+    display: flex;
+    gap: 14px;
+    padding: 2px 0;
+    animation: fadeInUp 0.5s ease-out both;
+}
+
+.cm-hero-line:nth-child(1) { animation-delay: 0.45s; }
+.cm-hero-line:nth-child(2) { animation-delay: 0.55s; }
+.cm-hero-line:nth-child(3) { animation-delay: 0.65s; }
+.cm-hero-line:nth-child(4) { animation-delay: 0.75s; }
+.cm-hero-line:nth-child(5) { animation-delay: 0.85s; }
+
+.cm-hero-num {
+    color: var(--text-tertiary);
+    opacity: 0.5;
+    min-width: 20px;
+    text-align: right;
+    user-select: none;
+}
+
+.cm-hero-txt {
+    white-space: pre;
+    color: var(--code-text);
+}
+
+.cm-hero-key {
+    color: #c678dd;
+    font-weight: 500;
+}
+
+.cm-hero-str { color: #98c379; }
+
+.cm-hero-ok {
+    color: #98c379;
+    font-weight: 500;
+}
+
+body.light-mode .cm-hero-key { color: #a626a4; }
+body.light-mode .cm-hero-str { color: #50a14f; }
+body.light-mode .cm-hero-ok { color: #50a14f; }
+
+/* ==========================================================================
+   2. WHAT WE DO — 4-card grid
+   ========================================================================== */
+.cm-do-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+}
+
+.cm-do-card {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 28px 24px 26px;
+    transition: all 0.35s ease;
+    overflow: hidden;
+}
+
+.cm-do-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--accent);
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform 0.4s ease;
+    box-shadow: 0 0 20px var(--accent-strong);
+}
+
+.cm-do-card:hover::before {
+    transform: scaleY(1);
+}
+
+.cm-do-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 0 30px var(--accent-dim);
+}
+
+.cm-do-icon {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border-hover);
+    border-radius: 10px;
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    margin-bottom: 22px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.cm-do-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.cm-do-card:hover .cm-do-icon {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px var(--accent-dim);
+}
+
+.cm-do-card h3 {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+.cm-do-card p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.65;
+    font-weight: 300;
+}
+
+/* ==========================================================================
+   3. TEAMS — 4-card grid
+   ========================================================================== */
+.cm-teams-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+}
+
+.cm-team-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 26px 24px;
+    transition: all 0.35s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.cm-team-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, var(--accent-dim) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+}
+
+.cm-team-card:hover::after {
+    opacity: 1;
+}
+
+.cm-team-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    transform: translateY(-4px);
+    box-shadow: 0 0 25px var(--accent-dim);
+}
+
+.cm-team-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    position: relative;
+    z-index: 1;
+}
+
+.cm-team-badge {
+    font-size: 16px;
+    color: var(--accent);
+    text-shadow: 0 0 10px var(--accent-strong);
+    line-height: 1;
+}
+
+.cm-team-size {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--text-tertiary);
+    padding: 4px 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.cm-team-card:hover .cm-team-size {
+    color: var(--text-secondary);
+    border-color: var(--border-hover);
+}
+
+.cm-team-card h3 {
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: -0.3px;
+    margin-bottom: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.cm-team-card p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.65;
+    font-weight: 300;
+    position: relative;
+    z-index: 1;
+}
+
+/* ==========================================================================
+   4. CHAT CTA — the big banner
+   ========================================================================== */
+.cm-chat-cta {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 72px 56px;
+    overflow: hidden;
+    text-align: center;
+    transition: background 0.5s ease, border-color 0.5s ease;
+    box-shadow:
+        0 20px 40px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 var(--accent-dim);
+}
+
+.cm-chat-cta::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    box-shadow: 0 0 20px var(--accent-strong);
+}
+
+.cm-chat-cta-glow {
+    position: absolute;
+    top: -50%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, var(--accent-dim) 0%, transparent 60%);
+    pointer-events: none;
+    animation: cmCtaPulse 8s ease-in-out infinite;
+}
+
+@keyframes cmCtaPulse {
+    0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(1); }
+    50%      { opacity: 0.9; transform: translateX(-50%) scale(1.1); }
+}
+
+.cm-chat-cta-body {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.cm-chat-cta-icon {
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border-hover);
+    border-radius: 50%;
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    box-shadow: 0 0 30px var(--accent-dim);
+    transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+}
+
+.cm-chat-cta-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.cm-chat-cta:hover .cm-chat-cta-icon {
+    transform: scale(1.06) rotate(-4deg);
+    border-color: var(--accent);
+    box-shadow: 0 0 40px var(--accent-glow);
+}
+
+.cm-chat-cta-kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+}
+
+.cm-chat-cta-title {
+    font-size: 46px;
+    font-weight: 400;
+    letter-spacing: -1.5px;
+    line-height: 1.05;
+    text-transform: uppercase;
+    text-shadow: 0 0 40px var(--glow-color);
+    max-width: 620px;
+}
+
+.cm-chat-cta-desc {
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1.7;
+    font-weight: 300;
+    max-width: 520px;
+    margin-bottom: 12px;
+}
+
+.cm-chat-cta-btn {
+    font-size: 13px;
+    padding: 18px 32px;
+}
+
+/* ==========================================================================
+   5. CAREERS
+   ========================================================================== */
+.cm-careers-lead {
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1.7;
+    font-weight: 300;
+    max-width: 620px;
+    margin-bottom: 40px;
+}
+
+.cm-careers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.cm-career-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.35s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.cm-career-card::before,
+.cm-career-card::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.cm-career-card::before {
+    top: 8px;
+    left: 8px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+}
+
+.cm-career-card::after {
+    bottom: 8px;
+    right: 8px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+}
+
+.cm-career-card:hover::before,
+.cm-career-card:hover::after {
+    opacity: 0.8;
+}
+
+.cm-career-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 0 30px var(--accent-dim);
+}
+
+.cm-career-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cm-career-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--text-primary);
+    padding: 3px 9px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--accent-dim);
+}
+
+.cm-career-type {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+}
+
+.cm-career-card h3 {
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+}
+
+.cm-career-card p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.6;
+    font-weight: 300;
+    flex-grow: 1;
+}
+
+.cm-career-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    transition: color 0.3s ease, gap 0.3s ease;
+    align-self: flex-start;
+}
+
+.cm-career-link svg {
+    transition: transform 0.3s ease;
+}
+
+.cm-career-link:hover {
+    color: var(--accent);
+    gap: 12px;
+}
+
+.cm-career-link:hover svg {
+    transform: translateX(2px);
+}
+
+.cm-career-card--add {
+    border-style: dashed;
+}
+
+.cm-career-card--add .cm-career-tag {
+    background: transparent;
+    border-style: dashed;
+}
+
+/* ==========================================================================
+   6. CREDITS — 3D COVERFLOW CAROUSEL
+   ========================================================================== */
+
+.cm-credits {
+    position: relative;
+    padding: 40px 0 20px;
+}
+
+/* --- Fallback grid (used when ≤4 credits, toggled by JS) --- */
+.cm-credits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.cm-credits[data-mode="carousel"] .cm-credits-grid {
+    display: none;
+}
+
+.cm-credits[data-mode="grid"] .cm-carousel {
+    display: none;
+}
+
+/* --- Carousel container --- */
+.cm-carousel {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px 0 0;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: pan-y;
+}
+
+.cm-carousel.is-dragging {
+    cursor: grabbing;
+}
+
+.cm-carousel.is-dragging .cm-carousel-card {
+    transition: none;
+}
+
+.cm-carousel-stage {
+    position: relative;
+    width: 100%;
+    height: 380px;
+    perspective: 1400px;
+    perspective-origin: 50% 50%;
+    transform-style: preserve-3d;
+    cursor: grab;
+}
+
+.cm-carousel-track {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+}
+
+.cm-carousel-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 340px;
+    height: 340px;
+    margin: -170px 0 0 -170px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 32px 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    text-align: center;
+    transform-style: preserve-3d;
+    transition:
+        transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.5s ease,
+        border-color 0.4s ease,
+        box-shadow 0.4s ease,
+        filter 0.5s ease;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    overflow: hidden;
+}
+
+.cm-carousel-card::before,
+.cm-carousel-card::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.cm-carousel-card::before {
+    top: 10px;
+    left: 10px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+}
+
+.cm-carousel-card::after {
+    bottom: 10px;
+    right: 10px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+}
+
+.cm-carousel-card.is-active::before,
+.cm-carousel-card.is-active::after {
+    opacity: 0.8;
+}
+
+.cm-carousel-card.is-active {
+    border-color: var(--accent);
+    box-shadow:
+        0 30px 60px rgba(0, 0, 0, 0.4),
+        0 0 40px var(--accent-glow),
+        inset 0 1px 0 var(--accent-dim);
+}
+
+.cm-carousel-card[data-distance="2"],
+.cm-carousel-card[data-distance="3"] {
+    pointer-events: none;
+}
+
+.cm-carousel-card .cm-credit-avatar {
+    width: 88px;
+    height: 88px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-hover);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--bg-card-hover);
+    font-family: var(--font-mono);
+    font-size: 32px;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.4s ease;
+    flex-shrink: 0;
+}
+
+.cm-carousel-card.is-active .cm-credit-avatar {
+    border-color: var(--accent);
+    box-shadow: 0 0 30px var(--accent-dim);
+}
+
+.cm-carousel-card .cm-credit-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+}
+
+.cm-carousel-card .cm-credit-name {
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+}
+
+.cm-carousel-card .cm-credit-handle {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.cm-carousel-card .cm-credit-role {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-top: 10px;
+    padding: 4px 12px;
+    border: 1px solid var(--border-hover);
+    border-radius: 999px;
+}
+
+.cm-carousel-card .cm-credit-bio {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+    font-weight: 300;
+    margin-top: 12px;
+    max-width: 240px;
+}
+
+/* --- GRID fallback cards (used when ≤4 credits) --- */
+.cm-credit-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    transition:
+        transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.35s ease,
+        background 0.35s ease,
+        box-shadow 0.35s ease;
+    position: relative;
+    transform-style: preserve-3d;
+}
+
+.cm-credit-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 0 30px var(--accent-dim);
+}
+
+.cm-credit-card .cm-credit-avatar {
+    flex: 0 0 auto;
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border-hover);
+    border-radius: 50%;
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 500;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.cm-credit-card:hover .cm-credit-avatar {
+    border-color: var(--accent);
+    box-shadow: 0 0 25px var(--accent-dim);
+}
+
+.cm-credit-initial {
+    line-height: 1;
+}
+
+.cm-credit-card .cm-credit-body {
+    min-width: 0;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cm-credit-card .cm-credit-name {
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+}
+
+.cm-credit-card .cm-credit-handle {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.cm-credit-card .cm-credit-role {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-top: 6px;
+}
+
+.cm-credit-card .cm-credit-bio {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+    font-weight: 300;
+    margin-top: 4px;
+}
+
+.cm-credit-card--placeholder {
+    border-style: dashed;
+    opacity: 0.7;
+}
+
+.cm-credit-card--placeholder:hover {
+    opacity: 1;
+}
+
+.cm-credit-card--placeholder .cm-credit-avatar {
+    color: var(--text-tertiary);
+}
+
+/* --- Nav arrows --- */
+.cm-carousel-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    margin-top: 8px;
+}
+
+.cm-carousel-arrow {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.cm-carousel-arrow:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 20px var(--accent-dim);
+    transform: scale(1.05);
+}
+
+.cm-carousel-arrow:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.cm-carousel-arrow svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* --- Dots --- */
+.cm-carousel-dots {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.cm-carousel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-hover);
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.cm-carousel-dot:hover {
+    background: var(--text-secondary);
+}
+
+.cm-carousel-dot[aria-current="true"] {
+    background: var(--accent);
+    width: 24px;
+    border-radius: 999px;
+    box-shadow: 0 0 12px var(--accent-strong);
+}
+
+/* --- Counter under carousel --- */
+.cm-carousel-counter {
+    text-align: center;
+    margin-top: 20px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+}
+
+/* --- Responsive --- */
+@media (max-width: 850px) {
+    .cm-carousel-stage {
+        height: 340px;
+    }
+
+    .cm-carousel-card {
+        width: 280px;
+        height: 320px;
+        margin: -160px 0 0 -140px;
+        padding: 26px 20px;
+    }
+
+    .cm-carousel-card .cm-credit-avatar {
+        width: 72px;
+        height: 72px;
+        font-size: 26px;
+        margin-bottom: 16px;
+    }
+
+    .cm-carousel-card .cm-credit-name {
+        font-size: 16px;
+    }
+
+    .cm-carousel-card .cm-credit-bio {
+        font-size: 12px;
+        max-width: 220px;
+    }
+
+    .cm-carousel-nav {
+        gap: 16px;
+    }
+
+    .cm-carousel-arrow {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .cm-carousel-stage {
+        height: 300px;
+    }
+
+    .cm-carousel-card {
+        width: 240px;
+        height: 280px;
+        margin: -140px 0 0 -120px;
+        padding: 22px 16px;
+    }
+
+    .cm-carousel-card .cm-credit-avatar {
+        width: 60px;
+        height: 60px;
+        font-size: 22px;
+    }
+
+    .cm-carousel-card .cm-credit-name {
+        font-size: 15px;
+    }
+
+    .cm-carousel-card .cm-credit-role {
+        font-size: 9px;
+        padding: 3px 10px;
+    }
+
+    .cm-carousel-card .cm-credit-bio {
+        font-size: 11px;
+        margin-top: 8px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cm-carousel-card {
+        transition: opacity 0.2s ease, border-color 0.3s ease;
+    }
+}
+
+/* ==========================================================================
+   SPECSOFT® — Credits: 3D swipeable cards + presence (credits.css)
+   Load AFTER style.css. Every class is prefixed "cr-" so nothing in your
+   stylesheet is overridden. Uses your CSS variables, so light mode works.
+   ========================================================================== */
+
+.cr-root {
+    --cr-online:  #23a55a;   /* green circle          = active           */
+    --cr-dnd:     #f23f43;   /* red circle + bar      = do not disturb   */
+    --cr-idle:    #f0b232;   /* yellow moon           = idle             */
+    --cr-offline: #80848e;   /* grey circle           = offline          */
+    --cr-dnd-bar: var(--bg-card); /* the bar is a cut-out: black in dark mode, white in light mode */
+
+    --cr-w: min(310px, 74vw);
+    --cr-h: 440px;
+
+    position: relative;
+    padding: 20px 0 10px;
+}
+
+.cr-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.cr-dnd-bar { fill: var(--cr-dnd-bar); }
+
+/* ==========================================================================
+   1. TOP BAR  (LIVE badge, summary, hint)
+   ========================================================================== */
+.cr-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    max-width: 900px;
+    margin: 0 auto 8px;
+    padding: 0 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+}
+
+.cr-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-hover);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.cr-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--cr-offline);
+}
+
+.cr-live[data-live="true"] {
+    color: var(--text-primary);
+    border-color: var(--cr-online);
+}
+
+.cr-live[data-live="true"] .cr-live-dot {
+    background: var(--cr-online);
+    animation: crPulse 1.8s ease-out infinite;
+}
+
+@keyframes crPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(35, 165, 90, 0.7); }
+    100% { box-shadow: 0 0 0 10px rgba(35, 165, 90, 0); }
+}
+
+.cr-summary { margin-right: auto; }
+.cr-hint[hidden] { display: none; }
+
+/* ==========================================================================
+   2. STAGE
+   ========================================================================== */
+.cr-carousel {
+    position: relative;
+    max-width: 900px;
+    margin: 0 auto;
+    outline: none;
+}
+
+.cr-carousel:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 6px;
+    border-radius: 16px;
+}
+
+.cr-stage {
+    position: relative;
+    height: calc(var(--cr-h) + 50px);
+    perspective: 1500px;
+    perspective-origin: 50% 40%;
+    touch-action: pan-y;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.cr-stage.is-dragging { cursor: grabbing; }
+
+.cr-track {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+}
+
+.cr-floor {
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: min(520px, 90%);
+    height: 70px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at center, var(--accent-dim), transparent 70%);
+    filter: blur(10px);
+    pointer-events: none;
+}
+
+/* ==========================================================================
+   3. CARD
+   ========================================================================== */
+.cr-card {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    width: var(--cr-w);
+    height: var(--cr-h);
+    margin-left: calc(var(--cr-w) / -2);
+    transform-style: preserve-3d;
+    will-change: transform, opacity;
+    cursor: pointer;
+}
+
+.cr-card.is-active { cursor: default; }
+
+.cr-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.18s ease-out;
+}
+
+/* Background layer (clips shine + grid, so the content layer can still do 3D) */
+.cr-surface {
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.cr-card.is-active .cr-surface {
+    border-color: var(--border-hover);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4), 0 0 40px var(--accent-dim);
+}
+
+.cr-surface::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(var(--border-subtle) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity: 0.4;
+    -webkit-mask-image: linear-gradient(180deg, #000, transparent 70%);
+            mask-image: linear-gradient(180deg, #000, transparent 70%);
+}
+
+.cr-shine {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at var(--mx, 50%) var(--my, 0%), rgba(255, 255, 255, 0.16), transparent 45%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.cr-card.is-tilting .cr-shine { opacity: 1; }
+
+.cr-dim {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-base);
+    opacity: var(--dim, 0);
+    pointer-events: none;
+}
+
+/* HUD corner brackets */
+.cr-bracket {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.cr-bracket--tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+.cr-bracket--br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; }
+.cr-card.is-active .cr-bracket { opacity: 0.8; }
+
+/* Content layer */
+.cr-content {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 20px 22px 22px;
+    text-align: center;
+    transform-style: preserve-3d;
+}
+
+.cr-top {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+    transform: translateZ(14px);
+}
+
+.cr-presence,
+.cr-slot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    border: 1px solid var(--border-hover);
+    border-radius: 999px;
+    color: var(--text-primary);
+}
+
+.cr-slot { border-style: dashed; color: var(--text-secondary); }
+.cr-presence .cr-slot { padding: 0; border: 0; }
+.cr-presence:has(.cr-slot) { border-style: dashed; color: var(--text-secondary); }
+
+.cr-presence svg { width: 12px; height: 12px; flex: 0 0 auto; }
+
+.cr-live-tag {
+    display: none;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--cr-online);
+    color: #04120a;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.cr-card[data-live="true"] .cr-live-tag { display: inline; }
+
+/* Avatar + status badge */
+.cr-avatar-wrap {
+    position: relative;
+    width: 104px;
+    height: 104px;
+    margin: 14px 0 10px;
+    transform: translateZ(38px);
+}
+
+.cr-avatar-ring {
+    position: absolute;
+    inset: -9px;
+    border-radius: 50%;
+    border: 1px dashed var(--border-hover);
+    transition: border-color 0.3s ease;
+}
+
+.cr-card.is-active .cr-avatar-ring {
+    border-color: var(--accent);
+    animation: crSpin 14s linear infinite;
+}
+
+@keyframes crSpin { to { transform: rotate(360deg); } }
+
+.cr-avatar {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border-hover);
+    overflow: hidden;
+    box-shadow: 0 0 30px var(--accent-dim);
+}
+
+.cr-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cr-initial {
+    font-size: 40px;
+    font-weight: 300;
+    letter-spacing: -1px;
+    color: var(--text-primary);
+}
+
+.cr-status {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 32px;
+    height: 32px;
+    padding: 5px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--bg-card);
+    transform: translateZ(10px);
+}
+
+.cr-status svg { display: block; width: 100%; height: 100%; }
+
+.cr-card--placeholder .cr-surface { border-style: dashed; }
+.cr-card--placeholder .cr-avatar  { border-style: dashed; }
+.cr-card--placeholder .cr-initial { color: var(--text-secondary); }
+
+/* Text */
+.cr-name {
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+    transform: translateZ(22px);
+}
+
+.cr-handle {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.cr-role {
+    margin-top: 4px;
+    padding: 3px 10px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--accent-dim);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.2px;
+    color: var(--text-primary);
+}
+
+.cr-bio {
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 300;
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cr-tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.cr-tags span {
+    padding: 3px 9px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.cr-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.cr-link {
+    padding: 8px 14px;
+    border: 1px solid var(--border-hover);
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.cr-link:hover { border-color: var(--accent); background: var(--accent-dim); }
+
+.cr-card a:focus-visible,
+.cr-dot:focus-visible,
+.cr-arrow:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+/* ==========================================================================
+   4. NAV (arrows, dots, counter)
+   ========================================================================== */
+.cr-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    margin-top: 6px;
+}
+
+.cr-nav[hidden] { display: none; }
+
+.cr-arrow {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.cr-arrow:hover {
+    border-color: var(--accent);
+    color: var(--text-primary);
+    box-shadow: 0 0 20px var(--accent-dim);
+}
+
+.cr-arrow svg { width: 18px; height: 18px; }
+
+.cr-dots { display: flex; align-items: center; gap: 10px; }
+
+.cr-dot {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--border-hover);
+    cursor: pointer;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.cr-dot::after { content: ''; position: absolute; inset: -10px -5px; }
+.cr-dot[aria-current="true"] { width: 26px; background: var(--text-primary); }
+
+.cr-counter {
+    min-width: 64px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   5. LEGEND
+   ========================================================================== */
+.cr-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 24px;
+    margin: 28px 0 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+}
+
+.cr-legend li { display: inline-flex; align-items: center; gap: 8px; }
+.cr-legend svg { width: 14px; height: 14px; }
+
+/* ==========================================================================
+   6. RESPONSIVE + REDUCED MOTION
+   ========================================================================== */
+@media (max-width: 700px) {
+    .cr-root { --cr-h: 420px; }
+    .cr-name { font-size: 20px; }
+    .cr-hint { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cr-live[data-live="true"] .cr-live-dot,
+    .cr-card.is-active .cr-avatar-ring { animation: none; }
+
+    .cr-card-inner,
+    .cr-surface,
+    .cr-shine,
+    .cr-dot { transition: none; }
+}
