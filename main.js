@@ -103,6 +103,17 @@
                 <span class="nav-text">STORE</span>
                 <span class="nav-num">04</span>
             </a>
+            <a href="login.html" class="nav-item" data-nav="login" id="authNavLink">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                        <polyline points="10 17 15 12 10 7"></polyline>
+                        <line x1="15" y1="12" x2="3" y2="12"></line>
+                    </svg>
+                </span>
+                <span class="nav-text" id="authNavText">LOG IN</span>
+                <span class="nav-num">05</span>
+            </a>
         </nav>
 
         <div class="sidebar-bottom">
@@ -189,7 +200,9 @@
             'home':      'home',
             'community': 'community',
             'store':     'store',
-            'roblox':    'roblox'
+            'roblox':    'roblox',
+            'profile':   'login',
+            'login':     'login'
         };
 
         const activeKey = navMap[pageKey] || null;
@@ -203,6 +216,187 @@
             if (activeItem) activeItem.classList.add('active');
         }
     }
+
+    /* ----------------------------------------------------------------------
+       1.4b SIDEBAR ACCOUNT LABEL (shows your username when logged in)
+       Display only. It reads the session Supabase saved in the browser;
+       it does not protect anything.
+       ---------------------------------------------------------------------- */
+    function setAuthNavState(user) {
+        const label = document.getElementById('authNavText');
+        const link = document.getElementById('authNavLink');
+        if (label) label.textContent = user ? 'MY PROFILE' : 'LOG IN';
+        if (link) {
+            link.href = user ? 'profile.html' : 'login.html';
+            link.setAttribute('data-nav', user ? 'profile' : 'login');
+        }
+    }
+
+    function initAuthNav() {
+        const label = document.getElementById('authNavText');
+        if (!label) return;
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (!/^sb-.+-auth-token$/.test(key)) continue;
+                const sess = JSON.parse(localStorage.getItem(key));
+                const u = sess && sess.user;
+                if (!u) continue;
+                setAuthNavState(u);
+                return;
+            }
+        } catch (e) { /* storage blocked or unreadable: keep LOG IN */ }
+    }
+
+    /* ----------------------------------------------------------------------
+       1.4c ACCOUNT: profile chip in the top bar + reusable avatar hooks
+       ----------------------------------------------------------------------
+       START account-module
+       Works on every page that loads main.js. DISPLAY ONLY: it reads the
+       session Supabase saved in this browser. It does not protect anything.
+
+       Use it anywhere with plain HTML (no extra JS needed):
+         <span data-user-avatar></span>                          profile picture (or initial letter)
+         <span data-user-avatar style="--sp-size:64px"></span>   same, any size
+         <span data-user-name></span>                            the username
+         <div data-user-only> ... </div>                         only visible when logged in
+         <div data-guest-only> ... </div>                        only visible when logged out
+
+       Or from your own JS:
+         SpecAuth.getUser()   returns { id, name, email, avatar, provider } or null
+         SpecAuth.avatar(u)   returns a ready-made .sp-avatar element
+         SpecAuth.refresh()   re-draws everything (call after login or logout)
+       ---------------------------------------------------------------------- */
+    const SpecAuth = (function () {
+        const KEY_RE = /^sb-.+-auth-token$/;
+        let chips = [];
+
+        function getUser() {
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (!KEY_RE.test(key)) continue;
+                    let sess = JSON.parse(localStorage.getItem(key));
+                    if (Array.isArray(sess)) sess = sess[0];            // very old supabase-js format
+                    const u = sess && sess.user;
+                    if (!u || !u.id) continue;
+
+                    const m = u.user_metadata || {};
+                    const name = m.username || m.full_name || m.name || m.user_name ||
+                                 (u.email || '').split('@')[0] || 'member';
+                    let avatar = m.sp_avatar || m.avatar_url || m.picture || '';   // sp_avatar = picture chosen on the profile page
+                    if (!/^https:\/\//i.test(avatar)) avatar = '';       // only https images
+
+                    return {
+                        id: u.id,
+                        name: String(name),
+                        email: u.email || '',
+                        avatar: avatar,
+                        provider: (u.app_metadata && u.app_metadata.provider) || 'email'
+                    };
+                }
+            } catch (e) { /* storage blocked or unreadable: treat as logged out */ }
+            return null;
+        }
+
+        // A round profile picture. Falls back to the first letter if there is no image or it fails to load.
+        function avatar(user, size) {
+            const wrap = document.createElement('span');
+            wrap.className = 'sp-avatar';
+            if (size) wrap.style.setProperty('--sp-size', size);
+
+            const initial = document.createElement('span');
+            initial.className = 'sp-initial';
+            initial.textContent = user && user.name ? user.name.charAt(0).toUpperCase() : '?';
+            wrap.appendChild(initial);
+
+            if (user && user.avatar) {
+                const img = document.createElement('img');
+                img.alt = '';
+                img.decoding = 'async';
+                img.referrerPolicy = 'no-referrer';
+                img.onerror = function () { img.remove(); };
+                img.src = user.avatar;
+                wrap.appendChild(img);
+            }
+            return wrap;
+        }
+
+        function makeChip(user, variant) {
+            const a = document.createElement('a');
+            a.className = 'sp-chip sp-chip--' + variant;
+            a.href = 'profile.html';
+            a.title = 'Signed in as ' + user.name;
+            a.setAttribute('aria-label', 'Your account: ' + user.name);
+
+            const wrap = document.createElement('span');
+            wrap.className = 'sp-av-wrap';
+            wrap.appendChild(avatar(user));
+            const dot = document.createElement('i');
+            dot.className = 'sp-dot';
+            wrap.appendChild(dot);
+
+            const label = document.createElement('span');
+            label.className = 'sp-chip-name';
+            label.textContent = user.name;
+
+            a.appendChild(wrap);
+            a.appendChild(label);
+            return a;
+        }
+
+        function drawChips(user) {
+            chips.forEach(function (c) { c.remove(); });
+            chips = [];
+            if (!user) return;
+
+            // desktop: right side of the HUD bar (or a floating chip on pages without one)
+            const hudRight = document.querySelector('.hud-bar .hud-right');
+            const desktop = makeChip(user, hudRight ? 'hud' : 'float');
+            (hudRight || document.body).appendChild(desktop);
+            chips.push(desktop);
+
+            // phones: in the mobile header, just before the hamburger button
+            const header = document.querySelector('.mobile-header');
+            if (header) {
+                const mobile = makeChip(user, 'mobile');
+                header.insertBefore(mobile, header.querySelector('.hamburger'));
+                chips.push(mobile);
+            }
+        }
+
+        function fillHooks(user) {
+            document.querySelectorAll('[data-user-avatar]').forEach(function (el) {
+                el.textContent = '';
+                if (user) el.appendChild(avatar(user));
+            });
+            document.querySelectorAll('[data-user-name]').forEach(function (el) {
+                el.textContent = user ? user.name : '';
+            });
+            document.querySelectorAll('[data-user-only]').forEach(function (el) { el.hidden = !user; });
+            document.querySelectorAll('[data-guest-only]').forEach(function (el) { el.hidden = !!user; });
+        }
+
+        function refresh() {
+            const user = getUser();
+            drawChips(user);
+            fillHooks(user);
+            setAuthNavState(user);
+
+            document.documentElement.classList.toggle('sp-authed', !!user);
+            return user;
+        }
+
+        // keep every open tab in sync (log in or out in one tab, the others update)
+        window.addEventListener('storage', function (e) {
+            if (!e.key || KEY_RE.test(e.key)) refresh();
+        });
+
+        return { getUser: getUser, avatar: avatar, refresh: refresh };
+    })();
+
+    window.SpecAuth = SpecAuth;
+    /* END account-module */
 
     /* ----------------------------------------------------------------------
        1.5 THEME TOGGLE
@@ -1172,6 +1366,7 @@
                 el.style.zIndex = String(Math.round(100 - a * 10));
                 el.style.setProperty('--dim', (Math.min(a, 1) * 0.5).toFixed(3));
                 el.style.pointerEvents = op < 0.05 ? 'none' : '';
+                el.style.visibility = op < 0.01 ? 'hidden' : '';
             }
 
             if (near !== curIdx) setActive(near);
@@ -1490,6 +1685,8 @@
         injectFavicon();
         injectLayout();
         highlightActiveNav();
+        initAuthNav();
+        SpecAuth.refresh();
         initThemeToggle();
         initMobileSidebar();
         initProjectsDropdown();

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | SPECSOFT®</title>
+    <meta name="description" content="Member profiles on SPECSOFT®: projects, highlights and tech stacks from the community.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheets (profile.css MUST come after style.css) -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="profile.css">
+</head>
+<body>
+
+    <!-- =========================================
+         FUTURISTIC BACKGROUND LAYERS (same as index.html)
+         ========================================= -->
+    <div class="grid-bg"></div>
+    <div class="grid-glow" id="gridGlow"></div>
+    <div class="scanner-line"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="geo-shape geo-ring"></div>
+    <div class="geo-shape geo-ring-2"></div>
+    <div class="geo-shape geo-triangle"></div>
+    <div class="geo-shape geo-square"></div>
+    <div class="geo-dot-grid"></div>
+
+    <div class="crosshair tl"></div>
+    <div class="crosshair tr"></div>
+    <div class="crosshair bl"></div>
+    <div class="crosshair br"></div>
+
+    <!-- MOBILE HEADER + SIDEBAR (content injected by main.js) -->
+    <div class="mobile-header"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <!-- =========================================
+         MAIN CONTENT
+         ========================================= -->
+    <main class="main-content">
+
+        <!-- HUD BAR -->
+        <div class="hud-bar">
+            <div class="hud-left">
+                <div class="hud-item"><span class="hud-dot"></span> SYSTEM.ACTIVE</div>
+                <div class="hud-item">PROFILE.NODE</div>
+            </div>
+            <div class="hud-right"></div>
+        </div>
+
+        <section class="pf-page">
+
+            <!-- loading / error / logged-out messages -->
+            <div class="pf-state" id="pfState" role="status">
+                <div class="pf-spinner" aria-hidden="true"></div>
+                <p>Loading profile...</p>
+            </div>
+
+            <!-- ================= THE PROFILE ================= -->
+            <article class="pf-profile" id="pfProfile" hidden>
+
+                <header class="pf-hero">
+                    <div class="pf-banner" id="pfBanner" aria-hidden="true"></div>
+
+                    <div class="pf-head">
+                        <div class="pf-avatar-wrap" id="pfAvatarWrap"></div>
+
+                        <div class="pf-id">
+                            <h1 class="pf-name" id="pfName"></h1>
+                            <p class="pf-handle" id="pfHandle"></p>
+                            <p class="pf-headline" id="pfHeadline"></p>
+                        </div>
+
+                        <div class="pf-actions" id="pfActions"></div>
+                    </div>
+
+                    <ul class="pf-meta" id="pfMeta"></ul>
+                    <ul class="pf-links" id="pfLinks"></ul>
+                </header>
+
+                <!-- stats -->
+                <div class="pf-stats" id="pfStats"></div>
+
+                <!-- highlights -->
+                <section class="pf-section" aria-labelledby="pfHlTitle">
+                    <h2 class="pf-h2" id="pfHlTitle">HIGHLIGHTS</h2>
+                    <div class="pf-rings" id="pfRings"></div>
+                </section>
+
+                <!-- tabs -->
+                <div class="pf-tabs" role="tablist" aria-label="Profile sections">
+                    <button type="button" class="pf-tab" role="tab" id="pfTabProjects" data-tab="projects" aria-selected="true" aria-controls="pfPanelProjects">PROJECTS</button>
+                    <button type="button" class="pf-tab" role="tab" id="pfTabAbout" data-tab="about" aria-selected="false" aria-controls="pfPanelAbout">ABOUT</button>
+                </div>
+
+                <section class="pf-panel" id="pfPanelProjects" role="tabpanel" aria-labelledby="pfTabProjects">
+                    <div class="pf-grid" id="pfProjects"></div>
+                    <p class="pf-empty" id="pfProjectsEmpty" hidden></p>
+                </section>
+
+                <section class="pf-panel" id="pfPanelAbout" role="tabpanel" aria-labelledby="pfTabAbout" hidden>
+                    <div class="pf-about">
+                        <div class="pf-about-block">
+                            <h3 class="pf-h3">BIO</h3>
+                            <p class="pf-bio" id="pfBio"></p>
+                        </div>
+                        <div class="pf-about-block">
+                            <h3 class="pf-h3">TECH STACK</h3>
+                            <ul class="pf-skills" id="pfSkills"></ul>
+                        </div>
+                    </div>
+                </section>
+            </article>
+
+            <!-- ================= DISCOVER MEMBERS ================= -->
+            <section class="pf-section pf-discover" id="pfDiscover" hidden>
+                <div class="pf-discover-head">
+                    <h2 class="pf-h2">FIND MEMBERS</h2>
+                    <label class="pf-search">
+                        <span class="pf-search-icon" id="pfSearchIcon" aria-hidden="true"></span>
+                        <input type="search" id="pfSearch" placeholder="Search by username" autocomplete="off" spellcheck="false" aria-label="Search members by username">
+                    </label>
+                </div>
+                <div class="pf-members" id="pfMembers"></div>
+                <p class="pf-empty" id="pfMembersEmpty" hidden></p>
+            </section>
+        </section>
+    </main>
+
+    <!-- =========================================
+         DIALOGS
+         ========================================= -->
+
+    <!-- EDIT PROFILE -->
+    <dialog class="pf-dlg" id="edDlg" aria-labelledby="edTitle">
+        <form id="edForm" novalidate>
+            <header class="pf-dlg-head">
+                <h2 id="edTitle">Edit profile</h2>
+                <button type="button" class="pf-x" data-close aria-label="Close"></button>
+            </header>
+
+            <div class="pf-dlg-body">
+                <div class="pf-msg" id="edMsg" role="alert"></div>
+
+                <fieldset class="pf-fs">
+                    <legend>LOOK</legend>
+
+                    <div class="pf-field">
+                        <span class="pf-label">PROFILE PICTURE</span>
+                        <div class="pf-file-row">
+                            <div class="pf-file-preview" id="edAvatarPreview" style="--sp-size:64px"></div>
+                            <div class="pf-file-actions">
+                                <label class="pf-btn pf-btn--ghost pf-btn--sm" for="edAvatarFile">Choose image</label>
+                                <input class="pf-sr" type="file" id="edAvatarFile" accept="image/png,image/jpeg,image/webp">
+                                <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" id="edAvatarReset">Use default</button>
+                            </div>
+                        </div>
+                        <p class="pf-help">PNG, JPG or WebP. It is cropped to a square and shrunk to 256px.</p>
+                    </div>
+
+                    <div class="pf-field">
+                        <span class="pf-label">BANNER STYLE</span>
+                        <div class="pf-presets" id="edPresets" role="radiogroup" aria-label="Banner style"></div>
+                    </div>
+
+                    <div class="pf-field">
+                        <span class="pf-label">PROFILE THEME</span>
+                        <div class="pf-theme-grid">
+                            <label class="pf-color-field">
+                                <span>Accent 1</span>
+                                <input type="color" id="edThemePrimary" value="#7c3aed">
+                            </label>
+                            <label class="pf-color-field">
+                                <span>Accent 2</span>
+                                <input type="color" id="edThemeSecondary" value="#22d3ee">
+                            </label>
+                            <label class="pf-color-field">
+                                <span>Top gradient</span>
+                                <input type="color" id="edThemeTop" value="#0f172a">
+                            </label>
+                            <label class="pf-color-field">
+                                <span>Bottom gradient</span>
+                                <input type="color" id="edThemeBottom" value="#1e293b">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="pf-field">
+                        <span class="pf-label">DISPLAY NAME STYLE</span>
+                        <div class="pf-name-style-grid">
+                            <label class="pf-select-field">
+                                <span>Font</span>
+                                <select id="edNameFont">
+                                    <option value="default">Default Sans</option>
+                                    <option value="tempo">Tempo</option>
+                                    <option value="lora">Lora</option>
+                                    <option value="medieval">Medieval</option>
+                                    <option value="pixel">Pixel / 8-bit</option>
+                                    <option value="typewriter">Typewriter</option>
+                                    <option value="sakura">Sakura / Bubbly</option>
+                                    <option value="mainframe">Mainframe</option>
+                                    <option value="aesthetic">Aesthetics</option>
+                                </select>
+                                <div class="pf-font-preview-wrap">
+                                    <span class="pf-preview-label">Preview</span>
+                                    <div class="pf-font-preview" id="edNameFontPreview">SPECSOFT</div>
+                                </div>
+                            </label>
+                            <label class="pf-select-field">
+                                <span>Style</span>
+                                <select id="edNameStyle">
+                                    <option value="solid">Solid</option>
+                                    <option value="gradient">Gradient</option>
+                                    <option value="neon">Neon</option>
+                                    <option value="prism">Prism</option>
+                                    <option value="pop">Pop</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div class="pf-name-style-row pf-name-style-row--advanced" id="pfNameStyleRow">
+                            <label class="pf-toggle" for="edNameAnimatedGradient">
+                                <input type="checkbox" id="edNameAnimatedGradient">
+                                <span class="pf-toggle-track" aria-hidden="true"></span>
+                                <span>Animated gradient</span>
+                            </label>
+                            <label class="pf-select-field pf-glow-field">
+                                <span>Glow color</span>
+                                <input type="color" id="edNameGlowColor" value="#7c3aed">
+                            </label>
+                        </div>
+
+                        <div class="pf-prism-colors" id="pfPrismColors">
+                            <label class="pf-color-field"><span>Prism 1</span><input type="color" id="edNameGrad1" value="#7c3aed"></label>
+                            <label class="pf-color-field"><span>Prism 2</span><input type="color" id="edNameGrad2" value="#22d3ee"></label>
+                            <label class="pf-color-field"><span>Prism 3</span><input type="color" id="edNameGrad3" value="#f472b6"></label>
+                            <label class="pf-color-field"><span>Prism 4</span><input type="color" id="edNameGrad4" value="#fbbf24"></label>
+                            <label class="pf-color-field"><span>Prism 5</span><input type="color" id="edNameGrad5" value="#a78bfa"></label>
+                        </div>
+                    </div>
+
+                    <div class="pf-field">
+                        <span class="pf-label">BANNER IMAGE (OPTIONAL)</span>
+                        <div class="pf-file-actions">
+                            <label class="pf-btn pf-btn--ghost pf-btn--sm" for="edBannerFile">Choose image</label>
+                            <input class="pf-sr" type="file" id="edBannerFile" accept="image/png,image/jpeg,image/webp">
+                            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" id="edBannerReset">Remove</button>
+                            <span class="pf-file-name" id="edBannerName"></span>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="pf-fs">
+                    <legend>BASICS</legend>
+
+                    <div class="pf-field">
+                        <label class="pf-label" for="edDisplay">DISPLAY NAME</label>
+                        <input class="pf-input" type="text" id="edDisplay" maxlength="40" autocomplete="name">
+                    </div>
+
+                    <div class="pf-field">
+                        <label class="pf-label" for="edUsername">USERNAME</label>
+                        <input class="pf-input" type="text" id="edUsername" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="edUsernameHint">
+                        <p class="pf-help" id="edUsernameHint">3 to 20 characters: letters, numbers, underscores. Your profile link uses it.</p>
+                    </div>
+
+                    <div class="pf-field">
+                        <label class="pf-label" for="edHeadline">HEADLINE</label>
+                        <input class="pf-input" type="text" id="edHeadline" maxlength="80" placeholder="Roblox developer, UI designer, ...">
+                    </div>
+
+                    <div class="pf-field">
+                        <label class="pf-label" for="edLocation">LOCATION</label>
+                        <input class="pf-input" type="text" id="edLocation" maxlength="40" autocomplete="off" placeholder="City or country (optional)">
+                    </div>
+                </fieldset>
+
+                <fieldset class="pf-fs">
+                    <legend>ABOUT</legend>
+
+                    <div class="pf-field">
+                        <label class="pf-label" for="edBio">BIO <span class="pf-count" id="edBioCount">0/500</span></label>
+                        <textarea class="pf-input pf-textarea" id="edBio" maxlength="500" rows="4"></textarea>
+                    </div>
+
+                    <div class="pf-field">
+                        <label class="pf-label" for="edSkills">TECH STACK</label>
+                        <input class="pf-input" type="text" id="edSkills" placeholder="Lua, JavaScript, Blender" autocomplete="off">
+                        <p class="pf-help">Separate with commas. Up to 12.</p>
+                    </div>
+                </fieldset>
+
+                <fieldset class="pf-fs">
+                    <legend>STATUS</legend>
+                    <div class="pf-statuses" id="edStatuses" role="radiogroup" aria-label="Status"></div>
+                </fieldset>
+
+                <fieldset class="pf-fs">
+                    <legend>LINKS</legend>
+
+                    <div class="pf-field">
+                        <label class="pf-label" for="edGithub">GITHUB</label>
+                        <input class="pf-input" type="url" id="edGithub" placeholder="https://github.com/you" inputmode="url" autocapitalize="none" spellcheck="false">
+                    </div>
+                    <div class="pf-field">
+                        <label class="pf-label" for="edRoblox">ROBLOX</label>
+                        <input class="pf-input" type="url" id="edRoblox" placeholder="https://www.roblox.com/users/..." inputmode="url" autocapitalize="none" spellcheck="false">
+                    </div>
+                    <div class="pf-field">
+                        <label class="pf-label" for="edWebsite">WEBSITE</label>
+                        <input class="pf-input" type="url" id="edWebsite" placeholder="https://yoursite.com" inputmode="url" autocapitalize="none" spellcheck="false">
+                    </div>
+                    <div class="pf-field">
+                        <label class="pf-label" for="edDiscord">DISCORD USERNAME</label>
+                        <input class="pf-input" type="text" id="edDiscord" maxlength="40" autocapitalize="none" spellcheck="false" placeholder="username">
+                    </div>
+                    <p class="pf-help">Links must start with https://</p>
+                </fieldset>
+            </div>
+
+            <footer class="pf-dlg-foot">
+                <button type="button" class="pf-btn pf-btn--ghost" data-close>Cancel</button>
+                <button type="submit" class="pf-btn" id="edSave"><span class="pf-btn-label">Save changes</span><span class="pf-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- ADD / EDIT PROJECT -->
+    <dialog class="pf-dlg" id="pjDlg" aria-labelledby="pjTitleH">
+        <form id="pjForm" novalidate>
+            <header class="pf-dlg-head">
+                <h2 id="pjTitleH">New project</h2>
+                <button type="button" class="pf-x" data-close aria-label="Close"></button>
+            </header>
+
+            <div class="pf-dlg-body">
+                <div class="pf-msg" id="pjMsg" role="alert"></div>
+                <input type="hidden" id="pjId">
+
+                <div class="pf-field">
+                    <label class="pf-label" for="pjTitle">TITLE</label>
+                    <input class="pf-input" type="text" id="pjTitle" maxlength="60" required>
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="pjSummary">SUMMARY <span class="pf-count" id="pjSummaryCount">0/280</span></label>
+                    <textarea class="pf-input pf-textarea" id="pjSummary" maxlength="280" rows="3"></textarea>
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="pjUrl">LIVE LINK</label>
+                    <input class="pf-input" type="url" id="pjUrl" placeholder="https://" inputmode="url" autocapitalize="none" spellcheck="false">
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="pjRepo">CODE LINK</label>
+                    <input class="pf-input" type="url" id="pjRepo" placeholder="https://github.com/..." inputmode="url" autocapitalize="none" spellcheck="false">
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="pjCover">COVER IMAGE LINK (OPTIONAL)</label>
+                    <input class="pf-input" type="url" id="pjCover" placeholder="https://i.imgur.com/..." inputmode="url" autocapitalize="none" spellcheck="false">
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="pjVideo">VIDEO LINK (OPTIONAL)</label>
+                    <input class="pf-input" type="url" id="pjVideo" placeholder="https://example.com/demo.mp4" inputmode="url" autocapitalize="none" spellcheck="false">
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="pjTags">TAGS</label>
+                    <input class="pf-input" type="text" id="pjTags" placeholder="Roblox, Lua, UI" autocomplete="off">
+                    <p class="pf-help">Separate with commas. Up to 6.</p>
+                </div>
+
+                <label class="pf-check">
+                    <input type="checkbox" id="pjPinned">
+                    <span class="pf-box" aria-hidden="true"></span>
+                    <span>Pin this project to the top</span>
+                </label>
+            </div>
+
+            <footer class="pf-dlg-foot">
+                <button type="button" class="pf-btn pf-btn--ghost" data-close>Cancel</button>
+                <button type="submit" class="pf-btn" id="pjSave"><span class="pf-btn-label">Save project</span><span class="pf-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- ADD HIGHLIGHT -->
+    <dialog class="pf-dlg pf-dlg--small" id="hlDlg" aria-labelledby="hlTitleH">
+        <form id="hlForm" novalidate>
+            <header class="pf-dlg-head">
+                <h2 id="hlTitleH">New highlight</h2>
+                <button type="button" class="pf-x" data-close aria-label="Close"></button>
+            </header>
+
+            <div class="pf-dlg-body">
+                <div class="pf-msg" id="hlMsg" role="alert"></div>
+
+                <div class="pf-field">
+                    <label class="pf-label" for="hlIcon">ICON (EMOJI OR SYMBOL)</label>
+                    <input class="pf-input" type="text" id="hlIcon" maxlength="4" value="★" autocomplete="off">
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="hlTitle">TITLE</label>
+                    <input class="pf-input" type="text" id="hlTitle" maxlength="24" required placeholder="First game shipped">
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="hlBody">STORY <span class="pf-count" id="hlBodyCount">0/280</span></label>
+                    <textarea class="pf-input pf-textarea" id="hlBody" maxlength="280" rows="4"></textarea>
+                </div>
+            </div>
+
+            <footer class="pf-dlg-foot">
+                <button type="button" class="pf-btn pf-btn--ghost" data-close>Cancel</button>
+                <button type="submit" class="pf-btn" id="hlSave"><span class="pf-btn-label">Add highlight</span><span class="pf-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- VIEW HIGHLIGHT -->
+    <dialog class="pf-dlg pf-dlg--small pf-dlg--view" id="hlView" aria-labelledby="hvTitle">
+        <header class="pf-dlg-head">
+            <span class="pf-hv-icon" id="hvIcon" aria-hidden="true"></span>
+            <h2 id="hvTitle"></h2>
+            <button type="button" class="pf-x" data-close aria-label="Close"></button>
+        </header>
+        <div class="pf-dlg-body">
+            <p class="pf-hv-body" id="hvBody"></p>
+        </div>
+        <footer class="pf-dlg-foot" id="hvFoot" hidden>
+            <button type="button" class="pf-btn pf-btn--ghost pf-btn--danger" id="hvDelete">Delete highlight</button>
+        </footer>
+    </dialog>
+
+    <dialog class="pf-dlg pf-dlg--small" id="flDlg" aria-labelledby="flTitle">
+        <header class="pf-dlg-head">
+            <h2 id="flTitle">Followers</h2>
+            <button type="button" class="pf-x" data-close aria-label="Close"></button>
+        </header>
+        <div class="pf-dlg-body">
+            <div class="pf-follow-list" id="flList"></div>
+        </div>
+        <footer class="pf-dlg-foot">
+            <button type="button" class="pf-btn pf-btn--ghost" data-close>Close</button>
+        </footer>
+    </dialog>
+
+    <div class="pf-toast" id="pfToast" role="status" aria-live="polite"></div>
+
+    <!-- Supabase client (pinned version) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <!-- main.js builds the sidebar + top bar. profile.js goes AFTER it. -->
+    <script src="main.js"></script>
+    <script src="profile.js"></script>
+
+</body>
+</html>

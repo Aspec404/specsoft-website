@@ -1,0 +1,688 @@
+/* ==========================================================================
+   SPECSOFT® — Login / Sign up (auth.css)
+   Load AFTER style.css. Every class is prefixed "au-" so nothing in your
+   stylesheet is overridden. Uses your CSS variables, so light mode works.
+   ========================================================================== */
+
+body {
+    --au-error: #ff6b6f;
+    --au-ok: #3ddc84;
+    --au-warn: #f0b232;
+}
+
+body.light-mode {
+    --au-error: #c62828;
+    --au-ok: #1b8a4b;
+    --au-warn: #a86a00;
+}
+
+/* The card's light-border uses a registered angle so it can animate smoothly */
+@property --au-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+
+/* ==========================================================================
+   1. PAGE LAYOUT
+   ========================================================================== */
+.au-page { padding: 56px 0 80px; }
+
+.au-wrap {
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) minmax(0, 460px);
+    gap: 56px;
+    align-items: center;
+    max-width: 1060px;
+    margin: 0 auto;
+}
+
+/* ==========================================================================
+   2. LEFT SIDE: headline + terminal
+   ========================================================================== */
+.au-h1 {
+    font-size: clamp(36px, 4.4vw, 64px);
+    font-weight: 400;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    margin-bottom: 32px;
+}
+
+.au-outline {
+    color: transparent;
+    -webkit-text-stroke: 1px var(--text-primary);
+}
+
+.au-terminal {
+    max-width: 480px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.au-term-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-card-hover);
+}
+
+.au-term-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid var(--border-hover);
+}
+
+.au-term-title {
+    margin-left: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.au-term-body {
+    min-height: 190px;
+    padding: 18px 20px 22px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--text-primary);
+}
+
+.au-term-line {
+    opacity: 0;
+    animation: auLine 0.4s ease forwards;
+    animation-delay: var(--d, 0s);
+    overflow-wrap: anywhere;
+}
+
+.au-term-line.is-new { animation-delay: 0s; }
+
+@keyframes auLine {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.au-t-dim { color: var(--text-secondary); }
+.au-t-ok  { color: var(--au-ok); }
+.au-t-bad { color: var(--au-error); }
+
+.au-cursor::after {
+    content: '_';
+    margin-left: 2px;
+    animation: auBlink 1s steps(1) infinite;
+}
+
+@keyframes auBlink { 50% { opacity: 0; } }
+
+/* ==========================================================================
+   3. THE CARD
+   ========================================================================== */
+.au-card {
+    position: relative;
+    padding: 32px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+
+/* A point of light travels around the border */
+.au-card::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    padding: 1px;
+    border-radius: 16px;
+    background: conic-gradient(from var(--au-angle), transparent 0 62%, var(--accent) 82%, transparent 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    pointer-events: none;
+    animation: auAngle 7s linear infinite;
+}
+
+@keyframes auAngle { to { --au-angle: 360deg; } }
+
+.au-card.is-shake { animation: auShake 0.4s ease; }
+
+@keyframes auShake {
+    0%, 100% { transform: none; }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(7px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(3px); }
+}
+
+.au-head { margin-bottom: 22px; }
+
+.au-title {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.8px;
+    line-height: 1.15;
+    margin-bottom: 8px;
+}
+
+.au-sub {
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 300;
+    line-height: 1.6;
+}
+
+.au-config {
+    margin-bottom: 20px;
+    padding: 12px 14px;
+    border: 1px dashed var(--au-warn);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.au-config[hidden] { display: none; }
+.au-config strong { display: block; color: var(--au-warn); font-family: var(--font-mono); letter-spacing: 1px; margin-bottom: 2px; }
+.au-config code { font-family: var(--font-mono); color: var(--text-primary); }
+
+/* ==========================================================================
+   4. TABS
+   ========================================================================== */
+.au-tabs {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 4px;
+    margin-bottom: 24px;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+}
+
+.au-tabs[hidden] { display: none; }
+
+.au-thumb {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    background: var(--text-primary);
+    border-radius: 7px;
+    transition: transform 0.35s cubic-bezier(0.3, 0.8, 0.2, 1);
+}
+
+.au-tabs[data-mode="signup"] .au-thumb { transform: translateX(100%); }
+
+.au-tab {
+    position: relative;
+    z-index: 1;
+    height: 44px;
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    transition: color 0.25s ease;
+}
+
+.au-tab:hover { color: var(--text-primary); }
+.au-tab[aria-selected="true"] { color: var(--bg-base); }
+
+/* ==========================================================================
+   5. PANELS + FIELDS
+   ========================================================================== */
+.au-panel { animation: auIn 0.35s ease; }
+.au-panel[hidden] { display: none; }
+
+@keyframes auIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.au-center { text-align: center; }
+
+.au-field { position: relative; margin-bottom: 16px; }
+
+.au-input {
+    width: 100%;
+    height: 58px;
+    padding: 24px 52px 6px 16px;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 16px;               /* 16px stops iOS from zooming in on focus */
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.au-input:hover { border-color: var(--border-hover); }
+
+.au-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.au-label {
+    position: absolute;
+    left: 16px;
+    top: 20px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+    transition: top 0.2s ease, font-size 0.2s ease, letter-spacing 0.2s ease;
+}
+
+.au-input:focus + .au-label,
+.au-input:not(:placeholder-shown) + .au-label,
+.au-input:-webkit-autofill + .au-label {
+    top: 9px;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+}
+
+.au-input:-webkit-autofill {
+    -webkit-text-fill-color: var(--text-primary);
+    box-shadow: 0 0 0 100px var(--bg-base) inset;
+}
+
+.au-field.has-error .au-input { border-color: var(--au-error); }
+
+.au-hint {
+    margin-top: 6px;
+    color: var(--au-error);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.au-hint:empty { display: none; }
+
+.au-eye {
+    position: absolute;
+    top: 7px;
+    right: 6px;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.au-eye:hover { color: var(--text-primary); }
+.au-eye svg { width: 20px; height: 20px; }
+.au-eye .eye-off { display: none; }
+.au-eye[aria-pressed="true"] .eye-on  { display: none; }
+.au-eye[aria-pressed="true"] .eye-off { display: block; }
+
+/* Password strength */
+.au-meter {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.au-meter i {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-subtle);
+    transition: background 0.25s ease;
+}
+
+.au-meter[data-level="1"] i:nth-child(-n+1) { background: var(--au-error); }
+.au-meter[data-level="2"] i:nth-child(-n+2) { background: var(--au-warn); }
+.au-meter[data-level="3"] i:nth-child(-n+3) { background: var(--au-ok); }
+.au-meter[data-level="4"] i:nth-child(-n+4) { background: var(--au-ok); }
+
+.au-meter-text {
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+
+/* Checkbox */
+.au-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 6px 0;
+    cursor: pointer;
+}
+
+.au-check input {
+    position: absolute;
+    opacity: 0;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+}
+
+.au-box {
+    position: relative;
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    border: 1px solid var(--border-hover);
+    border-radius: 6px;
+    background: var(--bg-base);
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.au-box::after {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 3px;
+    width: 6px;
+    height: 11px;
+    border: solid var(--bg-base);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) scale(0);
+    transition: transform 0.2s ease;
+}
+
+.au-check input:checked + .au-box { background: var(--text-primary); border-color: var(--text-primary); }
+.au-check input:checked + .au-box::after { transform: rotate(45deg) scale(1); }
+.au-check input:focus-visible + .au-box { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.au-check-text {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.au-check-text a { color: var(--text-primary); text-underline-offset: 3px; }
+
+/* Rows + links */
+.au-row { display: flex; justify-content: flex-end; margin: -4px 0 18px; }
+.au-row--center { justify-content: center; margin: 18px 0 0; }
+
+.au-link {
+    padding: 8px 4px;
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    text-underline-offset: 4px;
+    transition: color 0.2s ease;
+}
+
+.au-link:hover { color: var(--text-primary); text-decoration: underline; }
+
+/* ==========================================================================
+   6. BUTTONS
+   ========================================================================== */
+.au-btn {
+    position: relative;
+    width: 100%;
+    min-height: 52px;
+    margin-top: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 20px;
+    background: var(--text-primary);
+    border: 1px solid var(--text-primary);
+    border-radius: 10px;
+    color: var(--bg-base);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.2s ease, background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+
+.au-btn:hover { opacity: 0.88; }
+
+.au-btn--ghost {
+    background: transparent;
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.au-btn--ghost:hover { opacity: 1; border-color: var(--accent); background: var(--accent-dim); }
+
+.au-btn--discord svg { width: 20px; height: 20px; flex: 0 0 auto; }
+
+.au-btn:focus-visible,
+.au-tab:focus-visible,
+.au-eye:focus-visible,
+.au-link:focus-visible,
+.au-check-text a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.au-spin {
+    display: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: auSpin 0.7s linear infinite;
+}
+
+@keyframes auSpin { to { transform: rotate(360deg); } }
+
+.au-btn.is-loading { pointer-events: none; opacity: 0.85; }
+.au-btn.is-loading .au-spin { display: inline-block; }
+.au-btn.is-loading .au-btn-label { opacity: 0.7; }
+
+/* "OR" divider */
+.au-social[hidden] { display: none; }
+
+.au-or {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 22px 0 8px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+}
+
+.au-or::before,
+.au-or::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-subtle);
+}
+
+/* ==========================================================================
+   7. MESSAGES
+   ========================================================================== */
+.au-msg {
+    display: none;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.55;
+    text-align: left;
+}
+
+.au-msg.is-error { display: block; color: var(--au-error); border-color: var(--au-error); background: color-mix(in srgb, var(--au-error) 8%, transparent); }
+.au-msg.is-ok    { display: block; color: var(--au-ok);    border-color: var(--au-ok);    background: color-mix(in srgb, var(--au-ok) 8%, transparent); }
+.au-msg.is-info  { display: block; color: var(--text-primary); border-color: var(--border-hover); background: var(--accent-dim); }
+
+/* ==========================================================================
+   8. CHECK EMAIL / SUCCESS / ACCOUNT
+   ========================================================================== */
+.au-icon-wrap {
+    width: 72px;
+    height: 72px;
+    margin: 4px auto 18px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border-hover);
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--text-primary);
+}
+
+.au-icon-wrap svg { width: 30px; height: 30px; }
+
+.au-lead {
+    margin-bottom: 18px;
+    color: var(--text-secondary);
+    font-size: 15px;
+    font-weight: 300;
+    line-height: 1.7;
+}
+
+.au-check-ring {
+    width: 84px;
+    height: 84px;
+    margin: 8px auto 16px;
+    display: block;
+    color: var(--au-ok);
+}
+
+.au-check-ring circle {
+    stroke-dasharray: 214;
+    stroke-dashoffset: 214;
+    animation: auDraw 0.7s ease forwards;
+}
+
+.au-check-ring polyline {
+    stroke-dasharray: 52;
+    stroke-dashoffset: 52;
+    animation: auDraw 0.45s ease 0.55s forwards;
+}
+
+@keyframes auDraw { to { stroke-dashoffset: 0; } }
+
+.au-avatar {
+    position: relative;
+    width: 88px;
+    height: 88px;
+    margin: 4px auto 16px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border-hover);
+    border-radius: 50%;
+    background: var(--bg-card-hover);
+    font-size: 34px;
+    font-weight: 300;
+    overflow: hidden;
+}
+
+.au-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.au-acc-name { font-size: 22px; font-weight: 500; letter-spacing: -0.4px; overflow-wrap: anywhere; }
+
+.au-acc-email {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.au-acc-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 22px 0 8px;
+    padding: 16px 0;
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    text-align: center;
+}
+
+.au-acc-meta dt {
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+}
+
+.au-acc-meta dd { font-size: 14px; }
+
+/* ==========================================================================
+   9. RESPONSIVE
+   ========================================================================== */
+/* The sidebar takes 280px, so the content area is far narrower than the screen.
+   Go single-column before the left side can get squeezed (that is what made
+   the headline stack one letter per line). */
+@media (max-width: 1240px) {
+    .au-wrap { grid-template-columns: minmax(0, 1fr); max-width: 520px; gap: 0; }
+    .au-aside { margin-bottom: 28px; }
+    .au-terminal { display: none; }
+    .au-h1 { margin-bottom: 0; text-align: center; }
+}
+
+@media (max-width: 850px) {
+    .au-page { padding: 8px 0 48px; }   /* .main-content already adds space for the mobile header */
+
+    .au-wrap { grid-template-columns: minmax(0, 1fr); }
+
+    .au-aside { display: none; }
+
+    .au-card {
+        width: 100%;
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 26px 22px;
+    }
+}
+
+@media (max-width: 480px) {
+    .au-card { padding: 22px 18px; border-radius: 14px; }
+    .au-card::before { border-radius: 14px; }
+    .au-title { font-size: 24px; }
+    .au-page { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .au-card::before,
+    .au-spin,
+    .au-cursor::after { animation: none; }
+
+    .au-card.is-shake,
+    .au-panel,
+    .au-term-line { animation: none; opacity: 1; }
+
+    .au-check-ring circle,
+    .au-check-ring polyline { animation: none; stroke-dashoffset: 0; }
+
+    .au-thumb,
+    .au-input,
+    .au-label,
+    .au-btn { transition: none; }
+}

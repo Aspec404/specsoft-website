@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log in or Sign up | SPECSOFT®</title>
+    <meta name="description" content="Log in or create your SPECSOFT® account to join the community.">
+    <meta name="robots" content="noindex">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheets (auth.css MUST come after style.css) -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+
+    <!-- =========================================
+         FUTURISTIC BACKGROUND LAYERS (same as index.html)
+         ========================================= -->
+    <div class="grid-bg"></div>
+    <div class="grid-glow" id="gridGlow"></div>
+    <div class="scanner-line"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="geo-shape geo-ring"></div>
+    <div class="geo-shape geo-ring-2"></div>
+    <div class="geo-shape geo-triangle"></div>
+    <div class="geo-shape geo-square"></div>
+    <div class="geo-dot-grid"></div>
+
+    <div class="crosshair tl"></div>
+    <div class="crosshair tr"></div>
+    <div class="crosshair bl"></div>
+    <div class="crosshair br"></div>
+
+    <!-- MOBILE HEADER + SIDEBAR (content injected by main.js) -->
+    <div class="mobile-header"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <!-- =========================================
+         MAIN CONTENT
+         ========================================= -->
+    <main class="main-content">
+
+        <!-- HUD BAR -->
+        <div class="hud-bar">
+            <div class="hud-left">
+                <div class="hud-item"><span class="hud-dot"></span> SYSTEM.ACTIVE</div>
+                <div class="hud-item">AUTH.GATE</div>
+            </div>
+            <div class="hud-right">
+                <div class="hud-item">SESSION: <span id="auHudSession">NONE</span></div>
+            </div>
+        </div>
+
+        <section class="au-page">
+            <div class="au-wrap">
+
+                <!-- ============ LEFT: headline + terminal (hidden on phones) ============ -->
+                <aside class="au-aside" aria-hidden="true">
+                    <h1 class="au-h1">
+                        <span id="auH1a">WELCOME</span><br>
+                        <span class="au-outline" id="auH1b">BACK.</span>
+                    </h1>
+
+                    <div class="au-terminal">
+                        <div class="au-term-head">
+                            <span class="au-term-dot"></span><span class="au-term-dot"></span><span class="au-term-dot"></span>
+                            <span class="au-term-title">access.sys</span>
+                        </div>
+                        <div class="au-term-body" id="auTermBody">
+                            <div class="au-term-line" style="--d:.2s"><span class="au-t-dim">&gt;</span> boot specsoft.auth</div>
+                            <div class="au-term-line" style="--d:.7s"><span class="au-t-ok">✔</span> secure channel open</div>
+                            <div class="au-term-line" style="--d:1.2s"><span class="au-t-dim">&gt;</span> awaiting credentials<span class="au-cursor"></span></div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- ============ RIGHT: the auth card ============ -->
+                <div class="au-card" id="auCard">
+
+                    <!-- shown until the Supabase keys are added in auth.js -->
+                    <div class="au-config" id="auConfig" hidden>
+                        <strong>BACKEND NOT CONNECTED</strong>
+                        Add your Supabase URL and anon key at the top of <code>auth.js</code> to make logins work.
+                    </div>
+
+                    <header class="au-head">
+                        <h2 class="au-title" id="auTitle">Log in</h2>
+                        <p class="au-sub" id="auSub">Welcome back. Pick up where you left off.</p>
+                    </header>
+
+                    <!-- Tabs -->
+                    <div class="au-tabs" id="auTabs" data-mode="login" role="tablist" aria-label="Log in or sign up">
+                        <span class="au-thumb" aria-hidden="true"></span>
+                        <button type="button" class="au-tab" role="tab" id="auTabLogin" data-go="login" aria-selected="true" aria-controls="auPanelLogin">LOG IN</button>
+                        <button type="button" class="au-tab" role="tab" id="auTabSignup" data-go="signup" aria-selected="false" aria-controls="auPanelSignup">SIGN UP</button>
+                    </div>
+
+                    <!-- ===== LOG IN ===== -->
+                    <section class="au-panel" id="auPanelLogin" data-panel="login" role="tabpanel" aria-labelledby="auTabLogin">
+                        <form id="auFormLogin" novalidate>
+                            <div class="au-msg" role="alert"></div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="email" id="loginEmail" name="email" placeholder=" " autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" enterkeyhint="next" required>
+                                <label class="au-label" for="loginEmail">EMAIL</label>
+                                <p class="au-hint" id="loginEmailHint"></p>
+                            </div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="password" id="loginPassword" name="password" placeholder=" " autocomplete="current-password" enterkeyhint="go" required>
+                                <label class="au-label" for="loginPassword">PASSWORD</label>
+                                <button type="button" class="au-eye" data-toggle="loginPassword" aria-label="Show password" aria-pressed="false">
+                                    <svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                </button>
+                                <p class="au-hint" id="loginPasswordHint"></p>
+                            </div>
+
+                            <div class="au-row">
+                                <button type="button" class="au-link" data-go="forgot">Forgot password?</button>
+                            </div>
+
+                            <button type="submit" class="au-btn">
+                                <span class="au-btn-label">LOG IN</span><span class="au-spin" aria-hidden="true"></span>
+                            </button>
+                        </form>
+                    </section>
+
+                    <!-- ===== SIGN UP ===== -->
+                    <section class="au-panel" id="auPanelSignup" data-panel="signup" role="tabpanel" aria-labelledby="auTabSignup" hidden>
+                        <form id="auFormSignup" novalidate>
+                            <div class="au-msg" role="alert"></div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="text" id="suUsername" name="username" placeholder=" " autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" enterkeyhint="next" required>
+                                <label class="au-label" for="suUsername">USERNAME</label>
+                                <p class="au-hint" id="suUsernameHint"></p>
+                            </div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="email" id="suEmail" name="email" placeholder=" " autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" enterkeyhint="next" required>
+                                <label class="au-label" for="suEmail">EMAIL</label>
+                                <p class="au-hint" id="suEmailHint"></p>
+                            </div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="password" id="suPassword" name="password" placeholder=" " autocomplete="new-password" enterkeyhint="next" aria-describedby="auMeterText" required>
+                                <label class="au-label" for="suPassword">PASSWORD</label>
+                                <button type="button" class="au-eye" data-toggle="suPassword" aria-label="Show password" aria-pressed="false">
+                                    <svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                </button>
+                                <div class="au-meter" id="auMeter" data-level="0" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                                <p class="au-meter-text" id="auMeterText">At least 8 characters</p>
+                                <p class="au-hint" id="suPasswordHint"></p>
+                            </div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="password" id="suConfirm" name="confirm" placeholder=" " autocomplete="new-password" enterkeyhint="done" required>
+                                <label class="au-label" for="suConfirm">CONFIRM PASSWORD</label>
+                                <p class="au-hint" id="suConfirmHint"></p>
+                            </div>
+
+                            <label class="au-check">
+                                <input type="checkbox" id="suTerms">
+                                <span class="au-box" aria-hidden="true"></span>
+                                <span class="au-check-text">I'm 13 or older and I agree to the <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</span>
+                            </label>
+                            <p class="au-hint" id="suTermsHint"></p>
+
+                            <button type="submit" class="au-btn">
+                                <span class="au-btn-label">CREATE ACCOUNT</span><span class="au-spin" aria-hidden="true"></span>
+                            </button>
+                        </form>
+                    </section>
+
+                    <!-- ===== FORGOT PASSWORD ===== -->
+                    <section class="au-panel" data-panel="forgot" hidden>
+                        <form id="auFormForgot" novalidate>
+                            <div class="au-msg" role="alert"></div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="email" id="fgEmail" name="email" placeholder=" " autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" enterkeyhint="go" required>
+                                <label class="au-label" for="fgEmail">EMAIL</label>
+                                <p class="au-hint" id="fgEmailHint"></p>
+                            </div>
+
+                            <button type="submit" class="au-btn">
+                                <span class="au-btn-label">SEND RESET LINK</span><span class="au-spin" aria-hidden="true"></span>
+                            </button>
+                            <div class="au-row au-row--center">
+                                <button type="button" class="au-link" data-go="login">Back to log in</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <!-- ===== SET NEW PASSWORD (after clicking the email link) ===== -->
+                    <section class="au-panel" data-panel="reset" hidden>
+                        <form id="auFormReset" novalidate>
+                            <div class="au-msg" role="alert"></div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="password" id="rsPassword" name="password" placeholder=" " autocomplete="new-password" enterkeyhint="next" required>
+                                <label class="au-label" for="rsPassword">NEW PASSWORD</label>
+                                <button type="button" class="au-eye" data-toggle="rsPassword" aria-label="Show password" aria-pressed="false">
+                                    <svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                </button>
+                                <p class="au-hint" id="rsPasswordHint"></p>
+                            </div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="password" id="rsConfirm" name="confirm" placeholder=" " autocomplete="new-password" enterkeyhint="go" required>
+                                <label class="au-label" for="rsConfirm">CONFIRM NEW PASSWORD</label>
+                                <p class="au-hint" id="rsConfirmHint"></p>
+                            </div>
+
+                            <button type="submit" class="au-btn">
+                                <span class="au-btn-label">UPDATE PASSWORD</span><span class="au-spin" aria-hidden="true"></span>
+                            </button>
+                        </form>
+                    </section>
+
+                    <!-- ===== CHECK YOUR EMAIL ===== -->
+                    <section class="au-panel au-center" data-panel="check" hidden>
+                        <div class="au-icon-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>
+                        </div>
+                        <p class="au-lead" id="auCheckText"></p>
+                        <div class="au-msg" role="status" id="auCheckMsg"></div>
+                        <button type="button" class="au-btn au-btn--ghost" id="auResend">
+                            <span class="au-btn-label">RESEND EMAIL</span><span class="au-spin" aria-hidden="true"></span>
+                        </button>
+                        <div class="au-row au-row--center">
+                            <button type="button" class="au-link" data-go="login">Back to log in</button>
+                        </div>
+                    </section>
+
+                    <!-- ===== SUCCESS ===== -->
+                    <section class="au-panel au-center" data-panel="success" hidden>
+                        <svg class="au-check-ring" viewBox="0 0 80 80" aria-hidden="true">
+                            <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" stroke-width="2.5"/>
+                            <polyline points="25 41 36 52 56 29" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <p class="au-lead" id="auSuccessText">Access granted.</p>
+                    </section>
+
+                    <!-- ===== ACCOUNT (already logged in) ===== -->
+                    <section class="au-panel au-center" data-panel="account" hidden>
+                        <div class="au-avatar" id="auAvatar"><span id="auAvatarInitial">S</span></div>
+                        <h3 class="au-acc-name" id="auAccName"></h3>
+                        <p class="au-acc-email" id="auAccEmail"></p>
+
+                        <dl class="au-acc-meta">
+                            <div><dt>SIGNED IN WITH</dt><dd id="auAccProvider">EMAIL</dd></div>
+                            <div><dt>MEMBER SINCE</dt><dd id="auAccSince">-</dd></div>
+                        </dl>
+
+                        <a class="au-btn" id="auGoNext" href="community.html"><span class="au-btn-label">GO TO COMMUNITY</span></a>
+                        <button type="button" class="au-btn au-btn--ghost" id="auLogout">
+                            <span class="au-btn-label">LOG OUT</span><span class="au-spin" aria-hidden="true"></span>
+                        </button>
+                    </section>
+
+                    <!-- ===== Discord (shown under log in / sign up) ===== -->
+                    <div class="au-social" id="auSocial">
+                        <div class="au-or"><span>OR</span></div>
+                        <button type="button" class="au-btn au-btn--ghost au-btn--discord" id="auDiscord">
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 0 0-4.8851-1.5152.0741.0741 0 0 0-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 0 0-.0785-.037 19.7363 19.7363 0 0 0-4.8852 1.515.0699.0699 0 0 0-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 0 0 .0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 0 0 .0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 0 0-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 0 1-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 0 1 .0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 0 1 .0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 0 1-.0066.1276 12.2986 12.2986 0 0 1-1.873.8914.0766.0766 0 0 0-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 0 0 .0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 0 0 .0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 0 0-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+                            <span class="au-btn-label">CONTINUE WITH DISCORD</span><span class="au-spin" aria-hidden="true"></span>
+                        </button>
+                    </div>
+
+                    <noscript><p class="au-msg is-error" style="display:block">JavaScript is required to log in.</p></noscript>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- Supabase client (pinned version) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <!-- main.js builds the sidebar. auth.js goes AFTER it. -->
+    <script src="main.js"></script>
+    <script src="auth.js"></script>
+
+</body>
+</html>

@@ -3969,8 +3969,8 @@ body.light-mode .cm-hero-ok { color: #50a14f; }
     --cr-offline: #80848e;   /* grey circle           = offline          */
     --cr-dnd-bar: var(--bg-card); /* the bar is a cut-out: black in dark mode, white in light mode */
 
-    --cr-w: min(310px, 74vw);
-    --cr-h: 440px;
+    --cr-w: min(310px, 72vw);
+    --cr-h: 470px;
 
     position: relative;
     padding: 20px 0 10px;
@@ -4066,6 +4066,8 @@ body.light-mode .cm-hero-ok { color: #50a14f; }
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .cr-stage.is-dragging { cursor: grabbing; }
@@ -4271,6 +4273,8 @@ body.light-mode .cm-hero-ok { color: #50a14f; }
 }
 
 .cr-avatar img {
+    pointer-events: none;
+    -webkit-user-drag: none;
     position: absolute;
     inset: 0;
     width: 100%;
@@ -4307,10 +4311,16 @@ body.light-mode .cm-hero-ok { color: #50a14f; }
 
 /* Text */
 .cr-name {
+    max-width: 100%;
     font-size: 22px;
     font-weight: 500;
     letter-spacing: -0.5px;
     line-height: 1.2;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
     transform: translateZ(22px);
 }
 
@@ -4471,12 +4481,46 @@ body.light-mode .cm-hero-ok { color: #50a14f; }
 .cr-legend svg { width: 14px; height: 14px; }
 
 /* ==========================================================================
-   6. RESPONSIVE + REDUCED MOTION
+   6. RESPONSIVE (phones, touch, landscape) + REDUCED MOTION
    ========================================================================== */
 @media (max-width: 700px) {
-    .cr-root { --cr-h: 420px; }
-    .cr-name { font-size: 20px; }
+    .cr-root { --cr-h: 450px; padding-top: 8px; }
+
+    .cr-bar { margin-bottom: 4px; }
     .cr-hint { display: none; }
+
+    .cr-content { gap: 5px; padding: 16px 18px 18px; }
+    .cr-avatar-wrap { width: 88px; height: 88px; margin: 12px 0 8px; }
+    .cr-avatar-ring { inset: -8px; }
+    .cr-initial { font-size: 34px; }
+    .cr-status { width: 28px; height: 28px; padding: 4px; }
+    .cr-name { font-size: 19px; }
+    .cr-bio { font-size: 12.5px; }
+
+    .cr-nav { gap: 14px; }
+    .cr-legend { gap: 8px 14px; margin-top: 22px; font-size: 10px; }
+}
+
+@media (max-width: 480px) {
+    .cr-root { --cr-w: 70vw; }
+
+    /* keep the top row inside narrow cards: drop the ID, shrink the pill */
+    .cr-id { display: none; }
+    .cr-top { justify-content: center; }
+    .cr-presence { font-size: 9px; letter-spacing: 1px; }
+}
+
+/* Touch screens: bigger tap targets */
+@media (pointer: coarse) {
+    .cr-link { display: inline-flex; align-items: center; min-height: 40px; }
+    .cr-dot::after { inset: -14px -6px; }
+    .cr-arrow { width: 48px; height: 48px; }
+}
+
+/* Short landscape phones */
+@media (max-height: 500px) and (orientation: landscape) {
+    .cr-root { --cr-h: 400px; }
+    .cr-bio { -webkit-line-clamp: 2; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4488,3 +4532,220 @@ body.light-mode .cm-hero-ok { color: #50a14f; }
     .cr-shine,
     .cr-dot { transition: none; }
 }
+
+/* ==========================================================================
+   SPECSOFT® — Community page: phone + tablet rules (community.css)
+   Load AFTER style.css (and credits.css). The community sections in
+   style.css were desktop-only: a 2-column hero, a 76px headline and a
+   72px-padded chat banner. This file fixes that without touching style.css.
+   Breakpoints match your site: 1024px, 850px (sidebar becomes a drawer), 480px.
+   ========================================================================== */
+
+/* ----- Tablets and small laptops (≤ 1024px) ----- */
+/* Headline scales with the screen so "BELONG." always fits its column */
+.cm-h1 { font-size: clamp(40px, 5.6vw, 76px); }
+
+/* Sidebar takes 280px, so stack the hero earlier than a normal tablet breakpoint */
+@media (max-width: 1180px) {
+    .cm-hero {
+        grid-template-columns: 1fr;
+        gap: 48px;
+        padding: 60px 0 48px;
+    }
+
+    .cm-h1 { letter-spacing: -2.5px; }
+
+    .cm-hero-desc { max-width: 620px; }
+}
+
+/* ----- Phones + sidebar-drawer layout (≤ 850px) ----- */
+@media (max-width: 850px) {
+    .cm-hero {
+        gap: 36px;
+        padding: 8px 0 40px;   /* .main-content already adds top space for the mobile header */
+    }
+
+    .cm-h1 {
+        font-size: 46px;
+        letter-spacing: -2px;
+        margin-bottom: 20px;
+    }
+
+    .cm-hero-desc {
+        font-size: 15px;
+        margin-bottom: 28px;
+    }
+
+    .cm-hero-actions {
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .cm-hero-actions .btn-primary,
+    .cm-hero-actions .btn-secondary {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+
+    .cm-hero-panel-body {
+        padding: 18px 16px 20px;
+        font-size: 12px;
+        overflow-x: auto;
+    }
+
+    /* Chat banner */
+    .cm-chat-cta { padding: 44px 24px; }
+    .cm-chat-cta-icon { width: 52px; height: 52px; }
+    .cm-chat-cta-title { font-size: 32px; letter-spacing: -1px; }
+    .cm-chat-cta-desc { font-size: 15px; margin-bottom: 8px; }
+
+    .cm-chat-cta-btn {
+        align-self: stretch;
+        justify-content: center;
+    }
+
+    .cm-careers-lead {
+        font-size: 15px;
+        margin-bottom: 28px;
+    }
+
+    .cm-credits { padding-top: 20px; }
+}
+
+/* ----- Small phones (≤ 480px) ----- */
+@media (max-width: 480px) {
+    .cm-h1 {
+        font-size: 36px;
+        letter-spacing: -1.5px;
+    }
+
+    /* single column, no horizontal overflow on 320–360px screens */
+    .cm-do-grid,
+    .cm-teams-grid,
+    .cm-careers-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .cm-do-card,
+    .cm-team-card { padding: 22px 20px; }
+    .cm-career-card { padding: 20px; }
+
+    .cm-chat-cta { padding: 36px 20px; }
+    .cm-chat-cta-title { font-size: 26px; }
+}
+
+/* ==========================================================================
+   ACCOUNT: profile chip + reusable avatars  (sp-)        START account-css
+   Used by main.js (SpecAuth). Works in dark and light mode.
+   ========================================================================== */
+.sp-avatar {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: var(--sp-size, 32px);
+    height: var(--sp-size, 32px);
+    flex: 0 0 auto;
+    border: 1px solid var(--border-hover);
+    border-radius: 50%;
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: calc(var(--sp-size, 32px) * 0.42);
+    font-weight: 500;
+    line-height: 1;
+    overflow: hidden;
+    vertical-align: middle;
+    user-select: none;
+}
+
+.sp-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.sp-av-wrap { position: relative; display: inline-flex; flex: 0 0 auto; }
+
+.sp-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 9px;
+    height: 9px;
+    border: 2px solid var(--bg-base);
+    border-radius: 50%;
+    background: #23a55a;
+}
+
+.sp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 220px;
+    height: 34px;
+    padding: 0 14px 0 4px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    text-decoration: none;
+    transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.sp-chip:hover { border-color: var(--accent); background: var(--accent-dim); }
+.sp-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.sp-chip .sp-avatar { --sp-size: 26px; }
+
+.sp-chip-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* desktop: inside the HUD bar */
+.sp-chip--hud { height: 30px; font-size: 11px; }
+.sp-chip--hud .sp-avatar { --sp-size: 22px; }
+
+/* desktop pages that have no HUD bar */
+.sp-chip--float { position: fixed; top: 14px; right: 24px; z-index: 150; }
+
+/* phones: inside the mobile header, next to the menu button */
+.sp-chip--mobile {
+    height: 38px;
+    max-width: 150px;
+    margin-left: auto;
+    margin-right: 12px;
+}
+
+.sp-chip--mobile .sp-chip-name { max-width: clamp(48px, 18vw, 96px); }
+
+@media (min-width: 851px) {
+    .sp-chip--mobile { display: none; }
+}
+
+@media (max-width: 850px) {
+    .sp-chip--hud,
+    .sp-chip--float { display: none; }
+}
+
+@media (max-width: 360px) {
+    .sp-chip--mobile { padding: 0 4px; margin-right: 8px; }
+    .sp-chip--mobile .sp-chip-name { display: none; }
+}
+
+/* the [hidden] attribute must always win for the show/hide helpers */
+[data-user-only][hidden],
+[data-guest-only][hidden] { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+    .sp-chip { transition: none; }
+}
+/* END account-css */
