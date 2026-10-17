@@ -60,6 +60,35 @@
         return typeof v === 'string' && /^https:\/\/[^\s]+$/i.test(v) ? v : null;
     }
 
+    function youtubeEmbedUrl(v) {
+        const url = safeHttps(v);
+        if (!url) return null;
+        try {
+            const u = new URL(url);
+            const host = (u.hostname || '').replace(/^www\./, '').toLowerCase();
+            const maybeId = function (val) {
+                if (!val) return null;
+                return String(val).split(/[?&/]/)[0] || null;
+            };
+
+            if (host === 'youtu.be') {
+                const id = maybeId(u.pathname.replace(/^\/+/, ''));
+                return id ? 'https://www.youtube.com/embed/' + id : null;
+            }
+
+            if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com' || host === 'www.youtube.com') {
+                const id = u.searchParams.get('v')
+                    || (u.pathname.startsWith('/shorts/') ? maybeId(u.pathname.replace(/^\/shorts\//, '')) : null)
+                    || (u.pathname.startsWith('/embed/') ? maybeId(u.pathname.replace(/^\/embed\//, '')) : null)
+                    || (u.pathname.startsWith('/live/') ? maybeId(u.pathname.replace(/^\/live\//, '')) : null);
+                return id ? 'https://www.youtube.com/embed/' + id : null;
+            }
+        } catch (err) {
+            return null;
+        }
+        return null;
+    }
+
     function parseTags(str, max, maxLen) {
         const seen = new Set();
         const out = [];
@@ -1119,8 +1148,19 @@ async function loadReposts() {
         const media = el('div', { class: 'pf-card-media' });
         const videoUrl = safeHttps(pj.video_url);
         const cover = safeHttps(pj.cover_url);
+        const ytEmbed = youtubeEmbedUrl(pj.video_url);
 
-        if (videoUrl) {
+        if (videoUrl && ytEmbed) {
+            const iframe = el('iframe', {
+                class: 'pf-card-video pf-card-video--embed',
+                src: ytEmbed,
+                title: (pj.title || 'Project video') + ' video',
+                allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+                allowfullscreen: true,
+                referrerpolicy: 'strict-origin-when-cross-origin'
+            });
+            media.appendChild(iframe);
+        } else if (videoUrl) {
             const video = el('video', { class: 'pf-card-video', controls: true, playsinline: true, preload: 'metadata' });
             if (cover) video.setAttribute('poster', cover);
             video.appendChild(el('source', { src: videoUrl, type: /\.mp4(?:$|[?#])|video\/mp4/i.test(videoUrl) ? 'video/mp4' : 'video/webm' }));
