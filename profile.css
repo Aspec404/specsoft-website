@@ -93,7 +93,46 @@ html.pf-lock { overflow: hidden; }
     --pf-accent-2: #22d3ee;
     --pf-top-grad: #0f172a;
     --pf-bottom-grad: #1e293b;
+    --pf-profile-bg: none;
+    position: relative;
+    isolation: isolate;
     animation: pfIn 0.5s ease both;
+}
+
+.pf-profile::before {
+    content: '';
+    position: absolute;
+    inset: -24px -24px -24px -24px;
+    z-index: 0;
+    background-image: var(--pf-profile-bg);
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.pf-profile.pf-profile--bg-image::before {
+    opacity: 1;
+}
+
+body.pf-custom-bg .grid-bg,
+body.pf-custom-bg .grid-glow,
+body.pf-custom-bg .scanner-line,
+body.pf-custom-bg .scanlines,
+body.pf-custom-bg .vignette,
+body.pf-custom-bg .ambient-glow,
+body.pf-custom-bg .ambient-glow-2,
+body.pf-custom-bg .geo-shape,
+body.pf-custom-bg .geo-dot-grid,
+body.pf-custom-bg .crosshair {
+    opacity: 0 !important;
+}
+
+.pf-profile > * {
+    position: relative;
+    z-index: 1;
 }
 
 @keyframes pfIn {

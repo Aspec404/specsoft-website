@@ -29,6 +29,7 @@ create table if not exists public.profiles (
   location      text,
   avatar_url    text,
   banner_url    text,
+  background_url text,
   banner_preset text not null default 'grid',
   theme         jsonb not null default '{"primary":"#7c3aed","secondary":"#22d3ee","top":"#0f172a","bottom":"#1e293b"}'::jsonb,
   display_style jsonb not null default '{"font":"default","style":"solid","animated":false,"gradientColors":["#7c3aed","#22d3ee","#f472b6","#fbbf24","#a78bfa"],"glowColor":"#7c3aed"}'::jsonb,
@@ -49,7 +50,8 @@ create table if not exists public.profiles (
   constraint profiles_skills_len      check (cardinality(skills) <= 12),
   constraint profiles_links_len       check (octet_length(links::text) <= 1500),
   constraint profiles_avatar_https    check (avatar_url is null or avatar_url ~ '^https://'),
-  constraint profiles_banner_https    check (banner_url is null or banner_url ~ '^https://')
+  constraint profiles_banner_https    check (banner_url is null or banner_url ~ '^https://'),
+  constraint profiles_background_https check (background_url is null or background_url ~ '^https://')
 );
 
 -- usernames are unique no matter the capital letters (Alex = alex)
@@ -63,6 +65,9 @@ create index if not exists profiles_created_idx
 -- so add them first (does nothing if they already exist)
 alter table public.profiles
   add column if not exists theme jsonb not null default '{"primary":"#7c3aed","secondary":"#22d3ee","top":"#0f172a","bottom":"#1e293b"}'::jsonb;
+
+alter table public.profiles
+  add column if not exists background_url text;
 
 alter table public.profiles
   add column if not exists display_style jsonb not null default '{"font":"default","style":"solid","animated":false,"gradientColors":["#7c3aed","#22d3ee","#f472b6","#fbbf24","#a78bfa"],"glowColor":"#7c3aed"}'::jsonb;
@@ -189,6 +194,9 @@ drop policy if exists "projects are public"      on public.profile_projects;
 drop policy if exists "members add own projects" on public.profile_projects;
 drop policy if exists "members edit own projects" on public.profile_projects;
 drop policy if exists "members delete own projects" on public.profile_projects;
+drop policy if exists "project likes are public" on public.profile_project_likes;
+drop policy if exists "members can like projects" on public.profile_project_likes;
+drop policy if exists "members can undo own likes" on public.profile_project_likes;
 
 create policy "projects are public"
   on public.profile_projects for select

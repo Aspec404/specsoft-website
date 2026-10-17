@@ -664,6 +664,13 @@
         $('pfProfile').hidden = false;
         applyProfileTheme(p);
 
+        const profileRoot = $('pfProfile');
+        const customBg = safeHttps(p.background_url);
+        document.body.classList.toggle('pf-custom-bg', !!customBg);
+        profileRoot.classList.toggle('pf-profile--bg-image', !!customBg);
+        if (customBg) profileRoot.style.setProperty('--pf-profile-bg', 'url("' + customBg + '")');
+        else profileRoot.style.removeProperty('--pf-profile-bg');
+
         const name = p.display_name || p.username;
         document.title = name + ' (@' + p.username + ') | SPECSOFT®';
 
@@ -1647,7 +1654,8 @@ async function loadReposts() {
        9. EDIT PROFILE
        ---------------------------------------------------------------------- */
     const edit = { avatarBlob: null, avatarType: '', avatarReset: false, avatarPreviewUrl: '',
-                   bannerBlob: null, bannerType: '', bannerReset: false };
+                   bannerBlob: null, bannerType: '', bannerReset: false,
+                   backgroundBlob: null, backgroundType: '', backgroundReset: false };
 
     // presets + status options are built once
     (function buildChoices() {
@@ -1682,10 +1690,13 @@ async function loadReposts() {
     function openEdit() {
         const p = state.profile;
         edit.avatarBlob = null; edit.avatarReset = false; edit.bannerBlob = null; edit.bannerReset = false;
+        edit.backgroundBlob = null; edit.backgroundReset = false;
         if (edit.avatarPreviewUrl) { URL.revokeObjectURL(edit.avatarPreviewUrl); edit.avatarPreviewUrl = ''; }
         $('edAvatarFile').value = '';
         $('edBannerFile').value = '';
+        $('edBackgroundFile').value = '';
         $('edBannerName').textContent = p.banner_url ? 'Current image kept' : '';
+        $('edBackgroundName').textContent = p.background_url ? 'Current image kept' : '';
         showMsg('edMsg', '');
 
         $('edDisplay').value = p.display_name || '';
@@ -1817,6 +1828,25 @@ async function loadReposts() {
         $('edBannerName').textContent = 'Image will be removed when you save';
     });
 
+    $('edBackgroundFile').addEventListener('change', async function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const bad = checkImageFile(file);
+        if (bad) { showMsg('edMsg', bad); e.target.value = ''; return; }
+        try {
+            const out = await resizeToBlob(file, 1800, 1200, false);
+            edit.backgroundBlob = out.blob; edit.backgroundType = out.type; edit.backgroundReset = false;
+            $('edBackgroundName').textContent = file.name;
+            showMsg('edMsg', '');
+        } catch (err) { showMsg('edMsg', err.message || 'Could not use that image.'); }
+    });
+
+    $('edBackgroundReset').addEventListener('click', function () {
+        edit.backgroundBlob = null; edit.backgroundReset = true;
+        $('edBackgroundFile').value = '';
+        $('edBackgroundName').textContent = 'Image will be removed when you save';
+    });
+
     async function uploadImage(bucket, blob, type) {
         const ext = type === 'image/webp' ? 'webp' : 'jpg';
         const path = state.me.id + '/' + Date.now() + '.' + ext;
@@ -1893,7 +1923,7 @@ async function loadReposts() {
 
         saving = true;
         setLoading(btn, true);
-        const old = { avatar: state.profile.avatar_url, banner: state.profile.banner_url };
+        const old = { avatar: state.profile.avatar_url, banner: state.profile.banner_url, background: state.profile.background_url };
 
         try {
             if (edit.avatarBlob) patch.avatar_url = await uploadImage('avatars', edit.avatarBlob, edit.avatarType);
@@ -1901,6 +1931,9 @@ async function loadReposts() {
 
             if (edit.bannerBlob) patch.banner_url = await uploadImage('banners', edit.bannerBlob, edit.bannerType);
             else if (edit.bannerReset) patch.banner_url = null;
+
+            if (edit.backgroundBlob) patch.background_url = await uploadImage('banners', edit.backgroundBlob, edit.backgroundType);
+            else if (edit.backgroundReset) patch.background_url = null;
 
             const res = await sb.from('profiles').update(patch).eq('id', state.me.id).select().single();
             if (res.error) throw res.error;
@@ -1914,6 +1947,7 @@ async function loadReposts() {
             // clean up replaced images (best effort)
             if (patch.avatar_url !== undefined && old.avatar && old.avatar !== patch.avatar_url) removeOldImage('avatars', old.avatar);
             if (patch.banner_url !== undefined && old.banner && old.banner !== patch.banner_url) removeOldImage('banners', old.banner);
+            if (patch.background_url !== undefined && old.background && old.background !== patch.background_url) removeOldImage('banners', old.background);
 
             if (new URLSearchParams(location.search).get('u')) {
                 try { history.replaceState(null, '', location.pathname + '?u=' + encodeURIComponent(res.data.username)); } catch (err) { /* ignore */ }
