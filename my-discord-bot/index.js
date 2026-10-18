@@ -1,4 +1,6 @@
-require('dotenv').config();
+// 🚨 We point to the parent folder's .env file so it doesn't break your website!
+require('dotenv').config({ path: '../.env' });
+
 const {
   Client,
   GatewayIntentBits,
@@ -45,6 +47,15 @@ const BUTTON_STYLES = {
 
 // Store pending button configs (in-memory only)
 const pendingButtons = new Map();
+
+// Quick check to make sure your env variables loaded correctly
+if (!process.env.DISCORD_TOKEN || !process.env.TROLL_CHANNEL_ID) {
+  console.error('\n❌ ERROR: Missing environment variables!');
+  console.error('Make sure your ../.env file has BOTH:');
+  console.error('DISCORD_TOKEN=your_token');
+  console.error('TROLL_CHANNEL_ID=your_channel_id\n');
+  process.exit(1);
+}
 
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ Logged in as ${c.user.tag}`);

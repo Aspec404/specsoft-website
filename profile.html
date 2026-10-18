@@ -422,6 +422,33 @@
                     <input class="pf-input" type="text" id="hlTitle" maxlength="24" required placeholder="First game shipped">
                 </div>
                 <div class="pf-field">
+                    <label class="pf-label" for="hlDuration">DURATION</label>
+                    <div class="pf-select-wrap">
+                        <select class="pf-input pf-input--select" id="hlDuration" aria-label="Highlight duration">
+                            <option value="permanent">Permanent</option>
+                            <option value="10d">10 days</option>
+                            <option value="3d">3 days</option>
+                            <option value="24h">24 hours</option>
+                            <option value="8h">8 hours</option>
+                            <option value="1h">1 hour</option>
+                            <option value="30m">30 minutes</option>
+                            <option value="5m">5 minutes</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="pf-field">
+                    <label class="pf-label" for="hlThumbFile">THUMBNAIL</label>
+                    <div class="pf-file-row pf-file-row--stack">
+                        <div class="pf-thumb-preview" id="hlThumbPreview" hidden></div>
+                        <div class="pf-file-actions">
+                            <label class="pf-btn pf-btn--ghost pf-btn--sm" for="hlThumbFile">Choose file</label>
+                            <input class="pf-sr" type="file" id="hlThumbFile" accept="image/gif,image/jpeg,image/png">
+                            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" id="hlThumbReset">Remove</button>
+                        </div>
+                    </div>
+                    <p class="pf-help" id="hlThumbName">GIF, JPG or PNG only.</p>
+                </div>
+                <div class="pf-field">
                     <label class="pf-label" for="hlBody">STORY <span class="pf-count" id="hlBodyCount">0/280</span></label>
                     <textarea class="pf-input pf-textarea" id="hlBody" maxlength="280" rows="4"></textarea>
                 </div>
@@ -442,6 +469,7 @@
             <button type="button" class="pf-x" data-close aria-label="Close"></button>
         </header>
         <div class="pf-dlg-body">
+            <img class="pf-hv-thumb" id="hvThumb" alt="Highlight thumbnail" hidden>
             <p class="pf-hv-body" id="hvBody"></p>
         </div>
         <footer class="pf-dlg-foot" id="hvFoot" hidden>

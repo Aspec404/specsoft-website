@@ -63,11 +63,19 @@ create table if not exists public.profile_project_comments (
   id         uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.profile_projects(id) on delete cascade,
   user_id    uuid not null references public.profiles(id) on delete cascade,
-  body       text not null,
+  body       text not null default '',
+  image_url  text,
   created_at timestamptz not null default now(),
 
-  constraint project_comments_len check (char_length(btrim(body)) between 1 and 500)
+  constraint project_comments_len check (char_length(btrim(coalesce(body, ''))) between 0 and 500)
 );
+
+alter table public.profile_project_comments add column if not exists image_url text;
+alter table public.profile_project_comments alter column body set default '';
+alter table public.profile_project_comments alter column body drop not null;
+
+drop constraint if exists project_comments_len;
+alter table public.profile_project_comments add constraint project_comments_len check (char_length(btrim(coalesce(body, ''))) between 0 and 500);
 
 create index if not exists profile_project_comments_project_idx
   on public.profile_project_comments (project_id, created_at);

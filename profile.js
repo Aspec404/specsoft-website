@@ -625,10 +625,54 @@
         renderProjects();
     }
 
+    function highlightDurationMs(value) {
+        const map = {
+            permanent: null,
+            '10d': 1000 * 60 * 60 * 24 * 10,
+            '3d': 1000 * 60 * 60 * 24 * 3,
+            '24h': 1000 * 60 * 60 * 24,
+            '8h': 1000 * 60 * 60 * 8,
+            '1h': 1000 * 60 * 60,
+            '30m': 1000 * 60 * 30,
+            '5m': 1000 * 60 * 5
+        };
+        return map[value] ?? null;
+    }
+
+    function getHighlightExpiryIso(value) {
+        const ms = highlightDurationMs(value);
+        if (ms === null) return null;
+        return new Date(Date.now() + ms).toISOString();
+    }
+
+    async function purgeExpiredHighlights() {
+        if (!sb) return;
+        try {
+            const nowIso = new Date().toISOString();
+            const res = await sb.from('profile_highlights').select('id').lt('expires_at', nowIso);
+            if (res.error) {
+                const msg = (res.error && res.error.message || '').toLowerCase();
+                if (msg.includes('does not exist') || msg.includes('column') || msg.includes('expires_at')) return;
+                throw res.error;
+            }
+            const ids = (res.data || []).map(function (h) { return h.id; });
+            if (!ids.length) return;
+            const del = await sb.from('profile_highlights').delete().in('id', ids);
+            if (del.error) throw del.error;
+        } catch (err) {
+            // Expired highlight cleanup is best-effort; if the column is missing, just skip.
+        }
+    }
+
     async function reloadHighlights() {
+        await purgeExpiredHighlights();
         const res = await sb.from('profile_highlights').select('*').eq('owner_id', state.profile.id).order('created_at', { ascending: true });
         if (res.error) throw res.error;
-        state.highlights = res.data || [];
+        const now = Date.now();
+        state.highlights = (res.data || []).filter(function (h) {
+            if (!h.expires_at) return true;
+            return new Date(h.expires_at).getTime() > now;
+        });
         renderStats();
         renderRings();
     }
@@ -2041,11 +2085,61 @@ async function loadReposts() {
        ---------------------------------------------------------------------- */
     let viewing = null;
 
+    function checkHighlightImageFile(file) {
+        if (!file) return 'No file chosen.';
+        if (['image/gif', 'image/jpeg', 'image/png'].indexOf(file.type) < 0) return 'Use a GIF, PNG or JPG highlight image.';
+        if (file.size > 8 * 1024 * 1024) return 'That highlight image is over 8 MB. Pick a smaller one.';
+        return '';
+    }
+
+    async function uploadHighlightImage(file) {
+        const extMap = { 'image/gif': 'gif', 'image/jpeg': 'jpg', 'image/png': 'png' };
+        const ext = extMap[file.type] || 'jpg';
+        const path = state.me.id + '/highlight-' + Date.now() + '.' + ext;
+        const up = await sb.storage.from('banners').upload(path, file, { contentType: file.type, cacheControl: '3600', upsert: false });
+        if (up.error) throw up.error;
+        return sb.storage.from('banners').getPublicUrl(path).data.publicUrl;
+    }
+
+    function resetHighlightThumbnailUi() {
+        $('hlThumbFile').value = '';
+        $('hlThumbName').textContent = 'GIF, JPG or PNG only.';
+        const preview = $('hlThumbPreview');
+        preview.hidden = true;
+        preview.style.backgroundImage = 'none';
+        preview.removeAttribute('style');
+        preview.textContent = '';
+    }
+
+    $('hlThumbFile').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        const preview = $('hlThumbPreview');
+        const name = $('hlThumbName');
+        if (!file) return;
+        const bad = checkHighlightImageFile(file);
+        if (bad) { showMsg('hlMsg', bad); e.target.value = ''; return; }
+        name.textContent = file.name;
+        const url = URL.createObjectURL(file);
+        preview.hidden = false;
+        preview.style.backgroundImage = 'url("' + url + '")';
+        preview.style.backgroundSize = 'cover';
+        preview.style.backgroundPosition = 'center';
+        preview.title = file.name;
+        showMsg('hlMsg', '');
+    });
+
+    $('hlThumbReset').addEventListener('click', function () {
+        resetHighlightThumbnailUi();
+        showMsg('hlMsg', '');
+    });
+
     function openNewHighlight() {
         showMsg('hlMsg', '');
         $('hlIcon').value = '★';
         $('hlTitle').value = '';
         $('hlBody').value = '';
+        $('hlDuration').value = 'permanent';
+        resetHighlightThumbnailUi();
         updHl();
         openDlg($('hlDlg'));
     }
@@ -2056,13 +2150,26 @@ async function loadReposts() {
         const btn = $('hlSave');
         const title = $('hlTitle').value.trim();
         const icon_ = Array.from($('hlIcon').value.trim()).slice(0, 2).join('') || '★';
+        const duration = $('hlDuration').value || 'permanent';
         if (!title) { showMsg('hlMsg', 'Give your highlight a title.'); $('hlTitle').focus(); return; }
 
         saving = true;
         setLoading(btn, true);
         try {
+            let thumbUrl = null;
+            const highlightFile = $('hlThumbFile').files && $('hlThumbFile').files[0];
+            if (highlightFile) {
+                const bad = checkHighlightImageFile(highlightFile);
+                if (bad) { showMsg('hlMsg', bad); return; }
+                thumbUrl = await uploadHighlightImage(highlightFile);
+            }
             const res = await sb.from('profile_highlights').insert({
-                owner_id: state.me.id, title: title, icon: icon_, body: $('hlBody').value.trim() || null
+                owner_id: state.me.id,
+                title: title,
+                icon: icon_,
+                body: $('hlBody').value.trim() || null,
+                thumbnail_url: thumbUrl,
+                expires_at: getHighlightExpiryIso(duration)
             });
             if (res.error) throw res.error;
             await reloadHighlights();
@@ -2082,6 +2189,14 @@ async function loadReposts() {
         $('hvTitle').textContent = h.title;
         $('hvBody').textContent = h.body || '';
         $('hvBody').hidden = !h.body;
+        const thumb = $('hvThumb');
+        if (h.thumbnail_url) {
+            thumb.src = safeHttps(h.thumbnail_url) || '';
+            thumb.hidden = false;
+        } else {
+            thumb.removeAttribute('src');
+            thumb.hidden = true;
+        }
         $('hvFoot').hidden = !state.isOwner;
         openDlg($('hlView'));
     }

@@ -235,20 +235,32 @@ create policy "members can undo own likes"
 -- 3) HIGHLIGHTS (max 10 per member)
 -- --------------------------------------------------------------------------
 create table if not exists public.profile_highlights (
-  id         uuid primary key default gen_random_uuid(),
-  owner_id   uuid not null references public.profiles(id) on delete cascade,
-  title      text not null,
-  icon       text not null default '★',
-  body       text,
-  created_at timestamptz not null default now(),
+  id            uuid primary key default gen_random_uuid(),
+  owner_id      uuid not null references public.profiles(id) on delete cascade,
+  title         text not null,
+  icon          text not null default '★',
+  body          text,
+  thumbnail_url text,
+  created_at    timestamptz not null default now(),
+  expires_at    timestamptz,
 
   constraint highlights_title_len check (char_length(title) between 1 and 24),
   constraint highlights_icon_len  check (char_length(icon) between 1 and 4),
-  constraint highlights_body_len  check (body is null or char_length(body) <= 280)
+  constraint highlights_body_len  check (body is null or char_length(body) <= 280),
+  constraint highlights_thumb_len check (thumbnail_url is null or char_length(thumbnail_url) <= 500),
+  constraint highlights_expiry_valid check (expires_at is null or expires_at >= created_at)
 );
+
+alter table public.profile_highlights add column if not exists thumbnail_url text;
+alter table public.profile_highlights add column if not exists expires_at timestamptz;
 
 create index if not exists profile_highlights_owner_idx
   on public.profile_highlights (owner_id, created_at);
+
+create index if not exists profile_highlights_expiry_idx
+  on public.profile_highlights (expires_at);
+
+alter table public.profile_highlights add column if not exists expires_at timestamptz;
 
 alter table public.profile_highlights enable row level security;
 
@@ -259,13 +271,13 @@ drop policy if exists "members delete own highlights" on public.profile_highligh
 
 create policy "highlights are public"
   on public.profile_highlights for select
-  using (true);
+  using (expires_at is null or expires_at > now());
 
 create policy "members add own highlights"
   on public.profile_highlights for insert to authenticated
   with check (
     auth.uid() = owner_id
-    and (select count(*) from public.profile_highlights h where h.owner_id = auth.uid()) < 10
+    and (select count(*) from public.profile_highlights h where h.owner_id = auth.uid() and (h.expires_at is null or h.expires_at > now())) < 10
   );
 
 create policy "members edit own highlights"

@@ -113,7 +113,22 @@ html.pf-lock { overflow: hidden; }
     pointer-events: none;
 }
 
+.pf-profile.pf-profile--bg-image {
+    --text-primary: #f8fafc;
+    --text-secondary: #dfe7ff;
+    --border-subtle: rgba(255,255,255,0.16);
+    --border-hover: rgba(255,255,255,0.28);
+    --bg-card: rgba(12, 18, 31, 0.62);
+    --bg-card-hover: rgba(17, 24, 39, 0.72);
+    --bg-base: rgba(8, 12, 20, 0.75);
+    --bg-soft: rgba(148, 163, 184, 0.12);
+    --accent-dim: rgba(148, 163, 184, 0.2);
+}
+
 .pf-profile.pf-profile--bg-image::before {
+    background-image:
+        linear-gradient(180deg, rgba(5, 8, 15, 0.52), rgba(5, 8, 15, 0.72)),
+        var(--pf-profile-bg);
     opacity: 1;
 }
 
@@ -147,6 +162,18 @@ body.pf-custom-bg .crosshair {
     overflow: hidden;
     padding-bottom: 22px;
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 18px 32px rgba(0,0,0,0.22);
+}
+
+.pf-profile.pf-profile--bg-image .pf-hero,
+.pf-profile.pf-profile--bg-image .pf-stat,
+.pf-profile.pf-profile--bg-image .pf-card,
+.pf-profile.pf-profile--bg-image .pf-member,
+.pf-profile.pf-profile--bg-image .pf-search input,
+.pf-profile.pf-profile--bg-image .pf-chip,
+.pf-profile.pf-profile--bg-image .pf-link,
+.pf-profile.pf-profile--bg-image .pf-project-menu,
+.pf-profile.pf-profile--bg-image .pf-dlg {
+    backdrop-filter: blur(2px);
 }
 
 .pf-banner {
@@ -1421,6 +1448,31 @@ body.pf-custom-bg .crosshair {
     transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
+.pf-select-wrap {
+    position: relative;
+}
+
+.pf-select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    font-size: 15px;
+    pointer-events: none;
+}
+
+.pf-input--select {
+    appearance: none;
+    -webkit-appearance: none;
+    background:
+        linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(34, 211, 238, 0.12)),
+        var(--bg-base);
+    padding-right: 42px;
+    cursor: pointer;
+}
+
 .pf-input:hover { border-color: var(--border-hover); }
 .pf-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 .pf-input[aria-invalid="true"] { border-color: var(--pf-error); }
@@ -1534,6 +1586,25 @@ body.pf-custom-bg .crosshair {
     border-radius: 50%;
     background: var(--bg-card-hover);
     font-size: 22px;
+}
+
+.pf-thumb-preview,
+.pf-hv-thumb {
+    display: block;
+    width: 100%;
+    min-height: 152px;
+    max-height: 240px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    object-fit: cover;
+    background-color: var(--bg-card-hover);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+}
+
+.pf-hv-thumb {
+    margin-bottom: 16px;
 }
 
 .pf-hv-body {
