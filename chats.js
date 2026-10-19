@@ -1,0 +1,1772 @@
+/* ==========================================================================
+   SPECSOFT® — Chats (chats.js)
+   Needs: supabase-config.js (your keys) and supabase-chats.sql (run once).
+   ========================================================================== */
+(function () {
+    'use strict';
+
+    const CFG = window.SPECSOFT_CONFIG || {};
+    const PAGE = 40;
+
+    /* ----------------------------------------------------------------------
+       1. HELPERS (pure functions)
+       ---------------------------------------------------------------------- */
+    /* HELPERS START */
+    const RE_USER = /^[A-Za-z0-9_]{3,20}$/;
+
+    function sanitizeUsername(raw) {
+        return String(raw == null ? '' : raw).normalize('NFKD').replace(/[^A-Za-z0-9_]/g, '').slice(0, 20);
+    }
+
+    function randDigits(n) {
+        let out = '';
+        for (let i = 0; i < n; i++) out += Math.floor(Math.random() * 10);
+        return out;
+    }
+
+    function baseUsername(meta, email) {
+        meta = meta || {};
+        const list = [meta.username, meta.user_name, meta.full_name, meta.name, String(email || '').split('@')[0]];
+        for (let i = 0; i < list.length; i++) {
+            const s = sanitizeUsername(list[i]);
+            if (s.length >= 3) return s;
+        }
+        return 'member' + randDigits(4);
+    }
+
+    function escapeLike(s) {
+        return String(s == null ? '' : s).replace(/[\\%_]/g, function (m) { return '\\' + m; });
+    }
+
+    function safeHttps(v) {
+        return typeof v === 'string' && /^https:\/\/[^\s]+$/i.test(v) ? v : null;
+    }
+
+    // splits a message into code blocks and normal text
+    function parseMessage(text) {
+        const out = [];
+        const re = /```([\s\S]*?)```/g;
+        let last = 0, m;
+        while ((m = re.exec(text))) {
+            if (m.index > last) out.push({ t: 'inline', v: text.slice(last, m.index) });
+            out.push({ t: 'block', v: m[1].replace(/^\n/, '').replace(/\n$/, '') });
+            last = m.index + m[0].length;
+        }
+        if (last < text.length) out.push({ t: 'inline', v: text.slice(last) });
+        return out;
+    }
+
+    // **bold** *italic* _italic_ ~~strike~~ ||spoiler|| `code` https links @mentions
+    function parseInline(str) {
+        const re = /(`[^`\n]+`|\*\*[^*\n]+\*\*|~~[^~\n]+~~|\|\|[^|\n]+\|\||\*[^*\n]+\*|(?<![A-Za-z0-9])_[^_\n]+_(?![A-Za-z0-9])|https:\/\/[^\s<]+|(?<![A-Za-z0-9_])@[A-Za-z0-9_]{3,20})/g;
+        const out = [];
+        let last = 0, m;
+        while ((m = re.exec(str))) {
+            if (m.index > last) out.push({ t: 'text', v: str.slice(last, m.index) });
+            let tok = m[0];
+            if (tok[0] === '`') out.push({ t: 'code', v: tok.slice(1, -1) });
+            else if (tok.indexOf('**') === 0) out.push({ t: 'b', v: tok.slice(2, -2) });
+            else if (tok.indexOf('~~') === 0) out.push({ t: 's', v: tok.slice(2, -2) });
+            else if (tok.indexOf('||') === 0) out.push({ t: 'spoiler', v: tok.slice(2, -2) });
+            else if (tok[0] === '*' || tok[0] === '_') out.push({ t: 'i', v: tok.slice(1, -1) });
+            else if (tok.indexOf('https://') === 0) {
+                let trail = '';
+                while (/[.,!?;:)\]]$/.test(tok)) { trail = tok.slice(-1) + trail; tok = tok.slice(0, -1); }
+                out.push({ t: 'link', v: tok });
+                if (trail) out.push({ t: 'text', v: trail });
+            } else out.push({ t: 'mention', v: tok.slice(1) });
+            last = m.index + m[0].length;
+        }
+        if (last < str.length) out.push({ t: 'text', v: str.slice(last) });
+        return out;
+    }
+
+    function sameDay(a, b) {
+        const x = new Date(a), y = new Date(b);
+        return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
+    }
+
+    function fmtTime(iso) {
+        const d = new Date(iso);
+        return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function fmtDay(iso) {
+        const d = new Date(iso), n = new Date();
+        if (sameDay(d, n)) return 'Today';
+        const y = new Date(n); y.setDate(n.getDate() - 1);
+        if (sameDay(d, y)) return 'Yesterday';
+        return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+
+    function fmtListTime(iso) {
+        if (!iso) return '';
+        const d = new Date(iso), n = new Date();
+        if (sameDay(d, n)) return fmtTime(iso);
+        if ((n - d) / 86400000 < 7) return d.toLocaleDateString([], { weekday: 'short' });
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+
+    // same person, same day, under 5 minutes apart, not a reply
+    function shouldGroup(prev, cur) {
+        return !!prev && prev.sender_id === cur.sender_id && !prev.deleted_at && !cur.reply_to &&
+            sameDay(prev.created_at, cur.created_at) &&
+            (new Date(cur.created_at) - new Date(prev.created_at)) < 5 * 60000;
+    }
+
+    function previewText(body) {
+        return String(body || '').replace(/```[\s\S]*?```/g, '[code]').replace(/\s+/g, ' ').trim().slice(0, 90);
+    }
+
+    function mentionsUser(text, username) {
+        if (!username) return false;
+        return new RegExp('(?<![A-Za-z0-9_])@' + username + '(?![A-Za-z0-9_])', 'i').test(text || '');
+    }
+
+    // /shrug, /me
+    function applySlash(text) {
+        const t = text.trim();
+        if (/^\/shrug(\s|$)/i.test(t)) return (t.slice(6).trim() + ' ¯\\_(ツ)_/¯').trim();
+        if (/^\/me\s+\S/i.test(t)) return '*' + t.slice(4).trim() + '*';
+        return text;
+    }
+    /* HELPERS END */
+
+    /* ----------------------------------------------------------------------
+       2. DOM TOOLKIT + ICONS
+       ---------------------------------------------------------------------- */
+    const $ = id => document.getElementById(id);
+
+    function el(tag, props) {
+        const n = document.createElement(tag);
+        if (props) {
+            Object.keys(props).forEach(function (k) {
+                const v = props[k];
+                if (v == null || v === false) return;
+                if (k === 'class') n.className = v;
+                else if (k === 'text') n.textContent = v;
+                else if (k === 'dataset') Object.keys(v).forEach(function (d) { n.dataset[d] = v[d]; });
+                else if (k.slice(0, 2) === 'on') n.addEventListener(k.slice(2), v);
+                else n.setAttribute(k, v === true ? '' : v);
+            });
+        }
+        for (let i = 2; i < arguments.length; i++) {
+            [].concat(arguments[i]).forEach(function (c) {
+                if (c == null || c === false) return;
+                n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+            });
+        }
+        return n;
+    }
+
+    const svg = inner => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + inner + '</svg>';
+
+    const ICON = {
+        menu:    svg('<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>'),
+        close:   svg('<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>'),
+        back:    svg('<polyline points="15 18 9 12 15 6"/>'),
+        send:    svg('<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'),
+        smile:   svg('<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9.5" x2="9.01" y2="9.5"/><line x1="15" y1="9.5" x2="15.01" y2="9.5"/>'),
+        users:   svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+        userplus: svg('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'),
+        reply:   svg('<polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>'),
+        edit:    svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
+        trash:   svg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/>'),
+        search:  svg('<circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>'),
+        plus:    svg('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+        sound:   svg('<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>'),
+        muted:   svg('<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>'),
+        sun:     svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+        moon:    svg('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
+        check:   svg('<polyline points="20 6 9 17 4 12"/>'),
+        hash:    svg('<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>'),
+        dm:      svg('<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/>'),
+        group:   svg('<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>'),
+        attach:  svg('<path d="m21.4 11.1-8.5 8.5a5.7 5.7 0 0 1-8.1-8.1l9.2-9.2a3.8 3.8 0 0 1 5.4 5.4l-9.2 9.2a1.9 1.9 0 0 1-2.7-2.7l8.5-8.5"/>')
+    };
+
+    function icon(name) {
+        const holder = document.createElement('span');
+        holder.innerHTML = ICON[name];
+        return holder.firstChild;
+    }
+
+    function setIcon(id, name) { const n = $(id); if (n) n.innerHTML = ICON[name]; }
+
+    // round avatar (uses the shared .sp-avatar look from style.css)
+    function avatar(p, size) {
+        const name = (p && (p.display_name || p.username)) || '?';
+        const wrap = el('span', { class: 'sp-avatar' }, el('span', { class: 'sp-initial', text: name.charAt(0).toUpperCase() }));
+        if (size) wrap.style.setProperty('--sp-size', size + 'px');
+        const url = p && safeHttps(p.avatar_url);
+        if (url) {
+            const img = el('img', { src: url, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+            img.addEventListener('error', function () { img.remove(); });
+            wrap.appendChild(img);
+        }
+        return wrap;
+    }
+
+    /* ----------------------------------------------------------------------
+       3. STATE + BACKEND
+       ---------------------------------------------------------------------- */
+    const sb = window.getSupabaseClient ? window.getSupabaseClient() : (
+        (window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY)
+            ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY)
+            : null
+    );
+
+    const S = {
+        me: null, profile: null,
+        rooms: [], roomMap: new Map(),
+        invites: [], inbox: [], discover: [],
+        nav: 'mine', query: '',
+        current: null,              // the room object that is open
+        messages: [], byId: new Map(), extra: new Map(),
+        profiles: new Map(),
+        online: new Set(), typing: new Map(),
+        replyTo: null, editing: null,
+        newFromId: null, atBottom: true, newCount: 0,
+        loadingMore: false, noMore: false,
+        roomCh: null, globalCh: null,
+        sound: true, tmp: 0, pickerFor: null, members: [],
+        pendingFile: null, fileUrls: new Map(), sending: false
+    };
+
+    const ERR = {
+        not_authenticated: 'Please log in again.',
+        no_profile: 'Set up your profile first (open your profile page once).',
+        bad_kind: 'That chat type is not valid.',
+        bad_name: 'Pick a name between 2 and 40 characters.',
+        room_limit: 'You can own up to 10 chats.',
+        room_not_found: 'That chat was not found.',
+        bad_code: 'That code is not valid.',
+        bad_user: 'You cannot do that with yourself.',
+        user_not_found: 'No member has that username.',
+        not_member: 'You are not in this chat.',
+        not_allowed: 'You are not allowed to do that.',
+        already_member: 'They are already in this chat.',
+        invite_not_found: 'That invite is no longer available.',
+        empty_message: 'Write something first.',
+        too_long: 'That message is too long (2000 max).',
+        rate_limited: 'Slow down a little.',
+        bad_emoji: 'That emoji is not allowed.',
+        too_many_reactions: 'That message has too many different reactions.'
+    };
+
+    function isSetupMissing(err) {
+        const code = String(err && err.code || '');
+        const msg = String(err && err.message || '').toLowerCase();
+        return code === 'PGRST202' || code === 'PGRST205' || code === '42883' || code === '42P01' ||
+            (/chat_/.test(msg) && /(schema cache|does not exist|could not find)/.test(msg));
+    }
+
+    function friendly(err) {
+        const msg = String(err && err.message || '');
+        if (/attachment_path|chat-attachments|bucket not found/i.test(msg)) return 'Run the updated supabase-chats.sql in Supabase SQL Editor to enable attachments.';
+        const keys = Object.keys(ERR);
+        for (let i = 0; i < keys.length; i++) if (msg.indexOf(keys[i]) >= 0) return ERR[keys[i]];
+        if (isSetupMissing(err)) return 'Chats are not set up yet. Run supabase-chats.sql in your Supabase SQL Editor.';
+        if (/failed to fetch|network/i.test(msg)) return 'Cannot reach the server. Check your connection.';
+        return 'Something went wrong. Please try again.';
+    }
+
+    let toastTimer = null;
+    function toast(msg) {
+        const t = $('chToast');
+        const host = document.querySelector('dialog[open]') || document.body;
+        if (t.parentNode !== host) host.appendChild(t);
+        t.textContent = msg;
+        void t.offsetWidth;
+        t.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2600);
+    }
+
+    function setLoading(btn, on) {
+        btn.classList.toggle('is-loading', on);
+        btn.disabled = on;
+        btn.setAttribute('aria-busy', String(on));
+    }
+
+    function showBox(id, text) {
+        const b = $(id);
+        b.className = 'ch-msgbox' + (text ? ' is-error' : '');
+        b.textContent = text || '';
+    }
+
+    async function copyText(text, ok) {
+        try { await navigator.clipboard.writeText(text); toast(ok); }
+        catch (e) { toast('Could not copy. Copy it by hand.'); }
+    }
+
+    /* ----------------------------------------------------------------------
+       4. SCREENS: gate, theme, sound, viewport
+       ---------------------------------------------------------------------- */
+    function gate(kind, text) {
+        const g = $('chGate'), card = $('chGateCard');
+        g.hidden = false;
+        card.textContent = '';
+        const add = function (title, body, actions) {
+            card.appendChild(el('h2', { text: title }));
+            if (body) card.appendChild(el('p', { text: body }));
+            if (actions) card.appendChild(el('div', { class: 'ch-gate-actions' }, actions));
+        };
+        const link = function (label, href, ghost) { return el('a', { class: 'ch-btn' + (ghost ? ' ch-btn--ghost' : ''), href: href, text: label }); };
+
+        if (kind === 'loading') { card.appendChild(el('div', { class: 'ch-spinner', 'aria-hidden': 'true' })); card.appendChild(el('p', { text: 'Loading chats...' })); }
+        else if (kind === 'setup') add('Backend not connected', 'Paste your Supabase URL and anon key into supabase-config.js, then refresh.', [link('Home', 'index.html', true)]);
+        else if (kind === 'login') add('Log in to chat', 'Chats are for logged-in members. It only takes a moment.', [link('Log in', 'login.html?next=chats.html'), link('Sign up', 'login.html?mode=signup&next=chats.html', true)]);
+        else if (kind === 'sql') add('Chats are not set up yet', 'Run supabase-chats.sql once in your Supabase SQL Editor (after supabase-profiles.sql), then refresh.', [link('Home', 'index.html', true)]);
+        else add('Something went wrong', text || 'Please refresh the page.', [el('button', { type: 'button', class: 'ch-btn', onclick: function () { location.reload(); } }, 'Refresh'), link('Home', 'index.html', true)]);
+    }
+
+    function hideGate() { $('chGate').hidden = true; }
+
+    function applyTheme(light) {
+        document.body.classList.toggle('light-mode', !!light);
+        setIcon('chThemeBtn', light ? 'moon' : 'sun');
+    }
+
+    function initTheme() {
+        let light = false;
+        try { light = localStorage.getItem('specsoft-theme') === 'light'; } catch (e) { /* ignore */ }
+        applyTheme(light);
+        $('chThemeBtn').addEventListener('click', function () {
+            light = !document.body.classList.contains('light-mode');
+            try { localStorage.setItem('specsoft-theme', light ? 'light' : 'dark'); } catch (e) { /* ignore */ }
+            applyTheme(light);
+        });
+    }
+
+    let audioCtx = null;
+    function ping() {
+        if (!S.sound) return;
+        try {
+            const C = window.AudioContext || window.webkitAudioContext;
+            if (!C) return;
+            audioCtx = audioCtx || new C();
+            const t = audioCtx.currentTime;
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.type = 'sine'; o.frequency.value = 880;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.12, t + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(t); o.stop(t + 0.2);
+        } catch (e) { /* sound is optional */ }
+    }
+
+    function initSound() {
+        try { S.sound = localStorage.getItem('specsoft.chat.sound') !== 'off'; } catch (e) { /* ignore */ }
+        const paint = function () {
+            setIcon('chSoundBtn', S.sound ? 'sound' : 'muted');
+            $('chSoundBtn').setAttribute('aria-pressed', String(S.sound));
+        };
+        paint();
+        $('chSoundBtn').addEventListener('click', function () {
+            S.sound = !S.sound;
+            try { localStorage.setItem('specsoft.chat.sound', S.sound ? 'on' : 'off'); } catch (e) { /* ignore */ }
+            paint();
+            if (S.sound) ping();
+        });
+    }
+
+    // phones: size the app to the visible area so the keyboard never covers the message box
+    function fitViewport() {
+        const vv = window.visualViewport;
+        const app = $('chApp');
+        const apply = function () {
+            app.style.top = (vv ? vv.offsetTop : 0) + 'px';
+            app.style.height = (vv ? vv.height : window.innerHeight) + 'px';
+        };
+        apply();
+        if (vv) { vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply); }
+        window.addEventListener('resize', apply);
+    }
+
+    function updateTitle() {
+        const n = S.rooms.reduce(function (a, r) { return a + (r.unread || 0); }, 0);
+        document.title = (n > 0 ? '(' + (n > 99 ? '99+' : n) + ') ' : '') + 'Chats | SPECSOFT®';
+    }
+
+    function paintBadge(id, n) {
+        const b = $(id);
+        if (!b) return;
+        b.hidden = !(n > 0);
+        b.textContent = n > 99 ? '99+' : String(n);
+    }
+
+    function updateBadges() {
+        paintBadge('chBadgeChats', S.rooms.reduce(function (a, r) { return a + (r.unread || 0); }, 0));
+        paintBadge('chBadgeInvites', S.invites.length);
+        paintBadge('chBadgeInbox', S.inbox.filter(function (i) { return !i.read_at; }).length);
+        updateTitle();
+    }
+
+    /* ----------------------------------------------------------------------
+       5. LOADING DATA
+       ---------------------------------------------------------------------- */
+    async function ensureProfile(me) {
+        const got = await sb.from('profiles').select('id,username,display_name,avatar_url').eq('id', me.id).maybeSingle();
+        if (got.error) throw got.error;
+        if (got.data) return got.data;
+
+        const meta = me.user_metadata || {};
+        const base = baseUsername(meta, me.email);
+        const av = safeHttps(meta.sp_avatar || meta.avatar_url || meta.picture || '');
+        const display = String(meta.full_name || meta.name || '').trim().slice(0, 40) || null;
+        for (let i = 0; i < 6; i++) {
+            const name = i === 0 ? base : base.slice(0, 15) + randDigits(4);
+            const res = await sb.from('profiles').insert({ id: me.id, username: name, display_name: display, avatar_url: av, status: 'online' })
+                .select('id,username,display_name,avatar_url').single();
+            if (!res.error) return res.data;
+            if (res.error.code !== '23505') throw res.error;
+            const again = await sb.from('profiles').select('id,username,display_name,avatar_url').eq('id', me.id).maybeSingle();
+            if (again.data) return again.data;
+        }
+        throw new Error('Could not pick a free username.');
+    }
+
+    function indexRooms() {
+        S.roomMap = new Map();
+        S.rooms.forEach(function (r) {
+            r.unread = Number(r.unread) || 0;
+            r.member_count = Number(r.member_count) || 0;
+            S.roomMap.set(r.room_id, r);
+        });
+    }
+
+    async function loadRooms() {
+        const res = await sb.rpc('chat_my_rooms');
+        if (res.error) throw res.error;
+        S.rooms = res.data || [];
+        indexRooms();
+        updateBadges();
+    }
+
+    async function loadInvites() {
+        const res = await sb.rpc('chat_my_invites');
+        if (res.error) throw res.error;
+        S.invites = res.data || [];
+        updateBadges();
+    }
+
+    async function loadInbox() {
+        const res = await sb.from('chat_inbox')
+            .select('id,kind,room_id,message_id,preview,read_at,created_at,sender:profiles!from_id(id,username,display_name,avatar_url),room:chat_rooms(name,icon,kind)')
+            .order('created_at', { ascending: false }).limit(60);
+        if (res.error) throw res.error;
+        S.inbox = res.data || [];
+        updateBadges();
+    }
+
+    async function loadDiscover() {
+        const res = await sb.rpc('chat_discover');
+        if (res.error) throw res.error;
+        S.discover = res.data || [];
+    }
+
+    function roomTitle(r) {
+        if (r.kind === 'dm') return r.other_display || r.other_username || 'Direct message';
+        return r.name || 'Chat';
+    }
+
+    function roomArt(r, size) {
+        if (r.kind === 'dm') return avatar({ display_name: r.other_display, username: r.other_username, avatar_url: r.other_avatar }, size);
+        return el('span', { class: 'ch-art' + (size ? '' : ''), text: r.icon || '💬' });
+    }
+
+    /* ----------------------------------------------------------------------
+       6. SIDEBAR + LIST COLUMN
+       ---------------------------------------------------------------------- */
+    const TITLES = { mine: 'My chats', communities: 'Communities', invites: 'Community Invites', inbox: 'Inbox' };
+
+    function renderNav() {
+        const app = $('chApp');
+        app.dataset.nav = S.nav;
+        document.querySelectorAll('[data-nav]').forEach(function (b) {
+            if (b.closest && b.closest('#chApp') === null) return;
+            b.classList.toggle('is-active', b.dataset.nav === S.nav);
+            if (b.dataset.nav === S.nav) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+        });
+    }
+
+    function actionBtn(label, ico, onclick) {
+        return el('button', { type: 'button', class: 'ch-iconbtn', 'aria-label': label, title: label, onclick: onclick }, icon(ico));
+    }
+
+    function renderListHead() {
+        $('chListTitle').textContent = TITLES[S.nav];
+        const acts = $('chListActions');
+        acts.textContent = '';
+        if (S.nav === 'mine') {
+            acts.appendChild(actionBtn('New message', 'dm', openDm));
+            acts.appendChild(actionBtn('New group', 'plus', function () { openCreate('group'); }));
+        } else if (S.nav === 'communities') {
+            acts.appendChild(actionBtn('Join with a code', 'hash', openCode));
+            acts.appendChild(actionBtn('Create a community', 'plus', function () { openCreate('community'); }));
+        } else if (S.nav === 'inbox') {
+            acts.appendChild(actionBtn('Mark all read', 'check', markAllInboxRead));
+        }
+        $('chSearchWrap').hidden = !(S.nav === 'mine' || S.nav === 'communities');
+        $('chSearch').placeholder = S.nav === 'communities' ? 'Search communities' : 'Search chats';
+    }
+
+    function emptyBox(title, text, actions) {
+        return el('div', { class: 'ch-list-empty' }, el('h3', { text: title }), el('p', { text: text }), actions ? el('div', { class: 'ch-list-empty-actions' }, actions) : null);
+    }
+
+    function renderList() {
+        renderNav();
+        renderListHead();
+        const body = $('chListBody');
+        body.textContent = '';
+        const q = S.query.trim().toLowerCase();
+
+        if (S.nav === 'mine') {
+            const rooms = S.rooms.filter(function (r) { return !q || (roomTitle(r) + ' ' + (r.last_body || '')).toLowerCase().indexOf(q) >= 0; });
+            if (!rooms.length) {
+                body.appendChild(q ? emptyBox('No chats match', 'Try a different search.')
+                    : emptyBox('No chats yet', 'Message someone, make a group, or join a community.', [
+                        el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: openDm }, 'New message'),
+                        el('button', { type: 'button', class: 'ch-btn ch-btn--ghost ch-btn--sm', onclick: function () { setNav('communities'); } }, 'Browse communities')]));
+                return;
+            }
+            rooms.forEach(function (r) { body.appendChild(roomRow(r)); });
+        } else if (S.nav === 'communities') {
+            const list = S.discover.filter(function (c) { return !q || ((c.name || '') + ' ' + (c.description || '')).toLowerCase().indexOf(q) >= 0; });
+            if (!list.length) { body.appendChild(emptyBox('No public communities', q ? 'Nothing matches that search.' : 'Be the first: create one and make it public.', q ? null : [el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: function () { openCreate('community'); } }, 'Create a community')])); return; }
+            list.forEach(function (c) { body.appendChild(communityCard(c)); });
+        } else if (S.nav === 'invites') {
+            if (!S.invites.length) { body.appendChild(emptyBox('No invites', 'When someone invites you to a chat, it shows up here.')); return; }
+            S.invites.forEach(function (i) { body.appendChild(inviteCard(i)); });
+        } else {
+            if (!S.inbox.length) { body.appendChild(emptyBox('Inbox is empty', 'Mentions, replies and invites show up here.')); return; }
+            S.inbox.forEach(function (i) { body.appendChild(inboxRow(i)); });
+        }
+    }
+
+    function roomRow(r) {
+        const active = S.current && S.current.room_id === r.room_id;
+        const mineLast = r.last_sender && S.me && r.last_sender === S.me.id;
+        const sub = r.last_body ? (mineLast ? 'You: ' : '') + previewText(r.last_body) : (r.kind === 'dm' ? 'Say hi' : (r.description || 'No messages yet'));
+
+        return el('button', { type: 'button', role: 'listitem', 'aria-label': 'Open chat with ' + roomTitle(r), class: 'ch-item' + (active ? ' is-active' : '') + (r.unread ? ' is-unread' : ''), dataset: { room: r.room_id }, onclick: function (e) { e.preventDefault(); e.stopPropagation(); openRoom(r.room_id); } },
+            el('span', { class: 'ch-item-av' }, roomArt(r, 46)),
+            el('span', { class: 'ch-item-main' },
+                el('span', { class: 'ch-item-title', text: roomTitle(r) }),
+                el('span', { class: 'ch-item-sub', text: sub })),
+            el('span', { class: 'ch-item-meta' },
+                el('time', { text: fmtListTime(r.last_at) }),
+                r.unread ? el('span', { class: 'ch-unread', text: r.unread > 99 ? '99+' : String(r.unread) }) : null));
+    }
+
+    function communityCard(c) {
+        return el('article', { class: 'ch-card', role: 'listitem' },
+            el('span', { class: 'ch-card-icon', text: c.icon || '💬' }),
+            el('div', { class: 'ch-card-main' },
+                el('h3', { text: c.name }),
+                c.description ? el('p', { text: c.description }) : null,
+                el('small', { text: Number(c.member_count) + ' member' + (Number(c.member_count) === 1 ? '' : 's') })),
+            c.joined
+                ? el('button', { type: 'button', class: 'ch-btn ch-btn--ghost ch-btn--sm', onclick: function () { openRoom(c.room_id); } }, 'Open')
+                : el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: function (e) { joinPublic(c, e.currentTarget); } }, 'Join'));
+    }
+
+    function inviteCard(i) {
+        return el('article', { class: 'ch-card', role: 'listitem' },
+            el('span', { class: 'ch-card-icon', text: i.room_icon || '💬' }),
+            el('div', { class: 'ch-card-main' },
+                el('h3', { text: i.room_name || 'A chat' }),
+                el('p', { text: 'Invited by @' + (i.inviter_username || 'someone') }),
+                el('small', { text: fmtListTime(i.created_at) })),
+            el('div', { class: 'ch-card-actions' },
+                el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: function (e) { respondInvite(i, true, e.currentTarget); } }, 'Accept'),
+                el('button', { type: 'button', class: 'ch-btn ch-btn--ghost ch-btn--sm', onclick: function (e) { respondInvite(i, false, e.currentTarget); } }, 'Decline')));
+    }
+
+    function inboxRow(i) {
+        const who = i.sender ? (i.sender.display_name || i.sender.username) : 'Someone';
+        const where = i.room ? (i.room.name || 'a chat') : 'a chat';
+        const text = i.kind === 'invite' ? who + ' invited you to ' + where
+            : i.kind === 'reply' ? who + ' replied to you in ' + where
+            : who + ' mentioned you in ' + where;
+        return el('button', { type: 'button', role: 'listitem', class: 'ch-item ch-item--inbox' + (i.read_at ? '' : ' is-unread'), onclick: function () { openInboxItem(i); } },
+            el('span', { class: 'ch-item-av' }, avatar(i.sender || {}, 46)),
+            el('span', { class: 'ch-item-main' },
+                el('span', { class: 'ch-item-title', text: text }),
+                i.preview && i.kind !== 'invite' ? el('span', { class: 'ch-item-sub', text: i.preview }) : null),
+            el('span', { class: 'ch-item-meta' }, el('time', { text: fmtListTime(i.created_at) }), i.read_at ? null : el('span', { class: 'ch-dot', 'aria-label': 'Unread' })));
+    }
+
+    async function setNav(name) {
+        S.nav = name;
+        S.query = '';
+        $('chSearch').value = '';
+        $('chApp').dataset.view = 'list';
+        closeDrawer();
+        renderList();
+        try {
+            if (name === 'communities') { await loadDiscover(); renderList(); }
+            if (name === 'invites') { await loadInvites(); renderList(); }
+            if (name === 'inbox') { await loadInbox(); renderList(); }
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    function openDrawer() {
+        const app = $('chApp');
+        const opening = !app.classList.contains('is-drawer');
+        app.classList.toggle('is-drawer', opening);
+        $('chMenuBtn').setAttribute('aria-expanded', String(opening));
+        if ($('chMenuBtnConvo')) $('chMenuBtnConvo').setAttribute('aria-expanded', String(opening));
+    }
+    function closeDrawer() {
+        $('chApp').classList.remove('is-drawer');
+        $('chMenuBtn').setAttribute('aria-expanded', 'false');
+        if ($('chMenuBtnConvo')) $('chMenuBtnConvo').setAttribute('aria-expanded', 'false');
+    }
+
+    /* ----------------------------------------------------------------------
+       7. CONVERSATION
+       ---------------------------------------------------------------------- */
+    function atBottomNow() {
+        const f = $('chFeed');
+        return f.scrollHeight - f.scrollTop - f.clientHeight < 90;
+    }
+
+    function scrollToBottom() {
+        const f = $('chFeed');
+        f.scrollTop = f.scrollHeight;
+        S.atBottom = true;
+        S.newCount = 0;
+        paintJump();
+    }
+
+    function paintJump() {
+        const j = $('chJump');
+        j.hidden = S.atBottom;
+        $('chJumpN').textContent = S.newCount > 0 ? String(S.newCount) : '';
+    }
+
+    async function cacheProfiles(ids) {
+        const need = Array.from(new Set(ids)).filter(function (id) { return id && !S.profiles.has(id); });
+        if (!need.length) return;
+        const res = await sb.from('profiles').select('id,username,display_name,avatar_url').in('id', need);
+        (res.data || []).forEach(function (p) { S.profiles.set(p.id, p); });
+    }
+
+    async function fetchMessages(roomId, before) {
+        let q = sb.from('chat_messages')
+            .select('id,room_id,sender_id,body,reply_to,created_at,edited_at,deleted_at,attachment_path,attachment_name,attachment_type,attachment_size,sender:profiles(id,username,display_name,avatar_url),reactions:chat_reactions(emoji,user_id)')
+            .eq('room_id', roomId);
+        if (before) q = q.lt('created_at', before);
+        const res = await q.order('created_at', { ascending: false }).limit(PAGE);
+        if (res.error) throw res.error;
+        const rows = (res.data || []).reverse();
+        rows.forEach(function (m) { if (m.sender) S.profiles.set(m.sender_id, m.sender); m.reactions = m.reactions || []; });
+        return rows;
+    }
+
+    async function fetchParents(rows) {
+        const have = new Set(rows.map(function (m) { return m.id; }));
+        const need = Array.from(new Set(rows.map(function (m) { return m.reply_to; }).filter(function (id) { return id && !have.has(id) && !S.byId.has(id) && !S.extra.has(id); })));
+        if (!need.length) return;
+        const res = await sb.from('chat_messages').select('id,sender_id,body,deleted_at,sender:profiles(id,username,display_name)').in('id', need);
+        (res.data || []).forEach(function (m) { S.extra.set(m.id, m); });
+    }
+
+    function senderOf(m) { return m.sender || S.profiles.get(m.sender_id) || { username: 'member' }; }
+    function nameOf(p) { return p.display_name || p.username || 'member'; }
+
+    // ---- rich text ----
+    function renderRich(text, mine) {
+        const frag = document.createDocumentFragment();
+        const myName = S.profile && S.profile.username;
+        parseMessage(text).forEach(function (blk) {
+            if (blk.t === 'block') { frag.appendChild(el('pre', { class: 'ch-codeblock' }, el('code', { text: blk.v }))); return; }
+            parseInline(blk.v).forEach(function (tok) {
+                if (tok.t === 'text') frag.appendChild(document.createTextNode(tok.v));
+                else if (tok.t === 'b') frag.appendChild(el('strong', { text: tok.v }));
+                else if (tok.t === 'i') frag.appendChild(el('em', { text: tok.v }));
+                else if (tok.t === 's') frag.appendChild(el('s', { text: tok.v }));
+                else if (tok.t === 'code') frag.appendChild(el('code', { class: 'ch-code', text: tok.v }));
+                else if (tok.t === 'spoiler') frag.appendChild(el('span', { class: 'ch-spoiler', role: 'button', tabindex: '0', title: 'Reveal', onclick: function (e) { e.stopPropagation(); e.currentTarget.classList.toggle('is-open'); } }, tok.v));
+                else if (tok.t === 'link') { const u = safeHttps(tok.v); frag.appendChild(u ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: tok.v }) : document.createTextNode(tok.v)); }
+                else if (tok.t === 'mention') frag.appendChild(el('span', { class: 'ch-mention' + (myName && tok.v.toLowerCase() === myName.toLowerCase() ? ' is-me' : ''), text: '@' + tok.v }));
+            });
+        });
+        return frag;
+    }
+
+    // ---- one message ----
+    function groupReactions(m) {
+        const map = new Map();
+        (m.reactions || []).forEach(function (r) {
+            const g = map.get(r.emoji) || { emoji: r.emoji, n: 0, mine: false };
+            g.n++;
+            if (S.me && r.user_id === S.me.id) g.mine = true;
+            map.set(r.emoji, g);
+        });
+        return Array.from(map.values());
+    }
+
+    function replyQuote(m) {
+        const p = S.byId.get(m.reply_to) || S.extra.get(m.reply_to);
+        const who = p ? nameOf(senderOf(p)) : 'a message';
+        const txt = p ? (p.deleted_at ? 'Message deleted' : previewText(p.body)) : 'Original message not loaded';
+        return el('button', { type: 'button', class: 'ch-replyq', onclick: function (e) { e.stopPropagation(); jumpToMessage(m.reply_to); } },
+            el('strong', { text: who }), el('span', { text: txt }));
+    }
+
+    async function signedFileUrl(path) {
+        const cached = S.fileUrls.get(path);
+        if (cached && cached.expires > Date.now()) return cached.url;
+        const res = await sb.storage.from('chat-attachments').createSignedUrl(path, 3600);
+        if (res.error) throw res.error;
+        const url = res.data.signedUrl;
+        S.fileUrls.set(path, { url: url, expires: Date.now() + 55 * 60 * 1000 });
+        return url;
+    }
+
+    function renderAttachment(m, bubble) {
+        if (!m.attachment_path || m.deleted_at) return;
+        const card = el('div', { class: 'ch-attachment ch-attachment--loading', text: 'Loading attachment…' });
+        bubble.appendChild(card);
+        signedFileUrl(m.attachment_path).then(function (url) {
+            if (!card.isConnected) return;
+            const link = el('a', { class: 'ch-attachment-link', href: url, target: '_blank', rel: 'noopener noreferrer', download: m.attachment_name || 'attachment' });
+            if (String(m.attachment_type || '').indexOf('image/') === 0) {
+                link.classList.add('ch-attachment-link--image');
+                link.appendChild(el('img', { class: 'ch-attachment-image', src: url, alt: m.attachment_name || 'Shared image', loading: 'lazy' }));
+            } else {
+                link.appendChild(el('span', { class: 'ch-attachment-file-icon', text: '↧' }));
+                link.appendChild(el('span', { class: 'ch-attachment-file-name', text: m.attachment_name || 'Download file' }));
+                link.appendChild(el('small', { text: formatBytes(m.attachment_size || 0) }));
+            }
+            card.classList.remove('ch-attachment--loading');
+            card.textContent = '';
+            card.appendChild(link);
+        }).catch(function () {
+            if (card.isConnected) card.textContent = 'Attachment unavailable';
+        });
+    }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function buildMsg(m, grouped) {
+        const mine = !!(S.me && m.sender_id === S.me.id);
+        const sender = senderOf(m);
+        const deleted = !!m.deleted_at;
+        const mentioned = !deleted && !mine && mentionsUser(m.body, S.profile && S.profile.username);
+
+        const bubble = el('div', { class: 'ch-bubble' }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : renderRich(m.body, mine));
+        if (!deleted && m.attachment_path) renderAttachment(m, bubble);
+
+        const reactions = el('div', { class: 'ch-reactions' });
+        groupReactions(m).forEach(function (g) {
+            reactions.appendChild(el('button', { type: 'button', class: 'ch-react' + (g.mine ? ' is-mine' : ''), 'aria-pressed': String(g.mine), 'aria-label': g.emoji + ' ' + g.n, onclick: function (e) { e.stopPropagation(); toggleReaction(m, g.emoji); } },
+                el('span', { text: g.emoji }), el('b', { text: String(g.n) })));
+        });
+
+        const tools = el('div', { class: 'ch-tools', role: 'toolbar', 'aria-label': 'Message actions' });
+        if (!deleted && !m.pending) {
+            tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'React', 'aria-label': 'React', onclick: function (e) { e.stopPropagation(); openQuick(m, e.currentTarget); } }, icon('smile')));
+            tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Reply', 'aria-label': 'Reply', onclick: function (e) { e.stopPropagation(); startReply(m); } }, icon('reply')));
+            if (mine) tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Edit', 'aria-label': 'Edit', onclick: function (e) { e.stopPropagation(); startEdit(m); } }, icon('edit')));
+        }
+        const canDelete = !deleted && !m.pending && (mine || (S.current && (S.current.role === 'owner' || S.current.role === 'admin')));
+        if (canDelete) tools.appendChild(el('button', { type: 'button', class: 'ch-tool ch-tool--danger', title: 'Delete', 'aria-label': 'Delete', onclick: function (e) { e.stopPropagation(); deleteMessage(m); } }, icon('trash')));
+
+        const head = grouped ? null : el('div', { class: 'ch-msg-head' },
+            sender.username ? el('a', { class: 'ch-msg-name', href: 'profile.html?u=' + encodeURIComponent(sender.username), text: nameOf(sender) }) : el('span', { class: 'ch-msg-name', text: nameOf(sender) }),
+            el('time', { class: 'ch-msg-time', datetime: m.created_at, text: fmtTime(m.created_at) }),
+            m.edited_at && !deleted ? el('span', { class: 'ch-edited', text: '(edited)' }) : null);
+
+        const node = el('article', {
+            class: 'ch-msg' + (mine ? ' ch-msg--own' : '') + (grouped ? ' is-grouped' : '') + (m.pending ? ' is-pending' : '') + (mentioned ? ' is-mentioned' : ''),
+            dataset: { id: m.id }
+        },
+            grouped ? el('span', { class: 'ch-msg-gap', 'aria-hidden': 'true' }) : el('span', { class: 'ch-msg-av' }, avatar(sender, 36)),
+            el('div', { class: 'ch-msg-body' }, head, m.reply_to && !deleted ? replyQuote(m) : null, bubble, reactions.children.length ? reactions : null),
+            tools);
+
+        // tap a message on a phone to show its actions
+        bubble.addEventListener('click', function (e) {
+            if (e.target.closest && e.target.closest('a, .ch-spoiler')) return;
+            const feed = $('chFeed');
+            const open = node.classList.contains('is-open');
+            feed.querySelectorAll('.ch-msg.is-open').forEach(function (n) { n.classList.remove('is-open'); });
+            if (!open) node.classList.add('is-open');
+        });
+        return node;
+    }
+
+    function dayLabel(iso) { return el('div', { class: 'ch-day', role: 'separator' }, el('span', { text: fmtDay(iso) })); }
+    function newLabel() { return el('div', { class: 'ch-new', role: 'separator', id: 'chNewLine' }, el('span', { text: 'NEW' })); }
+
+    function renderFeed(opts) {
+        opts = opts || {};
+        const feed = $('chFeed');
+        const prevH = feed.scrollHeight, prevTop = feed.scrollTop;
+        feed.textContent = '';
+        let prev = null;
+        S.messages.forEach(function (m) {
+            if (!prev || !sameDay(prev.created_at, m.created_at)) feed.appendChild(dayLabel(m.created_at));
+            if (S.newFromId && m.id === S.newFromId) feed.appendChild(newLabel());
+            const grouped = shouldGroup(prev, m) && !(S.newFromId && m.id === S.newFromId);
+            feed.appendChild(buildMsg(m, grouped));
+            prev = m;
+        });
+        if (opts.keepScroll) feed.scrollTop = prevTop + (feed.scrollHeight - prevH);
+    }
+
+    function rebuildNode(m) {
+        const node = $('chFeed').querySelector('[data-id="' + m.id + '"]');
+        if (!node) return;
+        node.replaceWith ? node.replaceWith(buildMsg(m, node.classList.contains('is-grouped'))) : renderFeed({ keepScroll: true });
+    }
+
+    function appendMessage(m) {
+        const feed = $('chFeed');
+        const prev = S.messages.length > 1 ? S.messages[S.messages.length - 2] : null;
+        if (!prev || !sameDay(prev.created_at, m.created_at)) feed.appendChild(dayLabel(m.created_at));
+        const node = buildMsg(m, shouldGroup(prev, m));
+        node.classList.add('is-fresh');
+        feed.appendChild(node);
+    }
+
+    function addToState(m) {
+        S.messages.push(m);
+        S.byId.set(m.id, m);
+    }
+
+    async function openRoom(roomId, opts) {
+        opts = opts || {};
+        let room = S.roomMap.get(roomId);
+        if (!room) { try { await loadRooms(); room = S.roomMap.get(roomId); } catch (e) { /* ignore */ } }
+        if (!room) { toast('That chat was not found.'); return; }
+
+        leaveRoomChannel();
+        S.current = room;
+        S.pendingFile = null;
+        paintPendingFile();
+        S.messages = []; S.byId = new Map(); S.extra = new Map();
+        S.replyTo = null; S.editing = null; S.noMore = false; S.newFromId = null; S.newCount = 0; S.atBottom = true;
+        S.online = new Set(); S.typing = new Map();
+        cancelCompose(true);
+        closeMembers();
+        $('chEmoji').hidden = true;
+
+        $('chApp').dataset.view = 'chat';
+        closeDrawer();
+        $('chEmpty').hidden = true;
+        $('chConvo').hidden = false;
+        paintHeader();
+        renderList();
+
+        const snap = room.last_read_at;
+        $('chFeed').textContent = '';
+        $('chFeed').appendChild(el('div', { class: 'ch-feed-loading' }, el('div', { class: 'ch-spinner', 'aria-hidden': 'true' })));
+
+        try {
+            const rows = await fetchMessages(room.room_id);
+            if (S.current !== room) return;                    // switched chats while loading
+            await fetchParents(rows);
+            rows.forEach(addToState);
+            S.noMore = rows.length < PAGE;
+            const firstUnread = rows.find(function (m) { return m.sender_id !== S.me.id && !m.deleted_at && new Date(m.created_at) > new Date(snap); });
+            S.newFromId = firstUnread ? firstUnread.id : null;
+            renderFeed();
+
+            if (opts.jump && S.byId.has(opts.jump)) jumpToMessage(opts.jump);
+            else if (S.newFromId && $('chNewLine')) $('chNewLine').scrollIntoView({ block: 'center' });
+            else scrollToBottom();
+            S.atBottom = atBottomNow();
+            paintJump();
+        } catch (err) {
+            $('chFeed').textContent = '';
+            $('chFeed').appendChild(el('div', { class: 'ch-feed-loading', text: friendly(err) }));
+        }
+
+        markRead(room.room_id);
+        joinRoomChannel(room.room_id);
+        if (window.matchMedia && !window.matchMedia('(pointer: coarse)').matches) $('chInput').focus();
+    }
+
+    function closeRoom() {
+        leaveRoomChannel();
+        S.current = null;
+        $('chConvo').hidden = true;
+        $('chEmpty').hidden = false;
+        $('chApp').dataset.view = 'list';
+        closeMembers();
+        renderList();
+    }
+
+    function paintHeader() {
+        const r = S.current;
+        if (!r) return;
+        $('chRoomName').textContent = roomTitle(r);
+        const icn = $('chRoomIcon');
+        icn.textContent = '';
+        icn.appendChild(roomArt(r, 40));
+
+        let sub = '';
+        if (r.kind === 'dm') sub = 'Direct message';
+        else sub = r.member_count + ' member' + (r.member_count === 1 ? '' : 's') + (r.description ? ' · ' + r.description : '');
+        $('chRoomSub').textContent = sub;
+
+        $('chInviteBtn').hidden = r.kind === 'dm' || (r.kind === 'community' && r.role === 'member');
+        $('chMembersBtn').hidden = false;
+        $('chLeaveBtn').hidden = r.kind === 'dm';
+        paintOnline();
+    }
+
+    function paintOnline() {
+        const n = S.online.size;
+        $('chOnline').hidden = !(S.current && n > 0);
+        $('chOnlineN').textContent = String(n);
+    }
+
+    async function markRead(roomId) {
+        const room = S.roomMap.get(roomId);
+        if (room) room.unread = 0;
+        updateBadges();
+        renderList();
+        try { await sb.rpc('chat_mark_read', { p_room: roomId }); if (room) room.last_read_at = new Date().toISOString(); } catch (e) { /* not critical */ }
+    }
+
+    function jumpToMessage(id) {
+        const node = $('chFeed').querySelector('[data-id="' + id + '"]');
+        if (!node) { toast('That message is further back. Scroll up to load more.'); return; }
+        node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        node.classList.add('is-flash');
+        setTimeout(function () { node.classList.remove('is-flash'); }, 1600);
+    }
+
+    async function loadOlder() {
+        if (S.loadingMore || S.noMore || !S.current || !S.messages.length) return;
+        S.loadingMore = true;
+        const room = S.current;
+        try {
+            const rows = await fetchMessages(room.room_id, S.messages[0].created_at);
+            if (S.current !== room) return;
+            await fetchParents(rows);
+            S.noMore = rows.length < PAGE;
+            const fresh = rows.filter(function (m) { return !S.byId.has(m.id); });
+            fresh.forEach(function (m) { S.byId.set(m.id, m); });
+            S.messages = fresh.concat(S.messages);
+            renderFeed({ keepScroll: true });
+        } catch (err) { toast(friendly(err)); }
+        finally { S.loadingMore = false; }
+    }
+
+    /* ----------------------------------------------------------------------
+       8. SENDING, REPLYING, EDITING, DELETING, REACTING
+       ---------------------------------------------------------------------- */
+    function autosize() {
+        const t = $('chInput');
+        t.style.height = 'auto';
+        t.style.height = Math.min(t.scrollHeight, 140) + 'px';
+        $('chSend').disabled = !t.value.trim() && !S.pendingFile;
+    }
+
+    function paintPendingFile() {
+        const file = S.pendingFile;
+        $('chFilePreview').hidden = !file;
+        $('chFileName').textContent = file ? file.name + ' · ' + formatBytes(file.size) : '';
+        autosize();
+    }
+
+    function chooseFile(file) {
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) { toast('Files must be 10 MB or smaller.'); $('chFileInput').value = ''; return; }
+        S.pendingFile = file;
+        $('chFileInput').value = '';
+        paintPendingFile();
+    }
+
+    function cancelCompose(keepText) {
+        S.replyTo = null; S.editing = null;
+        $('chReplyBar').hidden = true;
+        if (!keepText) { $('chInput').value = ''; autosize(); }
+    }
+
+    function showBar(title, text) {
+        $('chReplyTitle').textContent = title;
+        $('chReplyText').textContent = text;
+        $('chReplyBar').hidden = false;
+    }
+
+    function startReply(m) {
+        S.editing = null;
+        S.replyTo = m;
+        showBar('Replying to ' + nameOf(senderOf(m)), previewText(m.body));
+        $('chInput').focus();
+    }
+
+    function startEdit(m) {
+        S.replyTo = null;
+        S.editing = m;
+        showBar('Editing message', previewText(m.body));
+        $('chInput').value = m.body;
+        autosize();
+        $('chInput').focus();
+    }
+
+    async function sendMessage() {
+        if (!S.current || !sb || S.sending) return;
+        const raw = $('chInput').value;
+        const file = S.pendingFile;
+        let body = applySlash(raw).trim();
+        if (!body && file) body = ('Attachment: ' + file.name).slice(0, 2000);
+        if (!body) return;
+
+        if (/^\/help\b/i.test(raw.trim())) { toast('Commands: /shrug, /me. Formatting: **bold** *italic* ~~strike~~ ||spoiler|| `code`'); $('chInput').value = ''; autosize(); return; }
+
+        const room = S.current;
+
+        // ----- editing -----
+        if (S.editing) {
+            const target = S.editing;
+            if (body === target.body) { cancelCompose(); return; }
+            try {
+                const res = await sb.rpc('chat_edit', { p_id: target.id, p_body: body });
+                if (res.error) throw res.error;
+                Object.assign(target, { body: res.data.body, edited_at: res.data.edited_at });
+                cancelCompose();
+                rebuildNode(target);
+            } catch (err) { toast(friendly(err)); }
+            return;
+        }
+
+        // ----- new message with optional private room attachment -----
+        const reply = S.replyTo;
+        S.sending = true;
+        let uploadedPath = null;
+        let temp = null;
+        let createdMessageId = null;
+        try {
+            if (file) {
+                const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_').slice(-100) || 'file';
+                const uniqueId = window.crypto && typeof window.crypto.randomUUID === 'function'
+                    ? window.crypto.randomUUID()
+                    : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+                uploadedPath = room.room_id + '/' + S.me.id + '/' + uniqueId + '-' + safeName;
+                const uploaded = await sb.storage.from('chat-attachments').upload(uploadedPath, file, {
+                    cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream'
+                });
+                if (uploaded.error) throw uploaded.error;
+            }
+
+            temp = { id: 'tmp-' + (++S.tmp), room_id: room.room_id, sender_id: S.me.id, body: body, reply_to: reply ? reply.id : null,
+                created_at: new Date().toISOString(), sender: S.profile, reactions: [], pending: true,
+                attachment_path: uploadedPath, attachment_name: file && file.name, attachment_type: file && file.type, attachment_size: file && file.size };
+        addToState(temp);
+        appendMessage(temp);
+        cancelCompose();
+        scrollToBottom();
+
+            const res = await sb.rpc('chat_send', { p_room: room.room_id, p_body: body, p_reply: reply ? reply.id : null });
+            if (res.error) throw res.error;
+            let real = Object.assign({}, res.data, { sender: S.profile, reactions: [] });
+            createdMessageId = real.id;
+            if (file) {
+                const attached = await sb.from('chat_messages').update({
+                    attachment_path: uploadedPath, attachment_name: file.name,
+                    attachment_type: file.type || 'application/octet-stream', attachment_size: file.size
+                }).eq('id', real.id).select('attachment_path,attachment_name,attachment_type,attachment_size').single();
+                if (attached.error) throw attached.error;
+                Object.assign(real, attached.data);
+            }
+            S.messages = S.messages.filter(function (x) { return x !== temp; });
+            S.byId.delete(temp.id);
+            if (S.byId.has(real.id)) { const old = $('chFeed').querySelector('[data-id="' + temp.id + '"]'); if (old) old.remove(); }
+            else {
+                S.messages.push(real); S.byId.set(real.id, real);
+                const node = $('chFeed').querySelector('[data-id="' + temp.id + '"]');
+                if (node && node.replaceWith) node.replaceWith(buildMsg(real, node.classList.contains('is-grouped'))); else renderFeed({ keepScroll: true });
+            }
+            if (file) { S.pendingFile = null; paintPendingFile(); }
+            room.last_body = real.body; room.last_at = real.created_at; room.last_sender = S.me.id;
+            bumpRoom(room);
+        } catch (err) {
+            if (temp) {
+                S.messages = S.messages.filter(function (x) { return x !== temp; });
+                S.byId.delete(temp.id);
+                const node = $('chFeed').querySelector('[data-id="' + temp.id + '"]');
+                if (node) node.remove();
+            }
+            if (uploadedPath) {
+                if (createdMessageId) {
+                    try { await sb.rpc('chat_delete', { p_id: createdMessageId }); } catch (e) { /* best effort rollback */ }
+                }
+                try { await sb.storage.from('chat-attachments').remove([uploadedPath]); } catch (e) { /* best effort cleanup */ }
+            }
+            if (!$('chInput').value) { $('chInput').value = raw; autosize(); }
+            toast(friendly(err));
+        } finally {
+            S.sending = false;
+        }
+    }
+
+    function bumpRoom(room) {
+        S.rooms.sort(function (a, b) { return new Date(b.last_at || 0) - new Date(a.last_at || 0); });
+        renderList();
+    }
+
+    async function deleteMessage(m) {
+        if (!window.confirm('Delete this message?')) return;
+        try {
+            const res = await sb.rpc('chat_delete', { p_id: m.id });
+            if (res.error) throw res.error;
+            m.deleted_at = new Date().toISOString(); m.body = ''; m.reactions = [];
+            rebuildNode(m);
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    async function toggleReaction(m, emoji) {
+        if (!S.me || m.pending) return;
+        const list = m.reactions || (m.reactions = []);
+        const idx = list.findIndex(function (r) { return r.emoji === emoji && r.user_id === S.me.id; });
+        const had = idx >= 0;
+        if (had) list.splice(idx, 1); else list.push({ emoji: emoji, user_id: S.me.id });
+        rebuildNode(m);
+        try {
+            const res = await sb.rpc('chat_toggle_reaction', { p_msg: m.id, p_emoji: emoji });
+            if (res.error) throw res.error;
+        } catch (err) {
+            if (had) list.push({ emoji: emoji, user_id: S.me.id });
+            else { const i2 = list.findIndex(function (r) { return r.emoji === emoji && r.user_id === S.me.id; }); if (i2 >= 0) list.splice(i2, 1); }
+            rebuildNode(m);
+            toast(friendly(err));
+        }
+    }
+
+    async function refreshReactions(messageId) {
+        const m = S.byId.get(messageId);
+        if (!m) return;
+        const res = await sb.from('chat_reactions').select('emoji,user_id').eq('message_id', messageId);
+        if (res.error) return;
+        m.reactions = res.data || [];
+        rebuildNode(m);
+    }
+
+    /* ----------------------------------------------------------------------
+       9. EMOJI PICKER + QUICK REACTIONS
+       ---------------------------------------------------------------------- */
+    const EMOJI = {
+        'Smileys': ['😀','😃','😄','😁','😆','😅','😂','🤣','🙂','😉','😊','😍','🥰','😘','😎','🤩','🥳','😏','😌','😴','🤔','🫡','😮','😢','😭','😡','🥹','😬','🙃','🤗'],
+        'People': ['👍','👎','👏','🙌','🙏','💪','👀','🤝','✌️','🤞','👋','🫶','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','🔥','✨','⭐','💯','🎉','🎊'],
+        'Things': ['🎮','🕹️','💻','⌨️','🖥️','🧠','🛠️','⚙️','🚀','🛰️','🔒','🔑','📦','📁','📌','🧩','🎨','🎧','🎵','📸','💡','🔔','☕','🍕','🍔','🏆','🥇'],
+        'Symbols': ['✅','❌','⚠️','❓','❗','➕','➖','➡️','⬆️','⬇️','🔴','🟢','🟡','🔵','⚪','⚫','🟣','💬','💭','🔗','📣']
+    };
+    const QUICK = ['👍', '❤️', '😂', '🔥', '😮', '🎉'];
+
+    function buildPicker() {
+        const box = $('chEmoji');
+        box.textContent = '';
+        Object.keys(EMOJI).forEach(function (cat) {
+            box.appendChild(el('div', { class: 'ch-emoji-cat', text: cat.toUpperCase() }));
+            const grid = el('div', { class: 'ch-emoji-grid' });
+            EMOJI[cat].forEach(function (e) {
+                grid.appendChild(el('button', { type: 'button', class: 'ch-emoji-btn', 'aria-label': e, text: e, onclick: function () { pickEmoji(e); } }));
+            });
+            box.appendChild(grid);
+        });
+    }
+
+    function pickEmoji(e) {
+        if (S.pickerFor) {
+            const m = S.byId.get(S.pickerFor);
+            S.pickerFor = null;
+            $('chEmoji').hidden = true;
+            if (m) toggleReaction(m, e);
+            return;
+        }
+        const t = $('chInput');
+        const s = t.selectionStart == null ? t.value.length : t.selectionStart;
+        const en = t.selectionEnd == null ? s : t.selectionEnd;
+        t.value = t.value.slice(0, s) + e + t.value.slice(en);
+        t.focus();
+        try { t.setSelectionRange(s + e.length, s + e.length); } catch (err) { /* ignore */ }
+        autosize();
+    }
+
+    function toggleEmoji(forMsg) {
+        const box = $('chEmoji');
+        const open = !box.hidden && !forMsg;
+        S.pickerFor = forMsg ? forMsg.id : null;
+        box.hidden = open;
+        $('chEmojiBtn').setAttribute('aria-expanded', String(!box.hidden));
+    }
+
+    let quickEl = null;
+    function closeQuick() { if (quickEl) quickEl.hidden = true; }
+
+    function openQuick(m, btn) {
+        if (!quickEl) {
+            quickEl = el('div', { class: 'ch-quick', role: 'menu', hidden: true });
+            document.body.appendChild(quickEl);
+        }
+        quickEl.textContent = '';
+        QUICK.forEach(function (e) {
+            quickEl.appendChild(el('button', { type: 'button', class: 'ch-quick-btn', role: 'menuitem', 'aria-label': 'React ' + e, text: e, onclick: function () { closeQuick(); toggleReaction(m, e); } }));
+        });
+        quickEl.appendChild(el('button', { type: 'button', class: 'ch-quick-btn ch-quick-more', 'aria-label': 'More emoji', onclick: function () { closeQuick(); toggleEmoji(m); } }, icon('plus')));
+        quickEl.hidden = false;
+        const r = btn.getBoundingClientRect();
+        const w = quickEl.offsetWidth || 260, h = quickEl.offsetHeight || 48;
+        const vw = document.documentElement.clientWidth || window.innerWidth;
+        quickEl.style.left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), Math.max(8, vw - w - 8)) + 'px';
+        quickEl.style.top = Math.max(8, r.top - h - 8) + 'px';
+    }
+
+    /* ----------------------------------------------------------------------
+       10. REALTIME (live updates, typing, who is online)
+       ---------------------------------------------------------------------- */
+    function subscribeGlobal() {
+        const uid = S.me.id;
+        S.globalCh = sb.channel('specsoft-chat-' + uid)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (p) { onMsgInsert(p.new); })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, function (p) { onMsgUpdate(p.new); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reactions' }, function (p) {
+                const row = p.new && p.new.message_id ? p.new : p.old;
+                if (row && row.message_id) refreshReactions(row.message_id);
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_inbox', filter: 'user_id=eq.' + uid }, function () {
+                loadInbox().then(function () { if (S.nav === 'inbox') renderList(); ping(); }).catch(function () {});
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_invites', filter: 'invited_user_id=eq.' + uid }, function () {
+                loadInvites().then(function () { if (S.nav === 'invites') renderList(); }).catch(function () {});
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_members', filter: 'user_id=eq.' + uid }, function () {
+                loadRooms().then(function () {
+                    if (S.current && !S.roomMap.has(S.current.room_id)) { toast('You are no longer in that chat.'); closeRoom(); }
+                    else { if (S.current) S.current = S.roomMap.get(S.current.room_id); renderList(); }
+                }).catch(function () {});
+            })
+            .subscribe();
+    }
+
+    async function onMsgInsert(m) {
+        if (!m || S.byId.has(m.id)) return;
+        const room = S.roomMap.get(m.room_id);
+        if (!room) { loadRooms().then(renderList).catch(function () {}); return; }
+        const mine = m.sender_id === S.me.id;
+
+        room.last_body = m.body; room.last_at = m.created_at; room.last_sender = m.sender_id;
+        const here = !!(S.current && S.current.room_id === m.room_id);
+
+        if (here) {
+            if (mine && S.messages.some(function (x) { return x.pending; })) { bumpRoom(room); return; }   // the send call will place it
+            try { await cacheProfiles([m.sender_id]); } catch (e) { /* ignore */ }
+            if (S.byId.has(m.id)) return;
+            const row = Object.assign({}, m, { sender: S.profiles.get(m.sender_id), reactions: [] });
+            if (row.reply_to) { try { await fetchParents([row]); } catch (e) { /* ignore */ } }
+            const wasBottom = S.atBottom || atBottomNow();
+            addToState(row);
+            appendMessage(row);
+            if (wasBottom && !document.hidden) { scrollToBottom(); markRead(room.room_id); }
+            else if (!mine) { S.newCount++; S.atBottom = false; paintJump(); room.unread++; updateBadges(); }
+            if (!mine && (document.hidden || !wasBottom)) ping();
+            S.typing.delete(m.sender_id); paintTyping();
+        } else if (!mine) {
+            room.unread++;
+            ping();
+        }
+        bumpRoom(room);
+        updateBadges();
+    }
+
+    function onMsgUpdate(m) {
+        if (!m) return;
+        const have = S.byId.get(m.id);
+        if (have) {
+            have.body = m.body; have.edited_at = m.edited_at; have.deleted_at = m.deleted_at;
+            have.attachment_path = m.attachment_path;
+            have.attachment_name = m.attachment_name;
+            have.attachment_type = m.attachment_type;
+            have.attachment_size = m.attachment_size;
+            if (have.deleted_at) have.reactions = [];
+            rebuildNode(have);
+        }
+        const room = S.roomMap.get(m.room_id);
+        if (room && room.last_at === m.created_at && m.deleted_at) { room.last_body = ''; renderList(); }
+    }
+
+    function joinRoomChannel(roomId) {
+        const topic = 'specsoft-room-' + roomId;
+        if (S.roomCh && (S.roomCh.topic === topic || S.roomCh.state === 'joined' || S.roomCh.state === 'joining')) {
+            try { sb.removeChannel(S.roomCh); } catch (e) { /* ignore */ }
+            S.roomCh = null;
+        }
+
+        const ch = sb.channel(topic, { config: { presence: { key: S.me.id }, broadcast: { self: false } } });
+        S.roomCh = ch;
+
+        ch.on('presence', { event: 'sync' }, function () {
+            const st = ch.presenceState ? ch.presenceState() : {};
+            S.online = new Set(Object.keys(st));
+            paintOnline();
+            if (!$('chMembers').hidden) paintMembers();
+        });
+        ch.on('broadcast', { event: 'typing' }, function (msg) {
+            const p = msg && msg.payload;
+            if (!p || p.uid === S.me.id) return;
+            S.typing.set(p.uid, { name: p.name, until: Date.now() + 3500 });
+            paintTyping();
+        });
+        ch.subscribe(function (status) {
+            if (status === 'SUBSCRIBED' && ch.track) ch.track({ uid: S.me.id, name: nameOf(S.profile) });
+        });
+    }
+
+    function leaveRoomChannel() {
+        if (S.roomCh) { try { sb.removeChannel(S.roomCh); } catch (e) { /* ignore */ } }
+        S.roomCh = null;
+        S.online = new Set();
+        S.typing = new Map();
+        paintTyping();
+    }
+
+    let lastTypingSent = 0;
+    function sendTyping() {
+        const now = Date.now();
+        if (!S.roomCh || now - lastTypingSent < 2500) return;
+        lastTypingSent = now;
+        try { S.roomCh.send({ type: 'broadcast', event: 'typing', payload: { uid: S.me.id, name: nameOf(S.profile) } }); } catch (e) { /* ignore */ }
+    }
+
+    function paintTyping() {
+        const now = Date.now();
+        S.typing.forEach(function (v, k) { if (v.until < now) S.typing.delete(k); });
+        const names = Array.from(S.typing.values()).map(function (v) { return v.name; });
+        const box = $('chTyping');
+        box.textContent = '';
+        if (!names.length) return;
+        const text = names.length === 1 ? names[0] + ' is typing' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing' : 'Several people are typing';
+        box.appendChild(el('span', { class: 'ch-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i')));
+        box.appendChild(document.createTextNode(text));
+    }
+
+    /* ----------------------------------------------------------------------
+       11. MEMBERS DRAWER
+       ---------------------------------------------------------------------- */
+    function closeMembers() { $('chMembers').hidden = true; }
+
+    async function openMembers() {
+        if (!S.current) return;
+        $('chMembers').hidden = false;
+        $('chMembersTitle').textContent = 'Members';
+        $('chMembersList').textContent = '';
+        $('chMembersList').appendChild(el('div', { class: 'ch-feed-loading' }, el('div', { class: 'ch-spinner', 'aria-hidden': 'true' })));
+        try {
+            const res = await sb.from('chat_members').select('user_id,role,joined_at,profile:profiles(id,username,display_name,avatar_url)').eq('room_id', S.current.room_id).order('joined_at', { ascending: true });
+            if (res.error) throw res.error;
+            S.members = res.data || [];
+            paintMembers();
+        } catch (err) { $('chMembersList').textContent = friendly(err); }
+    }
+
+    function paintMembers() {
+        const box = $('chMembersList');
+        box.textContent = '';
+        $('chMembersTitle').textContent = 'Members (' + S.members.length + ')';
+        const rank = { owner: 0, admin: 1, member: 2 };
+        S.members.slice().sort(function (a, b) {
+            const oa = S.online.has(a.user_id) ? 0 : 1, ob = S.online.has(b.user_id) ? 0 : 1;
+            return (rank[a.role] - rank[b.role]) || (oa - ob);
+        }).forEach(function (mm) {
+            const p = mm.profile || {};
+            const isMe = mm.user_id === S.me.id;
+            const mine = S.current.role;
+            const canRemove = !isMe && S.current.kind !== 'dm' && (mine === 'owner' || (mine === 'admin' && mm.role === 'member'));
+            box.appendChild(el('div', { class: 'ch-member' },
+                el('span', { class: 'ch-member-av' }, avatar(p, 38), S.online.has(mm.user_id) ? el('i', { class: 'ch-online-dot', title: 'Online' }) : null),
+                el('a', { class: 'ch-member-main', href: p.username ? 'profile.html?u=' + encodeURIComponent(p.username) : '#' },
+                    el('strong', { text: nameOf(p) + (isMe ? ' (you)' : '') }),
+                    el('small', { text: '@' + (p.username || 'member') })),
+                mm.role !== 'member' ? el('span', { class: 'ch-role', text: mm.role.toUpperCase() }) : null,
+                !isMe ? el('button', { type: 'button', class: 'ch-iconbtn', title: 'Message', 'aria-label': 'Message ' + nameOf(p), onclick: function () { startDm(mm.user_id); } }, icon('dm')) : null,
+                canRemove ? el('button', { type: 'button', class: 'ch-iconbtn ch-iconbtn--danger', title: 'Remove', 'aria-label': 'Remove ' + nameOf(p), onclick: function () { removeMember(mm, p); } }, icon('trash')) : null));
+        });
+    }
+
+    async function removeMember(mm, p) {
+        if (!window.confirm('Remove ' + nameOf(p) + ' from this chat?')) return;
+        try {
+            const res = await sb.rpc('chat_remove_member', { p_room: S.current.room_id, p_user: mm.user_id });
+            if (res.error) throw res.error;
+            S.members = S.members.filter(function (x) { return x.user_id !== mm.user_id; });
+            S.current.member_count = Math.max(0, S.current.member_count - 1);
+            paintMembers(); paintHeader();
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    async function leaveRoom() {
+        if (!S.current) return;
+        if (!window.confirm('Leave "' + roomTitle(S.current) + '"?')) return;
+        const id = S.current.room_id;
+        try {
+            const res = await sb.rpc('chat_leave', { p_room: id });
+            if (res.error) throw res.error;
+            await loadRooms();
+            closeRoom();
+            toast('You left the chat');
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    /* ----------------------------------------------------------------------
+       12. ACTIONS: DM, create, join, invites, inbox
+       ---------------------------------------------------------------------- */
+    async function startDm(userId) {
+        try {
+            const res = await sb.rpc('chat_start_dm', { p_other: userId });
+            if (res.error) throw res.error;
+            await loadRooms();
+            closeDlg('dmDlg');
+            setNavQuiet('mine');
+            openRoom(res.data);
+        } catch (err) { showBox('dmMsg', friendly(err)); toast(friendly(err)); }
+    }
+
+    function setNavQuiet(name) { S.nav = name; S.query = ''; $('chSearch').value = ''; renderList(); }
+
+    async function joinPublic(c, btn) {
+        setLoading(btn, true);
+        try {
+            const res = await sb.rpc('chat_join_public', { p_room: c.room_id });
+            if (res.error) throw res.error;
+            await loadRooms();
+            setNavQuiet('mine');
+            openRoom(c.room_id);
+        } catch (err) { toast(friendly(err)); setLoading(btn, false); }
+    }
+
+    async function respondInvite(i, accept, btn) {
+        setLoading(btn, true);
+        try {
+            const res = await sb.rpc('chat_respond_invite', { p_invite: i.invite_id, p_accept: accept });
+            if (res.error) throw res.error;
+            await Promise.all([loadInvites(), loadRooms()]);
+            renderList();
+            if (accept && res.data) { setNavQuiet('mine'); openRoom(res.data); }
+            else toast(accept ? 'Joined' : 'Declined');
+        } catch (err) { toast(friendly(err)); setLoading(btn, false); }
+    }
+
+    async function openInboxItem(i) {
+        if (!i.read_at) {
+            i.read_at = new Date().toISOString();
+            updateBadges();
+            sb.from('chat_inbox').update({ read_at: i.read_at }).eq('id', i.id).then(function () {});
+        }
+        if (i.kind === 'invite') { setNav('invites'); return; }
+        if (i.room_id && S.roomMap.has(i.room_id)) { setNavQuiet('mine'); openRoom(i.room_id, { jump: i.message_id }); }
+        else { renderList(); toast('You are not in that chat any more.'); }
+    }
+
+    async function markAllInboxRead() {
+        try {
+            const now = new Date().toISOString();
+            const res = await sb.from('chat_inbox').update({ read_at: now }).eq('user_id', S.me.id).is('read_at', null);
+            if (res.error) throw res.error;
+            S.inbox.forEach(function (i) { if (!i.read_at) i.read_at = now; });
+            updateBadges(); renderList();
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    // ---- dialogs ----
+    let lastFocus = null;
+    function openDlg(id) {
+        lastFocus = document.activeElement;
+        const dlg = $(id);
+        if (typeof dlg.showModal === 'function') dlg.showModal();
+        else { dlg.setAttribute('open', ''); dlg.setAttribute('aria-modal', 'true'); }
+    }
+    function closeDlg(id) { const d = $(id); if (d && d.open) d.close(); }
+
+    function wireDialogs() {
+        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg'].forEach(function (id) {
+            const d = $(id);
+            d.addEventListener('click', function (e) {
+                if (e.target === d || (e.target.closest && e.target.closest('[data-close]'))) {
+                    if (typeof d.close === 'function') d.close();
+                    else d.removeAttribute('open');
+                }
+            });
+            d.addEventListener('close', function () { if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); });
+        });
+    }
+
+    // direct message dialog
+    let dmTimer = null;
+    let dmSearchToken = 0;
+    function openDm() {
+        showBox('dmMsg', '');
+        $('dmSearch').value = '';
+        $('dmResults').textContent = '';
+        openDlg('dmDlg');
+        searchMembers('');
+    }
+
+    async function searchMembers(q) {
+        const box = $('dmResults');
+        const token = ++dmSearchToken;
+        q = q.trim().replace(/^@/, '');
+        let query = sb.from('profiles').select('id,username,display_name,avatar_url').neq('id', S.me.id);
+        if (q) query = query.ilike('username', '%' + escapeLike(q) + '%');
+        const res = await query.order('created_at', { ascending: false }).limit(12);
+        if (token !== dmSearchToken || !$('dmDlg').open) return;
+        box.textContent = '';
+        if (res.error) { box.appendChild(el('p', { class: 'ch-help', text: friendly(res.error) })); return; }
+        if (!(res.data || []).length) { box.appendChild(el('p', { class: 'ch-help', text: q ? 'No member matches that.' : 'No other members yet.' })); return; }
+        res.data.forEach(function (p) {
+            box.appendChild(el('button', { type: 'button', class: 'ch-result', onclick: function () { startDm(p.id); } },
+                avatar(p, 38), el('span', { class: 'ch-result-main' }, el('strong', { text: nameOf(p) }), el('small', { text: '@' + p.username }))));
+        });
+    }
+
+    // create dialog
+    function openCreate(kind) {
+        showBox('roomMsg', '');
+        document.querySelector('input[name="rmKind"][value="' + kind + '"]').checked = true;
+        $('rmName').value = ''; $('rmDesc').value = ''; $('rmIcon').value = kind === 'community' ? '🌐' : '💬'; $('rmPublic').checked = false;
+        syncKind();
+        openDlg('roomDlg');
+    }
+
+    function syncKind() {
+        const kind = (document.querySelector('input[name="rmKind"]:checked') || {}).value || 'group';
+        $('rmPublicWrap').hidden = kind !== 'community';
+        $('roomTitle').textContent = kind === 'community' ? 'Create a community' : 'Create a group';
+    }
+
+    async function submitCreate(e) {
+        e.preventDefault();
+        const kind = (document.querySelector('input[name="rmKind"]:checked') || {}).value || 'group';
+        const name = $('rmName').value.trim();
+        if (name.length < 2) { showBox('roomMsg', ERR.bad_name); return; }
+        const btn = $('roomSave');
+        setLoading(btn, true);
+        try {
+            const icon_ = Array.from($('rmIcon').value.trim()).slice(0, 2).join('') || '💬';
+            const res = await sb.rpc('chat_create_room', { p_kind: kind, p_name: name, p_desc: $('rmDesc').value.trim(), p_icon: icon_, p_public: kind === 'community' && $('rmPublic').checked });
+            if (res.error) throw res.error;
+            await loadRooms();
+            closeDlg('roomDlg');
+            setNavQuiet('mine');
+            openRoom(res.data);
+            toast('Created');
+        } catch (err) { showBox('roomMsg', friendly(err)); }
+        finally { setLoading(btn, false); }
+    }
+
+    // join with code
+    function openCode() { showBox('codeMsg', ''); $('cdCode').value = ''; openDlg('codeDlg'); }
+
+    async function submitCode(e) {
+        e.preventDefault();
+        const code = $('cdCode').value.trim().toLowerCase();
+        if (!code) { showBox('codeMsg', ERR.bad_code); return; }
+        const btn = $('codeSave');
+        setLoading(btn, true);
+        try {
+            const res = await sb.rpc('chat_join_code', { p_code: code });
+            if (res.error) throw res.error;
+            await loadRooms();
+            closeDlg('codeDlg');
+            setNavQuiet('mine');
+            openRoom(res.data);
+        } catch (err) { showBox('codeMsg', friendly(err)); }
+        finally { setLoading(btn, false); }
+    }
+
+    // invite dialog
+    function openInvite() {
+        if (!S.current) return;
+        showBox('invMsg', '');
+        $('ivUser').value = '';
+        const code = S.current.invite_code;
+        $('ivCodeBox').hidden = !code;
+        $('ivCode').textContent = code || '';
+        $('invTitle').textContent = 'Invite to ' + roomTitle(S.current);
+        openDlg('invDlg');
+    }
+
+    async function submitInvite(e) {
+        e.preventDefault();
+        const name = $('ivUser').value.trim().replace(/^@/, '');
+        if (!RE_USER.test(name)) { showBox('invMsg', 'Enter a valid username.'); return; }
+        const btn = $('ivSave');
+        setLoading(btn, true);
+        try {
+            const res = await sb.rpc('chat_invite', { p_room: S.current.room_id, p_username: name });
+            if (res.error) throw res.error;
+            $('ivUser').value = '';
+            showBox('invMsg', '');
+            toast('Invite sent to @' + name);
+        } catch (err) { showBox('invMsg', friendly(err)); }
+        finally { setLoading(btn, false); }
+    }
+
+    /* ----------------------------------------------------------------------
+       13. WIRING + START
+       ---------------------------------------------------------------------- */
+    function wire() {
+        setIcon('chSideClose', 'close'); setIcon('chMenuBtn', 'menu'); setIcon('chMenuBtnConvo', 'menu'); setIcon('chBack', 'back');
+        setIcon('chEmojiBtn', 'smile'); setIcon('chSend', 'send'); setIcon('chReplyCancel', 'close'); setIcon('chAttachBtn', 'attach'); setIcon('chFileClear', 'close');
+        setIcon('chInviteBtn', 'userplus'); setIcon('chMembersBtn', 'users'); setIcon('chMembersClose', 'close');
+        setIcon('chSearchIcon', 'search');
+        document.querySelectorAll('.ch-dlg .ch-iconbtn[data-close]').forEach(function (b) { b.innerHTML = ICON.close; });
+
+        // Only sidebar navigation controls switch sections. The app shell also
+        // carries data-nav for state, so binding every [data-nav] made every
+        // click inside the app reset the view and instantly close open DMs.
+        document.querySelectorAll('#chSide [data-nav]').forEach(function (b) {
+            b.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                setNav(b.dataset.nav);
+            });
+        });
+
+        $('chChatsToggle').addEventListener('click', function () {
+            const open = $('chChatsToggle').getAttribute('aria-expanded') !== 'true';
+            $('chChatsToggle').setAttribute('aria-expanded', String(open));
+            $('chChatsSub').hidden = !open;
+        });
+
+        $('chMenuBtn').addEventListener('click', openDrawer);
+        $('chMenuBtnConvo').addEventListener('click', openDrawer);
+        $('chSideClose').addEventListener('click', closeDrawer);
+        $('chScrim').addEventListener('click', closeDrawer);
+        $('chBack').addEventListener('click', function () { $('chApp').dataset.view = 'list'; });
+
+        $('chSearch').addEventListener('input', function (e) { S.query = e.target.value; renderList(); });
+        $('chListBody').addEventListener('click', function (e) {
+            const row = e.target.closest && e.target.closest('.ch-item[data-room]');
+            if (!row) return;
+            e.preventDefault();
+            openRoom(row.dataset.room);
+        });
+
+        // composer
+        const input = $('chInput');
+        input.addEventListener('input', function () { autosize(); if (input.value.trim()) sendTyping(); });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+                const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+                if (!isTouch) { e.preventDefault(); sendMessage(); }
+            }
+            else if (e.key === 'Escape') { if (S.replyTo || S.editing) cancelCompose(); else $('chEmoji').hidden = true; }
+            else if (e.key === 'ArrowUp' && !input.value) {
+                const mine = S.messages.slice().reverse().find(function (m) { return m.sender_id === S.me.id && !m.deleted_at && !m.pending; });
+                if (mine) { e.preventDefault(); startEdit(mine); }
+            }
+        });
+        $('chSend').addEventListener('click', sendMessage);
+        $('chAttachBtn').addEventListener('click', function () { $('chFileInput').click(); });
+        $('chFileInput').addEventListener('change', function (e) { chooseFile(e.target.files && e.target.files[0]); });
+        $('chFileClear').addEventListener('click', function () { S.pendingFile = null; paintPendingFile(); });
+        $('chReplyCancel').addEventListener('click', function () { cancelCompose(); });
+        $('chEmojiBtn').addEventListener('click', function () { toggleEmoji(null); });
+        buildPicker();
+
+        // feed
+        $('chFeed').addEventListener('scroll', function () {
+            const was = S.atBottom;
+            S.atBottom = atBottomNow();
+            if (S.atBottom) { S.newCount = 0; if (!was && S.current && S.current.unread) markRead(S.current.room_id); }
+            paintJump();
+            if ($('chFeed').scrollTop < 140) loadOlder();
+            closeQuick();
+        });
+        $('chJump').addEventListener('click', scrollToBottom);
+
+        $('chMembersBtn').addEventListener('click', function () { if ($('chMembers').hidden) openMembers(); else closeMembers(); });
+        $('chMembersClose').addEventListener('click', closeMembers);
+        $('chLeaveBtn').addEventListener('click', leaveRoom);
+        $('chInviteBtn').addEventListener('click', openInvite);
+
+        $('dmSearch').addEventListener('input', function (e) { clearTimeout(dmTimer); const v = e.target.value; dmTimer = setTimeout(function () { searchMembers(v); }, 250); });
+        document.querySelectorAll('input[name="rmKind"]').forEach(function (r) { r.addEventListener('change', syncKind); });
+        $('roomForm').addEventListener('submit', submitCreate);
+        $('codeForm').addEventListener('submit', submitCode);
+        $('invForm').addEventListener('submit', submitInvite);
+        $('ivCopy').addEventListener('click', function () { copyText($('ivCode').textContent, 'Invite code copied'); });
+        wireDialogs();
+
+        // close popups on outside click / Escape
+        document.addEventListener('click', function (e) {
+            if (quickEl && !quickEl.hidden && !quickEl.contains(e.target)) closeQuick();
+            const box = $('chEmoji');
+            if (!box.hidden && !box.contains(e.target) && !$('chEmojiBtn').contains(e.target) && !(quickEl && quickEl.contains(e.target))) { box.hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { closeQuick(); if (!$('chMembers').hidden) closeMembers(); closeDrawer(); }
+        });
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden && S.current && S.atBottom && S.current.unread) markRead(S.current.room_id);
+        });
+
+        setInterval(paintTyping, 1000);
+    }
+
+    function handleDeepLink() {
+        const q = new URLSearchParams(location.search);
+        const room = q.get('room');
+        if (room && S.roomMap.has(room)) { openRoom(room); return; }
+        const dm = q.get('dm');
+        if (dm && RE_USER.test(dm)) {
+            sb.from('profiles').select('id').ilike('username', escapeLike(dm)).limit(1).then(function (res) {
+                const row = res.data && res.data[0];
+                if (row && row.id !== S.me.id) startDm(row.id);
+            });
+        }
+    }
+
+    async function boot() {
+        initTheme();
+        initSound();
+        fitViewport();
+        wire();
+        gate('loading');
+
+        if (!sb) { gate('setup'); return; }
+
+        let session = null;
+        try { session = (await sb.auth.getSession()).data.session; } catch (e) { session = null; }
+        if (!session || !session.user) { gate('login'); return; }
+        S.me = session.user;
+
+        try {
+            S.profile = await ensureProfile(S.me);
+            S.profiles.set(S.profile.id, S.profile);
+            await Promise.all([loadRooms(), loadInvites(), loadInbox()]);
+        } catch (err) {
+            console.error('Chats failed to load:', err);
+            if (isSetupMissing(err)) gate('sql'); else gate('error', friendly(err));
+            return;
+        }
+
+        $('chMeName').textContent = nameOf(S.profile);
+        $('chMeAv').textContent = '';
+        $('chMeAv').appendChild(avatar(S.profile, 36));
+        sb.auth.onAuthStateChange(function (event) { if (event === 'SIGNED_OUT') location.reload(); });
+
+        hideGate();
+        subscribeGlobal();
+        renderList();
+        handleDeepLink();
+    }
+
+    boot();
+})();

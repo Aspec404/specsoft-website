@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Chats | SPECSOFT®</title>
+    <meta name="description" content="Live community chat for SPECSOFT® members.">
+    <meta name="robots" content="noindex">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheets (chats.css MUST come after style.css) -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="chats.css">
+
+</head>
+<body class="ch-body">
+    <script>try{if(localStorage.getItem('specsoft-theme')==='light')document.body.classList.add('light-mode')}catch(e){}</script>
+
+    <!-- soft background (same look as the rest of the site) -->
+    <div class="grid-bg"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="ambient-glow"></div>
+
+    <div class="ch-app" id="chApp" data-nav="mine" data-view="list">
+
+        <div class="ch-scrim" id="chScrim"></div>
+
+        <!-- =====================================================
+             SIDEBAR (only for the chat page)
+             ===================================================== -->
+        <aside class="ch-side" id="chSide" aria-label="Chat navigation">
+            <div class="ch-brand">
+                <span class="ch-brand-mark" aria-hidden="true">S</span>
+                <span class="ch-brand-text">SPECSOFT<sup>®</sup> <em>CHATS</em></span>
+                <button type="button" class="ch-iconbtn ch-only-drawer" id="chSideClose" aria-label="Close menu"></button>
+            </div>
+
+            <nav class="ch-nav">
+                <a class="ch-nav-item" href="index.html">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                    <span class="ch-nav-text">Back to home</span>
+                </a>
+
+                <div class="ch-nav-group">
+                    <button type="button" class="ch-nav-item ch-nav-parent" id="chChatsToggle" aria-expanded="true" aria-controls="chChatsSub">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></svg>
+                        <span class="ch-nav-text">Chats</span>
+                        <svg class="ch-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="ch-nav-sub" id="chChatsSub">
+                        <button type="button" class="ch-nav-item ch-nav-subitem" data-nav="mine">
+                            <span class="ch-nav-text">My chats</span><span class="ch-badge" id="chBadgeChats" hidden></span>
+                        </button>
+                        <button type="button" class="ch-nav-item ch-nav-subitem" data-nav="communities">
+                            <span class="ch-nav-text">Communities</span>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" class="ch-nav-item" data-nav="invites">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                    <span class="ch-nav-text">Community Invites</span><span class="ch-badge" id="chBadgeInvites" hidden></span>
+                </button>
+
+                <button type="button" class="ch-nav-item" data-nav="inbox">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                    <span class="ch-nav-text">Inbox</span><span class="ch-badge" id="chBadgeInbox" hidden></span>
+                </button>
+            </nav>
+
+            <div class="ch-side-foot">
+                <a class="ch-me" id="chMe" href="profile.html" aria-label="Your profile">
+                    <span class="ch-me-av" id="chMeAv"></span>
+                    <span class="ch-me-text"><strong id="chMeName">...</strong><small>View profile</small></span>
+                </a>
+                <div class="ch-foot-btns">
+                    <button type="button" class="ch-iconbtn" id="chSoundBtn" aria-pressed="true" aria-label="Message sound" title="Message sound"></button>
+                    <button type="button" class="ch-iconbtn" id="chThemeBtn" aria-label="Switch light or dark mode" title="Light / dark"></button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- =====================================================
+             LIST COLUMN
+             ===================================================== -->
+        <section class="ch-list" id="chList" aria-label="Conversations">
+            <header class="ch-list-head">
+                <button type="button" class="ch-iconbtn ch-only-drawer" id="chMenuBtn" aria-label="Open menu"></button>
+                <h1 class="ch-list-title" id="chListTitle">My chats</h1>
+                <div class="ch-list-actions" id="chListActions"></div>
+            </header>
+
+            <label class="ch-search" id="chSearchWrap">
+                <span class="ch-search-icon" id="chSearchIcon" aria-hidden="true"></span>
+                <input type="search" id="chSearch" placeholder="Search chats" autocomplete="off" spellcheck="false" aria-label="Search chats">
+            </label>
+
+            <div class="ch-list-body" id="chListBody" role="list"></div>
+        </section>
+
+        <!-- =====================================================
+             CONVERSATION
+             ===================================================== -->
+        <main class="ch-main" id="chMain">
+
+            <div class="ch-empty" id="chEmpty">
+                <div class="ch-empty-art" aria-hidden="true"><span></span><span></span><span></span></div>
+                <h2>Pick a chat</h2>
+                <p>Choose a conversation on the left, or start a new one. Say hi to the community.</p>
+            </div>
+
+            <div class="ch-convo" id="chConvo" hidden>
+
+                <header class="ch-convo-head">
+                    <button type="button" class="ch-iconbtn ch-only-mobile" id="chBack" aria-label="Back to chats"></button>
+                    <button type="button" class="ch-iconbtn ch-only-drawer" id="chMenuBtnConvo" aria-label="Open menu" aria-expanded="false"></button>
+                    <div class="ch-room-icon" id="chRoomIcon" aria-hidden="true"></div>
+                    <div class="ch-room-meta">
+                        <h2 id="chRoomName"></h2>
+                        <p id="chRoomSub"></p>
+                    </div>
+                    <div class="ch-head-actions">
+                        <span class="ch-online" id="chOnline" hidden><i></i><span id="chOnlineN">0</span> online</span>
+                        <button type="button" class="ch-iconbtn" id="chInviteBtn" aria-label="Invite someone" title="Invite" hidden></button>
+                        <button type="button" class="ch-iconbtn" id="chMembersBtn" aria-label="Show members" title="Members"></button>
+                    </div>
+                </header>
+
+                <div class="ch-feed" id="chFeed" role="log" aria-live="polite" aria-label="Messages" tabindex="0"></div>
+
+                <button type="button" class="ch-jump" id="chJump" hidden aria-label="Jump to newest messages">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span id="chJumpN"></span>
+                </button>
+
+                <div class="ch-typing" id="chTyping" aria-live="polite"></div>
+
+                <div class="ch-composer">
+                    <div class="ch-replybar" id="chReplyBar" hidden>
+                        <div class="ch-replybar-text"><strong id="chReplyTitle"></strong><span id="chReplyText"></span></div>
+                        <button type="button" class="ch-iconbtn" id="chReplyCancel" aria-label="Cancel"></button>
+                    </div>
+
+                    <div class="ch-compose-row">
+                        <button type="button" class="ch-iconbtn" id="chAttachBtn" aria-label="Attach image or file" title="Attach image or file"></button>
+                        <button type="button" class="ch-iconbtn" id="chEmojiBtn" aria-label="Emoji" aria-expanded="false" title="Emoji"></button>
+                        <label class="ch-sr" for="chInput">Message</label>
+                        <textarea class="ch-input" id="chInput" rows="1" maxlength="2000" placeholder="Message..." enterkeyhint="send" autocomplete="off"></textarea>
+                        <button type="button" class="ch-send" id="chSend" aria-label="Send message" disabled></button>
+                    </div>
+                    <input class="ch-sr" type="file" id="chFileInput" aria-label="Choose an image or file">
+                    <div class="ch-file-preview" id="chFilePreview" hidden>
+                        <span id="chFileName"></span>
+                        <button type="button" class="ch-iconbtn" id="chFileClear" aria-label="Remove attachment"></button>
+                    </div>
+
+                    <div class="ch-emoji" id="chEmoji" hidden role="dialog" aria-label="Emoji picker"></div>
+                </div>
+            </div>
+
+            <!-- members drawer -->
+            <aside class="ch-members" id="chMembers" hidden aria-label="Members">
+                <header class="ch-members-head">
+                    <h3 id="chMembersTitle">Members</h3>
+                    <button type="button" class="ch-iconbtn" id="chMembersClose" aria-label="Close members"></button>
+                </header>
+                <div class="ch-members-body" id="chMembersList"></div>
+                <footer class="ch-members-foot">
+                    <button type="button" class="ch-btn ch-btn--ghost ch-btn--danger" id="chLeaveBtn">Leave chat</button>
+                </footer>
+            </aside>
+        </main>
+
+        <!-- locked / loading / setup screen -->
+        <div class="ch-gate" id="chGate" role="status">
+            <div class="ch-gate-card" id="chGateCard">
+                <div class="ch-spinner" aria-hidden="true"></div>
+                <p>Loading chats...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         DIALOGS
+         ===================================================== -->
+
+    <!-- new direct message -->
+    <dialog class="ch-dlg" id="dmDlg" aria-labelledby="dmTitle">
+        <header class="ch-dlg-head"><h2 id="dmTitle">New message</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+        <div class="ch-dlg-body">
+            <div class="ch-msgbox" id="dmMsg" role="alert"></div>
+            <label class="ch-label" for="dmSearch">FIND A MEMBER</label>
+            <input class="ch-field" type="search" id="dmSearch" placeholder="Search by username" autocomplete="off" spellcheck="false" autocapitalize="none">
+            <div class="ch-results" id="dmResults"></div>
+        </div>
+    </dialog>
+
+    <!-- create a group / community -->
+    <dialog class="ch-dlg" id="roomDlg" aria-labelledby="roomTitle">
+        <form id="roomForm" novalidate>
+            <header class="ch-dlg-head"><h2 id="roomTitle">Create a chat</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+            <div class="ch-dlg-body">
+                <div class="ch-msgbox" id="roomMsg" role="alert"></div>
+
+                <div class="ch-kinds" role="radiogroup" aria-label="Type">
+                    <label class="ch-kind"><input type="radio" name="rmKind" value="group" checked><span><strong>Group</strong><small>Private. Join by invite or code.</small></span></label>
+                    <label class="ch-kind"><input type="radio" name="rmKind" value="community"><span><strong>Community</strong><small>Can be public so anyone can join.</small></span></label>
+                </div>
+
+                <div class="ch-row2">
+                    <div class="ch-col-icon">
+                        <label class="ch-label" for="rmIcon">ICON</label>
+                        <input class="ch-field ch-field--icon" type="text" id="rmIcon" maxlength="4" value="💬" autocomplete="off">
+                    </div>
+                    <div class="ch-col-grow">
+                        <label class="ch-label" for="rmName">NAME</label>
+                        <input class="ch-field" type="text" id="rmName" maxlength="40" required placeholder="Roblox devs">
+                    </div>
+                </div>
+
+                <label class="ch-label" for="rmDesc">DESCRIPTION (OPTIONAL)</label>
+                <textarea class="ch-field" id="rmDesc" rows="2" maxlength="200"></textarea>
+
+                <label class="ch-check" id="rmPublicWrap" hidden>
+                    <input type="checkbox" id="rmPublic">
+                    <span class="ch-box" aria-hidden="true"></span>
+                    <span>Public: show in Communities so anyone can join</span>
+                </label>
+            </div>
+            <footer class="ch-dlg-foot">
+                <button type="button" class="ch-btn ch-btn--ghost" data-close>Cancel</button>
+                <button type="submit" class="ch-btn" id="roomSave"><span class="ch-btn-label">Create</span><span class="ch-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- join with a code -->
+    <dialog class="ch-dlg ch-dlg--small" id="codeDlg" aria-labelledby="codeTitle">
+        <form id="codeForm" novalidate>
+            <header class="ch-dlg-head"><h2 id="codeTitle">Join with a code</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+            <div class="ch-dlg-body">
+                <div class="ch-msgbox" id="codeMsg" role="alert"></div>
+                <label class="ch-label" for="cdCode">INVITE CODE</label>
+                <input class="ch-field" type="text" id="cdCode" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="a1b2c3d4e5">
+            </div>
+            <footer class="ch-dlg-foot">
+                <button type="button" class="ch-btn ch-btn--ghost" data-close>Cancel</button>
+                <button type="submit" class="ch-btn" id="codeSave"><span class="ch-btn-label">Join</span><span class="ch-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- invite someone -->
+    <dialog class="ch-dlg ch-dlg--small" id="invDlg" aria-labelledby="invTitle">
+        <form id="invForm" novalidate>
+            <header class="ch-dlg-head"><h2 id="invTitle">Invite someone</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+            <div class="ch-dlg-body">
+                <div class="ch-msgbox" id="invMsg" role="alert"></div>
+                <label class="ch-label" for="ivUser">USERNAME</label>
+                <input class="ch-field" type="text" id="ivUser" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="username">
+                <div class="ch-codebox" id="ivCodeBox" hidden>
+                    <span class="ch-label">OR SHARE THIS CODE</span>
+                    <div class="ch-codeline"><code id="ivCode"></code><button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="ivCopy">Copy</button></div>
+                </div>
+            </div>
+            <footer class="ch-dlg-foot">
+                <button type="button" class="ch-btn ch-btn--ghost" data-close>Close</button>
+                <button type="submit" class="ch-btn" id="ivSave"><span class="ch-btn-label">Send invite</span><span class="ch-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <div class="ch-toast" id="chToast" role="status" aria-live="polite"></div>
+
+    <!-- Supabase client (pinned version), your keys, then the chat -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <script src="supabase-config.js"></script>
+    <script src="chats.js"></script>
+
+</body>
+</html>

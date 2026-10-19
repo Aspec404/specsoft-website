@@ -11,7 +11,7 @@
 (function () {
     'use strict';
 
-    const CONFIG = {
+    const CONFIG = window.SPECSOFT_CONFIG || {
         SUPABASE_URL: 'https://mcpjjmbvuzclzrniunkq.supabase.co',        // e.g. 'https://abcdxyz.supabase.co'
         SUPABASE_ANON_KEY: 'sb_publishable_uuybm3j2xZ0wdrbIhxANCQ_QApPdkv7'    // the long "anon public" key
     };
@@ -361,9 +361,11 @@
     /* ----------------------------------------------------------------------
        3. BACKEND + STATE
        ---------------------------------------------------------------------- */
-    const sb = (window.supabase && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY)
-        ? window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)
-        : null;
+    const sb = window.getSupabaseClient ? window.getSupabaseClient() : (
+        (window.supabase && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY)
+            ? window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)
+            : null
+    );
 
     const state = {
         me: null,            // the logged-in auth user (or null)
@@ -750,6 +752,11 @@
         if (state.isOwner) {
             actions.appendChild(el('button', { type: 'button', class: 'pf-btn', onclick: openEdit }, icon('pencil'), 'Edit profile'));
         } else if (state.me) {
+            actions.appendChild(el('button', {
+                type: 'button',
+                class: 'pf-btn pf-btn--ghost',
+                onclick: function () { window.location.assign('chats.html?dm=' + encodeURIComponent(state.profile.username)); }
+            }, icon('dm'), 'Message'));
             actions.appendChild(el('button', {
                 type: 'button',
                 class: 'pf-btn' + (state.isFollowing ? ' pf-btn--ghost' : ''),

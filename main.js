@@ -79,7 +79,7 @@
                 </a>
             </div>
 
-            <a href="community.html" class="nav-item" data-nav="community">
+            <div class="nav-item" id="communityToggle">
                 <span class="nav-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -90,7 +90,23 @@
                 </span>
                 <span class="nav-text">COMMUNITY</span>
                 <span class="nav-num">03</span>
-            </a>
+                <span class="nav-chevron">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </span>
+            </div>
+
+            <div class="nav-dropdown" id="communityDropdown">
+                <a href="community.html" class="nav-subitem">
+                    <span class="sub-bullet"></span>
+                    <span>Community Hub</span>
+                </a>
+                <a href="chats.html" class="nav-subitem">
+                    <span class="sub-bullet"></span>
+                    <span>Chats</span>
+                </a>
+            </div>
 
             <a href="store.html" class="nav-item" data-nav="store">
                 <span class="nav-icon">
@@ -133,6 +149,14 @@
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                 </svg>
                 <span id="themeLabel">DARK MODE</span>
+            </button>
+            <button class="theme-toggle sidebar-logout" id="logoutBtn" type="button" data-user-only hidden>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M10 17l5-5-5-5"></path>
+                    <path d="M15 12H3"></path>
+                    <path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"></path>
+                </svg>
+                <span>LOG OUT</span>
             </button>
             <div class="social-links">
                 <a href="https://github.com/yourusername" target="_blank" rel="noopener" aria-label="Github">
@@ -199,6 +223,7 @@
             'index':     'home',
             'home':      'home',
             'community': 'community',
+            'chats':     'community',
             'store':     'store',
             'roblox':    'roblox',
             'profile':   'login',
@@ -213,7 +238,18 @@
 
         if (activeKey) {
             const activeItem = document.querySelector(`.nav-item[data-nav="${activeKey}"]`);
+            const dropdownToggle = activeKey === 'community'
+                ? document.getElementById('communityToggle')
+                : activeKey === 'projects' ? document.getElementById('projectsToggle') : null;
             if (activeItem) activeItem.classList.add('active');
+            if (dropdownToggle) dropdownToggle.classList.add('active');
+        }
+
+        const activeSubitem = document.querySelector(`.nav-subitem[href="${pageKey}.html"]`);
+        if (activeSubitem) {
+            activeSubitem.classList.add('active');
+            const parentToggle = activeSubitem.closest('.nav-dropdown')?.previousElementSibling;
+            if (parentToggle) parentToggle.classList.add('active');
         }
     }
 
@@ -246,6 +282,31 @@
                 return;
             }
         } catch (e) { /* storage blocked or unreadable: keep LOG IN */ }
+    }
+
+    function initSidebarLogout() {
+        const button = document.getElementById('logoutBtn');
+        if (!button) return;
+
+        button.addEventListener('click', function () {
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+            try {
+                const authKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (/^sb-.+-auth-token$/.test(key || '')) authKeys.push(key);
+                }
+                authKeys.forEach(function (key) { localStorage.removeItem(key); });
+                try { sessionStorage.removeItem('au_oauth'); sessionStorage.removeItem('au_next'); } catch (e) { /* storage may be blocked */ }
+                if (window.SpecAuth) window.SpecAuth.refresh();
+                window.location.href = 'login.html';
+            } catch (err) {
+                button.disabled = false;
+                button.removeAttribute('aria-busy');
+                button.querySelector('span').textContent = 'LOG OUT FAILED';
+            }
+        });
     }
 
     /* ----------------------------------------------------------------------
@@ -456,35 +517,39 @@
     /* ----------------------------------------------------------------------
        1.7 PROJECTS DROPDOWN
        ---------------------------------------------------------------------- */
-    function initProjectsDropdown() {
-        const projectsToggle   = document.getElementById('projectsToggle');
-        const projectsDropdown = document.getElementById('projectsDropdown');
-
-        if (!projectsToggle || !projectsDropdown) return;
+    function initDropdown(toggleId, dropdownId) {
+        const toggle = document.getElementById(toggleId);
+        const dropdown = document.getElementById(dropdownId);
+        if (!toggle || !dropdown) return;
 
         function setOpen(open) {
-            projectsToggle.classList.toggle('dropdown-open', open);
-            projectsDropdown.classList.toggle('open', open);
-            projectsToggle.setAttribute('aria-expanded', String(open));
+            toggle.classList.toggle('dropdown-open', open);
+            dropdown.classList.toggle('open', open);
+            toggle.setAttribute('aria-expanded', String(open));
         }
 
-        projectsToggle.setAttribute('role', 'button');
-        projectsToggle.setAttribute('tabindex', '0');
-        projectsToggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('role', 'button');
+        toggle.setAttribute('tabindex', '0');
+        toggle.setAttribute('aria-expanded', 'false');
 
-        projectsToggle.addEventListener('click', function (e) {
+        toggle.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            setOpen(!projectsToggle.classList.contains('dropdown-open'));
+            setOpen(!toggle.classList.contains('dropdown-open'));
         });
 
-        projectsToggle.addEventListener('keydown', function (e) {
+        toggle.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                setOpen(!projectsToggle.classList.contains('dropdown-open'));
+                setOpen(!toggle.classList.contains('dropdown-open'));
+            } else if (e.key === 'Escape') {
+                setOpen(false);
             }
         });
     }
+
+    function initProjectsDropdown() { initDropdown('projectsToggle', 'projectsDropdown'); }
+    function initCommunityDropdown() { initDropdown('communityToggle', 'communityDropdown'); }
 
     /* ----------------------------------------------------------------------
        1.8 INJECT FAVICON (system dark/light mode)
@@ -1687,9 +1752,11 @@
         highlightActiveNav();
         initAuthNav();
         SpecAuth.refresh();
+        initSidebarLogout();
         initThemeToggle();
         initMobileSidebar();
         initProjectsDropdown();
+        initCommunityDropdown();
 
         // Page-specific — each self-guards and exits if its elements aren't present
         initProjectsHub();

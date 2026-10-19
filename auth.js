@@ -11,7 +11,7 @@
 (function () {
     'use strict';
 
-    const CONFIG = {
+    const CONFIG = window.SPECSOFT_CONFIG || {
         SUPABASE_URL: 'https://mcpjjmbvuzclzrniunkq.supabase.co',
         SUPABASE_ANON_KEY: 'sb_publishable_uuybm3j2xZ0wdrbIhxANCQ_QApPdkv7',
         DEFAULT_NEXT: 'community.html',
@@ -31,9 +31,11 @@
     const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     const RE_USER  = /^[A-Za-z0-9_]{3,20}$/;
 
-    const sb = (window.supabase && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY)
-        ? window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)
-        : null;
+    const sb = window.getSupabaseClient ? window.getSupabaseClient() : (
+        (window.supabase && CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY)
+            ? window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)
+            : null
+    );
 
     if (!sb) $('auConfig').hidden = false;
 
