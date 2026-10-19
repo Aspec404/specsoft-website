@@ -1,5 +1,14 @@
 -- Run this AFTER supabase-profiles.sql in Supabase SQL Editor.
 -- Safe to rerun: it creates tables, indexes, and RPC helpers idempotently.
+--
+-- v2 changes (security + Developer Mode):
+--   * removed direct-write policies that let any signed-in user join private rooms,
+--     promote themselves to owner, forge messages, or rewrite other people's messages
+--   * chat_remove_member now protects owners (admins can only remove plain members)
+--   * chat_delete lets room owners/admins moderate; chat_attach replaces the direct UPDATE
+--   * chat_members.last_read_at (powers the NEW divider; ready for read receipts)
+--   * NEW: chat_bug_status + chat_set_bug_status (bug report cards)
+--   * NEW: chat_snippets + chat_save_snippet / chat_get_snippet (shareable code snippets)
 
 create extension if not exists pgcrypto;
 
@@ -88,6 +97,9 @@ alter table public.chat_members add column if not exists room_id uuid;
 alter table public.chat_members add column if not exists user_id uuid;
 alter table public.chat_members add column if not exists role text;
 alter table public.chat_members add column if not exists joined_at timestamptz;
+alter table public.chat_members add column if not exists last_read_at timestamptz;
+update public.chat_members set last_read_at = now() where last_read_at is null;
+alter table public.chat_members alter column last_read_at set default now();
 
 alter table public.chat_messages add column if not exists room_id uuid;
 alter table public.chat_messages add column if not exists sender_id uuid;
@@ -141,6 +153,7 @@ as $$
   );
 $$;
 
+drop function if exists public.chat_my_rooms();
 create or replace function public.chat_my_rooms()
 returns table (
   room_id uuid,
@@ -158,7 +171,8 @@ returns table (
   member_count bigint,
   last_body text,
   last_at timestamptz,
-  last_sender uuid
+  last_sender uuid,
+  last_read_at timestamptz
 )
 language sql
 security definer
@@ -184,7 +198,8 @@ as $$
     coalesce((select count(*) from public.chat_members cm where cm.room_id = r.id), 0)::bigint as member_count,
     lm.body as last_body,
     lm.created_at as last_at,
-    lm.sender_id as last_sender
+    lm.sender_id as last_sender,
+    m.last_read_at
   from public.chat_members m
   join public.chat_rooms r on r.id = m.room_id
   left join public.chat_messages lm on lm.id = r.last_message_id
@@ -264,6 +279,10 @@ begin
   update public.chat_inbox
   set read_at = now()
   where user_id = auth.uid() and room_id = p_room and read_at is null and kind = 'message';
+
+  update public.chat_members
+  set last_read_at = now()
+  where user_id = auth.uid() and room_id = p_room;
 end;
 $$;
 
@@ -353,14 +372,72 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_msg public.chat_messages;
+  v_role text;
 begin
+  select * into v_msg from public.chat_messages where id = p_id and deleted_at is null;
+  if v_msg.id is null then
+    return;
+  end if;
+
+  select role into v_role from public.chat_members where room_id = v_msg.room_id and user_id = auth.uid();
+  if v_role is null then
+    raise exception 'not_member';
+  end if;
+
+  if v_msg.sender_id <> auth.uid() and v_role not in ('owner', 'admin') then
+    raise exception 'not_allowed';
+  end if;
+
   update public.chat_messages
   set deleted_at = now(), body = '[deleted]'
-  where id = p_id and sender_id = auth.uid();
+  where id = p_id;
+
+  delete from public.chat_reactions where message_id = p_id;
 
   update public.chat_inbox
   set preview = '[deleted]'
   where message_id = p_id and kind = 'message';
+end;
+$$;
+
+-- Attach an uploaded file to a message you just sent. Replaces the old direct
+-- UPDATE on chat_messages (that policy is gone, see the policy section below).
+create or replace function public.chat_attach(p_msg uuid, p_path text, p_name text, p_type text, p_size bigint)
+returns public.chat_messages
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_msg public.chat_messages;
+begin
+  select * into v_msg
+  from public.chat_messages
+  where id = p_msg and sender_id = auth.uid() and deleted_at is null and attachment_path is null;
+
+  if v_msg.id is null then
+    raise exception 'not_allowed';
+  end if;
+
+  if p_path is null or left(p_path, length(v_msg.room_id::text || '/' || auth.uid()::text || '/')) <> (v_msg.room_id::text || '/' || auth.uid()::text || '/') then
+    raise exception 'not_allowed';
+  end if;
+
+  if p_size is null or p_size < 0 or p_size > 10485760 then
+    raise exception 'not_allowed';
+  end if;
+
+  update public.chat_messages
+  set attachment_path = p_path,
+      attachment_name = left(coalesce(p_name, 'file'), 200),
+      attachment_type = left(coalesce(p_type, 'application/octet-stream'), 100),
+      attachment_size = p_size
+  where id = p_msg
+  returning * into v_msg;
+
+  return v_msg;
 end;
 $$;
 
@@ -594,13 +671,24 @@ set search_path = public
 as $$
 declare
   v_role text;
+  v_target text;
 begin
   select role into v_role from public.chat_members where room_id = p_room and user_id = auth.uid();
   if v_role is null then
     raise exception 'not_member';
   end if;
 
-  if v_role = 'member' and not exists (select 1 from public.chat_members where room_id = p_room and user_id = auth.uid() and role = 'owner') then
+  if v_role not in ('owner', 'admin') then
+    raise exception 'not_allowed';
+  end if;
+
+  select role into v_target from public.chat_members where room_id = p_room and user_id = p_user;
+  if v_target is null then
+    return;
+  end if;
+
+  -- nobody removes an owner here; admins can only remove plain members
+  if v_target = 'owner' or (v_role = 'admin' and v_target <> 'member') then
     raise exception 'not_allowed';
   end if;
 
@@ -628,7 +716,11 @@ as $$
   );
 $$;
 
--- Minimal RLS policies: authenticated users can only access their own chat rows.
+-- RLS policies. Reads are limited to room members. Everything that WRITES to
+-- rooms, members and messages goes through the security-definer RPCs above, so there
+-- are deliberately NO direct insert/update policies on chat_rooms, chat_members (except
+-- leaving) or chat_messages. Direct policies there let any signed-in user join private
+-- rooms, make themselves owner, forge messages, or rewrite other people's messages.
 drop policy if exists "chat rooms are readable by members" on public.chat_rooms;
 drop policy if exists "members may create room rows" on public.chat_rooms;
 drop policy if exists "owners may update room rows" on public.chat_rooms;
@@ -644,6 +736,7 @@ drop policy if exists "owners or senders may update/delete messages" on public.c
 drop policy if exists "chat reactions visible to room members" on public.chat_reactions;
 drop policy if exists "chat reactions readable by room members" on public.chat_reactions;
 drop policy if exists "only sender may delete own reaction" on public.chat_reactions;
+drop policy if exists "sender may add own reaction" on public.chat_reactions;
 drop policy if exists "sender may delete own reaction" on public.chat_reactions;
 drop policy if exists "chat invites visible to invited user" on public.chat_invites;
 drop policy if exists "invited user may update invite acceptance" on public.chat_invites;
@@ -694,35 +787,11 @@ create policy "chat inbox visible to owner"
 on public.chat_inbox for select
 using (user_id = auth.uid());
 
-create policy "members may create room rows"
-on public.chat_rooms for insert to authenticated
-with check (owner_id = auth.uid());
-
-create policy "owners may update room rows"
-on public.chat_rooms for update to authenticated
-using (owner_id = auth.uid());
-
-create policy "members may join rooms"
-on public.chat_members for insert to authenticated
-with check (user_id = auth.uid());
-
-create policy "members may update own member rows"
-on public.chat_members for update to authenticated
-using (user_id = auth.uid());
-
 create policy "members may leave rooms"
 on public.chat_members for delete to authenticated
 using (user_id = auth.uid());
 
-create policy "room members may insert messages"
-on public.chat_messages for insert to authenticated
-with check (sender_id = auth.uid() and exists (select 1 from public.chat_members cm where cm.room_id = chat_messages.room_id and cm.user_id = auth.uid()));
-
-create policy "owners or senders may update/delete messages"
-on public.chat_messages for update to authenticated
-using (sender_id = auth.uid() or exists (select 1 from public.chat_members cm where cm.room_id = chat_messages.room_id and cm.user_id = auth.uid() and cm.role in ('owner','admin')));
-
-create policy "only sender may delete own reaction"
+create policy "sender may add own reaction"
 on public.chat_reactions for insert to authenticated
 with check (user_id = auth.uid() and exists (select 1 from public.chat_messages m join public.chat_members cm on cm.room_id = m.room_id where m.id = chat_reactions.message_id and cm.user_id = auth.uid()));
 
@@ -777,3 +846,183 @@ using (
   bucket_id = 'chat-attachments'
   and (storage.foldername(name))[2] = auth.uid()::text
 );
+
+-- ==========================================================================
+-- DEVELOPER MODE
+-- ==========================================================================
+
+-- ----- Bug report cards ---------------------------------------------------
+-- The card itself is a normal chat message whose body starts with "[[bug:" (JSON).
+-- Its mutable status label lives here so it can change without editing the message.
+create table if not exists public.chat_bug_status (
+  message_id  uuid primary key references public.chat_messages(id) on delete cascade,
+  status      text not null default 'open' check (status in ('open', 'investigating', 'fixed', 'wontfix')),
+  updated_by  uuid references public.profiles(id) on delete set null,
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.chat_bug_status enable row level security;
+
+drop policy if exists "chat bug status visible to room members" on public.chat_bug_status;
+create policy "chat bug status visible to room members"
+on public.chat_bug_status for select
+using (
+  exists (
+    select 1
+    from public.chat_messages m
+    join public.chat_members cm on cm.room_id = m.room_id
+    where m.id = chat_bug_status.message_id and cm.user_id = auth.uid()
+  )
+);
+
+create or replace function public.chat_set_bug_status(p_msg uuid, p_status text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_msg public.chat_messages;
+  v_role text;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  if p_status is null or p_status not in ('open', 'investigating', 'fixed', 'wontfix') then
+    raise exception 'bad_status';
+  end if;
+
+  select * into v_msg from public.chat_messages where id = p_msg and deleted_at is null;
+  if v_msg.id is null then
+    raise exception 'room_not_found';
+  end if;
+
+  select role into v_role from public.chat_members where room_id = v_msg.room_id and user_id = auth.uid();
+  if v_role is null then
+    raise exception 'not_member';
+  end if;
+
+  if left(v_msg.body, 6) <> '[[bug:' then
+    raise exception 'not_a_bug';
+  end if;
+
+  -- the reporter or a room owner/admin can triage
+  if v_msg.sender_id <> auth.uid() and v_role not in ('owner', 'admin') then
+    raise exception 'not_allowed';
+  end if;
+
+  insert into public.chat_bug_status (message_id, status, updated_by, updated_at)
+  values (p_msg, p_status, auth.uid(), now())
+  on conflict (message_id) do update
+    set status = excluded.status, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+
+  return p_status;
+end;
+$$;
+
+-- live status changes (separate channel in the client, so a missing table never breaks chat)
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (
+       select 1 from pg_publication_tables
+       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'chat_bug_status'
+     ) then
+    alter publication supabase_realtime add table public.chat_bug_status;
+  end if;
+end $$;
+
+-- ----- Shareable code snippets ---------------------------------------------
+-- Anyone signed in who has the link (an unguessable uuid) can open a snippet.
+-- There is no table-level read except your own, so snippets can't be listed or scraped.
+create table if not exists public.chat_snippets (
+  id          uuid primary key default gen_random_uuid(),
+  owner_id    uuid not null references public.profiles(id) on delete cascade,
+  title       text not null default 'Snippet' check (char_length(title) between 1 and 80),
+  language    text check (language is null or char_length(language) <= 20),
+  code        text not null check (char_length(code) between 1 and 20000),
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists chat_snippets_owner_idx on public.chat_snippets (owner_id, created_at desc);
+
+alter table public.chat_snippets enable row level security;
+
+drop policy if exists "owners read own snippets" on public.chat_snippets;
+create policy "owners read own snippets"
+on public.chat_snippets for select
+using (owner_id = auth.uid());
+
+create or replace function public.chat_save_snippet(p_title text, p_lang text, p_code text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_lang text := nullif(left(lower(btrim(coalesce(p_lang, ''))), 20), '');
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  if p_code is null or btrim(p_code) = '' then
+    raise exception 'empty_message';
+  end if;
+
+  if char_length(p_code) > 20000 then
+    raise exception 'too_long';
+  end if;
+
+  -- same person saving the same code again just gets the same link
+  select id into v_id
+  from public.chat_snippets
+  where owner_id = auth.uid() and code = p_code and language is not distinct from v_lang
+  limit 1;
+
+  if v_id is not null then
+    return v_id;
+  end if;
+
+  if (select count(*) from public.chat_snippets where owner_id = auth.uid()) >= 300 then
+    raise exception 'too_many_snippets';
+  end if;
+
+  insert into public.chat_snippets (owner_id, title, language, code)
+  values (auth.uid(), left(coalesce(nullif(btrim(p_title), ''), 'Snippet'), 80), v_lang, p_code)
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+create or replace function public.chat_get_snippet(p_id uuid)
+returns table (
+  id uuid,
+  title text,
+  language text,
+  code text,
+  created_at timestamptz,
+  owner_username text,
+  owner_display text
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select s.id, s.title, s.language, s.code, s.created_at, p.username, p.display_name
+  from public.chat_snippets s
+  join public.profiles p on p.id = s.owner_id
+  where s.id = p_id and auth.uid() is not null;
+$$;
+
+create or replace function public.chat_delete_snippet(p_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from public.chat_snippets where id = p_id and owner_id = auth.uid();
+$$;

@@ -42,18 +42,78 @@
         return typeof v === 'string' && /^https:\/\/[^\s]+$/i.test(v) ? v : null;
     }
 
-    // splits a message into code blocks and normal text
+    // languages we recognise after ``` (what you type -> highlight.js name)
+    const LANGS = {
+        js: 'javascript', javascript: 'javascript', jsx: 'javascript', ts: 'typescript', typescript: 'typescript', tsx: 'typescript',
+        py: 'python', python: 'python', lua: 'lua', luau: 'lua', html: 'xml', xml: 'xml', css: 'css', json: 'json', sql: 'sql',
+        bash: 'bash', sh: 'bash', shell: 'bash', java: 'java', c: 'c', cpp: 'cpp', 'c++': 'cpp', cs: 'csharp', csharp: 'csharp',
+        go: 'go', rust: 'rust', rs: 'rust', php: 'php', ruby: 'ruby', rb: 'ruby', kotlin: 'kotlin', swift: 'swift',
+        yaml: 'yaml', yml: 'yaml', md: 'markdown', markdown: 'markdown', diff: 'diff'
+    };
+    function isLang(x) { return typeof x === 'string' && Object.prototype.hasOwnProperty.call(LANGS, x); }
+    const AUTO_LANGS = ['javascript', 'typescript', 'python', 'lua', 'css', 'xml', 'json', 'sql', 'bash', 'java', 'cpp', 'csharp', 'go', 'rust', 'php'];
+
+    // splits a message into code blocks and normal text. ```js\ncode``` keeps the language.
     function parseMessage(text) {
         const out = [];
         const re = /```([\s\S]*?)```/g;
         let last = 0, m;
         while ((m = re.exec(text))) {
             if (m.index > last) out.push({ t: 'inline', v: text.slice(last, m.index) });
-            out.push({ t: 'block', v: m[1].replace(/^\n/, '').replace(/\n$/, '') });
+            let raw = m[1], lang = '';
+            const lm = raw.match(/^([A-Za-z+#]{1,10})[ \t]*\r?\n/);
+            if (lm && isLang(lm[1].toLowerCase())) { lang = lm[1].toLowerCase(); raw = raw.slice(lm[0].length); }
+            else raw = raw.replace(/^\r?\n/, '');
+            out.push({ t: 'block', v: raw.replace(/\r?\n$/, ''), lang: lang });
             last = m.index + m[0].length;
         }
         if (last < text.length) out.push({ t: 'inline', v: text.slice(last) });
         return out;
+    }
+
+    // ----- bug report cards: a message whose body is  [[bug:{json}]]
+    const BUG_SEV = ['low', 'medium', 'high', 'critical'];
+    const BUG_STATUS = { open: 'Open', investigating: 'Investigating', fixed: 'Fixed', wontfix: "Won't fix" };
+    const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    function parseBug(body) {
+        if (typeof body !== 'string' || body.slice(0, 6) !== '[[bug:' || body.slice(-2) !== ']]') return null;
+        try {
+            const o = JSON.parse(body.slice(6, -2));
+            if (!o || typeof o !== 'object' || typeof o.t !== 'string' || !o.t.trim()) return null;
+            return {
+                t: o.t.slice(0, 80),
+                s: BUG_SEV.indexOf(o.s) >= 0 ? o.s : 'medium',
+                l: isLang(o.l) ? o.l : '',
+                d: typeof o.d === 'string' ? o.d.slice(0, 700) : '',
+                c: typeof o.c === 'string' ? o.c.slice(0, 1200) : ''
+            };
+        } catch (e) { return null; }
+    }
+
+    function buildBugBody(b) {
+        return '[[bug:' + JSON.stringify({ t: b.t, s: b.s, l: b.l || undefined, d: b.d || undefined, c: b.c || undefined }) + ']]';
+    }
+
+    // link helpers for the rich previews
+    function snippetIdFromUrl(url) {
+        try {
+            const u = new URL(url);
+            if (u.origin !== location.origin) return null;
+            const id = u.searchParams.get('snippet');
+            return id && RE_UUID.test(id) ? id.toLowerCase() : null;
+        } catch (e) { return null; }
+    }
+
+    function githubRepoFromUrl(url) {
+        const m = /^https:\/\/github\.com\/([A-Za-z0-9_.-]{1,39})\/([A-Za-z0-9_.-]{1,100}?)(?:\.git)?\/?(?:[?#].*)?$/i.exec(url);
+        return m ? { owner: m[1], repo: m[2] } : null;
+    }
+
+    function fmtNum(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+        return String(n);
     }
 
     // **bold** *italic* _italic_ ~~strike~~ ||spoiler|| `code` https links @mentions
@@ -115,6 +175,7 @@
     }
 
     function previewText(body) {
+        if (String(body || '').slice(0, 6) === '[[bug:') { const b = parseBug(body); return '\uD83D\uDC1B Bug' + (b ? ': ' + b.t : ' report'); }
         return String(body || '').replace(/```[\s\S]*?```/g, '[code]').replace(/\s+/g, ' ').trim().slice(0, 90);
     }
 
@@ -182,7 +243,12 @@
         hash:    svg('<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>'),
         dm:      svg('<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/>'),
         group:   svg('<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>'),
-        attach:  svg('<path d="m21.4 11.1-8.5 8.5a5.7 5.7 0 0 1-8.1-8.1l9.2-9.2a3.8 3.8 0 0 1 5.4 5.4l-9.2 9.2a1.9 1.9 0 0 1-2.7-2.7l8.5-8.5"/>')
+        attach:  svg('<path d="m21.4 11.1-8.5 8.5a5.7 5.7 0 0 1-8.1-8.1l9.2-9.2a3.8 3.8 0 0 1 5.4 5.4l-9.2 9.2a1.9 1.9 0 0 1-2.7-2.7l8.5-8.5"/>'),
+        code:    svg('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
+        bug:     svg('<rect x="8" y="8" width="8" height="12" rx="4"/><path d="M9 8a3 3 0 0 1 6 0"/><line x1="4" y1="13" x2="8" y2="13"/><line x1="16" y1="13" x2="20" y2="13"/><line x1="5" y1="7" x2="8" y2="9.5"/><line x1="19" y1="7" x2="16" y2="9.5"/><line x1="5" y1="19" x2="8" y2="16.5"/><line x1="19" y1="19" x2="16" y2="16.5"/>'),
+        copy:    svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+        link:    svg('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'),
+        github:  svg('<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3.1-.3 6.4-1.5 6.4-6.9a5.4 5.4 0 0 0-1.5-3.7 5 5 0 0 0-.1-3.7s-1.2-.3-3.9 1.5a13.4 13.4 0 0 0-7 0C6.3 2.8 5.1 3.1 5.1 3.1a5 5 0 0 0-.1 3.7A5.4 5.4 0 0 0 3.5 10.5c0 5.4 3.3 6.6 6.4 6.9a3.4 3.4 0 0 0-.9 2.6V22"/>')
     };
 
     function icon(name) {
@@ -251,7 +317,11 @@
         too_long: 'That message is too long (2000 max).',
         rate_limited: 'Slow down a little.',
         bad_emoji: 'That emoji is not allowed.',
-        too_many_reactions: 'That message has too many different reactions.'
+        too_many_reactions: 'That message has too many different reactions.',
+        bad_status: 'That status is not valid.',
+        not_a_bug: 'That message is not a bug report.',
+        snippet_not_found: 'That snippet was not found.',
+        too_many_snippets: 'You have saved the maximum number of snippets (300).'
     };
 
     function isSetupMissing(err) {
@@ -596,7 +666,7 @@
             el('span', { class: 'ch-item-av' }, avatar(i.sender || {}, 46)),
             el('span', { class: 'ch-item-main' },
                 el('span', { class: 'ch-item-title', text: text }),
-                i.preview && i.kind !== 'invite' ? el('span', { class: 'ch-item-sub', text: i.preview }) : null),
+                i.preview && i.kind !== 'invite' ? el('span', { class: 'ch-item-sub', text: previewText(i.preview) }) : null),
             el('span', { class: 'ch-item-meta' }, el('time', { text: fmtListTime(i.created_at) }), i.read_at ? null : el('span', { class: 'ch-dot', 'aria-label': 'Unread' })));
     }
 
@@ -665,6 +735,7 @@
         if (res.error) throw res.error;
         const rows = (res.data || []).reverse();
         rows.forEach(function (m) { if (m.sender) S.profiles.set(m.sender_id, m.sender); m.reactions = m.reactions || []; });
+        await loadBugStatuses(rows);
         return rows;
     }
 
@@ -683,8 +754,9 @@
     function renderRich(text, mine) {
         const frag = document.createDocumentFragment();
         const myName = S.profile && S.profile.username;
+        const cards = [];
         parseMessage(text).forEach(function (blk) {
-            if (blk.t === 'block') { frag.appendChild(el('pre', { class: 'ch-codeblock' }, el('code', { text: blk.v }))); return; }
+            if (blk.t === 'block') { frag.appendChild(buildCodeBlock(blk.v, blk.lang)); return; }
             parseInline(blk.v).forEach(function (tok) {
                 if (tok.t === 'text') frag.appendChild(document.createTextNode(tok.v));
                 else if (tok.t === 'b') frag.appendChild(el('strong', { text: tok.v }));
@@ -692,14 +764,22 @@
                 else if (tok.t === 's') frag.appendChild(el('s', { text: tok.v }));
                 else if (tok.t === 'code') frag.appendChild(el('code', { class: 'ch-code', text: tok.v }));
                 else if (tok.t === 'spoiler') frag.appendChild(el('span', { class: 'ch-spoiler', role: 'button', tabindex: '0', title: 'Reveal', onclick: function (e) { e.stopPropagation(); e.currentTarget.classList.toggle('is-open'); } }, tok.v));
-                else if (tok.t === 'link') { const u = safeHttps(tok.v); frag.appendChild(u ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: tok.v }) : document.createTextNode(tok.v)); }
+                else if (tok.t === 'link') {
+                    const u = safeHttps(tok.v);
+                    frag.appendChild(u ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: tok.v }) : document.createTextNode(tok.v));
+                    if (u && cards.length < 2) {
+                        const sid = snippetIdFromUrl(u), gh = githubRepoFromUrl(u);
+                        if (sid) cards.push(snippetCard(sid));
+                        else if (gh) cards.push(githubCard(gh));
+                    }
+                }
                 else if (tok.t === 'mention') frag.appendChild(el('span', { class: 'ch-mention' + (myName && tok.v.toLowerCase() === myName.toLowerCase() ? ' is-me' : ''), text: '@' + tok.v }));
             });
         });
+        cards.forEach(function (c) { frag.appendChild(c); });
         return frag;
     }
 
-    // ---- one message ----
     function groupReactions(m) {
         const map = new Map();
         (m.reactions || []).forEach(function (r) {
@@ -764,7 +844,8 @@
         const deleted = !!m.deleted_at;
         const mentioned = !deleted && !mine && mentionsUser(m.body, S.profile && S.profile.username);
 
-        const bubble = el('div', { class: 'ch-bubble' }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : renderRich(m.body, mine));
+        const bug = deleted ? null : parseBug(m.body);
+        const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (bug ? buildBugCard(m, bug) : renderRich(m.body, mine)));
         if (!deleted && m.attachment_path) renderAttachment(m, bubble);
 
         const reactions = el('div', { class: 'ch-reactions' });
@@ -777,7 +858,7 @@
         if (!deleted && !m.pending) {
             tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'React', 'aria-label': 'React', onclick: function (e) { e.stopPropagation(); openQuick(m, e.currentTarget); } }, icon('smile')));
             tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Reply', 'aria-label': 'Reply', onclick: function (e) { e.stopPropagation(); startReply(m); } }, icon('reply')));
-            if (mine) tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Edit', 'aria-label': 'Edit', onclick: function (e) { e.stopPropagation(); startEdit(m); } }, icon('edit')));
+            if (mine && !bug) tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Edit', 'aria-label': 'Edit', onclick: function (e) { e.stopPropagation(); startEdit(m); } }, icon('edit')));
         }
         const canDelete = !deleted && !m.pending && (mine || (S.current && (S.current.role === 'owner' || S.current.role === 'admin')));
         if (canDelete) tools.appendChild(el('button', { type: 'button', class: 'ch-tool ch-tool--danger', title: 'Delete', 'aria-label': 'Delete', onclick: function (e) { e.stopPropagation(); deleteMessage(m); } }, icon('trash')));
@@ -797,7 +878,7 @@
 
         // tap a message on a phone to show its actions
         bubble.addEventListener('click', function (e) {
-            if (e.target.closest && e.target.closest('a, .ch-spoiler')) return;
+            if (e.target.closest && e.target.closest('a, button, .ch-spoiler')) return;
             const feed = $('chFeed');
             const open = node.classList.contains('is-open');
             feed.querySelectorAll('.ch-msg.is-open').forEach(function (n) { n.classList.remove('is-open'); });
@@ -1027,22 +1108,23 @@
         if (!body && file) body = ('Attachment: ' + file.name).slice(0, 2000);
         if (!body) return;
 
-        if (/^\/help\b/i.test(raw.trim())) { toast('Commands: /shrug, /me. Formatting: **bold** *italic* ~~strike~~ ||spoiler|| `code`'); $('chInput').value = ''; autosize(); return; }
+        if (/^\/help\b/i.test(raw.trim())) { toast('Commands: /shrug, /me, /bug. Formatting: **bold** *italic* ~~strike~~ ||spoiler|| `code` ```js code```'); $('chInput').value = ''; autosize(); return; }
+        if (/^\/bug\b/i.test(raw.trim())) { const rest = raw.trim().slice(4).trim(); $('chInput').value = ''; autosize(); openBug(rest); return; }
 
         const room = S.current;
 
         // ----- editing -----
         if (S.editing) {
             const target = S.editing;
-            if (body === target.body) { cancelCompose(); return; }
+            if (body === target.body) { cancelCompose(); return true; }
             try {
                 const res = await sb.rpc('chat_edit', { p_id: target.id, p_body: body });
                 if (res.error) throw res.error;
                 Object.assign(target, { body: res.data.body, edited_at: res.data.edited_at });
                 cancelCompose();
                 rebuildNode(target);
-            } catch (err) { toast(friendly(err)); }
-            return;
+                return true;
+            } catch (err) { toast(friendly(err)); return false; }
         }
 
         // ----- new message with optional private room attachment -----
@@ -1077,12 +1159,13 @@
             let real = Object.assign({}, res.data, { sender: S.profile, reactions: [] });
             createdMessageId = real.id;
             if (file) {
-                const attached = await sb.from('chat_messages').update({
-                    attachment_path: uploadedPath, attachment_name: file.name,
-                    attachment_type: file.type || 'application/octet-stream', attachment_size: file.size
-                }).eq('id', real.id).select('attachment_path,attachment_name,attachment_type,attachment_size').single();
+                const attached = await sb.rpc('chat_attach', {
+                    p_msg: real.id, p_path: uploadedPath, p_name: file.name,
+                    p_type: file.type || 'application/octet-stream', p_size: file.size
+                });
                 if (attached.error) throw attached.error;
-                Object.assign(real, attached.data);
+                const a = attached.data || {};
+                Object.assign(real, { attachment_path: a.attachment_path, attachment_name: a.attachment_name, attachment_type: a.attachment_type, attachment_size: a.attachment_size });
             }
             S.messages = S.messages.filter(function (x) { return x !== temp; });
             S.byId.delete(temp.id);
@@ -1095,6 +1178,7 @@
             if (file) { S.pendingFile = null; paintPendingFile(); }
             room.last_body = real.body; room.last_at = real.created_at; room.last_sender = S.me.id;
             bumpRoom(room);
+            return true;
         } catch (err) {
             if (temp) {
                 S.messages = S.messages.filter(function (x) { return x !== temp; });
@@ -1110,6 +1194,7 @@
             }
             if (!$('chInput').value) { $('chInput').value = raw; autosize(); }
             toast(friendly(err));
+            return false;
         } finally {
             S.sending = false;
         }
@@ -1493,7 +1578,7 @@
     function closeDlg(id) { const d = $(id); if (d && d.open) d.close(); }
 
     function wireDialogs() {
-        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg'].forEach(function (id) {
+        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg'].forEach(function (id) {
             const d = $(id);
             d.addEventListener('click', function (e) {
                 if (e.target === d || (e.target.closest && e.target.closest('[data-close]'))) {
@@ -1617,6 +1702,260 @@
     }
 
     /* ----------------------------------------------------------------------
+       12b. DEVELOPER MODE
+            code blocks (highlight + copy + share), bug cards, snippets, GitHub previews
+       ---------------------------------------------------------------------- */
+    function highlightInto(node, code, lang) {
+        const hl = window.hljs;
+        node.textContent = code;                       // always safe fallback
+        if (!hl) return;
+        try {
+            let res = null;
+            const name = isLang(lang) ? LANGS[lang] : null;
+            if (name && hl.getLanguage(name)) res = hl.highlight(code, { language: name, ignoreIllegals: true });
+            else if (!lang && code.length > 24) {
+                const subset = AUTO_LANGS.filter(function (n) { return hl.getLanguage(n); });
+                if (subset.length) res = hl.highlightAuto(code, subset);
+            }
+            if (res && res.value) node.innerHTML = res.value;   // highlight.js escapes the source text
+        } catch (e) { node.textContent = code; }
+    }
+
+    function codeBtn(label, ico, title, onclick) {
+        return el('button', { type: 'button', class: 'ch-codebtn', title: title, 'aria-label': title, onclick: onclick }, icon(ico), el('span', { text: label }));
+    }
+
+    function buildCodeBlock(code, lang) {
+        const codeEl = el('code');
+        highlightInto(codeEl, code, lang);
+        const copyBtn = codeBtn('COPY', 'copy', 'Copy code', function (e) {
+            e.stopPropagation();
+            const btn = e.currentTarget, label = btn.querySelector('span');
+            const done = function () {
+                label.textContent = 'COPIED'; btn.classList.add('is-done');
+                setTimeout(function () { label.textContent = 'COPY'; btn.classList.remove('is-done'); }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, function () { toast('Could not copy. Copy it by hand.'); });
+            else toast('Could not copy. Copy it by hand.');
+        });
+        const shareBtn = codeBtn('SNIPPET', 'link', 'Save as a shareable snippet and copy the link', function (e) {
+            e.stopPropagation();
+            saveSnippet(code, lang, e.currentTarget);
+        });
+        return el('div', { class: 'ch-codewrap' },
+            el('div', { class: 'ch-codehead' }, el('span', { class: 'ch-codelang', text: lang ? lang.toUpperCase() : 'CODE' }), el('span', { class: 'ch-codebtns' }, copyBtn, shareBtn)),
+            el('pre', { class: 'ch-codeblock' }, codeEl));
+    }
+
+    // ----- bug report cards -----
+    function buildBugCard(m, bug) {
+        const status = BUG_STATUS[m.bugStatus] ? m.bugStatus : 'open';
+        const role = S.current && S.current.role;
+        const canTriage = !m.pending && !!S.me && (m.sender_id === S.me.id || role === 'owner' || role === 'admin');
+        const card = el('div', { class: 'ch-bug ch-bug--' + bug.s },
+            el('div', { class: 'ch-bug-head' },
+                el('span', { class: 'ch-bug-tag' }, icon('bug'), 'BUG REPORT'),
+                el('span', { class: 'ch-sev ch-sev--' + bug.s, text: bug.s.toUpperCase() }),
+                el('span', { class: 'ch-status ch-status--' + status, text: BUG_STATUS[status] })),
+            el('h4', { class: 'ch-bug-title', text: bug.t }));
+        if (bug.d) card.appendChild(el('p', { class: 'ch-bug-desc', text: bug.d }));
+        if (bug.c) card.appendChild(buildCodeBlock(bug.c, bug.l));
+        if (canTriage) {
+            const row = el('div', { class: 'ch-bug-triage', role: 'group', 'aria-label': 'Set status' });
+            Object.keys(BUG_STATUS).forEach(function (key) {
+                row.appendChild(el('button', { type: 'button', class: 'ch-bug-st' + (key === status ? ' is-active' : ''), 'aria-pressed': String(key === status), onclick: function (e) { e.stopPropagation(); setBugStatus(m, key); } }, BUG_STATUS[key]));
+            });
+            card.appendChild(row);
+        }
+        return card;
+    }
+
+    async function loadBugStatuses(rows) {
+        const ids = rows.filter(function (m) { return !m.deleted_at && String(m.body || '').slice(0, 6) === '[[bug:'; }).map(function (m) { return m.id; });
+        if (!ids.length) return;
+        try {
+            const res = await sb.from('chat_bug_status').select('message_id,status').in('message_id', ids);
+            if (res.error) return;                       // table not installed yet: cards just show "Open"
+            const map = new Map((res.data || []).map(function (r) { return [r.message_id, r.status]; }));
+            rows.forEach(function (m) { if (map.has(m.id)) m.bugStatus = map.get(m.id); });
+        } catch (e) { /* ignore */ }
+    }
+
+    async function setBugStatus(m, status) {
+        const prev = m.bugStatus || 'open';
+        if (prev === status) return;
+        m.bugStatus = status; rebuildNode(m);
+        try {
+            const res = await sb.rpc('chat_set_bug_status', { p_msg: m.id, p_status: status });
+            if (res.error) throw res.error;
+        } catch (err) { m.bugStatus = prev; rebuildNode(m); toast(friendly(err)); }
+    }
+
+    // its own channel, so a missing table can never take chat realtime down with it
+    function subscribeBugs() {
+        try {
+            S.bugCh = sb.channel('specsoft-bugs-' + S.me.id)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_bug_status' }, function (p) {
+                    const row = p.new && p.new.message_id ? p.new : null;
+                    const m = row && S.byId.get(row.message_id);
+                    if (m && m.bugStatus !== row.status) { m.bugStatus = row.status; rebuildNode(m); }
+                })
+                .subscribe();
+        } catch (e) { /* ignore */ }
+    }
+
+    function bugDraft() {
+        return buildBugBody({ t: $('bugTitle').value.trim() || 'x', s: $('bugSev').value, l: $('bugLang').value, d: $('bugDesc').value.trim(), c: $('bugCode').value.replace(/\s+$/, '') });
+    }
+
+    function updateBugCount() {
+        const n = bugDraft().length, c = $('bugCount');
+        c.textContent = n + ' / 2000';
+        c.classList.toggle('is-over', n > 2000);
+    }
+
+    function openBug(title) {
+        if (!S.current) return;
+        if (S.editing) { toast('Finish editing first.'); return; }
+        showBox('bugMsg', '');
+        $('bugTitle').value = String(title || '').slice(0, 80);
+        $('bugSev').value = 'medium'; $('bugLang').value = ''; $('bugDesc').value = ''; $('bugCode').value = '';
+        updateBugCount();
+        openDlg('bugDlg');
+        setTimeout(function () { $('bugTitle').focus(); }, 60);
+    }
+
+    async function submitBug(e) {
+        e.preventDefault();
+        const title = $('bugTitle').value.trim();
+        if (title.length < 3) { showBox('bugMsg', 'Give the bug a short title (3+ characters).'); return; }
+        const body = bugDraft();
+        if (body.length > 2000) { showBox('bugMsg', 'Too long by ' + (body.length - 2000) + ' characters. Trim the details or the code.'); return; }
+        const btn = $('bugSave'), input = $('chInput'), prev = input.value;
+        setLoading(btn, true);
+        input.value = body; autosize();
+        const ok = await sendMessage();                  // reuses the normal send pipeline (reply + attachment work too)
+        input.value = prev; autosize();
+        setLoading(btn, false);
+        if (ok) closeDlg('bugDlg');
+    }
+
+    // ----- composer helpers -----
+    function closeDev() { $('chDevMenu').hidden = true; $('chDevBtn').setAttribute('aria-expanded', 'false'); }
+
+    function insertCodeBlock() {
+        const t = $('chInput');
+        const a = t.selectionStart, b = t.selectionEnd;
+        t.value = t.value.slice(0, a) + '```js\n' + t.value.slice(a, b) + '\n```' + t.value.slice(b);
+        t.focus();
+        t.setSelectionRange(a + 3, a + 5);               // "js" is selected so you can retype the language
+        autosize();
+    }
+
+    // ----- shareable snippets -----
+    const snipCache = new Map();
+    let snipCurrent = null;
+
+    function snippetUrl(id) { return location.origin + location.pathname + '?snippet=' + id; }
+
+    function getSnippet(id) {
+        if (!snipCache.has(id)) {
+            const p = sb.rpc('chat_get_snippet', { p_id: id }).then(function (res) {
+                if (res.error) throw res.error;
+                const row = Array.isArray(res.data) ? res.data[0] : res.data;
+                if (!row) throw new Error('snippet_not_found');
+                return row;
+            });
+            snipCache.set(id, p);
+            p.catch(function () { snipCache.delete(id); });
+        }
+        return snipCache.get(id);
+    }
+
+    async function saveSnippet(code, lang, btn) {
+        if (btn) btn.disabled = true;
+        try {
+            const firstLine = (code.split('\n').find(function (l) { return l.trim(); }) || 'Snippet').trim().slice(0, 50);
+            const res = await sb.rpc('chat_save_snippet', { p_title: (lang ? lang.toUpperCase() + ' \u00B7 ' : '') + firstLine, p_lang: lang || null, p_code: code });
+            if (res.error) throw res.error;
+            await copyText(snippetUrl(res.data), 'Snippet link copied. Paste it in any chat.');
+        } catch (err) { toast(friendly(err)); }
+        finally { if (btn) btn.disabled = false; }
+    }
+
+    function snippetCard(id) {
+        const title = el('strong', { text: 'Code snippet' }), sub = el('small', { text: 'Loading\u2026' });
+        const card = el('button', { type: 'button', class: 'ch-card', onclick: function (e) { e.stopPropagation(); openSnippet(id); } },
+            el('span', { class: 'ch-card-ico' }, icon('code')),
+            el('span', { class: 'ch-card-main' }, title, sub),
+            el('span', { class: 'ch-card-go', text: 'OPEN' }));
+        getSnippet(id).then(function (sn) {
+            title.textContent = sn.title;
+            sub.textContent = (sn.language ? sn.language.toUpperCase() + ' \u00B7 ' : '') + sn.code.split('\n').length + ' lines \u00B7 by @' + sn.owner_username;
+        }).catch(function () { sub.textContent = 'Snippet unavailable'; });
+        return card;
+    }
+
+    async function openSnippet(id) {
+        snipCurrent = null;
+        $('snipTitle').textContent = 'Snippet';
+        $('snipMeta').textContent = 'Loading\u2026';
+        $('snipCode').textContent = '';
+        openDlg('snipDlg');
+        try {
+            const sn = await getSnippet(id);
+            snipCurrent = sn;
+            $('snipTitle').textContent = sn.title;
+            $('snipMeta').textContent = [sn.language ? sn.language.toUpperCase() : 'CODE', sn.code.split('\n').length + ' lines', 'by @' + sn.owner_username, fmtListTime(sn.created_at)].join(' \u00B7 ');
+            highlightInto($('snipCode'), sn.code, sn.language);
+        } catch (err) { $('snipMeta').textContent = friendly(err); }
+    }
+
+    // ----- GitHub repo previews (public API, cached so we stay under the rate limit) -----
+    const ghCache = new Map();
+    const GH_TTL = 30 * 60 * 1000;
+
+    function fetchRepo(owner, repo) {
+        const key = (owner + '/' + repo).toLowerCase();
+        if (ghCache.has(key)) return ghCache.get(key);
+        const p = new Promise(function (resolve, reject) {
+            try {
+                const hit = JSON.parse(sessionStorage.getItem('specsoft-gh:' + key) || 'null');
+                if (hit && Date.now() - hit.at < GH_TTL) { resolve(hit.d); return; }
+            } catch (e) { /* ignore */ }
+            fetch('https://api.github.com/repos/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo), { headers: { Accept: 'application/vnd.github+json' } })
+                .then(function (r) { if (!r.ok) throw new Error('gh_' + r.status); return r.json(); })
+                .then(function (j) {
+                    const d = { full: String(j.full_name || key), desc: String(j.description || ''), stars: +j.stargazers_count || 0, forks: +j.forks_count || 0, issues: +j.open_issues_count || 0, lang: String(j.language || '') };
+                    try { sessionStorage.setItem('specsoft-gh:' + key, JSON.stringify({ at: Date.now(), d: d })); } catch (e) { /* ignore */ }
+                    resolve(d);
+                })
+                .catch(reject);
+        });
+        ghCache.set(key, p);                              // failures stay cached too, so a bad link never spams the API
+        return p;
+    }
+
+    function githubCard(gh) {
+        const title = el('strong', { text: gh.owner + '/' + gh.repo });
+        const desc = el('small', { class: 'ch-card-desc', text: 'Loading repository\u2026' });
+        const meta = el('span', { class: 'ch-card-meta' });
+        const card = el('a', { class: 'ch-card', href: 'https://github.com/' + gh.owner + '/' + gh.repo, target: '_blank', rel: 'noopener noreferrer', onclick: function (e) { e.stopPropagation(); } },
+            el('span', { class: 'ch-card-ico' }, icon('github')),
+            el('span', { class: 'ch-card-main' }, title, desc, meta),
+            el('span', { class: 'ch-card-go', text: 'GITHUB' }));
+        fetchRepo(gh.owner, gh.repo).then(function (d) {
+            title.textContent = d.full;
+            desc.textContent = d.desc || 'No description.';
+            if (d.lang) meta.appendChild(el('span', { text: d.lang }));
+            meta.appendChild(el('span', { text: '\u2605 ' + fmtNum(d.stars) }));
+            meta.appendChild(el('span', { text: '\u2442 ' + fmtNum(d.forks) }));
+            meta.appendChild(el('span', { text: d.issues + ' open issues' }));
+        }).catch(function () { card.remove(); });          // private / missing / rate limited: the plain link is still there
+        return card;
+    }
+
+    /* ----------------------------------------------------------------------
        13. WIRING + START
        ---------------------------------------------------------------------- */
     function wire() {
@@ -1667,7 +2006,7 @@
             }
             else if (e.key === 'Escape') { if (S.replyTo || S.editing) cancelCompose(); else $('chEmoji').hidden = true; }
             else if (e.key === 'ArrowUp' && !input.value) {
-                const mine = S.messages.slice().reverse().find(function (m) { return m.sender_id === S.me.id && !m.deleted_at && !m.pending; });
+                const mine = S.messages.slice().reverse().find(function (m) { return m.sender_id === S.me.id && !m.deleted_at && !m.pending && !parseBug(m.body); });
                 if (mine) { e.preventDefault(); startEdit(mine); }
             }
         });
@@ -1717,11 +2056,33 @@
             if (!document.hidden && S.current && S.atBottom && S.current.unread) markRead(S.current.room_id);
         });
 
+        // ----- developer mode -----
+        setIcon('chDevBtn', 'code'); setIcon('chDevCodeIco', 'code'); setIcon('chDevBugIco', 'bug');
+        $('chDevBtn').addEventListener('click', function (e) {
+            e.stopPropagation();
+            const menu = $('chDevMenu');
+            menu.hidden = !menu.hidden;
+            $('chDevBtn').setAttribute('aria-expanded', String(!menu.hidden));
+            if (!menu.hidden) { $('chEmoji').hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); }
+        });
+        $('chDevCode').addEventListener('click', function () { closeDev(); insertCodeBlock(); });
+        $('chDevBug').addEventListener('click', function () { closeDev(); openBug(''); });
+        document.addEventListener('click', function (e) {
+            const menu = $('chDevMenu');
+            if (!menu.hidden && !menu.contains(e.target) && !$('chDevBtn').contains(e.target)) closeDev();
+        });
+        $('bugForm').addEventListener('submit', submitBug);
+        ['bugTitle', 'bugDesc', 'bugCode', 'bugSev', 'bugLang'].forEach(function (id) { $(id).addEventListener('input', updateBugCount); $(id).addEventListener('change', updateBugCount); });
+        $('snipCopy').addEventListener('click', function () { if (snipCurrent) copyText(snipCurrent.code, 'Code copied'); });
+        $('snipCopyLink').addEventListener('click', function () { if (snipCurrent) copyText(snippetUrl(snipCurrent.id), 'Snippet link copied'); });
+
         setInterval(paintTyping, 1000);
     }
 
     function handleDeepLink() {
         const q = new URLSearchParams(location.search);
+        const snip = q.get('snippet');
+        if (snip && RE_UUID.test(snip)) openSnippet(snip.toLowerCase());
         const room = q.get('room');
         if (room && S.roomMap.has(room)) { openRoom(room); return; }
         const dm = q.get('dm');
@@ -1764,6 +2125,7 @@
 
         hideGate();
         subscribeGlobal();
+        subscribeBugs();
         renderList();
         handleDeepLink();
     }

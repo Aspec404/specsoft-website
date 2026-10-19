@@ -149,6 +149,7 @@
                     <div class="ch-compose-row">
                         <button type="button" class="ch-iconbtn" id="chAttachBtn" aria-label="Attach image or file" title="Attach image or file"></button>
                         <button type="button" class="ch-iconbtn" id="chEmojiBtn" aria-label="Emoji" aria-expanded="false" title="Emoji"></button>
+                        <button type="button" class="ch-iconbtn" id="chDevBtn" aria-label="Developer tools" aria-haspopup="menu" aria-expanded="false" title="Developer tools"></button>
                         <label class="ch-sr" for="chInput">Message</label>
                         <textarea class="ch-input" id="chInput" rows="1" maxlength="2000" placeholder="Message..." enterkeyhint="send" autocomplete="off"></textarea>
                         <button type="button" class="ch-send" id="chSend" aria-label="Send message" disabled></button>
@@ -160,6 +161,11 @@
                     </div>
 
                     <div class="ch-emoji" id="chEmoji" hidden role="dialog" aria-label="Emoji picker"></div>
+
+                    <div class="ch-devmenu" id="chDevMenu" hidden role="menu" aria-label="Developer tools">
+                        <button type="button" class="ch-devitem" id="chDevCode" role="menuitem"><span id="chDevCodeIco" aria-hidden="true"></span><span>Code block<small>Syntax highlighted, one-click copy</small></span></button>
+                        <button type="button" class="ch-devitem" id="chDevBug" role="menuitem"><span id="chDevBugIco" aria-hidden="true"></span><span>Bug report<small>Card with severity and status</small></span></button>
+                    </div>
                 </div>
             </div>
 
@@ -275,11 +281,83 @@
         </form>
     </dialog>
 
+    <!-- bug report -->
+    <dialog class="ch-dlg" id="bugDlg" aria-labelledby="bugHeading">
+        <form id="bugForm" novalidate>
+            <header class="ch-dlg-head"><h2 id="bugHeading">Report a bug</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+            <div class="ch-dlg-body">
+                <div class="ch-msgbox" id="bugMsg" role="alert"></div>
+
+                <label class="ch-label" for="bugTitle">TITLE</label>
+                <input class="ch-field" type="text" id="bugTitle" maxlength="80" autocomplete="off" placeholder="Player falls through the map on spawn">
+
+                <div class="ch-row2">
+                    <div class="ch-col-grow">
+                        <label class="ch-label" for="bugSev">SEVERITY</label>
+                        <select class="ch-field" id="bugSev">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                    <div class="ch-col-grow">
+                        <label class="ch-label" for="bugLang">CODE LANGUAGE</label>
+                        <select class="ch-field" id="bugLang">
+                            <option value="">Plain / auto</option>
+                            <option value="js">JavaScript</option>
+                            <option value="ts">TypeScript</option>
+                            <option value="py">Python</option>
+                            <option value="lua">Lua / Luau</option>
+                            <option value="html">HTML</option>
+                            <option value="css">CSS</option>
+                            <option value="json">JSON</option>
+                            <option value="sql">SQL</option>
+                            <option value="bash">Bash</option>
+                            <option value="java">Java</option>
+                            <option value="cpp">C++</option>
+                            <option value="cs">C#</option>
+                            <option value="go">Go</option>
+                            <option value="rust">Rust</option>
+                            <option value="php">PHP</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label class="ch-label" for="bugDesc">WHAT HAPPENED (OPTIONAL)</label>
+                <textarea class="ch-field" id="bugDesc" rows="3" maxlength="700" placeholder="Steps to reproduce, what you expected, what actually happened"></textarea>
+
+                <label class="ch-label" for="bugCode">CODE OR ERROR (OPTIONAL)</label>
+                <textarea class="ch-field ch-field--mono" id="bugCode" rows="5" maxlength="1200" spellcheck="false" autocapitalize="none" placeholder="Paste the code or the error message"></textarea>
+                <p class="ch-help ch-count" id="bugCount" aria-live="polite"></p>
+            </div>
+            <footer class="ch-dlg-foot">
+                <button type="button" class="ch-btn ch-btn--ghost" data-close>Cancel</button>
+                <button type="submit" class="ch-btn" id="bugSave"><span class="ch-btn-label">Send report</span><span class="ch-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- shared code snippet -->
+    <dialog class="ch-dlg" id="snipDlg" aria-labelledby="snipTitle">
+        <header class="ch-dlg-head"><h2 id="snipTitle">Snippet</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+        <div class="ch-dlg-body">
+            <p class="ch-help ch-snip-meta" id="snipMeta"></p>
+            <pre class="ch-codeblock ch-codeblock--full"><code id="snipCode"></code></pre>
+        </div>
+        <footer class="ch-dlg-foot">
+            <button type="button" class="ch-btn ch-btn--ghost" id="snipCopyLink">Copy link</button>
+            <button type="button" class="ch-btn" id="snipCopy">Copy code</button>
+        </footer>
+    </dialog>
+
     <div class="ch-toast" id="chToast" role="status" aria-live="polite"></div>
 
     <!-- Supabase client (pinned version), your keys, then the chat -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
     <script src="supabase-config.js"></script>
+    <!-- highlight.js (pinned). Colors come from chats.css, so no theme file is needed. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="chats.js"></script>
 
 </body>
