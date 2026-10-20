@@ -1765,3 +1765,17 @@
     });
 
 })();
+
+
+/* ======================================================================
+   SPECSOFT® roles.js loader: badges, the "online" heartbeat for the admin
+   dashboard, and the account-standing banner, on every page that uses main.js.
+   (It needs the Supabase script to be on the page; if it is not, it does nothing.)
+   ====================================================================== */
+(function () {
+    if (window.SpecRoles || document.querySelector('script[src$="roles.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'roles.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();

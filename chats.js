@@ -248,6 +248,15 @@
         bug:     svg('<rect x="8" y="8" width="8" height="12" rx="4"/><path d="M9 8a3 3 0 0 1 6 0"/><line x1="4" y1="13" x2="8" y2="13"/><line x1="16" y1="13" x2="20" y2="13"/><line x1="5" y1="7" x2="8" y2="9.5"/><line x1="19" y1="7" x2="16" y2="9.5"/><line x1="5" y1="19" x2="8" y2="16.5"/><line x1="19" y1="19" x2="16" y2="16.5"/>'),
         copy:    svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
         link:    svg('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'),
+        more:    svg('<circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/>'),
+        user:    svg('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+        pin:     svg('<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>'),
+        tag:     svg('<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'),
+        bell:    svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
+        belloff: svg('<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>'),
+        ban:     svg('<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/>'),
+        xcircle: svg('<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>'),
+        logout:  svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>'),
         github:  svg('<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3.1-.3 6.4-1.5 6.4-6.9a5.4 5.4 0 0 0-1.5-3.7 5 5 0 0 0-.1-3.7s-1.2-.3-3.9 1.5a13.4 13.4 0 0 0-7 0C6.3 2.8 5.1 3.1 5.1 3.1a5 5 0 0 0-.1 3.7A5.4 5.4 0 0 0 3.5 10.5c0 5.4 3.3 6.6 6.4 6.9a3.4 3.4 0 0 0-.9 2.6V22"/>')
     };
 
@@ -296,7 +305,12 @@
         loadingMore: false, noMore: false,
         roomCh: null, globalCh: null,
         sound: true, tmp: 0, pickerFor: null, members: [],
-        pendingFile: null, fileUrls: new Map(), sending: false
+        pendingFile: null, fileUrls: new Map(), sending: false,
+        tl: new Map(),                 // typing, per room: roomId -> Map(userId -> {name, until})
+        onlineAll: new Set(),          // everybody who is online right now (global presence)
+        userCh: null, presCh: null, outCh: new Map(),
+        menu: null, lastClosed: null, lpFired: false, nickRoom: null,
+        desk: false, banners: new Map()
     };
 
     const ERR = {
@@ -320,6 +334,7 @@
         too_many_reactions: 'That message has too many different reactions.',
         bad_status: 'That status is not valid.',
         not_a_bug: 'That message is not a bug report.',
+        blocked: 'You cannot message this user.',
         snippet_not_found: 'That snippet was not found.',
         too_many_snippets: 'You have saved the maximum number of snippets (300).'
     };
@@ -334,6 +349,7 @@
     function friendly(err) {
         const msg = String(err && err.message || '');
         if (/attachment_path|chat-attachments|bucket not found/i.test(msg)) return 'Run the updated supabase-chats.sql in Supabase SQL Editor to enable attachments.';
+        if (/chat_set_pref|chat_prefs|chat_set_block|chat_blocks|chat_delete_room|other_id|pinned/i.test(msg) && isSetupMissing(err)) return 'Run supabase-chats-v3.sql in your Supabase SQL Editor to turn this on.';
         const keys = Object.keys(ERR);
         for (let i = 0; i < keys.length; i++) if (msg.indexOf(keys[i]) >= 0) return ERR[keys[i]];
         if (isSetupMissing(err)) return 'Chats are not set up yet. Run supabase-chats.sql in your Supabase SQL Editor.';
@@ -456,7 +472,7 @@
     }
 
     function updateTitle() {
-        const n = S.rooms.reduce(function (a, r) { return a + (r.unread || 0); }, 0);
+        const n = S.rooms.reduce(function (a, r) { return a + (r.muted ? 0 : (r.unread || 0)); }, 0);
         document.title = (n > 0 ? '(' + (n > 99 ? '99+' : n) + ') ' : '') + 'Chats | SPECSOFT®';
     }
 
@@ -468,7 +484,7 @@
     }
 
     function updateBadges() {
-        paintBadge('chBadgeChats', S.rooms.reduce(function (a, r) { return a + (r.unread || 0); }, 0));
+        paintBadge('chBadgeChats', S.rooms.reduce(function (a, r) { return a + (r.muted ? 0 : (r.unread || 0)); }, 0));
         paintBadge('chBadgeInvites', S.invites.length);
         paintBadge('chBadgeInbox', S.inbox.filter(function (i) { return !i.read_at; }).length);
         updateTitle();
@@ -503,8 +519,20 @@
         S.rooms.forEach(function (r) {
             r.unread = Number(r.unread) || 0;
             r.member_count = Number(r.member_count) || 0;
+            r.pinned = !!r.pinned; r.muted = !!r.muted;
+            r.blocked_by_me = !!r.blocked_by_me; r.blocked_me = !!r.blocked_me;
             S.roomMap.set(r.room_id, r);
         });
+        // keep the open chat pointing at the fresh object
+        if (S.current && S.roomMap.has(S.current.room_id)) S.current = S.roomMap.get(S.current.room_id);
+        pinFirst();
+    }
+
+    // pinned chats first (newest pin on top), everything else keeps its order
+    function pinFirst() {
+        const pins = S.rooms.filter(function (r) { return r.pinned; })
+            .sort(function (a, b) { return new Date(b.pinned_at || 0) - new Date(a.pinned_at || 0); });
+        S.rooms = pins.concat(S.rooms.filter(function (r) { return !r.pinned; }));
     }
 
     async function loadRooms() {
@@ -522,12 +550,27 @@
         updateBadges();
     }
 
+    const INBOX_SELECT = 'id,kind,room_id,message_id,preview,read_at,created_at,from_id,sender:profiles!from_id(id,username,display_name,avatar_url),room:chat_rooms(name,icon,kind)';
+
+    // The server writes an inbox row for EVERY message. The Inbox tab should only show
+    // invites and messages that @mention you, otherwise it is just a copy of every chat.
     async function loadInbox() {
-        const res = await sb.from('chat_inbox')
-            .select('id,kind,room_id,message_id,preview,read_at,created_at,sender:profiles!from_id(id,username,display_name,avatar_url),room:chat_rooms(name,icon,kind)')
-            .order('created_at', { ascending: false }).limit(60);
-        if (res.error) throw res.error;
-        S.inbox = res.data || [];
+        const name = S.profile && S.profile.username;
+        const jobs = [
+            sb.from('chat_inbox').select(INBOX_SELECT).eq('kind', 'invite').order('created_at', { ascending: false }).limit(40)
+        ];
+        if (name) {
+            jobs.push(sb.from('chat_inbox').select(INBOX_SELECT).eq('kind', 'message').neq('from_id', S.me.id)
+                .ilike('preview', '%@' + escapeLike(name) + '%').order('created_at', { ascending: false }).limit(40));
+        }
+        const out = await Promise.all(jobs);
+        out.forEach(function (r) { if (r.error) throw r.error; });
+        const rows = [];
+        out.forEach(function (r) { (r.data || []).forEach(function (row) { rows.push(row); }); });
+        S.inbox = rows
+            .filter(function (i) { return i.kind === 'invite' || mentionsUser(i.preview, name); })
+            .sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); })
+            .slice(0, 60);
         updateBadges();
     }
 
@@ -538,9 +581,11 @@
     }
 
     function roomTitle(r) {
-        if (r.kind === 'dm') return r.other_display || r.other_username || 'Direct message';
+        if (r.kind === 'dm') return r.nickname || r.other_display || r.other_username || 'Direct message';
         return r.name || 'Chat';
     }
+
+    function realName(r) { return r.other_display || r.other_username || 'this user'; }
 
     function roomArt(r, size) {
         if (r.kind === 'dm') return avatar({ display_name: r.other_display, username: r.other_username, avatar_url: r.other_avatar }, size);
@@ -595,7 +640,7 @@
         const q = S.query.trim().toLowerCase();
 
         if (S.nav === 'mine') {
-            const rooms = S.rooms.filter(function (r) { return !q || (roomTitle(r) + ' ' + (r.last_body || '')).toLowerCase().indexOf(q) >= 0; });
+            const rooms = S.rooms.filter(function (r) { return !q || (roomTitle(r) + ' ' + (r.other_display || '') + ' ' + (r.other_username || '') + ' ' + (r.last_body || '')).toLowerCase().indexOf(q) >= 0; });
             if (!rooms.length) {
                 body.appendChild(q ? emptyBox('No chats match', 'Try a different search.')
                     : emptyBox('No chats yet', 'Message someone, make a group, or join a community.', [
@@ -617,19 +662,34 @@
         }
     }
 
+    function subText(r) {
+        const mineLast = r.last_sender && S.me && r.last_sender === S.me.id;
+        return r.last_body ? (mineLast ? 'You: ' : '') + previewText(r.last_body) : (r.kind === 'dm' ? 'Say hi' : (r.description || 'No messages yet'));
+    }
+
     function roomRow(r) {
         const active = S.current && S.current.room_id === r.room_id;
-        const mineLast = r.last_sender && S.me && r.last_sender === S.me.id;
-        const sub = r.last_body ? (mineLast ? 'You: ' : '') + previewText(r.last_body) : (r.kind === 'dm' ? 'Say hi' : (r.description || 'No messages yet'));
+        const typing = activeTyping(r.room_id).length > 0;
+        const online = r.kind === 'dm' && !r.blocked_by_me && S.onlineAll.has(r.other_id);
 
-        return el('button', { type: 'button', role: 'listitem', 'aria-label': 'Open chat with ' + roomTitle(r), class: 'ch-item' + (active ? ' is-active' : '') + (r.unread ? ' is-unread' : ''), dataset: { room: r.room_id }, onclick: function (e) { e.preventDefault(); e.stopPropagation(); openRoom(r.room_id); } },
-            el('span', { class: 'ch-item-av' }, roomArt(r, 46)),
+        const item = el('button', { type: 'button', 'aria-label': 'Open chat with ' + roomTitle(r), class: 'ch-item' + (active ? ' is-active' : '') + (r.unread ? ' is-unread' : '') + (r.muted ? ' is-muted' : ''), dataset: typing ? { room: r.room_id, typing: '1' } : { room: r.room_id },
+            onclick: function (e) {
+                e.preventDefault(); e.stopPropagation();
+                if (S.lpFired) { S.lpFired = false; return; }       // that click was the end of a long-press
+                openRoom(r.room_id);
+            } },
+            el('span', { class: 'ch-item-av' }, roomArt(r, 46), online ? el('i', { class: 'ch-online-dot ch-item-dot', title: 'Online' }) : null),
             el('span', { class: 'ch-item-main' },
-                el('span', { class: 'ch-item-title', text: roomTitle(r) }),
-                el('span', { class: 'ch-item-sub', text: sub })),
+                el('span', { class: 'ch-item-title' }, r.pinned ? el('span', { class: 'ch-pin', title: 'Pinned' }, icon('pin')) : null, roomTitle(r)),
+                el('span', { class: 'ch-item-sub' + (typing ? ' is-typing' : ''), text: typing ? 'typing…' : subText(r) })),
             el('span', { class: 'ch-item-meta' },
                 el('time', { text: fmtListTime(r.last_at) }),
-                r.unread ? el('span', { class: 'ch-unread', text: r.unread > 99 ? '99+' : String(r.unread) }) : null));
+                r.muted ? el('span', { class: 'ch-muted-ico', title: 'Muted' }, icon('belloff')) : null,
+                r.unread ? el('span', { class: 'ch-unread' + (r.muted ? ' is-muted' : ''), text: r.unread > 99 ? '99+' : String(r.unread) }) : null));
+
+        const more = el('button', { type: 'button', class: 'ch-more', 'aria-label': 'Options for ' + roomTitle(r), 'aria-haspopup': 'menu', title: 'Options', dataset: { room: r.room_id } }, icon('more'));
+
+        return el('div', { class: 'ch-row', role: 'listitem', dataset: { row: r.room_id } }, item, more);
     }
 
     function communityCard(c) {
@@ -649,7 +709,7 @@
             el('span', { class: 'ch-card-icon', text: i.room_icon || '💬' }),
             el('div', { class: 'ch-card-main' },
                 el('h3', { text: i.room_name || 'A chat' }),
-                el('p', { text: 'Invited by @' + (i.inviter_username || 'someone') }),
+                el('p', { text: 'Invited by @' + (i.invited_by_username || i.inviter_username || 'someone') }),
                 el('small', { text: fmtListTime(i.created_at) })),
             el('div', { class: 'ch-card-actions' },
                 el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: function (e) { respondInvite(i, true, e.currentTarget); } }, 'Accept'),
@@ -726,10 +786,12 @@
         (res.data || []).forEach(function (p) { S.profiles.set(p.id, p); });
     }
 
+    const MSG_SELECT = 'id,room_id,sender_id,body,reply_to,created_at,edited_at,deleted_at,attachment_path,attachment_name,attachment_type,attachment_size,sender:profiles(id,username,display_name,avatar_url),reactions:chat_reactions(emoji,user_id)';
+
     async function fetchMessages(roomId, before) {
-        let q = sb.from('chat_messages')
-            .select('id,room_id,sender_id,body,reply_to,created_at,edited_at,deleted_at,attachment_path,attachment_name,attachment_type,attachment_size,sender:profiles(id,username,display_name,avatar_url),reactions:chat_reactions(emoji,user_id)')
-            .eq('room_id', roomId);
+        let q = sb.from('chat_messages').select(MSG_SELECT).eq('room_id', roomId);
+        const rm = S.roomMap.get(roomId);
+        if (rm && rm.cleared_at) q = q.gt('created_at', rm.cleared_at);     // "Delete chat" hides older history for you
         if (before) q = q.lt('created_at', before);
         const res = await q.order('created_at', { ascending: false }).limit(PAGE);
         if (res.error) throw res.error;
@@ -748,7 +810,13 @@
     }
 
     function senderOf(m) { return m.sender || S.profiles.get(m.sender_id) || { username: 'member' }; }
-    function nameOf(p) { return p.display_name || p.username || 'member'; }
+    function nameOf(p) {
+        p = p || {};
+        // a nickname you set for a DM partner is used everywhere inside that DM
+        if (p.id && S.current && S.current.kind === 'dm' && S.current.nickname && p.id === S.current.other_id) return S.current.nickname;
+        return p.display_name || p.username || 'member';
+    }
+    function sameRoom(r) { return !!(r && S.current && S.current.room_id === r.room_id); }
 
     // ---- rich text ----
     function renderRich(text, mine) {
@@ -938,27 +1006,34 @@
         paintPendingFile();
         S.messages = []; S.byId = new Map(); S.extra = new Map();
         S.replyTo = null; S.editing = null; S.noMore = false; S.newFromId = null; S.newCount = 0; S.atBottom = true;
-        S.online = new Set(); S.typing = new Map();
+        S.online = new Set();
         cancelCompose(true);
         closeMembers();
         $('chEmoji').hidden = true;
 
         $('chApp').dataset.view = 'chat';
         closeDrawer();
+        closeMenu();
         $('chEmpty').hidden = true;
         $('chConvo').hidden = false;
         paintHeader();
+        paintTyping();
         renderList();
 
         const snap = room.last_read_at;
         $('chFeed').textContent = '';
         $('chFeed').appendChild(el('div', { class: 'ch-feed-loading' }, el('div', { class: 'ch-spinner', 'aria-hidden': 'true' })));
+        S.opening = true;
 
         try {
             const rows = await fetchMessages(room.room_id);
-            if (S.current !== room) return;                    // switched chats while loading
+            if (!sameRoom(room)) return;                       // switched chats while loading
             await fetchParents(rows);
-            rows.forEach(addToState);
+            // a live message can land while the history is still loading: keep both, once, in order
+            const early = S.messages.slice();
+            S.messages = []; S.byId = new Map();
+            rows.concat(early).forEach(function (m) { if (!S.byId.has(m.id)) addToState(m); });
+            S.messages.sort(function (a, b) { return new Date(a.created_at) - new Date(b.created_at); });
             S.noMore = rows.length < PAGE;
             const firstUnread = rows.find(function (m) { return m.sender_id !== S.me.id && !m.deleted_at && new Date(m.created_at) > new Date(snap); });
             S.newFromId = firstUnread ? firstUnread.id : null;
@@ -974,6 +1049,7 @@
             $('chFeed').appendChild(el('div', { class: 'ch-feed-loading', text: friendly(err) }));
         }
 
+        S.opening = false;
         markRead(room.room_id);
         joinRoomChannel(room.room_id);
         if (window.matchMedia && !window.matchMedia('(pointer: coarse)').matches) $('chInput').focus();
@@ -982,11 +1058,45 @@
     function closeRoom() {
         leaveRoomChannel();
         S.current = null;
+        S.opening = false;
         $('chConvo').hidden = true;
         $('chEmpty').hidden = false;
         $('chApp').dataset.view = 'list';
         closeMembers();
         renderList();
+    }
+
+    function paintSub() {
+        const r = S.current;
+        if (!r) return;
+        let sub = '', full = '';
+        if (r.kind === 'dm') {
+            const typing = activeTyping(r.room_id).length > 0;
+            sub = typing ? 'typing…' : (r.blocked_by_me ? 'Blocked' : (S.onlineAll.has(r.other_id) ? 'Online' : 'Direct message'));
+            if (r.nickname) full = realName(r) + (r.other_username ? ' (@' + r.other_username + ')' : '');
+        } else {
+            sub = r.member_count + ' member' + (r.member_count === 1 ? '' : 's') + (r.description ? ' · ' + r.description : '');
+            full = r.description || '';
+        }
+        const p = $('chRoomSub');
+        if (p.textContent !== sub) p.textContent = sub;
+        p.classList.toggle('is-typing', r.kind === 'dm' && sub === 'typing…');
+        p.classList.toggle('is-online', r.kind === 'dm' && sub === 'Online');
+        if (full) p.setAttribute('title', full); else p.removeAttribute('title');
+    }
+
+    // DMs with someone you blocked (or who blocked you) are read-only
+    function paintComposerLock() {
+        const r = S.current;
+        if (!r) return;
+        const lockedMine = r.kind === 'dm' && r.blocked_by_me;
+        const lockedThem = r.kind === 'dm' && r.blocked_me && !r.blocked_by_me;
+        const lock = lockedMine || lockedThem;
+        const input = $('chInput');
+        input.disabled = lock;
+        input.placeholder = lockedMine ? 'You blocked this user. Unblock them to chat again.' : lockedThem ? 'You can no longer message this user.' : 'Message...';
+        ['chAttachBtn', 'chEmojiBtn', 'chDevBtn'].forEach(function (id) { $(id).disabled = lock; });
+        $('chSend').disabled = lock || (!input.value.trim() && !S.pendingFile);
     }
 
     function paintHeader() {
@@ -997,15 +1107,23 @@
         icn.textContent = '';
         icn.appendChild(roomArt(r, 40));
 
-        let sub = '';
-        if (r.kind === 'dm') sub = 'Direct message';
-        else sub = r.member_count + ' member' + (r.member_count === 1 ? '' : 's') + (r.description ? ' · ' + r.description : '');
-        $('chRoomSub').textContent = sub;
+        paintSub();
 
         $('chInviteBtn').hidden = r.kind === 'dm' || (r.kind === 'community' && r.role === 'member');
         $('chMembersBtn').hidden = false;
         $('chLeaveBtn').hidden = r.kind === 'dm';
         paintOnline();
+        paintComposerLock();
+        paintAbout();
+    }
+
+    // full (wrapped) description lives in the members drawer, the header only shows one line
+    function paintAbout() {
+        const box = $('chAbout'), r = S.current;
+        if (!box) return;
+        const text = r && r.kind !== 'dm' ? (r.description || '') : '';
+        box.hidden = !text;
+        $('chAboutText').textContent = text;
     }
 
     function paintOnline() {
@@ -1036,7 +1154,7 @@
         const room = S.current;
         try {
             const rows = await fetchMessages(room.room_id, S.messages[0].created_at);
-            if (S.current !== room) return;
+            if (!sameRoom(room)) return;
             await fetchParents(rows);
             S.noMore = rows.length < PAGE;
             const fresh = rows.filter(function (m) { return !S.byId.has(m.id); });
@@ -1112,6 +1230,7 @@
         if (/^\/bug\b/i.test(raw.trim())) { const rest = raw.trim().slice(4).trim(); $('chInput').value = ''; autosize(); openBug(rest); return; }
 
         const room = S.current;
+        if (room.kind === 'dm' && (room.blocked_by_me || room.blocked_me)) { toast(ERR.blocked); return false; }
 
         // ----- editing -----
         if (S.editing) {
@@ -1176,8 +1295,9 @@
                 if (node && node.replaceWith) node.replaceWith(buildMsg(real, node.classList.contains('is-grouped'))); else renderFeed({ keepScroll: true });
             }
             if (file) { S.pendingFile = null; paintPendingFile(); }
-            room.last_body = real.body; room.last_at = real.created_at; room.last_sender = S.me.id;
-            bumpRoom(room);
+            const live = S.roomMap.get(room.room_id) || room;
+            live.last_body = real.body; live.last_at = real.created_at; live.last_sender = S.me.id;
+            bumpRoom(live);
             return true;
         } catch (err) {
             if (temp) {
@@ -1193,6 +1313,10 @@
                 try { await sb.storage.from('chat-attachments').remove([uploadedPath]); } catch (e) { /* best effort cleanup */ }
             }
             if (!$('chInput').value) { $('chInput').value = raw; autosize(); }
+            if (/\bblocked\b/.test(String(err && err.message || ''))) {
+                const rr = S.roomMap.get(room.room_id);
+                if (rr) { rr.blocked_me = true; if (sameRoom(rr)) paintComposerLock(); }
+            }
             toast(friendly(err));
             return false;
         } finally {
@@ -1202,6 +1326,7 @@
 
     function bumpRoom(room) {
         S.rooms.sort(function (a, b) { return new Date(b.last_at || 0) - new Date(a.last_at || 0); });
+        pinFirst();
         renderList();
     }
 
@@ -1231,6 +1356,26 @@
             rebuildNode(m);
             toast(friendly(err));
         }
+    }
+
+    async function refreshAllReactions() {
+        if (!S.current) return;
+        const ids = S.messages.filter(function (m) { return !m.pending && !m.deleted_at; }).slice(-200).map(function (m) { return m.id; });
+        if (!ids.length) return;
+        const res = await sb.from('chat_reactions').select('message_id,emoji,user_id').in('message_id', ids);
+        if (res.error) return;
+        const by = new Map();
+        (res.data || []).forEach(function (r) {
+            if (!by.has(r.message_id)) by.set(r.message_id, []);
+            by.get(r.message_id).push({ emoji: r.emoji, user_id: r.user_id });
+        });
+        const sig = function (list) { return (list || []).map(function (r) { return r.emoji + ':' + r.user_id; }).sort().join('|'); };
+        ids.forEach(function (id) {
+            const m = S.byId.get(id);
+            if (!m) return;
+            const next = by.get(id) || [];
+            if (sig(next) !== sig(m.reactions)) { m.reactions = next; rebuildNode(m); }
+        });
     }
 
     async function refreshReactions(messageId) {
@@ -1315,38 +1460,70 @@
     /* ----------------------------------------------------------------------
        10. REALTIME (live updates, typing, who is online)
        ---------------------------------------------------------------------- */
+    let wasDown = false;
+    function onGlobalStatus(status) {
+        if (status === 'SUBSCRIBED') { if (wasDown) { wasDown = false; resync(); } }
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') wasDown = true;
+    }
+
+    let rxTimer = null, roomsTimer = null;
+    function refreshReactionsSoon() { clearTimeout(rxTimer); rxTimer = setTimeout(refreshAllReactions, 250); }
+    function refreshRoomsSoon() { clearTimeout(roomsTimer); roomsTimer = setTimeout(function () { resync({ light: true }); }, 400); }
+
     function subscribeGlobal() {
         const uid = S.me.id;
         S.globalCh = sb.channel('specsoft-chat-' + uid)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function (p) { onMsgInsert(p.new); })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, function (p) { onMsgUpdate(p.new); })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reactions' }, function (p) {
-                const row = p.new && p.new.message_id ? p.new : p.old;
-                if (row && row.message_id) refreshReactions(row.message_id);
+                // DELETE events only carry the row id, so when we cannot tell which message it was we re-check the open chat
+                const row = p.new && p.new.message_id ? p.new : (p.old && p.old.message_id ? p.old : null);
+                if (row) refreshReactions(row.message_id); else refreshReactionsSoon();
             })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_inbox', filter: 'user_id=eq.' + uid }, function () {
-                loadInbox().then(function () { if (S.nav === 'inbox') renderList(); ping(); }).catch(function () {});
-            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_inbox', filter: 'user_id=eq.' + uid }, function (p) { onInboxInsert(p.new); })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_invites', filter: 'invited_user_id=eq.' + uid }, function () {
                 loadInvites().then(function () { if (S.nav === 'invites') renderList(); }).catch(function () {});
             })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_members', filter: 'user_id=eq.' + uid }, function () {
-                loadRooms().then(function () {
-                    if (S.current && !S.roomMap.has(S.current.room_id)) { toast('You are no longer in that chat.'); closeRoom(); }
-                    else { if (S.current) S.current = S.roomMap.get(S.current.room_id); renderList(); }
-                }).catch(function () {});
-            })
-            .subscribe();
+            // people joining / leaving / being removed: member counts, new chats, "you were removed"
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_members' }, function () { refreshRoomsSoon(); })
+            // pin / mute / nickname changed from another device
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_prefs', filter: 'user_id=eq.' + uid }, function () { refreshRoomsSoon(); })
+            .subscribe(onGlobalStatus);
+    }
+
+    function onInboxInsert(row) {
+        if (!row) return;
+        const name = S.profile && S.profile.username;
+        const relevant = row.kind === 'invite' || (row.from_id !== S.me.id && mentionsUser(row.preview, name));
+        if (!relevant) return;                    // plain messages are handled by onMsgInsert
+        loadInbox().then(function () { if (S.nav === 'inbox') renderList(); }).catch(function () {});
+        if (row.kind === 'invite') {
+            loadInvites().then(function () {
+                if (S.nav === 'invites') renderList();
+                const inv = S.invites.find(function (i) { return i.room_id === row.room_id; });
+                const who = inv ? (inv.invited_by_display || inv.invited_by_username || 'Someone') : 'Someone';
+                pushNotice({ key: 'invite-' + row.room_id, title: 'New invite', text: who + ' invited you to ' + (inv && inv.room_name || 'a chat'), icon: (inv && inv.room_icon) || '💌', onOpen: function () { setNav('invites'); } });
+            }).catch(function () {});
+        }
     }
 
     async function onMsgInsert(m) {
         if (!m || S.byId.has(m.id)) return;
         const room = S.roomMap.get(m.room_id);
-        if (!room) { loadRooms().then(renderList).catch(function () {}); return; }
         const mine = m.sender_id === S.me.id;
+
+        if (!room) {
+            // a chat we do not have yet: a brand new DM, or a closed DM that just woke up
+            try { await loadRooms(); } catch (e) { return; }
+            const fresh = S.roomMap.get(m.room_id);
+            renderList();
+            if (fresh && !mine) { try { await cacheProfiles([m.sender_id]); } catch (e) { /* ignore */ } notifyMessage(fresh, m); }
+            return;
+        }
 
         room.last_body = m.body; room.last_at = m.created_at; room.last_sender = m.sender_id;
         const here = !!(S.current && S.current.room_id === m.room_id);
+        clearTyping(m.room_id, m.sender_id);
 
         if (here) {
             if (mine && S.messages.some(function (x) { return x.pending; })) { bumpRoom(room); return; }   // the send call will place it
@@ -1359,11 +1536,14 @@
             appendMessage(row);
             if (wasBottom && !document.hidden) { scrollToBottom(); markRead(room.room_id); }
             else if (!mine) { S.newCount++; S.atBottom = false; paintJump(); room.unread++; updateBadges(); }
-            if (!mine && (document.hidden || !wasBottom)) ping();
-            S.typing.delete(m.sender_id); paintTyping();
+            if (!mine) {
+                if (document.hidden || !document.hasFocus()) notifyMessage(room, row);
+                else if (!wasBottom) ping();
+            }
         } else if (!mine) {
             room.unread++;
-            ping();
+            try { await cacheProfiles([m.sender_id]); } catch (e) { /* ignore */ }
+            notifyMessage(room, m);
         }
         bumpRoom(room);
         updateBadges();
@@ -1387,10 +1567,7 @@
 
     function joinRoomChannel(roomId) {
         const topic = 'specsoft-room-' + roomId;
-        if (S.roomCh && (S.roomCh.topic === topic || S.roomCh.state === 'joined' || S.roomCh.state === 'joining')) {
-            try { sb.removeChannel(S.roomCh); } catch (e) { /* ignore */ }
-            S.roomCh = null;
-        }
+        if (S.roomCh) { try { sb.removeChannel(S.roomCh); } catch (e) { /* ignore */ } S.roomCh = null; }
 
         const ch = sb.channel(topic, { config: { presence: { key: S.me.id }, broadcast: { self: false } } });
         S.roomCh = ch;
@@ -1404,8 +1581,7 @@
         ch.on('broadcast', { event: 'typing' }, function (msg) {
             const p = msg && msg.payload;
             if (!p || p.uid === S.me.id) return;
-            S.typing.set(p.uid, { name: p.name, until: Date.now() + 3500 });
-            paintTyping();
+            setTyping(roomId, p.uid, p.name);
         });
         ch.subscribe(function (status) {
             if (status === 'SUBSCRIBED' && ch.track) ch.track({ uid: S.me.id, name: nameOf(S.profile) });
@@ -1416,28 +1592,187 @@
         if (S.roomCh) { try { sb.removeChannel(S.roomCh); } catch (e) { /* ignore */ } }
         S.roomCh = null;
         S.online = new Set();
-        S.typing = new Map();
         paintTyping();
     }
 
-    let lastTypingSent = 0;
-    function sendTyping() {
-        const now = Date.now();
-        if (!S.roomCh || now - lastTypingSent < 2500) return;
-        lastTypingSent = now;
-        try { S.roomCh.send({ type: 'broadcast', event: 'typing', payload: { uid: S.me.id, name: nameOf(S.profile) } }); } catch (e) { /* ignore */ }
+    // ----- typing: per room, shown in the chat, the header and the chat list -----
+    function setTyping(roomId, uid, name) {
+        const room = S.roomMap.get(roomId);
+        if (!room || room.blocked_by_me) return;
+        let m = S.tl.get(roomId);
+        if (!m) { m = new Map(); S.tl.set(roomId, m); }
+        m.set(uid, { name: name || 'Someone', until: Date.now() + 3500 });
+        tickTyping();
+    }
+
+    function clearTyping(roomId, uid) {
+        const m = S.tl.get(roomId);
+        if (m) { m.delete(uid); if (!m.size) S.tl.delete(roomId); }
+        tickTyping();
+    }
+
+    function activeTyping(roomId) {
+        const m = S.tl.get(roomId);
+        if (!m) return [];
+        const now = Date.now(), out = [];
+        m.forEach(function (v, k) { if (v.until < now) m.delete(k); else out.push(v.name); });
+        if (!m.size) S.tl.delete(roomId);
+        return out;
     }
 
     function paintTyping() {
-        const now = Date.now();
-        S.typing.forEach(function (v, k) { if (v.until < now) S.typing.delete(k); });
-        const names = Array.from(S.typing.values()).map(function (v) { return v.name; });
         const box = $('chTyping');
         box.textContent = '';
+        const r = S.current;
+        if (!r) return;
+        const names = activeTyping(r.room_id);
+        paintSub();
         if (!names.length) return;
-        const text = names.length === 1 ? names[0] + ' is typing' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing' : 'Several people are typing';
+        const text = r.kind === 'dm' ? roomTitle(r) + ' is typing' : names.length === 1 ? names[0] + ' is typing' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing' : 'Several people are typing';
         box.appendChild(el('span', { class: 'ch-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i')));
         box.appendChild(document.createTextNode(text));
+    }
+
+    // the chat list is repainted in place so a hover or an open menu is never disturbed
+    function paintListTyping() {
+        document.querySelectorAll('#chListBody .ch-item[data-room]').forEach(function (b) {
+            const sub = b.querySelector('.ch-item-sub');
+            if (!sub) return;
+            const rid = b.dataset.room;
+            if (activeTyping(rid).length) {
+                if (b.dataset.typing !== '1') { b.dataset.typing = '1'; sub.textContent = 'typing…'; sub.classList.add('is-typing'); }
+            } else if (b.dataset.typing === '1') {
+                delete b.dataset.typing;
+                sub.classList.remove('is-typing');
+                const r = S.roomMap.get(rid);
+                sub.textContent = r ? subText(r) : '';
+            }
+        });
+    }
+
+    function tickTyping() { paintTyping(); paintListTyping(); }
+
+    let lastTypingSent = 0;
+    function sendTyping() {
+        const room = S.current;
+        if (!room) return;
+        const now = Date.now();
+        if (now - lastTypingSent < 2500) return;
+        try {
+            if (room.kind === 'dm') {
+                if (!room.other_id || room.blocked_by_me || room.blocked_me) return;
+                const c = outChannel(room.other_id);
+                if (c.state !== 'joined') return;
+                lastTypingSent = now;
+                c.send({ type: 'broadcast', event: 'typing', payload: { room: room.room_id, uid: S.me.id, name: nameOf(S.profile) } });
+            } else if (S.roomCh) {
+                lastTypingSent = now;
+                S.roomCh.send({ type: 'broadcast', event: 'typing', payload: { uid: S.me.id, name: nameOf(S.profile) } });
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // personal channel: DMs can show "typing…" in your list even when that chat is not open
+    function subscribeUser() {
+        try {
+            S.userCh = sb.channel('specsoft-user-' + S.me.id, { config: { broadcast: { self: false } } })
+                .on('broadcast', { event: 'typing' }, function (msg) {
+                    const p = msg && msg.payload;
+                    if (!p || !p.room || !p.uid || p.uid === S.me.id) return;
+                    const room = S.roomMap.get(p.room);
+                    if (!room || room.kind !== 'dm' || room.other_id !== p.uid) return;
+                    setTyping(p.room, p.uid, p.name);
+                })
+                .subscribe();
+        } catch (e) { /* typing in the list is a bonus */ }
+    }
+
+    function outChannel(otherId) {
+        let c = S.outCh.get(otherId);
+        if (!c) {
+            if (S.outCh.size >= 8) {
+                const oldest = S.outCh.keys().next().value;
+                try { sb.removeChannel(S.outCh.get(oldest)); } catch (e) { /* ignore */ }
+                S.outCh.delete(oldest);
+            }
+            c = sb.channel('specsoft-user-' + otherId, { config: { broadcast: { self: false } } });
+            c.subscribe();
+            S.outCh.set(otherId, c);
+        }
+        return c;
+    }
+
+    // global presence: green dot on DMs when the other person is online
+    function subscribePresence() {
+        try {
+            const ch = sb.channel('specsoft-online', { config: { presence: { key: S.me.id } } });
+            S.presCh = ch;
+            ch.on('presence', { event: 'sync' }, function () {
+                const st = ch.presenceState ? ch.presenceState() : {};
+                S.onlineAll = new Set(Object.keys(st));
+                paintListPresence();
+                paintSub();
+            }).subscribe(function (status) {
+                if (status === 'SUBSCRIBED' && ch.track) ch.track({ at: Date.now() });
+            });
+        } catch (e) { /* presence is a bonus */ }
+    }
+
+    function paintListPresence() {
+        document.querySelectorAll('#chListBody .ch-row[data-row]').forEach(function (row) {
+            const r = S.roomMap.get(row.dataset.row);
+            if (!r || r.kind !== 'dm') return;
+            const av = row.querySelector('.ch-item-av');
+            if (!av) return;
+            const dot = av.querySelector('.ch-item-dot');
+            const on = !r.blocked_by_me && S.onlineAll.has(r.other_id);
+            if (on && !dot) av.appendChild(el('i', { class: 'ch-online-dot ch-item-dot', title: 'Online' }));
+            else if (!on && dot) dot.remove();
+        });
+    }
+
+    // ----- catch-up: after a dropped connection, a sleeping tab, or as a safety net -----
+    async function fetchNewer() {
+        const room = S.current;
+        if (!room || S.opening) return;
+        const real = S.messages.filter(function (m) { return !m.pending; });
+        if (!real.length) return;
+        const last = real[real.length - 1].created_at;
+        const res = await sb.from('chat_messages').select(MSG_SELECT).eq('room_id', room.room_id)
+            .gt('created_at', last).order('created_at', { ascending: true }).limit(100);
+        if (res.error || !sameRoom(room)) return;
+        const rows = (res.data || []).filter(function (m) { return !S.byId.has(m.id); });
+        if (!rows.length) return;
+        rows.forEach(function (m) { if (m.sender) S.profiles.set(m.sender_id, m.sender); m.reactions = m.reactions || []; });
+        await loadBugStatuses(rows);
+        await fetchParents(rows);
+        if (!sameRoom(room)) return;
+        const wasBottom = S.atBottom || atBottomNow();
+        let theirs = 0;
+        rows.forEach(function (m) {
+            if (S.byId.has(m.id)) return;
+            addToState(m); appendMessage(m);
+            if (m.sender_id !== S.me.id) theirs++;
+        });
+        if (wasBottom && !document.hidden) scrollToBottom();
+        else if (theirs) { S.newCount += theirs; S.atBottom = false; paintJump(); }
+    }
+
+    let syncing = false;
+    async function resync(opts) {
+        if (syncing || !S.me) return;
+        syncing = true;
+        try {
+            const jobs = [loadRooms()];
+            if (!(opts && opts.light)) jobs.push(loadInvites(), loadInbox());
+            await Promise.all(jobs);
+            if (S.current && !S.roomMap.has(S.current.room_id)) { toast('You are no longer in that chat.'); closeRoom(); return; }
+            if (S.current) { paintHeader(); if (!$('chMembers').hidden) refreshMembers(); }
+            renderList();
+            await fetchNewer();
+            if (S.current && S.atBottom && !document.hidden && S.current.unread) markRead(S.current.room_id);
+        } catch (e) { /* the next tick tries again */ }
+        finally { syncing = false; }
     }
 
     /* ----------------------------------------------------------------------
@@ -1445,18 +1780,26 @@
        ---------------------------------------------------------------------- */
     function closeMembers() { $('chMembers').hidden = true; }
 
+    async function loadMembers() {
+        const res = await sb.from('chat_members').select('user_id,role,joined_at,profile:profiles(id,username,display_name,avatar_url)').eq('room_id', S.current.room_id).order('joined_at', { ascending: true });
+        if (res.error) throw res.error;
+        S.members = res.data || [];
+    }
+
     async function openMembers() {
         if (!S.current) return;
         $('chMembers').hidden = false;
+        paintAbout();
         $('chMembersTitle').textContent = 'Members';
         $('chMembersList').textContent = '';
         $('chMembersList').appendChild(el('div', { class: 'ch-feed-loading' }, el('div', { class: 'ch-spinner', 'aria-hidden': 'true' })));
-        try {
-            const res = await sb.from('chat_members').select('user_id,role,joined_at,profile:profiles(id,username,display_name,avatar_url)').eq('room_id', S.current.room_id).order('joined_at', { ascending: true });
-            if (res.error) throw res.error;
-            S.members = res.data || [];
-            paintMembers();
-        } catch (err) { $('chMembersList').textContent = friendly(err); }
+        try { await loadMembers(); paintMembers(); }
+        catch (err) { $('chMembersList').textContent = friendly(err); }
+    }
+
+    async function refreshMembers() {
+        if (!S.current || $('chMembers').hidden) return;
+        try { await loadMembers(); paintMembers(); } catch (e) { /* ignore */ }
     }
 
     function paintMembers() {
@@ -1578,7 +1921,7 @@
     function closeDlg(id) { const d = $(id); if (d && d.open) d.close(); }
 
     function wireDialogs() {
-        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg'].forEach(function (id) {
+        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg', 'nickDlg'].forEach(function (id) {
             const d = $(id);
             d.addEventListener('click', function (e) {
                 if (e.target === d || (e.target.closest && e.target.closest('[data-close]'))) {
@@ -1956,6 +2299,383 @@
     }
 
     /* ----------------------------------------------------------------------
+       12c. CHAT MENU
+            three dots, hover, right-click or long-press on a chat in the list
+       ---------------------------------------------------------------------- */
+    function closeMenu() {
+        const m = S.menu;
+        if (!m) return;
+        S.menu = null;
+        m.nodes.forEach(function (n) { n.remove(); });
+        if (m.row) m.row.classList.remove('is-menu');
+        if (m.refocus && document.contains(m.refocus)) { try { m.refocus.focus(); } catch (e) { /* ignore */ } }
+    }
+
+    function menuItems(r) {
+        const dm = r.kind === 'dm';
+        const list = [];
+        if (dm) list.push({ ico: 'user', label: 'View Profile', run: function () { viewProfile(r); } });
+        list.push({ ico: 'pin', label: r.pinned ? 'Unpin Conversation' : 'Pin Conversation', run: function () { togglePin(r); } });
+        if (dm) list.push({ ico: 'tag', label: r.nickname ? 'Edit Nickname' : 'Set Nickname', run: function () { openNick(r); } });
+        list.push({ ico: r.muted ? 'bell' : 'belloff', label: r.muted ? 'Unmute' : 'Mute', run: function () { toggleMute(r); } });
+        list.push({ ico: 'copy', label: dm ? 'Copy User ID' : 'Copy Chat ID', run: function () { copyId(r); } });
+        list.push({ ico: 'check', label: 'Mark as read', disabled: !r.unread, run: function () { markRead(r.room_id); } });
+        list.push('sep');
+        if (dm) {
+            list.push({ ico: 'ban', label: r.blocked_by_me ? 'Unblock User' : 'Block User', danger: !r.blocked_by_me, run: function () { toggleBlock(r); } });
+            list.push({ ico: 'xcircle', label: 'Close DM', run: function () { closeDm(r); } });
+            list.push({ ico: 'trash', label: 'Delete Chat', danger: true, run: function () { deleteChat(r); } });
+        } else if (r.role === 'owner') {
+            list.push({ ico: 'trash', label: 'Delete Chat', danger: true, run: function () { deleteChat(r); } });
+        } else {
+            list.push({ ico: 'logout', label: 'Leave Chat', danger: true, run: function () { leaveChat(r); } });
+        }
+        return list;
+    }
+
+    function openRoomMenu(r, anchor, point) {
+        if (!r) return;
+        closeMenu();
+        const sheet = !!(window.matchMedia && window.matchMedia('(max-width: 700px), (pointer: coarse)').matches);
+        const menu = el('div', { class: 'ch-menu' + (sheet ? ' is-sheet' : ''), role: 'menu', 'aria-label': 'Options for ' + roomTitle(r) });
+
+        if (sheet) menu.appendChild(el('div', { class: 'ch-menu-head' }, el('span', { class: 'ch-menu-art' }, roomArt(r, 36)), el('strong', { text: roomTitle(r) })));
+
+        menuItems(r).forEach(function (it) {
+            if (it === 'sep') { menu.appendChild(el('div', { class: 'ch-menu-sep', role: 'separator' })); return; }
+            menu.appendChild(el('button', {
+                type: 'button', role: 'menuitem', disabled: it.disabled,
+                class: 'ch-menu-item' + (it.danger ? ' is-danger' : ''),
+                onclick: function () { closeMenu(); it.run(); }
+            }, icon(it.ico), el('span', { text: it.label })));
+        });
+
+        const nodes = [];
+        if (sheet) nodes.push(el('div', { class: 'ch-menu-scrim' }));
+        nodes.push(menu);
+        nodes.forEach(function (n) { document.body.appendChild(n); });
+
+        const row = document.querySelector('#chListBody .ch-row[data-row="' + r.room_id + '"]');
+        if (row) row.classList.add('is-menu');
+        S.menu = { room: r.room_id, nodes: nodes, el: menu, row: row, refocus: anchor || null };
+
+        if (!sheet) {
+            const vw = document.documentElement.clientWidth || window.innerWidth, vh = window.innerHeight;
+            const w = menu.offsetWidth, h = menu.offsetHeight;
+            let x, y;
+            if (anchor) {
+                const b = anchor.getBoundingClientRect();
+                x = b.right - w; y = b.bottom + 6;
+                if (y + h > vh - 8) y = b.top - h - 6;
+            } else {
+                x = point.x; y = point.y;
+            }
+            menu.style.left = Math.max(8, Math.min(x, vw - w - 8)) + 'px';
+            menu.style.top = Math.max(8, Math.min(y, vh - h - 8)) + 'px';
+            const first = menu.querySelector('.ch-menu-item:not([disabled])');
+            if (first && anchor) first.focus();
+        }
+
+        menu.addEventListener('keydown', function (e) {
+            const items = Array.from(menu.querySelectorAll('.ch-menu-item:not([disabled])'));
+            const i = items.indexOf(document.activeElement);
+            if (e.key === 'ArrowDown') { e.preventDefault(); (items[i + 1] || items[0]).focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); (items[i - 1] || items[items.length - 1]).focus(); }
+            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(); }
+            else if (e.key === 'Tab') closeMenu();
+        });
+    }
+
+    // ----- the actions -----
+    function viewProfile(r) {
+        if (r.other_username) location.href = 'profile.html?u=' + encodeURIComponent(r.other_username);
+        else toast('That profile is not available.');
+    }
+
+    async function savePref(r, field, bool, text) {
+        const res = await sb.rpc('chat_set_pref', { p_room: r.room_id, p_field: field, p_bool: bool, p_text: text });
+        if (res.error) throw res.error;
+    }
+
+    async function togglePin(r) {
+        const next = !r.pinned;
+        r.pinned = next; r.pinned_at = next ? new Date().toISOString() : null;
+        bumpRoom(r);
+        try { await savePref(r, 'pinned', next, null); toast(next ? 'Conversation pinned' : 'Conversation unpinned'); }
+        catch (err) { r.pinned = !next; r.pinned_at = null; bumpRoom(r); toast(friendly(err)); }
+    }
+
+    async function toggleMute(r) {
+        const next = !r.muted;
+        r.muted = next; updateBadges(); renderList();
+        try { await savePref(r, 'muted', next, null); toast(next ? 'Muted ' + roomTitle(r) : 'Unmuted ' + roomTitle(r)); }
+        catch (err) { r.muted = !next; updateBadges(); renderList(); toast(friendly(err)); }
+    }
+
+    function copyId(r) {
+        const id = r.kind === 'dm' ? r.other_id : r.room_id;
+        if (!id) { toast('No ID available for this chat.'); return; }
+        copyText(id, r.kind === 'dm' ? 'User ID copied' : 'Chat ID copied');
+    }
+
+    function openNick(r) {
+        S.nickRoom = r;
+        showBox('nickMsg', '');
+        $('nickTitle').textContent = 'Nickname for ' + realName(r);
+        $('nickInput').value = r.nickname || '';
+        $('nickClear').hidden = !r.nickname;
+        openDlg('nickDlg');
+        setTimeout(function () { $('nickInput').focus(); $('nickInput').select(); }, 60);
+    }
+
+    async function saveNick(value) {
+        const r = S.nickRoom;
+        if (!r) return;
+        value = String(value || '').trim().slice(0, 32);
+        const btn = $('nickSave');
+        setLoading(btn, true);
+        try {
+            await savePref(r, 'nickname', null, value);
+            const live = S.roomMap.get(r.room_id) || r;
+            live.nickname = value || null;
+            closeDlg('nickDlg');
+            renderList();
+            if (sameRoom(live)) { paintHeader(); renderFeed({ keepScroll: true }); }
+            toast(value ? 'Nickname saved' : 'Nickname removed');
+        } catch (err) { showBox('nickMsg', friendly(err)); }
+        finally { setLoading(btn, false); }
+    }
+
+    async function toggleBlock(r) {
+        const block = !r.blocked_by_me;
+        if (block && !window.confirm('Block ' + realName(r) + '?\n\nYou will not be able to message each other until you unblock them.')) return;
+        try {
+            const res = await sb.rpc('chat_set_block', { p_user: r.other_id, p_block: block });
+            if (res.error) throw res.error;
+            const live = S.roomMap.get(r.room_id) || r;
+            live.blocked_by_me = block;
+            if (block) S.tl.delete(live.room_id);
+            toast(block ? 'Blocked ' + realName(r) : 'Unblocked ' + realName(r));
+            if (sameRoom(live)) paintHeader();
+            renderList();
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    function dropRoomLocal(r) {
+        const wasOpen = sameRoom(r);
+        S.rooms = S.rooms.filter(function (x) { return x.room_id !== r.room_id; });
+        S.roomMap.delete(r.room_id);
+        S.tl.delete(r.room_id);
+        updateBadges();
+        if (wasOpen) closeRoom(); else renderList();
+    }
+
+    async function closeDm(r) {
+        try {
+            await savePref(r, 'closed', true, null);
+            dropRoomLocal(r);
+            toast('DM closed. It comes back when there is a new message.');
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    async function deleteChat(r) {
+        const dm = r.kind === 'dm';
+        const ask = dm
+            ? 'Delete this chat?\n\nThe history is cleared for you only. ' + realName(r) + ' keeps their copy.'
+            : 'Delete "' + roomTitle(r) + '" for EVERYONE?\n\nAll messages are removed. This cannot be undone.';
+        if (!window.confirm(ask)) return;
+        try {
+            const res = await sb.rpc('chat_delete_room', { p_room: r.room_id });
+            if (res.error) throw res.error;
+            dropRoomLocal(r);
+            toast('Chat deleted');
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    async function leaveChat(r) {
+        if (!window.confirm('Leave "' + roomTitle(r) + '"?')) return;
+        try {
+            const res = await sb.rpc('chat_leave', { p_room: r.room_id });
+            if (res.error) throw res.error;
+            dropRoomLocal(r);
+            toast('You left the chat');
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    function wireMenu() {
+        const body = $('chListBody');
+
+        body.addEventListener('click', function (e) {
+            const more = e.target.closest && e.target.closest('.ch-more');
+            if (more) { e.preventDefault(); e.stopPropagation(); openRoomMenu(S.roomMap.get(more.dataset.room), more); return; }
+            const row = e.target.closest && e.target.closest('.ch-item[data-room]');
+            if (!row) return;
+            e.preventDefault();
+            openRoom(row.dataset.room);
+        });
+
+        // right-click on desktop
+        body.addEventListener('contextmenu', function (e) {
+            const row = e.target.closest && e.target.closest('.ch-row');
+            if (!row) return;
+            e.preventDefault();
+            if (S.lpFired) return;                               // long-press already opened it
+            openRoomMenu(S.roomMap.get(row.dataset.row), null, { x: e.clientX, y: e.clientY });
+        });
+
+        // long-press on touch screens
+        let timer = null, start = null;
+        const cancel = function () { clearTimeout(timer); timer = null; start = null; };
+        body.addEventListener('pointerdown', function (e) {
+            S.lpFired = false;
+            if (e.pointerType === 'mouse' || (e.target.closest && e.target.closest('.ch-more'))) return;
+            const row = e.target.closest && e.target.closest('.ch-row');
+            if (!row) return;
+            start = { x: e.clientX, y: e.clientY };
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                timer = null;
+                S.lpFired = true;
+                try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* ignore */ }
+                openRoomMenu(S.roomMap.get(row.dataset.row), null, start || { x: 24, y: 120 });
+            }, 460);
+        });
+        body.addEventListener('pointermove', function (e) {
+            if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel();
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (t) { body.addEventListener(t, cancel); });
+        body.addEventListener('scroll', function () { cancel(); closeMenu(); }, { passive: true });
+
+        // a new touch is a new gesture
+        document.addEventListener('pointerdown', function () { if (!timer) S.lpFired = false; }, true);
+
+        // click outside closes the menu and does nothing else (the click that ends a long-press is ignored)
+        document.addEventListener('click', function (e) {
+            if (!S.menu) return;
+            if (S.lpFired) { S.lpFired = false; e.preventDefault(); e.stopPropagation(); return; }
+            if (!S.menu.el.contains(e.target)) { e.preventDefault(); e.stopPropagation(); closeMenu(); }
+        }, true);
+        window.addEventListener('resize', closeMenu);
+
+        // nickname dialog
+        $('nickForm').addEventListener('submit', function (e) { e.preventDefault(); saveNick($('nickInput').value); });
+        $('nickClear').addEventListener('click', function () { saveNick(''); });
+    }
+
+    /* ----------------------------------------------------------------------
+       12d. NOTIFICATIONS
+            in-page banners everywhere, plus real desktop notifications when the tab is in the background
+       ---------------------------------------------------------------------- */
+    function notifSupported() { return typeof window.Notification !== 'undefined'; }
+
+    function paintNotifBtn() {
+        const b = $('chNotifBtn');
+        if (!b) return;
+        setIcon('chNotifBtn', S.desk ? 'bell' : 'belloff');
+        b.setAttribute('aria-pressed', String(S.desk));
+        b.title = S.desk ? 'Desktop notifications: on' : 'Desktop notifications: off';
+    }
+
+    function initNotif() {
+        let pref = null;
+        try { pref = localStorage.getItem('specsoft.chat.notif'); } catch (e) { /* ignore */ }
+        S.desk = notifSupported() && Notification.permission === 'granted' && pref !== 'off';
+        paintNotifBtn();
+        const save = function (v) { try { localStorage.setItem('specsoft.chat.notif', v); } catch (e) { /* ignore */ } };
+
+        $('chNotifBtn').addEventListener('click', async function () {
+            if (!notifSupported()) { toast('This browser does not support desktop notifications.'); return; }
+            if (S.desk) { S.desk = false; save('off'); paintNotifBtn(); toast('Desktop notifications off'); return; }
+            let perm = Notification.permission;
+            if (perm === 'default') {
+                try { perm = (await Notification.requestPermission()) || Notification.permission; } catch (e) { perm = 'denied'; }
+            }
+            if (perm === 'granted') { S.desk = true; save('on'); paintNotifBtn(); toast('Desktop notifications on'); }
+            else toast('Notifications are blocked. Allow them in your browser site settings.');
+        });
+    }
+
+    function removeBanner(rec) {
+        if (!rec) return;
+        clearTimeout(rec.timer);
+        if (S.banners.get(rec.key) === rec) S.banners.delete(rec.key);
+        rec.node.classList.remove('is-in');
+        setTimeout(function () { rec.node.remove(); }, 260);
+    }
+
+    function showBanner(o) {
+        const host = $('chNotifs');
+        if (!host) return;
+        removeBanner(S.banners.get(o.key));
+        while (host.children.length >= 3) host.firstChild.remove();
+
+        const rec = { key: o.key, node: null, timer: null };
+        const arm = function () { clearTimeout(rec.timer); rec.timer = setTimeout(function () { removeBanner(rec); }, 6500); };
+        const art = o.profile ? avatar(o.profile, 40) : el('span', { class: 'ch-art ch-art--sm', text: o.icon || '💬' });
+
+        rec.node = el('div', { class: 'ch-notif', role: 'status' },
+            el('button', { type: 'button', class: 'ch-notif-main', onclick: function () { removeBanner(rec); o.onOpen(); } },
+                el('span', { class: 'ch-notif-av' }, art),
+                el('span', { class: 'ch-notif-text' }, el('strong', { text: o.title }), el('span', { text: o.text }))),
+            el('button', { type: 'button', class: 'ch-notif-x', 'aria-label': 'Dismiss', onclick: function () { removeBanner(rec); } }, icon('close')));
+        rec.node.addEventListener('mouseenter', function () { clearTimeout(rec.timer); });
+        rec.node.addEventListener('mouseleave', arm);
+
+        host.appendChild(rec.node);
+        S.banners.set(o.key, rec);
+        requestAnimationFrame(function () { rec.node.classList.add('is-in'); });
+        arm();
+    }
+
+    function openChatFromNotice(roomId) {
+        if (!S.roomMap.has(roomId)) { toast('You are not in that chat any more.'); return; }
+        setNavQuiet('mine');
+        openRoom(roomId);
+    }
+
+    // one place decides how you get told: sound + (desktop notification when away, banner when here)
+    function pushNotice(o) {
+        ping();
+        const away = document.hidden || !document.hasFocus();
+        if (away && S.desk && notifSupported() && Notification.permission === 'granted') {
+            try {
+                const n = new Notification(o.title, {
+                    body: o.text, tag: 'specsoft-' + o.key, renotify: true, silent: true,
+                    icon: (o.profile && safeHttps(o.profile.avatar_url)) || undefined
+                });
+                n.onclick = function () { try { window.focus(); } catch (e) { /* ignore */ } n.close(); o.onOpen(); };
+                setTimeout(function () { try { n.close(); } catch (e) { /* ignore */ } }, 8000);
+                return;
+            } catch (e) { /* some phones throw here: use the banner instead */ }
+        }
+        if (!document.hidden) showBanner(o);
+    }
+
+    function notifyMessage(room, m) {
+        if (!room || !m || !S.me || m.sender_id === S.me.id) return;
+        if (room.blocked_by_me) return;
+        const mention = mentionsUser(m.body, S.profile && S.profile.username);
+        if (room.muted && !mention) return;                                   // muted chats stay quiet, unless it is an @mention
+        const watching = S.current && S.current.room_id === room.room_id && !document.hidden && document.hasFocus();
+        if (watching) return;
+
+        const sender = m.sender || S.profiles.get(m.sender_id) || {};
+        const dm = room.kind === 'dm';
+        const who = dm ? roomTitle(room) : nameOf(sender);
+        const preview = previewText(m.body) || 'Sent a message';
+        const text = mention ? who + ' mentioned you: ' + preview : (dm ? preview : who + ': ' + preview);
+
+        pushNotice({
+            key: room.room_id,
+            title: dm ? who : roomTitle(room),
+            text: text,
+            profile: dm ? { display_name: room.other_display, username: room.other_username, avatar_url: room.other_avatar } : null,
+            icon: room.icon,
+            onOpen: function () { openChatFromNotice(room.room_id); }
+        });
+    }
+
+    /* ----------------------------------------------------------------------
        13. WIRING + START
        ---------------------------------------------------------------------- */
     function wire() {
@@ -1989,12 +2709,7 @@
         $('chBack').addEventListener('click', function () { $('chApp').dataset.view = 'list'; });
 
         $('chSearch').addEventListener('input', function (e) { S.query = e.target.value; renderList(); });
-        $('chListBody').addEventListener('click', function (e) {
-            const row = e.target.closest && e.target.closest('.ch-item[data-room]');
-            if (!row) return;
-            e.preventDefault();
-            openRoom(row.dataset.room);
-        });
+        wireMenu();
 
         // composer
         const input = $('chInput');
@@ -2049,12 +2764,16 @@
             if (!box.hidden && !box.contains(e.target) && !$('chEmojiBtn').contains(e.target) && !(quickEl && quickEl.contains(e.target))) { box.hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); }
         });
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') { closeQuick(); if (!$('chMembers').hidden) closeMembers(); closeDrawer(); }
+            if (e.key === 'Escape') { if (S.menu) { closeMenu(); return; } closeQuick(); if (!$('chMembers').hidden) closeMembers(); closeDrawer(); }
         });
 
         document.addEventListener('visibilitychange', function () {
-            if (!document.hidden && S.current && S.atBottom && S.current.unread) markRead(S.current.room_id);
+            if (document.hidden) return;
+            if (S.current && S.atBottom && S.current.unread) markRead(S.current.room_id);
+            resync({ light: true });                      // woke up: catch up on anything that was missed
         });
+        window.addEventListener('online', function () { resync(); });
+        window.addEventListener('focus', function () { if (S.current && S.atBottom && S.current.unread) markRead(S.current.room_id); });
 
         // ----- developer mode -----
         setIcon('chDevBtn', 'code'); setIcon('chDevCodeIco', 'code'); setIcon('chDevBugIco', 'bug');
@@ -2076,7 +2795,9 @@
         $('snipCopy').addEventListener('click', function () { if (snipCurrent) copyText(snipCurrent.code, 'Code copied'); });
         $('snipCopyLink').addEventListener('click', function () { if (snipCurrent) copyText(snippetUrl(snipCurrent.id), 'Snippet link copied'); });
 
-        setInterval(paintTyping, 1000);
+        setInterval(tickTyping, 1000);
+        // safety net: if the websocket ever goes quiet the chat still catches up by itself
+        setInterval(function () { if (!document.hidden) resync({ light: true }); }, 45000);
     }
 
     function handleDeepLink() {
@@ -2126,6 +2847,9 @@
         hideGate();
         subscribeGlobal();
         subscribeBugs();
+        subscribeUser();
+        subscribePresence();
+        initNotif();
         renderList();
         handleDeepLink();
     }

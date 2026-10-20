@@ -744,6 +744,7 @@
         $('pfName').textContent = name;
         applyDisplayNameStyle(p);
         $('pfHandle').textContent = '@' + p.username;
+        if (window.SpecRoles && $('pfRoles')) window.SpecRoles.mount($('pfRoles'), p.id);
         $('pfHeadline').textContent = p.headline || '';
 
         // actions

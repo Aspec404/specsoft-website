@@ -79,6 +79,7 @@
                     <span class="ch-me-text"><strong id="chMeName">...</strong><small>View profile</small></span>
                 </a>
                 <div class="ch-foot-btns">
+                    <button type="button" class="ch-iconbtn" id="chNotifBtn" aria-pressed="false" aria-label="Desktop notifications" title="Desktop notifications"></button>
                     <button type="button" class="ch-iconbtn" id="chSoundBtn" aria-pressed="true" aria-label="Message sound" title="Message sound"></button>
                     <button type="button" class="ch-iconbtn" id="chThemeBtn" aria-label="Switch light or dark mode" title="Light / dark"></button>
                 </div>
@@ -175,6 +176,10 @@
                     <h3 id="chMembersTitle">Members</h3>
                     <button type="button" class="ch-iconbtn" id="chMembersClose" aria-label="Close members"></button>
                 </header>
+                <div class="ch-about" id="chAbout" hidden>
+                    <span class="ch-label">ABOUT</span>
+                    <p id="chAboutText"></p>
+                </div>
                 <div class="ch-members-body" id="chMembersList"></div>
                 <footer class="ch-members-foot">
                     <button type="button" class="ch-btn ch-btn--ghost ch-btn--danger" id="chLeaveBtn">Leave chat</button>
@@ -204,6 +209,23 @@
             <input class="ch-field" type="search" id="dmSearch" placeholder="Search by username" autocomplete="off" spellcheck="false" autocapitalize="none">
             <div class="ch-results" id="dmResults"></div>
         </div>
+    </dialog>
+
+    <!-- nickname (private, only you see it) -->
+    <dialog class="ch-dlg ch-dlg--small" id="nickDlg" aria-labelledby="nickTitle">
+        <form id="nickForm" novalidate>
+            <header class="ch-dlg-head"><h2 id="nickTitle">Set nickname</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+            <div class="ch-dlg-body">
+                <div class="ch-msgbox" id="nickMsg" role="alert"></div>
+                <label class="ch-label" for="nickInput">NICKNAME</label>
+                <input class="ch-field" type="text" id="nickInput" maxlength="32" autocomplete="off" spellcheck="false" placeholder="What do you call them?">
+                <p class="ch-help">Only you can see this. Leave it empty to go back to their real name.</p>
+            </div>
+            <footer class="ch-dlg-foot">
+                <button type="button" class="ch-btn ch-btn--ghost" id="nickClear" hidden>Remove</button>
+                <button type="submit" class="ch-btn" id="nickSave"><span class="ch-btn-label">Save</span><span class="ch-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
     </dialog>
 
     <!-- create a group / community -->
@@ -351,6 +373,7 @@
         </footer>
     </dialog>
 
+    <div class="ch-notifs" id="chNotifs" aria-live="polite"></div>
     <div class="ch-toast" id="chToast" role="status" aria-live="polite"></div>
 
     <!-- Supabase client (pinned version), your keys, then the chat -->

@@ -78,6 +78,7 @@
                         <div class="pf-id">
                             <h1 class="pf-name" id="pfName"></h1>
                             <p class="pf-handle" id="pfHandle"></p>
+                            <ul class="sr-badges" id="pfRoles" hidden></ul>
                             <p class="pf-headline" id="pfHeadline"></p>
                         </div>
 
@@ -494,6 +495,8 @@
 
     <!-- Supabase client (pinned version) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <!-- roles.js: badges + online heartbeat + account standing banner -->
+    <script src="roles.js"></script>
     <!-- main.js builds the sidebar + top bar. profile.js goes AFTER it. -->
     <script src="main.js"></script>
     <script src="profile.js"></script>
