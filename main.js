@@ -1779,3 +1779,17 @@
     s.defer = true;
     document.head.appendChild(s);
 })();
+
+
+/* ======================================================================
+   SPECSOFT® notifications.js loader: the bell (Main / Events / System),
+   on every page that uses main.js.
+   (It needs the Supabase script to be on the page; if it is not, it does nothing.)
+   ====================================================================== */
+(function () {
+    if (window.SpecNotifications || document.querySelector('script[src$="notifications.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'notifications.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();

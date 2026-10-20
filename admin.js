@@ -64,7 +64,10 @@
         bad_password: 'Wrong password.',
         too_many_attempts: 'Too many wrong tries. Locked for a while.',
         no_password: 'No admin password has been created yet.',
-        network: 'Network error. Try again.'
+        network: 'Network error. Try again.',
+        bad_category: 'Pick Main, Events or System.',
+        title_required: 'A title is required.',
+        bad_link: 'The link must start with https://'
     };
 
     /* ----------------------------------------------------------------------
@@ -103,7 +106,9 @@
         log:    '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>',
         shield: '<path d="M12 2l8 3v6c0 5-3.4 9-8 11-4.6-2-8-6-8-11V5z"/>',
         flag:   '<path d="M4 22V4m0 0h13l-2 4 2 4H4"/>',
-        file:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'
+        file:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+        bell:   '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+        send:   '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'
     };
 
     function icon(name) {
@@ -366,6 +371,7 @@
         { id: 'roles',     label: 'Roles',     ico: 'tag',    min: 'moderator' },
         { id: 'audit',     label: 'Audit log', ico: 'log',    min: 'moderator' },
         { id: 'staff',     label: 'Staff',     ico: 'shield', min: 'admin' },
+        { id: 'notifications', label: 'Notifications', ico: 'bell', min: 'moderator' },
         { id: 'reports',   label: 'Reports',   ico: 'flag',   min: 'moderator', soon: true },
         { id: 'content',   label: 'Content',   ico: 'file',   min: 'moderator', soon: true }
     ];
@@ -432,7 +438,7 @@
 
         var token = nextToken();
         stopViewTimers();                                  // auto refresh belongs to the dashboard only
-        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff' }[view];
+        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications' }[view];
         $('adTitle').textContent = title;
         $('adTopSub').textContent = '';
         var root = clear($('adView'));
@@ -443,6 +449,7 @@
         else if (view === 'roles') viewRoles(root, token);
         else if (view === 'audit') viewAudit(root, token, parts[1] && UUID_RE.test(parts[1]) ? parts[1].toLowerCase() : null);
         else if (view === 'staff') viewStaff(root, token);
+        else if (view === 'notifications') viewNotifications(root, token);
     }
 
     /* ----------------------------------------------------------------------
@@ -1026,6 +1033,143 @@
             }, 280);
         });
         dialog({ title: 'Add staff member', body: [field('FIND THE PERSON', q), field('REASON', reason), list], buttons: [{ text: 'Close' }] });
+    }
+
+    /* ----------------------------------------------------------------------
+       NOTIFICATIONS  (publish to Main / Events / System)
+       ---------------------------------------------------------------------- */
+    var N_CAT_LABEL = { main: 'Main', events: 'Events', system: 'System' };
+
+    function notifRow(n) {
+        var audience = n.target_user ? ('@' + (n.target_username || '?')) : 'Everyone';
+        return el('div', { class: 'ad-row' },
+            el('div', { class: 'ad-row-main' },
+                el('div', { class: 'ad-row-title' }, pill(N_CAT_LABEL[n.category] || n.category, n.category === 'system' ? 'warn' : 'info'), ' ', n.title),
+                el('div', { class: 'ad-row-sub', text: 'To ' + audience + ' \u00B7 by ' + (n.created_by_username ? '@' + n.created_by_username : 'unknown') + ' \u00B7 ' + ago(n.created_at) }),
+                n.body ? el('div', { class: 'ad-row-sub', style: 'margin-top:4px', text: n.body }) : null),
+            el('div', { class: 'ad-row-end' },
+                el('button', { type: 'button', class: 'ad-row-btn', text: 'DELETE', onclick: async function () {
+                    var r = await rpc('admin_delete_notification', { p_id: n.id });
+                    if (r.ok) { toast('Deleted'); route(); }
+                } })));
+    }
+
+    function viewNotifications(root, token) {
+        root.appendChild(el('div', { class: 'ad-toolbar' },
+            el('button', { type: 'button', class: 'ad-btn', text: '+ Publish announcement', onclick: function () { publishDialog(function () { route(); }); } })));
+        root.appendChild(el('p', { class: 'ad-help', style: 'margin-bottom:14px',
+            text: 'Main and Events reach everyone or one person; System is for one-off notices like maintenance or content removal. Warnings, suspensions and bans already notify people automatically and are not listed here.' }));
+
+        var list = el('div', { class: 'ad-list' });
+        var more = el('button', { type: 'button', class: 'ad-btn ad-btn--ghost', text: 'Load older', hidden: true });
+        var empty = el('p', { class: 'ad-empty', text: 'No announcements published yet.', hidden: true });
+        root.appendChild(panel('Published announcements', list));
+        root.appendChild(el('div', { style: 'margin-top:14px' }, more));
+        root.appendChild(empty);
+
+        var last = null, loading = false;
+        async function load(reset) {
+            if (loading) return;
+            loading = true;
+            if (reset) { clear(list); last = null; }
+            var d = await rpc('admin_list_notifications', { p_limit: 30, p_before: last });
+            loading = false;
+            if (stale(token) || !d.ok) return;
+            (d.entries || []).forEach(function (n) { list.appendChild(notifRow(n)); });
+            if ((d.entries || []).length) last = d.entries[d.entries.length - 1].created_at;
+            more.hidden = (d.entries || []).length < 30;
+            empty.hidden = list.children.length > 0;
+        }
+        more.addEventListener('click', function () { load(false); });
+        load(true);
+    }
+
+    function publishDialog(done) {
+        var cat = el('select', { class: 'ad-select' }, [['main', 'Main'], ['events', 'Events'], ['system', 'System']]
+            .map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        var audEveryone = el('input', { type: 'radio', name: 'aud', value: 'everyone', checked: true });
+        var audOne = el('input', { type: 'radio', name: 'aud', value: 'one' });
+        var audWrap = el('div', { class: 'ad-roles' },
+            el('label', { class: 'ad-role-opt' }, audEveryone, el('span', { text: 'Everyone' })),
+            el('label', { class: 'ad-role-opt' }, audOne, el('span', { text: 'Specific person' })));
+
+        var targetQ = el('input', { class: 'ad-field', placeholder: 'Search username', autocomplete: 'off', hidden: true });
+        var targetResults = el('div', { class: 'ad-list', style: 'margin-top:8px', hidden: true });
+        var targetPicked = el('div', { class: 'ad-help', hidden: true });
+        var targetUser = null;
+
+        function pickTarget(u) {
+            targetUser = u;
+            clear(targetResults); targetResults.hidden = true;
+            targetQ.value = '';
+            targetPicked.hidden = false;
+            clear(targetPicked);
+            targetPicked.appendChild(el('span', { text: 'Sending to @' + u.username + ' \u00B7 ' }));
+            targetPicked.appendChild(el('button', { type: 'button', class: 'ad-row-btn', text: 'CHANGE', onclick: function () { targetUser = null; targetPicked.hidden = true; targetQ.hidden = false; targetQ.focus(); } }));
+        }
+
+        var tTimer = null;
+        targetQ.addEventListener('input', function () {
+            clearTimeout(tTimer);
+            tTimer = setTimeout(async function () {
+                if (targetQ.value.trim().length < 2) { clear(targetResults); targetResults.hidden = true; return; }
+                var d = await rpc('admin_find_users', { p_q: targetQ.value.trim() }, { quiet: true });
+                if (!d.ok) return;
+                clear(targetResults);
+                targetResults.hidden = false;
+                (d.users || []).slice(0, 6).forEach(function (u) {
+                    targetResults.appendChild(el('button', { type: 'button', class: 'ad-row', onclick: function () { targetQ.hidden = true; targetResults.hidden = true; pickTarget(u); } },
+                        avatar(u), el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: '@' + u.username }))));
+                });
+                if (!(d.users || []).length) targetResults.appendChild(el('p', { class: 'ad-empty', text: 'No one found.' }));
+            }, 280);
+        });
+
+        function syncAudience() {
+            var one = audOne.checked;
+            targetQ.hidden = !one || !!targetUser;
+            targetResults.hidden = true;
+            targetPicked.hidden = !(one && targetUser);
+            if (!one) { targetUser = null; targetPicked.hidden = true; }
+        }
+        audEveryone.addEventListener('change', syncAudience);
+        audOne.addEventListener('change', function () { syncAudience(); targetQ.focus(); });
+
+        var titleIn = el('input', { class: 'ad-field', maxlength: '120', placeholder: 'Short, clear title' });
+        var bodyIn = el('textarea', { class: 'ad-area', maxlength: '600', placeholder: 'Optional details' });
+        var linkIn = el('input', { class: 'ad-field', placeholder: 'Optional link, must start with https://' });
+        var err = el('div', { class: 'ad-err', hidden: true, role: 'alert' });
+
+        dialog({
+            title: 'Publish announcement',
+            body: [
+                field('SEND TO TAB', cat, 'Main shows alongside likes and follows. Events is for event announcements. System is for one-off notices like maintenance or content removal.'),
+                field('AUDIENCE', audWrap),
+                el('div', {}, targetQ, targetResults, targetPicked),
+                field('TITLE', titleIn),
+                field('BODY', bodyIn),
+                field('LINK (OPTIONAL)', linkIn),
+                err
+            ],
+            buttons: [
+                { text: 'Cancel' },
+                { text: 'Publish', primary: true, onClick: async function () {
+                    err.hidden = true;
+                    if (titleIn.value.trim().length < 1) { err.textContent = ERR.title_required; err.hidden = false; return false; }
+                    if (audOne.checked && !targetUser) { err.textContent = 'Search for and pick a person first.'; err.hidden = false; return false; }
+                    var r = await rpc('admin_publish_notification', {
+                        p_category: cat.value,
+                        p_title: titleIn.value.trim(),
+                        p_body: bodyIn.value.trim() || null,
+                        p_link: linkIn.value.trim() || null,
+                        p_target_user: audOne.checked ? targetUser.id : null
+                    });
+                    if (!r.ok) { err.textContent = ERR[r.error] || 'Could not publish that.'; err.hidden = false; return false; }
+                    toast('Published');
+                    done();
+                } }
+            ]
+        });
     }
 
     /* ----------------------------------------------------------------------
