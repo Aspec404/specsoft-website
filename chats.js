@@ -1450,6 +1450,8 @@
          { name: 'speedpray', image: 'https://cdn3.emoji.gg/emojis/583890-speedpray.gif' },
          { name: 'trollface', image: 'https://cdn3.emoji.gg/emojis/890856-troll.png' },
          { name: 'sonnn', image: 'https://cdn3.emoji.gg/emojis/896534-sonnnnnn.png' },
+         { name: 'ohmygodbruh', image: 'https://cdn3.emoji.gg/emojis/56486-ohmygodbruh.gif' },
+         { name: 'sus', image: 'https://cdn3.emoji.gg/emojis/761721-sus.png' },
         ]
     };
     Object.keys(EMOJI).forEach(function (category) {
