@@ -65,6 +65,7 @@
         too_many_attempts: 'Too many wrong tries. Locked for a while.',
         no_password: 'No admin password has been created yet.',
         network: 'Network error. Try again.',
+        bad_status: 'Pick a valid status.',
         bad_category: 'Pick Main, Events or System.',
         title_required: 'A title is required.',
         bad_link: 'The link must start with https://'
@@ -106,6 +107,7 @@
         log:    '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>',
         shield: '<path d="M12 2l8 3v6c0 5-3.4 9-8 11-4.6-2-8-6-8-11V5z"/>',
         flag:   '<path d="M4 22V4m0 0h13l-2 4 2 4H4"/>',
+        mail:   '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22 6 12 13 2 6"/>',
         file:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
         bell:   '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
         send:   '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'
@@ -167,8 +169,27 @@
 
     function pill(text, kind) { return el('span', { class: 'ad-pill' + (kind ? ' ad-pill--' + kind : ''), text: text }); }
 
+    // A role icon can be: an emoji / short symbol, a Flaticon image link, or a file on your site (badges/crown.png).
+    // The database enforces the same rule (role_icon_ok in supabase-role-icons.sql).
+    var ICON_URL_RE = /^https:\/\/(cdn-icons-png|cdn-icons-gif|cdn-icons|cdn-uicons|media)\.flaticon\.com\/[A-Za-z0-9_.\/%-]{3,250}$/;
+    var ICON_OWN_RE = /^https:\/\/mcpjjmbvuzclzrniunkq\.supabase\.co\/storage\/v1\/object\/public\/[A-Za-z0-9_.\/%-]{3,250}$/;
+    var ICON_FILE_RE = /^badges\/[A-Za-z0-9_-]{1,60}\.(png|svg|webp|gif)$/;
+
+    function iconIsImage(v) { return typeof v === 'string' && (ICON_URL_RE.test(v) || ICON_OWN_RE.test(v) || ICON_FILE_RE.test(v)); }
+    function iconValid(v) { return typeof v === 'string' && ((v.length >= 1 && v.length <= 8) || iconIsImage(v)); }
+
+    function iconNode(def) {
+        var ic = def && def.icon;
+        if (iconIsImage(ic)) {
+            var img = el('img', { class: 'ad-ico-img', src: ic, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+            img.addEventListener('error', function () { var f = document.createTextNode('\u2605'); if (img.parentNode) img.parentNode.replaceChild(f, img); });
+            return img;
+        }
+        return document.createTextNode((typeof ic === 'string' && ic.length >= 1 && ic.length <= 8) ? ic : '\u2605');
+    }
+
     function roleChip(def) {
-        var chip = el('span', { class: 'ad-pill', title: def.name, text: def.icon + ' ' + def.name });
+        var chip = el('span', { class: 'ad-pill ad-pill--role', title: def.name }, iconNode(def), ' ' + def.name);
         if (COLOR_RE.test(def.color)) { chip.style.color = def.color; chip.style.borderColor = def.color; }
         return chip;
     }
@@ -215,7 +236,7 @@
         function close() { if (dlg.open) dlg.close(); }
 
         (opts.buttons || []).forEach(function (b) {
-            var btn = el('button', { type: 'button', class: 'ad-btn' + (b.kind ? ' ad-btn--' + b.kind : ''), text: b.text });
+            var btn = el('button', { type: 'button', class: 'ad-btn' + (b.kind ? ' ad-btn--' + b.kind : (b.primary ? '' : ' ad-btn--ghost')), text: b.text });
             btn.addEventListener('click', async function () {
                 if (!b.onClick) { close(); return; }
                 btn.disabled = true;
@@ -370,6 +391,7 @@
         { id: 'users',     label: 'Users',     ico: 'user',   min: 'moderator' },
         { id: 'roles',     label: 'Roles',     ico: 'tag',    min: 'moderator' },
         { id: 'audit',     label: 'Audit log', ico: 'log',    min: 'moderator' },
+        { id: 'appeals',   label: 'Appeals',   ico: 'mail',   min: 'moderator' },
         { id: 'staff',     label: 'Staff',     ico: 'shield', min: 'admin' },
         { id: 'notifications', label: 'Notifications', ico: 'bell', min: 'moderator' },
         { id: 'reports',   label: 'Reports',   ico: 'flag',   min: 'moderator', soon: true },
@@ -438,7 +460,7 @@
 
         var token = nextToken();
         stopViewTimers();                                  // auto refresh belongs to the dashboard only
-        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications' }[view];
+        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications', appeals: 'Appeals' }[view];
         $('adTitle').textContent = title;
         $('adTopSub').textContent = '';
         var root = clear($('adView'));
@@ -450,6 +472,7 @@
         else if (view === 'audit') viewAudit(root, token, parts[1] && UUID_RE.test(parts[1]) ? parts[1].toLowerCase() : null);
         else if (view === 'staff') viewStaff(root, token);
         else if (view === 'notifications') viewNotifications(root, token);
+        else if (view === 'appeals') viewAppeals(root, token);
     }
 
     /* ----------------------------------------------------------------------
@@ -459,7 +482,8 @@
         sanction_issue: 'Sanction issued', sanction_revoke: 'Sanction lifted', note_add: 'Staff note added',
         roles_set: 'Roles changed', role_def_upsert: 'Role definition edited', staff_set: 'Staff changed',
         password_create: 'Admin password created', password_change: 'Admin password changed', password_reset: 'Admin password reset',
-        panel_unlock: 'Console unlock'
+        panel_unlock: 'Console unlock', hub_hide: 'Hub visibility changed', sanction_details: 'Ban details updated',
+        appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered'
     };
 
     function actionLabel(a) {
@@ -488,8 +512,9 @@
     }
 
     async function paintDashboard(root, token) {
-        var results = await Promise.all([rpc('admin_dashboard'), rpc('admin_online_users', {}, { quiet: true })]);
+        var results = await Promise.all([rpc('admin_dashboard'), rpc('admin_online_users', {}, { quiet: true }), rpc('admin_appeals_list', { p_status: 'open', p_limit: 1 }, { quiet: true })]);
         var d = results[0], on = results[1];
+        var apOpen = results[2] && results[2].ok ? (Number(results[2].open_count) || 0) : 0;
         if (stale(token) || !d.ok) return;
         clear(root);
 
@@ -503,6 +528,7 @@
             stat('Suspended', d.suspensions_active),
             stat('Banned', d.bans_active),
             stat('Restricted', d.restrictions_active),
+            stat('Open appeals', apOpen, 'mistake reports waiting', apOpen > 0 ? 'is-hot' : ''),
             stat('Project reports', d.reports_total, 'all time (cases arrive in Phase 2)'),
             stat('Staff actions', d.actions_24h, 'last 24h'),
             stat('Security alerts', d.alerts_24h, 'last 24h', d.alerts_24h > 0 ? 'is-hot' : '')));
@@ -564,7 +590,7 @@
         else if (u.active_sanctions && !u.banned && !u.suspended) row.appendChild(pill('RESTRICTED', 'warn'));
         (u.roles || []).map(function (id) { return S.defMap.get(id); }).filter(Boolean)
             .sort(function (a, b) { return a.rank - b.rank; }).slice(0, 4)
-            .forEach(function (d) { row.appendChild(el('span', { title: d.name, text: d.icon })); });
+            .forEach(function (d) { row.appendChild(el('span', { class: 'ad-pill--ico', title: d.name }, iconNode(d))); });
         return row;
     }
 
@@ -659,11 +685,30 @@
             if (s.active && (s.kind !== 'ban' || canAtLeast('admin')) && !outranks) {
                 top.appendChild(el('button', { type: 'button', class: 'ad-row-btn', text: s.kind === 'ban' ? 'UNBAN' : s.kind === 'warning' ? 'REMOVE' : 'LIFT', onclick: function () { revokeDialog(s, function () { route(); }); } }));
             }
+            if (s.active && (s.kind === 'ban' || s.kind === 'suspension') && !outranks) {
+                top.appendChild(el('button', { type: 'button', class: 'ad-row-btn', text: 'ADD NOTE / EVIDENCE', onclick: function () { sanctionDetailsDialog(s, function () { route(); }); } }));
+            }
             sl.appendChild(el('div', { class: 'ad-sanction' }, top, el('p', { text: s.reason }),
                 s.revoked_at ? el('small', { text: 'Lifted by ' + (s.revoked_by_name || 'unknown') + ' on ' + fmt(s.revoked_at) + (s.revoke_reason ? ': ' + s.revoke_reason : '') }) : null));
         });
         if (!(d.sanctions || []).length) sl.appendChild(el('p', { class: 'ad-empty', text: 'Clean record.' }));
         root.appendChild(panel('Sanctions and warnings', sl));
+
+        // ----- projects on the Projects Hub (staff can hide one without deleting it from the profile)
+        var prRes = null;
+        try { prRes = await sb.from('profile_projects').select('id,title,category,show_in_hub,hub_hidden_at,created_at').eq('owner_id', p.id).order('created_at', { ascending: false }).limit(30); } catch (e) { prRes = null; }
+        if (stale(token)) return;
+        if (prRes && !prRes.error && (prRes.data || []).length) {
+            var pl = el('div', { class: 'ad-list' });
+            prRes.data.forEach(function (pj) {
+                var hidden = !!pj.hub_hidden_at;
+                pl.appendChild(el('div', { class: 'ad-row' },
+                    el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: pj.title }), el('div', { class: 'ad-row-sub', text: (pj.category || 'other') + ' \u00B7 ' + ago(pj.created_at) })),
+                    el('div', { class: 'ad-row-end' }, hidden ? pill('HIDDEN BY STAFF', 'bad') : (pj.show_in_hub === false ? pill('OPTED OUT') : pill('ON HUB', 'ok')), ' ',
+                        el('button', { type: 'button', class: 'ad-row-btn', text: hidden ? 'RESTORE' : 'HIDE FROM HUB', onclick: function () { hubHideDialog(pj, !hidden, function () { route(); }); } }))));
+            });
+            root.appendChild(panel('Projects on the hub', pl));
+        }
 
         // ----- notes
         var noteInput = el('input', { class: 'ad-field', placeholder: 'Internal staff note (members never see this)', maxlength: '1000' });
@@ -711,6 +756,9 @@
         select.addEventListener('change', function () { custom.hidden = select.value !== 'custom'; });
         var reason = el('textarea', { class: 'ad-area', maxlength: '500', placeholder: 'What happened? The member will see this reason.' });
         var err = el('div', { class: 'ad-err', hidden: true, role: 'alert' });
+        var showScreen = kind === 'ban' || kind === 'suspension';          // these two show the member a ban screen
+        var noteIn = el('input', { class: 'ad-field', maxlength: '500', placeholder: 'Optional. Shown to the member on their ban screen.' });
+        var evIn = el('textarea', { class: 'ad-area', maxlength: '500', placeholder: 'Optional. What did you review? (post, message, screenshot...)' });
 
         var titles = { warning: 'Warn', suspension: 'Suspend', ban: 'Ban', restrict_post: 'Restrict posting for', restrict_comment: 'Restrict commenting for', restrict_chat: 'Restrict chat for' };
         var helps = {
@@ -724,7 +772,7 @@
 
         dialog({
             title: titles[kind] + ' @' + p.username,
-            body: [field(kind === 'warning' ? 'EXPIRES AFTER' : 'DURATION', [select, custom]), field('REASON (REQUIRED)', reason, helps[kind]), err],
+            body: [field(kind === 'warning' ? 'EXPIRES AFTER' : 'DURATION', [select, custom]), field('REASON (REQUIRED)', reason, helps[kind]), showScreen ? [field('MODERATOR NOTE (THE MEMBER SEES THIS)', noteIn), field('EVIDENCE YOU REVIEWED', evIn, 'Gets an Evidence ID on the ban screen. You can add more later from their profile.')] : null, err],
             buttons: [
                 { text: 'Cancel' },
                 { text: titles[kind].replace(/ for$/, ''), kind: kind === 'warning' ? 'warn' : 'danger', primary: true, onClick: async function () {
@@ -734,6 +782,9 @@
                     if (select.value === 'custom' && !(hours > 0)) { err.textContent = ERR.bad_duration; err.hidden = false; return false; }
                     var r = await rpc('admin_issue_sanction', { p_user: p.id, p_kind: kind, p_reason: reason.value.trim(), p_hours: hours });
                     if (!r.ok) { err.textContent = ERR[r.error] || 'Could not apply that.'; err.hidden = false; return false; }
+                    if (showScreen && (noteIn.value.trim() || evIn.value.trim())) {
+                        await rpc('admin_set_sanction_details', { p_sanction: r.id, p_mod_note: noteIn.value.trim() || null, p_evidence: evIn.value.trim() || null });
+                    }
                     toast('Done. The member was notified.');
                     done();
                 } }
@@ -753,6 +804,117 @@
                 var r = await rpc('admin_revoke_sanction', { p_id: s.id, p_reason: reason.value.trim() });
                 if (!r.ok) { err.textContent = ERR[r.error] || 'Could not lift that.'; err.hidden = false; return false; }
                 toast('Lifted');
+                done();
+            } }]
+        });
+    }
+
+    /* ----------------------------------------------------------------------
+       APPEALS ("report this as a mistake" from the ban screen)
+       ---------------------------------------------------------------------- */
+    function viewAppeals(root, token) {
+        var statusSel = el('select', { class: 'ad-select', 'aria-label': 'Filter by status' },
+            [['open', 'New'], ['reviewing', 'In review'], ['accepted', 'Accepted'], ['rejected', 'Answered / rejected'], ['', 'All']].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        var list = el('div');
+        root.appendChild(el('div', { class: 'ad-toolbar' }, statusSel));
+        root.appendChild(list);
+        root.appendChild(el('p', { class: 'ad-help', text: 'Banned or suspended members can send a "report this as a mistake" from their ban screen. Answer it here, then lift the ban from their profile if you agree with them.' }));
+
+        async function load() {
+            var d = await rpc('admin_appeals_list', { p_status: statusSel.value || null, p_limit: 50 });
+            if (stale(token) || !d.ok) return;
+            clear(list);
+            $('adTopSub').textContent = (d.open_count || 0) + ' WAITING';
+            (d.appeals || []).forEach(function (a) { list.appendChild(appealCard(a, load)); });
+            if (!(d.appeals || []).length) list.appendChild(el('p', { class: 'ad-empty', text: 'Nothing here.' }));
+        }
+        statusSel.addEventListener('change', load);
+        load();
+    }
+
+    function appealCard(a, reload) {
+        var evidence = el('div');
+        (a.evidence || []).forEach(function (e) { evidence.appendChild(el('p', { class: 'ad-help', text: e.ref + ' \u00B7 ' + fmt(e.reviewed_at) + ': ' + e.summary })); });
+
+        var head = el('div', { class: 'ad-appeal-head' }, avatar({ username: a.username, display_name: a.display_name }),
+            el('div', { class: 'ad-row-main' },
+                el('div', { class: 'ad-row-title', text: a.display_name || a.username }),
+                el('div', { class: 'ad-row-sub', text: '@' + a.username + ' \u00B7 sent ' + ago(a.created_at) })),
+            pill(a.kind === 'mistake' ? 'MISTAKE REPORT' : 'APPEAL', 'info'),
+            pill(String(a.status).toUpperCase(), a.status === 'accepted' ? 'ok' : (a.status === 'rejected' ? 'bad' : 'warn')));
+
+        var card = el('section', { class: 'ad-panel ad-appeal' }, head,
+            el('p', { class: 'ad-appeal-msg', text: a.message }),
+            el('div', { class: 'ad-appeal-case' },
+                el('small', { text: 'THEIR ' + String(KIND_LABEL[a.sanction_kind] || a.sanction_kind).toUpperCase() + ' \u00B7 ' + untilText(a.ends_at) }),
+                el('p', { class: 'ad-help', text: 'Reason: ' + a.sanction_reason }),
+                a.mod_note ? el('p', { class: 'ad-help', text: 'Moderator note: ' + a.mod_note }) : null,
+                evidence),
+            a.response ? el('p', { class: 'ad-help', text: 'Reply from ' + (a.handled_by_name ? '@' + a.handled_by_name : 'staff') + ': ' + a.response }) : null);
+
+        var acts = el('div', { class: 'ad-user-actions' });
+        acts.appendChild(el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Open user', onclick: function () { go('users', a.user_id); } }));
+        if (a.status === 'open') {
+            acts.appendChild(el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Mark in review', onclick: async function () {
+                var r = await rpc('admin_appeal_resolve', { p_id: a.id, p_status: 'reviewing', p_response: null });
+                if (r.ok) { toast('Marked in review'); reload(); }
+            } }));
+        }
+        if (a.status === 'open' || a.status === 'reviewing') {
+            acts.appendChild(el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Accept...', onclick: function () { appealReplyDialog(a, 'accepted', reload); } }));
+            acts.appendChild(el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'Reject...', onclick: function () { appealReplyDialog(a, 'rejected', reload); } }));
+        }
+        card.appendChild(acts);
+        return card;
+    }
+
+    function appealReplyDialog(a, status, done) {
+        var reply = el('textarea', { class: 'ad-area', maxlength: '600', placeholder: status === 'accepted' ? 'What did you decide? The member sees this.' : 'Why is the action staying? The member sees this.' });
+        var err = el('div', { class: 'ad-err', hidden: true, role: 'alert' });
+        dialog({
+            title: (status === 'accepted' ? 'Accept' : 'Reject') + ' the report from @' + a.username,
+            body: [field('YOUR REPLY (REQUIRED)', reply, status === 'accepted' ? 'Accepting only records your decision and tells them. Lift the ban or suspension from their profile.' : null), err],
+            buttons: [{ text: 'Cancel' }, { text: status === 'accepted' ? 'Accept report' : 'Reject report', kind: status === 'accepted' ? '' : 'danger', primary: true, onClick: async function () {
+                err.hidden = true;
+                if (reply.value.trim().length < 3) { err.textContent = ERR.reason_required; err.hidden = false; return false; }
+                var r = await rpc('admin_appeal_resolve', { p_id: a.id, p_status: status, p_response: reply.value.trim() });
+                if (!r.ok) { err.textContent = ERR[r.error] || 'Could not save that.'; err.hidden = false; return false; }
+                toast('Reply sent to the member');
+                done();
+            } }]
+        });
+    }
+
+    function sanctionDetailsDialog(s, done) {
+        var note = el('input', { class: 'ad-field', maxlength: '500', placeholder: 'Shown to the member on their ban screen' });
+        var ev = el('textarea', { class: 'ad-area', maxlength: '500', placeholder: 'What did you review? Adds a new Evidence ID.' });
+        var err = el('div', { class: 'ad-err', hidden: true, role: 'alert' });
+        dialog({
+            title: 'Add to this ' + String(KIND_LABEL[s.kind] || s.kind).toLowerCase(),
+            body: [field('MODERATOR NOTE (OPTIONAL)', note, 'Replaces the current note.'), field('NEW EVIDENCE (OPTIONAL)', ev), err],
+            buttons: [{ text: 'Cancel' }, { text: 'Save', primary: true, onClick: async function () {
+                err.hidden = true;
+                if (!note.value.trim() && !ev.value.trim()) { err.textContent = 'Fill in at least one of the two.'; err.hidden = false; return false; }
+                var r = await rpc('admin_set_sanction_details', { p_sanction: s.id, p_mod_note: note.value.trim() || null, p_evidence: ev.value.trim() || null });
+                if (!r.ok) { err.textContent = ERR[r.error] || 'Could not save that.'; err.hidden = false; return false; }
+                toast(r.evidence_ref ? 'Saved. Evidence ID ' + r.evidence_ref : 'Saved');
+                done();
+            } }]
+        });
+    }
+
+    function hubHideDialog(pj, hide, done) {
+        var reason = el('textarea', { class: 'ad-area', maxlength: '300', placeholder: hide ? 'Why is it coming off the hub? The member sees this.' : 'Why is it coming back?' });
+        var err = el('div', { class: 'ad-err', hidden: true, role: 'alert' });
+        dialog({
+            title: (hide ? 'Hide from the hub: ' : 'Restore to the hub: ') + pj.title,
+            body: [el('p', { class: 'ad-help', text: 'The project stays on the member\u2019s profile. This only controls the Projects Hub.' }), field('REASON (REQUIRED)', reason), err],
+            buttons: [{ text: 'Cancel' }, { text: hide ? 'Hide project' : 'Restore project', kind: hide ? 'danger' : '', primary: true, onClick: async function () {
+                err.hidden = true;
+                if (reason.value.trim().length < 3) { err.textContent = ERR.reason_required; err.hidden = false; return false; }
+                var r = await rpc('admin_hub_hide', { p_project: pj.id, p_hidden: hide, p_reason: reason.value.trim() });
+                if (!r.ok) { err.textContent = ERR[r.error] || 'Could not change that.'; err.hidden = false; return false; }
+                toast(hide ? 'Hidden from the hub' : 'Restored to the hub');
                 done();
             } }]
         });
@@ -778,7 +940,7 @@
                 inputs.push(input);
                 input.addEventListener('change', function () { dirty(); });
                 return el('label', { class: 'ad-role-opt' + (input.disabled ? ' is-disabled' : ''), title: input.disabled ? 'Only a higher staff level can hand this role out' : '' },
-                    input, el('span', { class: 'ad-role-ico', text: none ? '\u2205' : def.icon }), el('span', { text: none ? 'NONE' : def.name }));
+                    input, el('span', { class: 'ad-role-ico' }, none ? '\u2205' : iconNode(def)), el('span', { text: none ? 'NONE' : def.name }));
             }
 
             if (!cat.multi) list.appendChild(option(null, true));
@@ -846,7 +1008,7 @@
         var idIn = el('input', { class: 'ad-field', value: d.id, maxlength: '40', placeholder: 'lowercase_with_underscores', disabled: !isNew });
         var cat = el('select', { class: 'ad-select', disabled: !isNew }, CATS.map(function (c) { return el('option', { value: c.id, text: c.title, selected: c.id === d.category }); }));
         var name = el('input', { class: 'ad-field', value: d.name, maxlength: '60' });
-        var ico = el('input', { class: 'ad-field', value: d.icon, maxlength: '8', 'aria-label': 'Icon (emoji or short symbol)' });
+        var ico = el('input', { class: 'ad-field', value: d.icon, maxlength: '300', 'aria-label': 'Icon: emoji, Flaticon image link, or badges/file.png' });
         var colorPick = el('input', { type: 'color', value: d.color, 'aria-label': 'Color' });
         var colorHex = el('input', { class: 'ad-field ad-mono', value: d.color, maxlength: '7' });
         var rk = el('input', { class: 'ad-field', type: 'number', value: String(d.rank), min: '0', max: '9999' });
@@ -858,7 +1020,7 @@
         function paintPreview() {
             clear(preview);
             var c = COLOR_RE.test(colorHex.value) ? colorHex.value : '#9ca3af';
-            preview.appendChild(roleChip({ id: idIn.value, name: name.value || 'Role name', icon: ico.value || '\u2B50', color: c }));
+            preview.appendChild(roleChip({ id: idIn.value, name: name.value || 'Role name', icon: (ico.value.trim() && iconValid(ico.value.trim())) ? ico.value.trim() : (ico.value.trim() ? '\u26A0\uFE0F' : '\u2B50'), color: c }));
         }
         colorPick.addEventListener('input', function () { colorHex.value = colorPick.value; paintPreview(); });
         colorHex.addEventListener('input', function () { if (COLOR_RE.test(colorHex.value)) colorPick.value = colorHex.value; paintPreview(); });
@@ -870,13 +1032,14 @@
             body: [
                 field('ID', idIn, isNew ? 'Cannot be changed later.' : null), field('CATEGORY', cat),
                 field('NAME', name),
-                el('div', { class: 'ad-row2' }, el('div', {}, field('ICON', ico)), el('div', {}, field('COLOR', el('div', { style: 'display:flex;gap:8px' }, colorPick, colorHex)))),
+                el('div', { class: 'ad-row2' }, el('div', {}, field('ICON', ico, 'An emoji, a Flaticon image link, or a file on your site like badges/crown.png')), el('div', {}, field('COLOR', el('div', { style: 'display:flex;gap:8px' }, colorPick, colorHex)))),
                 el('div', { class: 'ad-row2' }, el('div', {}, field('RANK (LOWER SHOWS FIRST)', rk)), el('div', {}, field('WHO CAN HAND IT OUT', grant))),
                 el('label', { class: 'ad-role-opt', style: 'margin-top:14px' }, activeBox, el('span', { text: 'Active (inactive roles stop showing on the site)' })),
                 preview, err],
             buttons: [{ text: 'Cancel' }, { text: 'Save role', primary: true, onClick: async function () {
                 err.hidden = true;
-                var r = await rpc('admin_upsert_role_def', { p_id: idIn.value.trim(), p_category: cat.value, p_name: name.value, p_icon: ico.value, p_color: colorHex.value, p_rank: parseInt(rk.value, 10) || 100, p_min_grant: grant.value, p_active: activeBox.checked });
+                if (!iconValid(ico.value.trim())) { err.textContent = 'That icon is not allowed. Use an emoji, a Flaticon image link (cdn-icons-png.flaticon.com/...), or badges/yourfile.png.'; err.hidden = false; return false; }
+                var r = await rpc('admin_upsert_role_def', { p_id: idIn.value.trim(), p_category: cat.value, p_name: name.value, p_icon: ico.value.trim(), p_color: colorHex.value, p_rank: parseInt(rk.value, 10) || 100, p_min_grant: grant.value, p_active: activeBox.checked });
                 if (!r.ok) { err.textContent = ERR[r.error] || 'Could not save.'; err.hidden = false; return false; }
                 toast('Role saved');
                 await loadDefs();
@@ -889,7 +1052,7 @@
        AUDIT LOG
        ---------------------------------------------------------------------- */
     var ACTION_FILTERS = [['', 'All actions'], ['sanction_', 'Sanctions'], ['roles_', 'Role changes'], ['role_def', 'Role definitions'], ['note_', 'Staff notes'],
-        ['staff_', 'Staff changes'], ['panel_unlock', 'Console unlocks'], ['password_', 'Passwords'], ['security:', 'Security alerts']];
+        ['staff_', 'Staff changes'], ['panel_unlock', 'Console unlocks'], ['password_', 'Passwords'], ['hub_', 'Hub moderation'], ['appeal', 'Appeals'], ['security:', 'Security alerts']];
 
     function viewAudit(root, token, targetId) {
         var action = el('select', { class: 'ad-select', 'aria-label': 'Filter by action' }, ACTION_FILTERS.map(function (f) { return el('option', { value: f[0], text: f[1] }); }));

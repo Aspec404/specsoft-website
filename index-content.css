@@ -1,0 +1,330 @@
+/* ==========================================================================
+   SPECSOFT® index-content.css  -  the new homepage sections
+   Loaded after style.css (and index-fx.css). Reuses .section / .section-header
+   / card look-and-feel already established by style.css — this file only
+   adds the layouts specific to About, Stats, Build, Timeline, Team, Voices
+   and FAQ. .fx-reveal / .fx-tilt / .fx-glare classes come from index-fx.css.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   shared bits: the "EDIT ME" tag used on placeholder content
+   ------------------------------------------------------------------------- */
+.edit-tag {
+    display: inline-block;
+    margin-right: 8px;
+    padding: 2px 7px;
+    background: var(--accent-dim);
+    border: 1px solid var(--border-hover);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    vertical-align: middle;
+}
+
+/* -------------------------------------------------------------------------
+   02 — ABOUT
+   ------------------------------------------------------------------------- */
+.about-grid {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 40px;
+    align-items: start;
+}
+.about-lead {
+    color: var(--text-primary);
+    font-size: 18px;
+    line-height: 1.7;
+}
+.about-placeholder {
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px dashed var(--border-hover);
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.7;
+}
+.about-pillars {
+    display: grid;
+    gap: 14px;
+}
+.pillar-card {
+    position: relative;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.3s ease, background 0.3s ease;
+}
+.pillar-card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
+.pillar-ico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    margin-bottom: 10px;
+    background: var(--accent-dim);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 14px;
+}
+.pillar-card h4 {
+    margin: 0 0 6px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+}
+.pillar-card p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+
+@media (max-width: 860px) {
+    .about-grid { grid-template-columns: 1fr; }
+}
+
+/* -------------------------------------------------------------------------
+   03 — BY THE NUMBERS
+   ------------------------------------------------------------------------- */
+.stats-note {
+    margin: -8px 0 24px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.4px;
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+}
+.stat-tile {
+    padding: 28px 18px;
+    background: var(--bg-card);
+    text-align: center;
+    transition: background 0.3s ease;
+}
+.stat-tile:hover { background: var(--bg-card-hover); }
+.stat-value {
+    display: block;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+.stat-label {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 1.2px;
+}
+
+@media (max-width: 760px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* -------------------------------------------------------------------------
+   04 — WHAT WE BUILD
+   ------------------------------------------------------------------------- */
+.build-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+}
+.build-card {
+    position: relative;
+    padding: 22px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    transition: border-color 0.3s ease, transform 0.3s ease;
+}
+.build-card:hover { border-color: var(--border-hover); transform: translateY(-4px); }
+.build-num {
+    display: block;
+    margin-bottom: 14px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+.build-card h4 { margin: 0 0 8px; color: var(--text-primary); font-size: 14px; letter-spacing: 0.5px; }
+.build-card p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+
+@media (max-width: 980px) { .build-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .build-grid { grid-template-columns: 1fr; } }
+
+/* -------------------------------------------------------------------------
+   06 — TIMELINE
+   ------------------------------------------------------------------------- */
+.timeline-edit-note,
+.voices-edit-note {
+    margin: -8px 0 28px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.7;
+}
+.timeline-rail {
+    position: relative;
+    display: grid;
+    gap: 36px;
+    padding-left: 28px;
+    border-left: 1px solid var(--border-subtle);
+}
+.timeline-item { position: relative; }
+.timeline-dot {
+    position: absolute;
+    left: -33px;
+    top: 4px;
+    width: 9px;
+    height: 9px;
+    background: var(--bg-base);
+    border: 1px solid var(--text-primary);
+    border-radius: 50%;
+}
+.timeline-year {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1.2px;
+}
+.timeline-item h4 { margin: 0 0 6px; color: var(--text-primary); font-size: 15px; letter-spacing: 0.4px; }
+.timeline-item p { margin: 0; color: var(--text-secondary); font-size: 13.5px; line-height: 1.6; max-width: 560px; }
+
+/* -------------------------------------------------------------------------
+   07 — THE TEAM
+   ------------------------------------------------------------------------- */
+.team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+}
+.team-status {
+    grid-column: 1 / -1;
+    padding: 30px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+.team-card {
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    text-align: center;
+    transition: border-color 0.3s ease, transform 0.3s ease;
+}
+.team-card:hover { border-color: var(--border-hover); transform: translateY(-4px); }
+.team-avatar {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
+    background: var(--accent-dim);
+    border: 1px solid var(--border-subtle);
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 700;
+}
+.team-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.team-name { margin: 0 0 4px; color: var(--text-primary); font-size: 14px; font-weight: 600; }
+.team-headline { margin: 0 0 10px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; min-height: 18px; }
+.team-level {
+    display: inline-block;
+    padding: 3px 9px;
+    border: 1px solid var(--border-hover);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+.team-level.is-owner { color: var(--text-primary); border-color: var(--text-primary); }
+
+/* -------------------------------------------------------------------------
+   09 — COMMUNITY VOICES
+   ------------------------------------------------------------------------- */
+.voices-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+.voice-card {
+    padding: 22px;
+    background: var(--bg-card);
+    border: 1px dashed var(--border-hover);
+    border-radius: 12px;
+}
+.voice-quote { margin: 0 0 14px; color: var(--text-primary); font-size: 14px; line-height: 1.7; font-style: italic; }
+.voice-attr { color: var(--text-secondary); font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.5px; }
+
+@media (max-width: 860px) { .voices-grid { grid-template-columns: 1fr; } }
+
+/* -------------------------------------------------------------------------
+   10 — FAQ
+   ------------------------------------------------------------------------- */
+.faq-list { display: grid; gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: 12px; overflow: hidden; }
+.faq-item { background: var(--bg-card); }
+.faq-q {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px 20px;
+    background: none;
+    border: 0;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 14.5px;
+    text-align: left;
+    cursor: pointer;
+}
+.faq-q:hover { background: var(--bg-card-hover); }
+.faq-prompt { color: var(--text-tertiary); font-family: var(--font-mono); margin-right: 6px; }
+.faq-chevron {
+    flex: 0 0 auto;
+    width: 9px;
+    height: 9px;
+    border-right: 1px solid var(--text-secondary);
+    border-bottom: 1px solid var(--text-secondary);
+    transform: rotate(45deg);
+    transition: transform 0.25s ease;
+}
+.faq-item.is-open .faq-chevron { transform: rotate(-135deg); }
+.faq-a {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+.faq-a p { margin: 0; padding: 0 20px 18px 44px; color: var(--text-secondary); font-size: 13.5px; line-height: 1.7; }
+.faq-item.is-open .faq-a { max-height: 200px; }
+
+/* -------------------------------------------------------------------------
+   live-appended project cards (index-content.js) reuse .project-card as-is
+   ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .build-card:hover, .team-card:hover { transform: none; }
+}

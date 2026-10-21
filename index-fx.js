@@ -114,7 +114,7 @@
         if (reduceMotion()) return;
         var hero = document.querySelector('.code-window');
         if (hero) makeTilt(hero, { maxDeg: 10, lift: -6, scale: 1.015 });
-        document.querySelectorAll('.project-card, .clan-card').forEach(function (card) {
+        document.querySelectorAll('.project-card, .clan-card, .pillar-card, .build-card, .voice-card').forEach(function (card) {
             makeTilt(card, { maxDeg: 5 });
         });
     }
@@ -245,35 +245,43 @@
         setTimeout(function () { sweep.remove(); }, 1000);
     }
 
-    function initReveal() {
-        var targets = document.querySelectorAll('.section-header, .project-card, .clan-card, .roblox-section > p, .footer-cta');
-        if (!targets.length) return;
-
-        targets.forEach(function (el, i) {
-            el.classList.add('fx-reveal');
-            el.style.transitionDelay = (Math.min(i % 4, 3) * 70) + 'ms';
-        });
-
-        if (reduceMotion() || !('IntersectionObserver' in window)) {
-            targets.forEach(function (el) { el.classList.add('fx-in'); });
-            return;
-        }
-
-        var io = new IntersectionObserver(function (entries) {
+    var revealObserver = null;
+    function ensureRevealObserver() {
+        if (revealObserver || !('IntersectionObserver' in window)) return revealObserver;
+        revealObserver = new IntersectionObserver(function (entries) {
             entries.forEach(function (entry) {
                 if (!entry.isIntersecting) return;
                 entry.target.classList.add('fx-in');
                 sweepOnce(entry.target);
-                io.unobserve(entry.target);
+                revealObserver.unobserve(entry.target);
             });
         }, { threshold: 0.18, rootMargin: '0px 0px -8% 0px' });
+        return revealObserver;
+    }
 
-        targets.forEach(function (el) { io.observe(el); });
+    // registers one element with the reveal system — used for the static page
+    // content below, and callable later by index-content.js for cards it
+    // injects after a Supabase fetch (team roster, extra live projects)
+    function registerReveal(el, delayMs) {
+        if (!el) return;
+        el.classList.add('fx-reveal');
+        if (delayMs) el.style.transitionDelay = delayMs + 'ms';
+        if (reduceMotion()) { el.classList.add('fx-in'); return; }
+        var obs = ensureRevealObserver();
+        if (obs) obs.observe(el); else el.classList.add('fx-in');
+    }
+
+    function initReveal() {
+        var targets = document.querySelectorAll(
+            '.section-header, .project-card, .clan-card, .roblox-section > p, .footer-cta, ' +
+            '.pillar-card, .build-card, .stat-tile, .timeline-item, .voice-card, .faq-item'
+        );
+        targets.forEach(function (el, i) { registerReveal(el, Math.min(i % 4, 3) * 70); });
 
         // safety net: if anything is ever stuck, force it visible
         setTimeout(function () {
             document.querySelectorAll('.fx-reveal:not(.fx-in)').forEach(function (el) { el.classList.add('fx-in'); });
-        }, 5000);
+        }, 6000);
     }
 
     /* ----------------------------------------------------------------------
@@ -281,8 +289,15 @@
        ---------------------------------------------------------------------- */
     var RAIL_SECTIONS = [
         { id: 'home', label: 'HOME' },
-        { id: 'projects', label: '02 \u00B7 WORK' },
-        { id: 'roblox', label: '03 \u00B7 ROBLOX' },
+        { id: 'about', label: '02 \u00B7 ABOUT' },
+        { id: 'stats', label: '03 \u00B7 STATS' },
+        { id: 'build', label: '04 \u00B7 BUILD' },
+        { id: 'projects', label: '05 \u00B7 WORK' },
+        { id: 'timeline', label: '06 \u00B7 TIMELINE' },
+        { id: 'team', label: '07 \u00B7 TEAM' },
+        { id: 'roblox', label: '08 \u00B7 ROBLOX' },
+        { id: 'voices', label: '09 \u00B7 VOICES' },
+        { id: 'faq', label: '10 \u00B7 FAQ' },
         { id: 'contact', label: 'CONTACT' }
     ];
 
@@ -388,6 +403,11 @@
         try { initRail(); } catch (e) {}
         try { initMagnetic(); } catch (e) {}
     }
+
+    window.SpecFX = {
+        tilt: function (el, opts) { if (el && !reduceMotion()) makeTilt(el, opts); },
+        reveal: registerReveal
+    };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
     else start();

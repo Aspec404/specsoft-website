@@ -45,6 +45,8 @@
     <link rel="stylesheet" href="style.css">
     <!-- index-fx.css: homepage-only depth layer (3D tilt + cursor radar glow) -->
     <link rel="stylesheet" href="index-fx.css">
+    <!-- index-content.css: styles for the About/Stats/Build/Timeline/Team/Voices/FAQ sections -->
+    <link rel="stylesheet" href="index-content.css">
 </head>
 <body>
 
@@ -90,7 +92,7 @@
         <div class="hud-bar">
             <div class="hud-left">
                 <div class="hud-item"><span class="hud-dot"></span> SYSTEM.ACTIVE</div>
-                <div class="hud-item">VER 2.3.0</div>
+                <div class="hud-item">VER.2.3.1</div>
             </div>
             <div class="hud-right">
                 <div class="hud-item">UPTIME 99.9%</div>
@@ -190,17 +192,120 @@
             </div>
         </section>
 
-        <!-- SECTION 02: SELECTED WORK -->
-        <section class="section" id="projects">
+        <!-- SECTION 02: ABOUT -->
+        <section class="section" id="about">
             <div class="section-header">
                 <span class="section-num">02</span>
+                <h2>ABOUT // SPECSOFT</h2>
+                <div class="section-line">
+                    <div class="line"></div>
+                </div>
+            </div>
+
+            <div class="about-grid">
+                <div class="about-story">
+                    <p class="about-lead">
+                       SPECSOFT® Productions is an independent software and game development studio dedicated to building innovative digital experiences, creating original games, exploring emerging technologies, and pushing the boundaries of web development and software engineering. Driven by creativity, experimentation, and community, SPECSOFT® transforms ideas into digital projects built to inspire, connect, and evolve.
+                    </p>
+                </div>
+                <div class="about-pillars">
+                    <div class="pillar-card">
+                        <span class="pillar-ico">&lt;/&gt;</span>
+                        <h4>SOFTWARE</h4>
+                        <p>Digital products and tools, built end to end.</p>
+                    </div>
+                    <div class="pillar-card">
+                        <span class="pillar-ico">&#9635;</span>
+                        <h4>GAMES</h4>
+                        <p>Original games, built from scratch.</p>
+                    </div>
+                    <div class="pillar-card">
+                        <span class="pillar-ico">&#9671;</span>
+                        <h4>COMMUNITY</h4>
+                        <p>A space for devs, players and creators to build together.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 03: BY THE NUMBERS -->
+        <section class="section" id="stats">
+            <div class="section-header">
+                <span class="section-num">03</span>
+                <h2>BY THE NUMBERS</h2>
+                <div class="section-line">
+                    <div class="line"></div>
+                </div>
+            </div>
+            <p class="stats-note">Live from the SPECSOFT database — updates as the community grows.</p>
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-tile" data-stat="members">
+                    <span class="stat-value" data-count="0">0</span>
+                    <span class="stat-label">MEMBERS</span>
+                </div>
+                <div class="stat-tile" data-stat="projects">
+                    <span class="stat-value" data-count="0">0</span>
+                    <span class="stat-label">PROJECTS SHIPPED</span>
+                </div>
+                <div class="stat-tile" data-stat="likes">
+                    <span class="stat-value" data-count="0">0</span>
+                    <span class="stat-label">LIKES GIVEN</span>
+                </div>
+                <div class="stat-tile" data-stat="staff">
+                    <span class="stat-value" data-count="0">0</span>
+                    <span class="stat-label">TEAM MEMBERS</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 04: WHAT WE BUILD -->
+        <section class="section" id="build">
+            <div class="section-header">
+                <span class="section-num">04</span>
+                <h2>WHAT WE BUILD</h2>
+                <div class="section-line">
+                    <div class="line"></div>
+                </div>
+            </div>
+        <div class="build-grid">
+    <div class="build-card">
+        <span class="build-num">01</span>
+        <h4>SOFTWARE ENGINEERING</h4>
+        <p>Building digital products, applications, and software solutions designed to solve problems and bring ideas to life.</p>
+    </div>
+
+    <div class="build-card">
+        <span class="build-num">02</span>
+        <h4>WEB DEVELOPMENT</h4>
+        <p>Crafting modern websites, interactive experiences, and web-based systems that push the boundaries of the web.</p>
+    </div>
+
+    <div class="build-card">
+        <span class="build-num">03</span>
+        <h4>GAME DEVELOPMENT</h4>
+        <p>Creating original games, immersive experiences, and experimental interactive worlds from concept to release.</p>
+    </div>
+
+    <div class="build-card">
+        <span class="build-num">04</span>
+        <h4>CREATIVE TECHNOLOGY</h4>
+        <p>Exploring AI, development tools, automation, and emerging technologies through experimentation and innovation.</p>
+    </div>
+</div>
+            </div>
+        </section>
+
+        <!-- SECTION 05: SELECTED WORK -->
+        <section class="section" id="projects">
+            <div class="section-header">
+                <span class="section-num">05</span>
                 <h2>SELECTED WORK</h2>
                 <div class="section-line">
                     <div class="line"></div>
                 </div>
             </div>
 
-            <div class="project-grid">
+            <div class="project-grid" id="projectGrid">
                 <a href="project-spectra-ai.html" class="project-card">
                     <div class="project-image">
                         <div class="placeholder-img game-1"></div>
@@ -220,10 +325,88 @@
             </div>
         </section>
 
-        <!-- SECTION 03: ROBLOX COMMUNITY -->
+      <!-- SECTION 06: TIMELINE -->
+<section class="section" id="timeline">
+    <div class="section-header">
+        <span class="section-num">06</span>
+        <h2>TIMELINE</h2>
+        <div class="section-line">
+            <div class="line"></div>
+        </div>
+    </div>
+
+    <p class="timeline-edit-note">
+        A look at the milestones, projects, and ideas
+        shaping the evolution of SPECSOFT® Productions.
+    </p>
+
+    <div class="timeline-rail">
+        <div class="timeline-item">
+            <span class="timeline-dot"></span>
+            <span class="timeline-year">2022</span>
+            <h4>COMMUNITY ROOTS</h4>
+            <p>
+                The journey began with tHE THE Community, an early
+                community project that laid the groundwork
+                for future development and community-building
+                experiences.
+            </p>
+        </div>
+
+        <div class="timeline-item">
+            <span class="timeline-dot"></span>
+            <span class="timeline-year">2026</span>
+            <h4>SPECSOFT TAKES SHAPE</h4>
+            <p>
+                An independent development initiative
+                bringing together software, web technologies,
+                games, and creative experimentation under
+                one evolving identity.
+            </p>
+        </div>
+
+        <div class="timeline-item">
+            <span class="timeline-dot"></span>
+            <span class="timeline-year">2026</span>
+            <h4>BUILDING THE ECOSYSTEM</h4>
+            <p>
+                Expanding the SPECSOFT ecosystem through
+                community initiatives, development projects,
+                collaborative opportunities, and original ideas.
+            </p>
+        </div>
+
+        <div class="timeline-item">
+            <span class="timeline-dot"></span>
+            <span class="timeline-year">NOW</span>
+            <h4>BEYOND THE BOUNDARIES</h4>
+            <p>
+                Continuing to develop new projects, explore
+                emerging technologies, and build the foundation
+                for the next generation of SPECSOFT creations.
+            </p>
+        </div>
+    </div>
+</section>
+
+        <!-- SECTION 07: THE TEAM -->
+        <section class="section" id="team">
+            <div class="section-header">
+                <span class="section-num">07</span>
+                <h2>THE TEAM</h2>
+                <div class="section-line">
+                    <div class="line"></div>
+                </div>
+            </div>
+            <div class="team-grid" id="teamGrid">
+                <p class="team-status">Loading team&hellip;</p>
+            </div>
+        </section>
+
+        <!-- SECTION 08: ROBLOX COMMUNITY -->
         <section class="section" id="roblox">
             <div class="section-header">
-                <span class="section-num">03</span>
+                <span class="section-num">08</span>
                 <h2>ROBLOX COMMUNITY</h2>
                 <div class="section-line">
                     <div class="line"></div>
@@ -246,6 +429,193 @@
                 </div>
             </div>
         </section>
+
+      <!-- SECTION 09: COMMUNITY VOICES -->
+<section class="section" id="voices">
+    <div class="section-header">
+        <span class="section-num">09</span>
+        <h2>COMMUNITY VOICES</h2>
+        <div class="section-line">
+            <div class="line"></div>
+        </div>
+    </div>
+
+    <p class="voices-edit-note">
+        Every community has its legends. These are sample quotes
+        inspired by the beautiful nonsense of software development
+        and community life.
+    </p>
+
+    <div class="voices-grid">
+        <div class="voice-card">
+            <p class="voice-quote">"It works on my machine. Your machine is simply not invited."</p>
+            <div class="voice-attr">&mdash; The Developer Who Refuses to Elaborate</div>
+        </div>
+
+        <div class="voice-card">
+            <p class="voice-quote">"We don't have bugs. We have undocumented features with trust issues."</p>
+            <div class="voice-attr">&mdash; SPECSOFT Engineering Department</div>
+        </div>
+
+        <div class="voice-card">
+            <p class="voice-quote">"I joined for the development. I stayed because someone said 'free assets.'"</p>
+            <div class="voice-attr">&mdash; The Resource Goblin</div>
+        </div>
+    </div>
+</section>
+
+      <!-- SECTION 10: FAQ -->
+<section class="section" id="faq">
+    <div class="section-header">
+        <span class="section-num">10</span>
+        <h2>FAQ</h2>
+        <div class="section-line">
+            <div class="line"></div>
+        </div>
+    </div>
+
+    <div class="faq-list" id="faqList">
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> What is SPECSOFT® Productions?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    SPECSOFT® Productions is an independent development
+                    brand focused on software, web technologies, original
+                    games, and creative experimentation. We're building
+                    a space where ideas can become real projects.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> What does SPECSOFT actually build?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    Our focus includes software engineering, web
+                    development, game development, and creative
+                    technology. Our projects evolve as we explore
+                    new ideas and technologies.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> How can I join the community?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    Join us through our official Discord community
+                    and follow our projects, announcements, and
+                    community activities. Check the sidebar for
+                    our available community links.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> Can I contribute to a project?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    We're interested in creative ideas and meaningful
+                    collaboration. Check our official announcements
+                    or contact us to learn about available
+                    opportunities and project requirements.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> Is SPECSOFT open to collaborators?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    Collaboration opportunities depend on current
+                    projects, available roles, and team needs.
+                    Contact us to discuss your skills, interests,
+                    and how you could contribute.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> Does SPECSOFT accept project submissions?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    You can reach out with a project proposal or
+                    original idea through our official contact
+                    channels. Include the project's purpose,
+                    goals, and what kind of collaboration you're
+                    looking for. Submission does not guarantee
+                    acceptance or development.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> Is SPECSOFT affiliated with Roblox?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    SPECSOFT may develop or participate in
+                    Roblox-related projects and communities.
+                    Unless explicitly announced, SPECSOFT®
+                    Productions is an independent brand and is
+                    not an official Roblox partner.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> Where can I find updates and announcements?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    Follow our official channels for development
+                    updates, project reveals, community events,
+                    and other announcements. Stay tuned.
+                    The code is cooking. Hopefully.
+                </p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button type="button" class="faq-q">
+                <span><span class="faq-prompt">Q&gt;</span> What if I find a bug on the website?</span>
+                <span class="faq-chevron"></span>
+            </button>
+            <div class="faq-a">
+                <p><span class="faq-prompt">A&gt;</span>
+                    Report the issue through our official support
+                    or contact channels. Describe what happened
+                    and how to reproduce it, if possible.
+                    Screenshots can help us investigate.
+                </p>
+            </div>
+        </div>
+
+    </div>
+</section>
 
         <!-- FOOTER CTA -->
         <section class="footer-cta" id="contact">
@@ -278,7 +648,8 @@
     <script src="main.js"></script>
     <!-- index-fx.js: homepage-only depth layer (3D tilt + cursor radar glow) -->
     <script src="index-fx.js"></script>
-    <script src="ban.js"></script>
+    <!-- index-content.js: live Team/Stats/extra projects + FAQ accordion -->
+    <script src="index-content.js"></script>
     <script src="gate.js"></script>
 </body>
 </html>

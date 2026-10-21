@@ -26,9 +26,10 @@ html { height: 100%; }
     overflow: hidden;
 }
 
-.ad-app *, .ad-app *::before, .ad-app *::after { box-sizing: border-box; }
-.ad-app button, .ad-app input, .ad-app select, .ad-app textarea { font: inherit; color: inherit; }
-.ad-app h1, .ad-app h2, .ad-app h3, .ad-app p, .ad-app ul { margin: 0; padding: 0; }
+.ad-app *, .ad-app *::before, .ad-app *::after, .ad-dlg *, .ad-dlg *::before, .ad-dlg *::after { box-sizing: border-box; }
+/* :where() keeps these resets at zero specificity, so .ad-btn / .ad-nav-btn / .ad-btn--danger colors always win */
+:where(.ad-app, .ad-dlg) :where(button, input, select, textarea) { font: inherit; color: inherit; }
+:where(.ad-app, .ad-dlg) :where(h1, h2, h3, p, ul) { margin: 0; padding: 0; }
 .ad-app ul { list-style: none; }
 [hidden] { display: none !important; }
 
@@ -284,3 +285,25 @@ button.ad-row:hover { background: var(--accent-dim); }
 @media (prefers-reduced-motion: reduce) {
     .ad-spinner, .ad-stat.is-live b::after { animation: none; }
 }
+
+/* ---------- role icons (emoji or image) ---------- */
+.ad-ico-img { width: 16px; height: 16px; object-fit: contain; vertical-align: -3px; }
+.ad-pill--role { display: inline-flex; align-items: center; gap: 4px; }
+.ad-pill--ico { display: inline-flex; align-items: center; }
+.ad-role-ico { display: inline-grid; place-items: center; }
+.ad-role-ico .ad-ico-img { width: 20px; height: 20px; }
+
+/* ---------- button text is always readable ---------- */
+.ad-btn { color: var(--bg-base); }
+.ad-btn--ghost { color: var(--text-primary); }
+.ad-btn--danger { color: #fff; }
+.ad-btn--warn { color: #111; }
+.ad-btn--ghost:hover { color: var(--text-primary); }
+.ad-dlg .ad-btn--ghost { background: transparent; border-color: var(--border-hover); }
+
+/* ---------- appeals ---------- */
+.ad-appeal + .ad-appeal { margin-top: 14px; }
+.ad-appeal-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.ad-appeal-msg { margin-top: 12px; padding: 12px 14px; background: color-mix(in srgb, var(--text-primary) 5%, transparent); border: 1px solid var(--border-subtle); border-radius: 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ad-appeal-case { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-subtle); }
+.ad-appeal-case small { color: var(--text-secondary); font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.4px; }

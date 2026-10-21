@@ -1,0 +1,171 @@
+/* ==========================================================================
+   GLOBAL AUTUMN OVERRIDE — Applies to EVERY page automatically
+   ========================================================================== */
+
+/* --- 1. FORCE WARM OVERRIDES FOR ACCENTS & BORDERS --- */
+body:not(.light-mode) {
+    /* Force gold text on hover for all interactive elements across the site */
+    --link-hover: #eab308;
+    --accent: #eab308;
+    --accent-2: #d97706;
+}
+
+body.light-mode {
+    /* Force burnt orange in light mode */
+    --link-hover: #c2410c;
+    --accent: #c2410c;
+    --accent-2: #b45309;
+}
+
+/* --- 2. FIX HARDCODED COLORS (Likes, Reposts, Shadows) --- */
+
+/* Like buttons across Profiles, Projects Hub, Chats */
+.ph-eng[data-kind="like"].is-on,
+.pf-likebtn--active,
+.pf-eng--like.is-on {
+    color: #f43f5e !important; /* Rose red, fits autumn better than pink */
+}
+.ph-eng[data-kind="like"].is-on svg,
+.pf-eng--like.is-on svg {
+    fill: currentColor !important;
+    stroke: currentColor !important;
+    filter: drop-shadow(0 0 6px rgba(244, 63, 94, 0.4));
+}
+
+/* Repost buttons */
+.ph-eng[data-kind="repost"].is-on,
+.pf-eng--repost.is-on {
+    color: var(--accent) !important;
+}
+
+/* --- 3. FIX HARDCODED SHADOWS (Dialogs, Dropdowns, Menus) --- */
+.pf-dlg,
+.ph-dialog,
+.ad-dlg,
+.pf-menu {
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4), 0 0 40px var(--accent-glow) !important;
+    border-color: var(--border-hover) !important;
+}
+
+/* Card hovers */
+.pf-card:hover,
+.ph-card:hover,
+.cm-do-card:hover,
+.cm-team-card:hover,
+.ad-role-card:hover {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 0 25px var(--accent-glow) !important;
+    border-color: var(--accent) !important;
+}
+
+/* --- 4. FIX HARDCODED WHITE/BLACK BACKGROUNDS --- */
+/* Toasts across the site */
+.ph-toast,
+.pf-toast {
+    background: var(--accent) !important;
+    color: #0a0608 !important; /* Dark text on amber */
+    box-shadow: 0 0 20px var(--accent-glow) !important;
+    font-weight: 600 !important;
+}
+
+/* Menus and Dropdowns */
+.pf-menu {
+    background: var(--bg-card) !important;
+    border-color: var(--accent) !important;
+}
+.pf-menu-item:hover {
+    background: var(--accent-dim) !important;
+    color: var(--accent) !important;
+}
+
+/* --- 5. FIX THE ADMIN PANEL & CHATS SPECIFIC COLORS --- */
+/* Admin status pills (keep them semantic but warm them up) */
+.ad-pill--ok { color: #22c55e !important; border-color: #22c55e !important; }
+.ad-pill--bad { color: #ef4444 !important; border-color: #ef4444 !important; }
+.ad-pill--warn { color: var(--accent) !important; border-color: var(--accent) !important; }
+
+/* Admin buttons */
+.ad-btn {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #0a0608 !important;
+}
+.ad-btn:hover {
+    background: transparent !important;
+    color: var(--accent) !important;
+}
+.ad-btn--ghost {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-hover) !important;
+}
+.ad-btn--ghost:hover {
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+}
+
+/* --- 6. PROFILE PAGE HARDCODED COLORS --- */
+/* Profile name gradients */
+.pf-name--gradient,
+.pf-name--prism {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2), #f43f5e) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+
+/* Profile tabs */
+.pf-tab[aria-selected="true"] {
+    color: var(--accent) !important;
+}
+.pf-tab[aria-selected="true"]::after {
+    background: var(--accent) !important;
+    box-shadow: 0 0 10px var(--accent-glow) !important;
+}
+
+/* --- 7. COMMUNITY & CREDITS PAGES --- */
+/* Chat CTA glows */
+.cm-chat-cta::before {
+    background: linear-gradient(90deg, transparent, var(--accent), transparent) !important;
+    box-shadow: 0 0 30px var(--accent-strong) !important;
+}
+.cm-chat-cta-icon {
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+    box-shadow: 0 0 30px var(--accent-glow) !important;
+}
+
+/* Credits carousel card active border */
+.cm-carousel-card.is-active {
+    border-color: var(--accent) !important;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.4), 0 0 40px var(--accent-glow) !important;
+}
+.cm-carousel-dot[aria-current="true"] {
+    background: var(--accent) !important;
+    box-shadow: 0 0 12px var(--accent-strong) !important;
+}
+
+/* --- 8. GLOBAL INPUT FOCUS GLOWS --- */
+.pf-input:focus,
+.ph-search input:focus,
+.ad-field:focus,
+.ad-select:focus,
+.ad-area:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px var(--accent-dim) !important;
+}
+
+/* --- 9. ANY REMAINING HARDCODED WHITE BUTTONS --- */
+.btn-primary,
+.pf-btn,
+.ad-btn:not(.ad-btn--ghost):not(.ad-btn--danger):not(.ad-btn--warn) {
+    background: var(--accent) !important;
+    color: #0a0608 !important;
+    border-color: var(--accent) !important;
+}
+
+.btn-primary:hover,
+.pf-btn:hover,
+.ad-btn:not(.ad-btn--ghost):not(.ad-btn--danger):not(.ad-btn--warn):hover {
+    background: transparent !important;
+    color: var(--accent) !important;
+}

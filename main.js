@@ -1759,9 +1759,26 @@
         initCommunityDropdown();
 
         // Page-specific — each self-guards and exits if its elements aren't present
-        initProjectsHub();
+        // projects.js owns the current Projects Hub when that page-specific
+        // bundle is present. Avoid running the legacy renderer over the same
+        // toolbar and grid (which duplicates its icons and content).
+        if (!document.querySelector('script[src$="projects.js"]')) initProjectsHub();
         initCommunity();
         initCreditsCarousel();
+
+        // 🍂 Inject Autumn Leaves
+        if (!document.querySelector('.halloween-bats')) {
+            const leaves = document.createElement('div');
+            leaves.className = 'halloween-bats';
+            leaves.innerHTML = `
+                <div class="leaf"></div>
+                <div class="leaf"></div>
+                <div class="leaf"></div>
+                <div class="leaf"></div>
+                <div class="leaf"></div>
+            `;
+            document.body.appendChild(leaves);
+        }
     });
 
 })();

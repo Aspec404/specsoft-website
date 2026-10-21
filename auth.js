@@ -87,6 +87,62 @@
 
     let current = 'login';
 
+    /* ----------------------------------------------------------------------
+       BOT CHECK (Cloudflare Turnstile)
+       1. Cloudflare dashboard > Turnstile > Add site > copy the SITE key and the SECRET key.
+       2. Supabase > Authentication > Attack Protection > turn on CAPTCHA > Turnstile > paste the SECRET key.
+       3. Paste the SITE key below. While it is empty, nothing changes and no check is shown.
+       (For local testing Cloudflare has a key that always passes: 1x00000000000000000000AA)
+       ---------------------------------------------------------------------- */
+    const TURNSTILE_SITE_KEY = '';
+
+    const captcha = (function () {
+        const widgets = new Map();                        // container element -> { id, token }
+        const st = document.createElement('style');
+        st.textContent = '.au-captcha{margin:2px 0 14px}.au-captcha:empty{display:none}';
+        document.head.appendChild(st);
+
+        const enabled = () => !!TURNSTILE_SITE_KEY;
+
+        function mount(tries) {
+            if (!enabled()) return;
+            if (!window.turnstile) { if ((tries || 0) < 60) setTimeout(() => mount((tries || 0) + 1), 250); return; }
+            document.querySelectorAll('[data-captcha]').forEach(box => {
+                if (widgets.has(box) || box.offsetParent === null) return;      // only render boxes that are on screen
+                const rec = { id: null, token: '' };
+                rec.id = window.turnstile.render(box, {
+                    sitekey: TURNSTILE_SITE_KEY,
+                    appearance: 'interaction-only',           // invisible unless Cloudflare needs the person to click
+                    size: 'flexible',
+                    callback: t => { rec.token = t; },
+                    'expired-callback': () => { rec.token = ''; },
+                    'error-callback': () => { rec.token = ''; }
+                });
+                widgets.set(box, rec);
+            });
+        }
+
+        // resolves with a fresh token (or undefined when the check is switched off)
+        async function token(scope) {
+            if (!enabled()) return undefined;
+            const box = scope && scope.querySelector('[data-captcha]');
+            const rec = box && widgets.get(box);
+            if (!rec) throw new Error('captcha_loading');
+            for (let i = 0; i < 40 && !rec.token; i++) await new Promise(r => setTimeout(r, 150));
+            if (!rec.token) throw new Error('captcha_failed');
+            return rec.token;
+        }
+
+        function reset(scope) {
+            if (!enabled() || !window.turnstile) return;
+            const box = scope && scope.querySelector && scope.querySelector('[data-captcha]');
+            const rec = box && widgets.get(box);
+            if (rec) { rec.token = ''; try { window.turnstile.reset(rec.id); } catch (e) { /* ignore */ } }
+        }
+
+        return { mount, token, reset };
+    })();
+
     function showPanel(name, opts) {
         opts = opts || {};
         current = name;
@@ -114,6 +170,8 @@
         if (name === 'login' || name === 'signup') {
             try { history.replaceState(null, '', location.pathname + (name === 'signup' ? '?mode=signup' : '') + keepNext()); } catch (e) { /* ignore */ }
         }
+
+        captcha.mount();
 
         if (opts.focus) {
             const panel = document.querySelector('[data-panel="' + name + '"]');
@@ -195,6 +253,7 @@
             termLog('access denied', 'bad');
             shake();
         } finally {
+            if (form) captcha.reset(form);               // a captcha token only works once
             busy = false;
             setLoading(btn, false);
         }
@@ -206,6 +265,7 @@
         const status = err && err.status;
 
         if (err && err.isNotConnected) return err.message;
+        if (msg.includes('captcha')) return 'Please finish the security check and try again.';
         if (code === 'invalid_credentials' || msg.includes('invalid login')) return 'Wrong email or password.';
         if (code === 'email_not_confirmed' || msg.includes('not confirmed')) return 'Please confirm your email first. Check your inbox (and spam).';
         if (code === 'weak_password' || msg.includes('password should')) return 'That password is too weak. Try a longer one.';
@@ -312,7 +372,8 @@
         run(fLogin, fLogin.querySelector('.au-btn'), async () => {
             termLog('verifying credentials...');
             if (!sb) needBackend();
-            const { data, error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value });
+            const captchaToken = await captcha.token(fLogin);
+            const { data, error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value, options: captchaToken ? { captchaToken } : undefined });
             if (error) throw error;
             pass.value = '';
             termLog('access granted', 'ok');
@@ -336,13 +397,21 @@
         if (!terms.checked) { setError(terms, 'You need to agree to continue.'); ok = false; } else { setError(terms, ''); }
         if (!ok) { shake(); return; }
 
+        // honeypot: a person never sees this field, a bot fills it. Pretend it worked and do nothing.
+        if ($('suWebsite') && $('suWebsite').value) {
+            pendingEmail = email.value.trim();
+            showCheck('If this email is new, we just sent a confirmation link to ' + pendingEmail + '. Open it to finish creating your account.');
+            return;
+        }
+
         run(fSignup, fSignup.querySelector('.au-btn'), async () => {
             termLog('creating account...');
             if (!sb) needBackend();
+            const captchaToken = await captcha.token(fSignup);
             const { data, error } = await sb.auth.signUp({
                 email: email.value.trim(),
                 password: pass.value,
-                options: { data: { username: user.value.trim() }, emailRedirectTo: baseUrl() }
+                options: { data: { username: user.value.trim() }, emailRedirectTo: baseUrl(), captchaToken }
             });
             if (error) throw error;
             pass.value = ''; conf.value = '';
@@ -370,7 +439,8 @@
         run(fForgot, fForgot.querySelector('.au-btn'), async () => {
             termLog('sending reset link...');
             if (!sb) needBackend();
-            const { error } = await sb.auth.resetPasswordForEmail(email.value.trim(), { redirectTo: baseUrl() });
+            const captchaToken = await captcha.token(fForgot);
+            const { error } = await sb.auth.resetPasswordForEmail(email.value.trim(), { redirectTo: baseUrl(), captchaToken });
             if (error) throw error;
             pendingEmail = email.value.trim();
             resendKind = 'recovery';
@@ -444,9 +514,11 @@
         setLoading(btn, true);
         try {
             if (!sb) needBackend();
+            const checkPanel = document.querySelector('[data-panel="check"]');
+            const captchaToken = await captcha.token(checkPanel);
             const { error } = resendKind === 'recovery'
-                ? await sb.auth.resetPasswordForEmail(pendingEmail, { redirectTo: baseUrl() })
-                : await sb.auth.resend({ type: 'signup', email: pendingEmail, options: { emailRedirectTo: baseUrl() } });
+                ? await sb.auth.resetPasswordForEmail(pendingEmail, { redirectTo: baseUrl(), captchaToken })
+                : await sb.auth.resend({ type: 'signup', email: pendingEmail, options: { emailRedirectTo: baseUrl(), captchaToken } });
             if (error) throw error;
             msg.className = 'au-msg is-ok';
             msg.textContent = 'Sent again. Check your inbox and spam folder.';
@@ -455,6 +527,7 @@
             msg.className = 'au-msg is-error';
             msg.textContent = friendly(err);
         } finally {
+            captcha.reset(document.querySelector('[data-panel="check"]'));
             busy = false;
             setLoading(btn, false);
             if (!cooldownTimer) btn.disabled = false;

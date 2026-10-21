@@ -35,6 +35,13 @@
     }
 
     var COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+    // A role icon is an emoji / short symbol, a Flaticon image link, or a file on the site (badges/crown.png).
+    // Same rule as the database (role_icon_ok in supabase-role-icons.sql); anything else is shown as text, never loaded.
+    var ICON_URL_RE = /^https:\/\/(cdn-icons-png|cdn-icons-gif|cdn-icons|cdn-uicons|media)\.flaticon\.com\/[A-Za-z0-9_.\/%-]{3,250}$/;
+    var ICON_OWN_RE = /^https:\/\/mcpjjmbvuzclzrniunkq\.supabase\.co\/storage\/v1\/object\/public\/[A-Za-z0-9_.\/%-]{3,250}$/;
+    var ICON_FILE_RE = /^badges\/[A-Za-z0-9_-]{1,60}\.(png|svg|webp|gif)$/;
+    function iconSrc(v) { return typeof v === 'string' && (ICON_URL_RE.test(v) || ICON_OWN_RE.test(v) || ICON_FILE_RE.test(v)) ? v : ''; }
     var CAT_ORDER = { general: 0, cosmetic: 1, verified: 2, level: 3 };
 
     /* ------------------------------ styles ------------------------------ */
@@ -47,6 +54,7 @@
             'border-radius:999px;color:var(--text-primary,#fff);font:600 11px/1.4 var(--font-mono,ui-monospace,monospace);letter-spacing:.3px;white-space:nowrap}',
             '.sr-badge-ico{font-size:13px;line-height:1}',
             '.sr-badge-ico svg{display:block;width:14px;height:14px}',
+            '.sr-badge-ico img{display:block;width:16px;height:16px;object-fit:contain}',
             '.sr-badge-txt{overflow:hidden;text-overflow:ellipsis}',
             '.sr-badge--icon{padding:2px 6px}',
             '.sr-inline{display:inline-flex;align-items:center;gap:3px;margin-left:6px;vertical-align:middle}',
@@ -154,11 +162,17 @@
 
         var ico = document.createElement('span');
         ico.className = 'sr-badge-ico';
-        if (def.category === 'verified' && def.id !== 'verified_none') {
+        var src = iconSrc(def.icon);
+        if (src) {
+            var img = document.createElement('img');
+            img.src = src; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+            img.addEventListener('error', function () { ico.textContent = '\u2605'; });
+            ico.appendChild(img);
+        } else if (def.category === 'verified' && def.id !== 'verified_none') {
             ico.style.color = COLOR_RE.test(def.color) ? def.color : '#3b82f6';
             ico.appendChild(checkSvg());
         } else {
-            ico.textContent = def.icon;
+            ico.textContent = (typeof def.icon === 'string' && def.icon.length <= 8) ? def.icon : '\u2605';   // never print a long, unapproved string
         }
         el.appendChild(ico);
 

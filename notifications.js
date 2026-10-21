@@ -47,6 +47,8 @@
             'border-radius:10px;color:var(--text-primary,#fff);cursor:pointer;flex:0 0 auto}',
             '.sn-bell:hover{background:color-mix(in srgb,var(--text-primary,#fff) 11%,transparent)}',
             '.sn-bell svg{width:17px;height:17px}',
+            '.mobile-header .sn-bell{margin-left:auto;margin-right:8px}',
+            '.mobile-header .sp-chip--mobile{margin-left:0}',
             '.sn-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;display:none;align-items:center;justify-content:center;',
             'background:var(--ad-bad,#ff4d4f);color:#fff;border-radius:999px;font:700 10px/16px var(--font-mono,ui-monospace,monospace)}',
             '.sn-badge.is-show{display:flex}',
@@ -132,20 +134,24 @@
         unmountBells();
         if (!S.signedIn) return;
 
-        var hudRight = document.querySelector('.hud-bar .hud-right');
-        if (hudRight) {
-            var d = makeBell();
-            hudRight.insertBefore(d, hudRight.firstChild);
-            S.bellEls.push(d);
-        }
-
-        var header = document.querySelector('.mobile-header');
-        if (header) {
-            var m = makeBell();
-            var ham = header.querySelector('.hamburger');
-            var chip = header.querySelector('.sp-chip');
-            header.insertBefore(m, chip || ham || null);
-            S.bellEls.push(m);
+        // The HUD remains visible while the mobile header is active at tablet
+        // widths. Mount one bell in the active header to prevent duplicates.
+        if (window.matchMedia('(max-width: 850px)').matches) {
+            var header = document.querySelector('.mobile-header');
+            if (header) {
+                var m = makeBell();
+                var ham = header.querySelector('.hamburger');
+                var chip = header.querySelector('.sp-chip');
+                header.insertBefore(m, chip || ham || null);
+                S.bellEls.push(m);
+            }
+        } else {
+            var hudRight = document.querySelector('.hud-bar .hud-right');
+            if (hudRight) {
+                var d = makeBell();
+                hudRight.insertBefore(d, hudRight.firstChild);
+                S.bellEls.push(d);
+            }
         }
 
         paintBadges();
@@ -425,7 +431,15 @@
 
         setInterval(function () { if (!document.hidden) refreshCounts(); }, 60 * 1000);
         document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshCounts(); });
-        window.addEventListener('resize', function () { if (S.open && S.bellEls.length) positionPanel(S.bellEls[0]); });
+        var mobileLayout = window.matchMedia('(max-width: 850px)');
+        var lastMobileLayout = mobileLayout.matches;
+        window.addEventListener('resize', function () {
+            if (mobileLayout.matches !== lastMobileLayout) {
+                lastMobileLayout = mobileLayout.matches;
+                mountBells();
+            }
+            if (S.open && S.bellEls.length) positionPanel(S.bellEls[0]);
+        });
     }
 
     window.SpecNotifications = { refresh: refreshCounts };

@@ -130,6 +130,8 @@
                                 <button type="button" class="au-link" data-go="forgot">Forgot password?</button>
                             </div>
 
+                            <div class="au-captcha" data-captcha></div>
+
                             <button type="submit" class="au-btn">
                                 <span class="au-btn-label">LOG IN</span><span class="au-spin" aria-hidden="true"></span>
                             </button>
@@ -140,6 +142,11 @@
                     <section class="au-panel" id="auPanelSignup" data-panel="signup" role="tabpanel" aria-labelledby="auTabSignup" hidden>
                         <form id="auFormSignup" novalidate>
                             <div class="au-msg" role="alert"></div>
+
+                            <!-- honeypot: invisible to people, bots fill it in -->
+                            <div aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">
+                                <label>Website <input type="text" id="suWebsite" name="website" tabindex="-1" autocomplete="off"></label>
+                            </div>
 
                             <div class="au-field">
                                 <input class="au-input" type="text" id="suUsername" name="username" placeholder=" " autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" enterkeyhint="next" required>
@@ -178,6 +185,8 @@
                             </label>
                             <p class="au-hint" id="suTermsHint"></p>
 
+                            <div class="au-captcha" data-captcha></div>
+
                             <button type="submit" class="au-btn">
                                 <span class="au-btn-label">CREATE ACCOUNT</span><span class="au-spin" aria-hidden="true"></span>
                             </button>
@@ -194,6 +203,8 @@
                                 <label class="au-label" for="fgEmail">EMAIL</label>
                                 <p class="au-hint" id="fgEmailHint"></p>
                             </div>
+
+                            <div class="au-captcha" data-captcha></div>
 
                             <button type="submit" class="au-btn">
                                 <span class="au-btn-label">SEND RESET LINK</span><span class="au-spin" aria-hidden="true"></span>
@@ -238,6 +249,7 @@
                         </div>
                         <p class="au-lead" id="auCheckText"></p>
                         <div class="au-msg" role="status" id="auCheckMsg"></div>
+                        <div class="au-captcha" data-captcha></div>
                         <button type="button" class="au-btn au-btn--ghost" id="auResend">
                             <span class="au-btn-label">RESEND EMAIL</span><span class="au-spin" aria-hidden="true"></span>
                         </button>
@@ -289,10 +301,11 @@
     </main>
 
     <!-- Supabase client (pinned version) -->
-    <script src="ban.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
     <!-- main.js builds the sidebar. auth.js goes AFTER it. -->
     <script src="main.js"></script>
+    <!-- Cloudflare Turnstile (bot check). Only used once TURNSTILE_SITE_KEY is set in auth.js -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <script src="auth.js"></script>
 
 </body>
