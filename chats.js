@@ -1446,7 +1446,10 @@
         'Things': ['🎮','🕹️','💻','⌨️','🖥️','🧠','🛠️','⚙️','🚀','🛰️','🔒','🔑','📦','📁','📌','🧩','🎨','🎧','🎵','📸','💡','🔔','☕','🍕','🍔','🏆','🥇'],
         'Symbols': ['✅','❌','⚠️','❓','❗','➕','➖','➡️','⬆️','⬇️','🔴','🟢','🟡','🔵','⚪','⚫','🟣','💬','💭','🔗','📣'],
         'Meme Emojis': [
-         { name: 'osaka', image: 'https://cdn3.emoji.gg/emojis/896127-osaka.gif' }
+         { name: 'osaka', image: 'https://cdn3.emoji.gg/emojis/896127-osaka.gif' },
+         { name: 'speedpray', image: 'https://cdn3.emoji.gg/emojis/583890-speedpray.gif' },
+         { name: 'trollface', image: 'https://cdn3.emoji.gg/emojis/890856-troll.png' },
+         { name: 'sonnn', image: 'https://cdn3.emoji.gg/emojis/896534-sonnnnnn.png' },
         ]
     };
     Object.keys(EMOJI).forEach(function (category) {
