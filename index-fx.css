@@ -1,0 +1,235 @@
+/* ==========================================================================
+   SPECSOFT® index-fx.css  -  homepage-only "LIVE TERMINAL OS" depth layer
+
+   Loaded AFTER style.css, on index.html only. Pure presentation: every rule
+   here either (a) is the resting/hidden state that index-fx.js animates out
+   of, or (b) styles a small bit of new HUD chrome that index-fx.js injects
+   (the cursor reticle, the scroll rail). No layout here is load-bearing —
+   if index-fx.js never runs, the page still reads top to bottom normally.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   0. shared guard: motion-sensitive + touch users get none of this
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce), (hover: none) {
+    .fx-tilt { transform: none !important; }
+    .fx-glare,
+    .fx-reticle,
+    .fx-rail { display: none !important; }
+    .grid-glow.fx-live { display: none; }
+    .fx-reveal { opacity: 1 !important; transform: none !important; }
+    .fx-scramble-source { visibility: visible !important; }
+}
+
+/* --------------------------------------------------------------------------
+   1. radar glow — the grid lights up where the cursor is (wires up the
+      --glow-x/--glow-y vars style.css already defines on #gridGlow)
+   -------------------------------------------------------------------------- */
+.grid-glow.fx-live {
+    animation: none;
+    transition: opacity 0.4s ease;
+}
+
+/* --------------------------------------------------------------------------
+   2. 3D tilt surfaces (hero terminal + cards)
+   -------------------------------------------------------------------------- */
+.fx-tilt {
+    transform-origin: center center;
+    will-change: transform;
+}
+.fx-tilt.fx-tilt-active {
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.fx-glare {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    opacity: 0;
+    mix-blend-mode: overlay;
+    transition: opacity 0.25s ease;
+}
+.fx-tilt-active .fx-glare { opacity: 1; }
+.code-window .fx-glare { mix-blend-mode: soft-light; }
+
+/* --------------------------------------------------------------------------
+   3. cursor reticle — a crosshair that trails the real cursor, ties into
+      the four static HUD crosshairs already pinned to the viewport corners
+   -------------------------------------------------------------------------- */
+.fx-reticle {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 28px;
+    height: 28px;
+    margin: -14px 0 0 -14px;
+    pointer-events: none;
+    z-index: 10050;
+    opacity: 0;
+    transition: opacity 0.3s ease, width 0.2s ease, height 0.2s ease, margin 0.2s ease;
+    will-change: transform;
+}
+.fx-reticle.fx-visible { opacity: 1; }
+.fx-reticle::before,
+.fx-reticle::after {
+    content: '';
+    position: absolute;
+    background: var(--text-primary);
+    opacity: 0.8;
+}
+.fx-reticle::before { top: 50%; left: 0; width: 100%; height: 1px; transform: translateY(-50%); }
+.fx-reticle::after { left: 50%; top: 0; width: 1px; height: 100%; transform: translateX(-50%); }
+.fx-reticle-ring {
+    position: absolute;
+    inset: 4px;
+    border: 1px solid var(--border-hover);
+    border-radius: 50%;
+    transition: inset 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.fx-reticle.fx-hot {
+    width: 54px;
+    height: 54px;
+    margin: -27px 0 0 -27px;
+}
+.fx-reticle.fx-hot .fx-reticle-ring {
+    inset: 2px;
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+.fx-reticle.fx-hot::before,
+.fx-reticle.fx-hot::after { opacity: 0; }
+
+/* --------------------------------------------------------------------------
+   4. scroll-reveal — resting state for anything index-fx.js reveals, plus
+      the scanline sweep it fires once per element as it comes in
+   -------------------------------------------------------------------------- */
+.fx-reveal {
+    opacity: 0;
+    transform: translateY(26px);
+    transition: opacity 0.7s cubic-bezier(.16,.8,.3,1), transform 0.7s cubic-bezier(.16,.8,.3,1);
+}
+.fx-reveal.fx-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+.fx-sweep {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--text-primary), transparent);
+    box-shadow: 0 0 14px var(--accent-glow);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 3;
+}
+.fx-sweep.fx-sweep-run {
+    animation: fxSweepDown 0.9s cubic-bezier(.4,0,.2,1) forwards;
+}
+@keyframes fxSweepDown {
+    0%   { top: 0;    opacity: 1; }
+    85%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
+   5. headline scramble-decode — text nodes get wrapped in a span while
+      animating so index-fx.js can swap characters without touching layout
+   -------------------------------------------------------------------------- */
+.fx-scramble { white-space: pre-wrap; }
+
+/* --------------------------------------------------------------------------
+   6. hero terminal typewriter — each code line is clipped until revealed
+   -------------------------------------------------------------------------- */
+.code-window.fx-typing .code-line .code-content {
+    display: inline-block;
+    clip-path: inset(0 100% 0 0);
+}
+.code-window.fx-typing .code-line.fx-typed .code-content {
+    clip-path: inset(0 0 0 0);
+    transition: clip-path 0.38s steps(18, end);
+}
+.fx-caret {
+    display: inline-block;
+    width: 7px;
+    height: 14px;
+    margin-left: 1px;
+    background: var(--text-primary);
+    vertical-align: -2px;
+    animation: fxCaretBlink 0.9s steps(1) infinite;
+}
+@keyframes fxCaretBlink { 50% { opacity: 0; } }
+
+/* --------------------------------------------------------------------------
+   7. scroll rail — desktop-only HUD nav riding the right edge, dots keyed
+      to the page's own sections (echoes the 02 / 03 section numbering)
+   -------------------------------------------------------------------------- */
+.fx-rail {
+    position: fixed;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 18px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+.fx-rail.fx-rail-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+.fx-rail-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+.fx-rail-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    opacity: 0;
+    transform: translateX(6px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    white-space: nowrap;
+}
+.fx-rail-item:hover .fx-rail-label,
+.fx-rail-item.fx-active .fx-rail-label {
+    opacity: 1;
+    transform: translateX(0);
+}
+.fx-rail-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border-hover);
+    transition: background 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+.fx-rail-item:hover .fx-rail-dot {
+    background: var(--text-primary);
+    transform: scale(1.3);
+}
+.fx-rail-item.fx-active .fx-rail-dot {
+    background: var(--text-primary);
+    box-shadow: 0 0 10px var(--accent-glow);
+    transform: scale(1.4);
+}
+.fx-rail-item.fx-active .fx-rail-label { color: var(--text-primary); }
+
+@media (max-width: 980px) {
+    .fx-rail { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   8. magnetic buttons — just the fast-transition hook, JS does the math
+   -------------------------------------------------------------------------- */
+.fx-magnetic { will-change: transform; }

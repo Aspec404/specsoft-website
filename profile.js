@@ -2032,6 +2032,8 @@ async function loadReposts() {
         $('pjVideo').value = pj && pj.video_url ? pj.video_url : '';
         $('pjTags').value = pj ? (pj.tags || []).join(', ') : '';
         $('pjPinned').checked = !!(pj && pj.pinned);
+        if ($('pjCategory')) $('pjCategory').value = pj && pj.category ? pj.category : 'other';
+        if ($('pjHub')) $('pjHub').checked = pj ? pj.show_in_hub !== false : true;
         updPj();
         openDlg($('pjDlg'));
     }
@@ -2052,6 +2054,9 @@ async function loadReposts() {
             tags: parseTags($('pjTags').value, 6, 20),
             pinned: $('pjPinned').checked
         };
+        // Projects Hub fields (only sent when the form has them, so nothing breaks before supabase-hub.sql is installed)
+        if ($('pjCategory')) row.category = $('pjCategory').value;
+        if ($('pjHub')) row.show_in_hub = $('pjHub').checked;
         for (let i = 0; i < fields.length; i++) {
             const r = httpsUrl($(fields[i][1]).value);
             if (!r.ok) { showMsg('pjMsg', fields[i][2] + ' must start with https:// and be a real address.'); $(fields[i][1]).focus(); return; }
@@ -2069,7 +2074,7 @@ async function loadReposts() {
 
             await reloadProjects();
             $('pjDlg').close();
-            toast(id ? 'Project updated' : 'Project posted');
+            toast(id ? 'Project updated' : ($('pjHub') && $('pjHub').checked ? 'Project posted to your profile and the Projects Hub' : 'Project posted'));
         } catch (err) {
             showMsg('pjMsg', friendly(err));
         } finally {
