@@ -1461,7 +1461,7 @@
             }
         });
     });
-    const QUICK = ['👍', '❤️', '😂', '🔥', '😮', '🎉'];
+    const QUICK = ['👍', '❤️', '😂', '🔥', '😭', '🎉', '💀'];
 
     function buildPicker() {
         const box = $('chEmoji');
