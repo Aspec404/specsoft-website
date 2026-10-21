@@ -819,14 +819,46 @@
     function sameRoom(r) { return !!(r && S.current && S.current.room_id === r.room_id); }
 
     // ---- rich text ----
-    function renderRich(text, mine) {
+    function getJumboEmojiCount(text) {
+        const value = String(text || '').trim();
+        if (!value) return 0;
+        const normalized = value.replace(/https:\/\/cdn\d+\.emoji\.gg\/[\w./%+-]+\.(?:png|gif|webp|jpe?g)(?:[?#][^\s]*)?/gi, function (url) {
+            return isCustomEmojiUrl(url) ? ':customemoji:' : url;
+        });
+        const token = '(?:\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E)?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E)?)*(?:\\p{Emoji_Modifier})?|\\p{Regional_Indicator}{2}|:[a-z0-9_+-]{1,32}:)';
+        const only = new RegExp('^(?:' + token + ')+$', 'u');
+        if (!only.test(normalized)) return 0;
+        const tokens = normalized.match(new RegExp(token, 'gu')) || [];
+        return tokens.length;
+    }
+
+    function renderRich(text, mine, jumboEmoji) {
         const frag = document.createDocumentFragment();
         const myName = S.profile && S.profile.username;
         const cards = [];
         parseMessage(text).forEach(function (blk) {
             if (blk.t === 'block') { frag.appendChild(buildCodeBlock(blk.v, blk.lang)); return; }
-            parseInline(blk.v).forEach(function (tok) {
-                if (tok.t === 'text') frag.appendChild(document.createTextNode(tok.v));
+            const inlineText = blk.v.replace(/:([a-z0-9_+-]{1,32}):/gi, function (match, name) {
+                return CUSTOM_EMOJI[name.toLowerCase()] ? '\u0000' + name.toLowerCase() + '\u0000' : match;
+            }).replace(/https:\/\/cdn\d+\.emoji\.gg\/[\w./%+-]+\.(?:png|gif|webp|jpe?g)(?:[?#][^\s]*)?/gi, function (url) {
+                return isCustomEmojiUrl(url) ? '\u0000url:' + url + '\u0000' : url;
+            });
+            parseInline(inlineText).forEach(function (tok) {
+                if (tok.t === 'text' && tok.v.indexOf('\u0000') >= 0) {
+                    tok.v.split(/(\u0000(?:[a-z0-9_+-]{1,32}|url:https:\/\/[^\u0000]+)\u0000)/i).forEach(function (piece) {
+                        const match = /^\u0000([a-z0-9_+-]{1,32}|url:https:\/\/[^\u0000]+)\u0000$/i.exec(piece);
+                        if (match && match[1].indexOf('url:') === 0) frag.appendChild(makeCustomEmoji(match[1].slice(4), 'Custom emoji', jumboEmoji));
+                        else if (match) frag.appendChild(makeCustomEmoji(CUSTOM_EMOJI[match[1].toLowerCase()], ':' + match[1] + ':', jumboEmoji));
+                        else if (piece) frag.appendChild(document.createTextNode(piece));
+                    });
+                    return;
+                }
+                if (tok.t === 'text' && jumboEmoji && /\p{Extended_Pictographic}/u.test(tok.v)) {
+                    const emojiOnly = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?)*(?:\p{Emoji_Modifier})?|\p{Regional_Indicator}{2})+$/u;
+                    if (emojiOnly.test(tok.v)) frag.appendChild(el('span', { class: 'ch-jumbo-native', text: tok.v }));
+                    else frag.appendChild(document.createTextNode(tok.v));
+                }
+                else if (tok.t === 'text') frag.appendChild(document.createTextNode(tok.v));
                 else if (tok.t === 'b') frag.appendChild(el('strong', { text: tok.v }));
                 else if (tok.t === 'i') frag.appendChild(el('em', { text: tok.v }));
                 else if (tok.t === 's') frag.appendChild(el('s', { text: tok.v }));
@@ -834,7 +866,8 @@
                 else if (tok.t === 'spoiler') frag.appendChild(el('span', { class: 'ch-spoiler', role: 'button', tabindex: '0', title: 'Reveal', onclick: function (e) { e.stopPropagation(); e.currentTarget.classList.toggle('is-open'); } }, tok.v));
                 else if (tok.t === 'link') {
                     const u = safeHttps(tok.v);
-                    frag.appendChild(u ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: tok.v }) : document.createTextNode(tok.v));
+                    if (u && isCustomEmojiUrl(u)) frag.appendChild(makeCustomEmoji(u, tok.label || 'Custom emoji', jumboEmoji));
+                    else frag.appendChild(u ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: tok.label || tok.v }) : document.createTextNode(tok.v));
                     if (u && cards.length < 2) {
                         const sid = snippetIdFromUrl(u), gh = githubRepoFromUrl(u);
                         if (sid) cards.push(snippetCard(sid));
@@ -846,6 +879,20 @@
         });
         cards.forEach(function (c) { frag.appendChild(c); });
         return frag;
+    }
+
+    function makeCustomEmoji(url, label, jumboEmoji) {
+        const img = el('img', { class: 'ch-inline-emoji' + (jumboEmoji ? ' ch-inline-emoji--jumbo' : ''), src: url, alt: label, title: label, loading: 'lazy' });
+        const link = el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link ch-emoji-link', 'aria-label': 'Open custom emoji image' }, img);
+        img.onerror = function () { link.replaceWith(el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: label })); };
+        return link;
+    }
+
+    function isCustomEmojiUrl(url) {
+        try {
+            const parsed = new URL(url);
+            return /(^|\.)emoji\.gg$/i.test(parsed.hostname) && /\.(?:png|gif|webp|jpe?g)$/i.test(parsed.pathname);
+        } catch (e) { return false; }
     }
 
     function groupReactions(m) {
@@ -913,7 +960,8 @@
         const mentioned = !deleted && !mine && mentionsUser(m.body, S.profile && S.profile.username);
 
         const bug = deleted ? null : parseBug(m.body);
-        const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (bug ? buildBugCard(m, bug) : renderRich(m.body, mine)));
+        const jumboEmoji = !deleted && !bug && !m.attachment_path && !m.reply_to && !m.edited_at && !m.deleted_at && getJumboEmojiCount(m.body) > 0 && getJumboEmojiCount(m.body) <= 6;
+        const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') + (jumboEmoji ? ' ch-bubble--emoji-only' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (bug ? buildBugCard(m, bug) : renderRich(m.body, mine, jumboEmoji)));
         if (!deleted && m.attachment_path) renderAttachment(m, bubble);
 
         const reactions = el('div', { class: 'ch-reactions' });
@@ -1390,12 +1438,24 @@
     /* ----------------------------------------------------------------------
        9. EMOJI PICKER + QUICK REACTIONS
        ---------------------------------------------------------------------- */
+    // Add categories here. Unicode strings are standard emoji; image entries use { name: 'pepe', image: 'https://example.com/pepe.png' }.
+    const CUSTOM_EMOJI = Object.create(null);
     const EMOJI = {
         'Smileys': ['😀','😃','😄','😁','😆','😅','😂','🤣','🙂','😉','😊','😍','🥰','😘','😎','🤩','🥳','😏','😌','😴','🤔','🫡','😮','😢','😭','😡','🥹','😬','🙃','🤗'],
         'People': ['👍','👎','👏','🙌','🙏','💪','👀','🤝','✌️','🤞','👋','🫶','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','🔥','✨','⭐','💯','🎉','🎊'],
         'Things': ['🎮','🕹️','💻','⌨️','🖥️','🧠','🛠️','⚙️','🚀','🛰️','🔒','🔑','📦','📁','📌','🧩','🎨','🎧','🎵','📸','💡','🔔','☕','🍕','🍔','🏆','🥇'],
-        'Symbols': ['✅','❌','⚠️','❓','❗','➕','➖','➡️','⬆️','⬇️','🔴','🟢','🟡','🔵','⚪','⚫','🟣','💬','💭','🔗','📣']
+        'Symbols': ['✅','❌','⚠️','❓','❗','➕','➖','➡️','⬆️','⬇️','🔴','🟢','🟡','🔵','⚪','⚫','🟣','💬','💭','🔗','📣'],
+        'Meme Emojis': [
+         { name: 'osaka', image: 'https://cdn3.emoji.gg/emojis/896127-osaka.gif' }
+        ]
     };
+    Object.keys(EMOJI).forEach(function (category) {
+        EMOJI[category].forEach(function (entry) {
+            if (entry && typeof entry === 'object' && /^[a-z0-9_+-]{1,32}$/i.test(entry.name || '') && isCustomEmojiUrl(entry.image)) {
+                CUSTOM_EMOJI[entry.name.toLowerCase()] = entry.image;
+            }
+        });
+    });
     const QUICK = ['👍', '❤️', '😂', '🔥', '😮', '🎉'];
 
     function buildPicker() {
@@ -1404,8 +1464,17 @@
         Object.keys(EMOJI).forEach(function (cat) {
             box.appendChild(el('div', { class: 'ch-emoji-cat', text: cat.toUpperCase() }));
             const grid = el('div', { class: 'ch-emoji-grid' });
-            EMOJI[cat].forEach(function (e) {
-                grid.appendChild(el('button', { type: 'button', class: 'ch-emoji-btn', 'aria-label': e, text: e, onclick: function () { pickEmoji(e); } }));
+            EMOJI[cat].forEach(function (entry) {
+                const custom = typeof entry === 'object' && entry !== null;
+                const value = custom ? ':' + entry.name + ':' : entry;
+                const label = custom ? (entry.name || 'Custom emoji') : entry;
+                const button = el('button', { type: 'button', class: 'ch-emoji-btn' + (custom ? ' is-custom' : ''), 'aria-label': label, title: label, onclick: function () { pickEmoji(value); } });
+                if (custom) {
+                    const img = el('img', { src: entry.image, alt: label, loading: 'lazy' });
+                    img.onerror = function () { button.disabled = true; button.title = label + ' (image unavailable)'; };
+                    button.appendChild(img);
+                } else { button.textContent = entry; }
+                grid.appendChild(button);
             });
             box.appendChild(grid);
         });

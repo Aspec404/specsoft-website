@@ -686,6 +686,11 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 
 .ch-msg.is-grouped .ch-bubble { border-radius: 18px; }
+.ch-bubble.ch-bubble--emoji-only,
+.ch-msg--own .ch-bubble.ch-bubble--emoji-only,
+.ch-msg.is-grouped .ch-bubble.ch-bubble--emoji-only { padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.ch-bubble .ch-inline-emoji.ch-inline-emoji--jumbo { display: inline-block; width: auto; height: 48px; max-width: 96px; vertical-align: middle; object-fit: contain; border-radius: 0; }
+.ch-bubble .ch-jumbo-native { display: inline-block; font-size: 48px; line-height: 1; vertical-align: middle; }
 
 .ch-msg--own .ch-bubble {
     background: var(--text-primary);
@@ -700,6 +705,8 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ch-msg--own .ch-deleted { color: var(--bg-base); opacity: 0.7; }
 
 .ch-bubble a.ch-link { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.ch-bubble a.ch-emoji-link { display: inline-flex; vertical-align: middle; text-decoration: none; }
+.ch-inline-emoji { display: inline-block; width: 24px; height: 24px; object-fit: contain; vertical-align: middle; border-radius: 4px; }
 .ch-bubble strong { font-weight: 700; }
 
 .ch-code {
@@ -1947,3 +1954,5 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
     .ch-menu, .ch-menu-scrim, .ch-notif { animation: none !important; transition: none !important; }
 }
+.ch-emoji-btn.is-custom img { width: 28px; height: 28px; object-fit: contain; }
+
