@@ -1810,3 +1810,48 @@
     s.defer = true;
     document.head.appendChild(s);
 })();
+
+
+/* ======================================================================
+   SPECSOFT® site-fx loader: the generic "LIVE TERMINAL OS" layer (radar
+   glow, 3D tilt, cursor reticle, scroll reveal, magnetic buttons,
+   data-pulse) on every page that uses main.js. See site-fx.js/site-fx.css —
+   index.html additionally loads index-fx.js/index-fx.css itself for the
+   homepage-only pieces (headline decode, terminal typewriter, scroll rail).
+   ====================================================================== */
+(function () {
+    if (document.querySelector('link[href$="site-fx.css"]')) return;
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'site-fx.css';
+    document.head.appendChild(link);
+})();
+(function () {
+    if (window.SpecFX || document.querySelector('script[src$="site-fx.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'site-fx.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();
+
+
+/* ======================================================================
+   SPECSOFT® 3D background loader: a WebGL particle field + wireframe core
+   behind the page (see index-3d.js), on every page that uses main.js. Three
+   first, in document order (async = false, not defer — index-3d.js needs
+   the THREE global to already exist when it runs), then the scene itself.
+   Does nothing if the CDN can't be reached — the page already has its flat
+   2D grid-bg as the real background, so this is a pure bonus layer.
+   ====================================================================== */
+(function () {
+    if (window.THREE || document.getElementById('bg3d') || document.querySelector('script[src$="index-3d.js"]')) return;
+    var three = document.createElement('script');
+    three.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
+    three.async = false;
+    document.head.appendChild(three);
+
+    var bg3d = document.createElement('script');
+    bg3d.src = 'index-3d.js';
+    bg3d.async = false;
+    document.head.appendChild(bg3d);
+})();

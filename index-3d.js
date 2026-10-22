@@ -40,6 +40,8 @@
     }
 
     function run() {
+        if (document.getElementById('bg3d')) return; // already running (e.g. loaded twice)
+
         var canvas = document.createElement('canvas');
         canvas.id = 'bg3d';
         canvas.setAttribute('aria-hidden', 'true');
