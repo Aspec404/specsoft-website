@@ -1,3 +1,4 @@
+/* SPECSOFT build 2026-10-21 · profile.js · v3 (reports + cases) */
 /* ==========================================================================
    SPECSOFT® — Profile page (profile.js)
    Load AFTER main.js and after the Supabase CDN script.
@@ -157,6 +158,7 @@
     const svg = inner => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + inner + '</svg>';
 
     const ICON = {
+        flag:     svg('<path d="M4 22V4m0 0h13l-2 4 2 4H4"/>'),
         pencil:   svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
         trash:    svg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
         plus:     svg('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
@@ -763,6 +765,10 @@
                 class: 'pf-btn' + (state.isFollowing ? ' pf-btn--ghost' : ''),
                 onclick: toggleFollow
             }, state.isFollowing ? 'Following' : 'Follow'));
+            actions.appendChild(el('button', {
+                type: 'button', class: 'pf-btn pf-btn--ghost', title: 'Report this member', 'aria-label': 'Report this member',
+                onclick: function () { openReport({ type: 'user', id: state.profile.id, label: '@' + state.profile.username }); }
+            }, icon('flag'), 'Report'));
         }
         actions.appendChild(el('button', {
             type: 'button', class: 'pf-btn pf-btn--ghost',
@@ -1135,7 +1141,7 @@ async function loadReposts() {
         else if (act === 'share') shareProject(pj);
         else if (act === 'repost') toggleRepost(pj);
         else if (act === 'hide') hideProject(pj);
-        else if (act === 'report') openReport(pj);
+        else if (act === 'report') openReport({ type: 'project', id: pj.id, label: pj.title });
     }
 
     function openProjectMenu(pj, btn) {
@@ -1315,15 +1321,25 @@ async function loadReposts() {
     let detailPj = null;
     let detailComments = [];
     let postingComment = false;
-    let reportPj = null;
+    let reportTarget = null;      // { type: 'project' | 'comment' | 'user', id, label }
 
-    const REPORT_REASONS = [
-        ['spam', 'Spam or scam'],
-        ['inappropriate', 'Inappropriate content'],
-        ['harassment', 'Harassment or hate'],
-        ['copyright', 'Stolen work'],
-        ['other', 'Something else']
-    ];
+    // what a member can pick depends on what they are reporting
+    const REPORT_REASONS_BY_TYPE = {
+        project: [['spam', 'Spam or scam'], ['inappropriate', 'Inappropriate content'], ['harassment', 'Harassment or hate'], ['copyright', 'Stolen work'], ['other', 'Something else']],
+        comment: [['spam', 'Spam or scam'], ['harassment', 'Harassment or hate'], ['inappropriate', 'Inappropriate content'], ['other', 'Something else']],
+        user:    [['spam', 'Spam or scam'], ['harassment', 'Harassment or hate'], ['impersonation', 'Pretending to be someone'], ['inappropriate', 'Inappropriate profile'], ['other', 'Something else']]
+    };
+    const REPORT_TITLES = { project: 'Report project', comment: 'Report comment', user: 'Report member' };
+    const REPORT_ERRORS = {
+        login: 'Log in to send a report.',
+        restricted: 'Your account cannot send reports right now.',
+        bad_reason: 'Pick a reason first.',
+        bad_note: 'Keep the details under 300 characters.',
+        not_found: 'That is not available anymore.',
+        own_content: 'You cannot report your own content.',
+        already_reported: 'You already reported this. The team has it.',
+        too_many: 'You sent a lot of reports today. Please try again tomorrow.'
+    };
 
     function buildSocialDialogs() {
         if ($('pdDlg')) return;
@@ -1364,12 +1380,7 @@ async function loadReposts() {
         });
 
         // ----- report -----
-        const reasons = el('div', { class: 'rp-reasons', role: 'radiogroup', 'aria-label': 'Reason' });
-        REPORT_REASONS.forEach(function (r, i) {
-            reasons.appendChild(el('label', { class: 'rp-reason' },
-                el('input', { type: 'radio', name: 'rpReason', value: r[0], checked: i === 0 }),
-                el('span', { text: r[1] })));
-        });
+        const reasons = el('div', { class: 'rp-reasons', id: 'rpReasons', role: 'radiogroup', 'aria-label': 'Reason' });   // filled by fillReportReasons()
 
         const report = el('dialog', { class: 'pf-dlg pf-dlg--small', id: 'rpDlg', 'aria-labelledby': 'rpTitle' },
             el('form', { id: 'rpForm', novalidate: '' },
@@ -1404,7 +1415,12 @@ async function loadReposts() {
             el('div', { class: 'pd-cmt-main' },
                 el('div', { class: 'pd-cmt-head' },
                     profileHref ? el('a', { class: 'pd-cmt-name', href: profileHref, text: name }) : el('span', { class: 'pd-cmt-name', text: name }),
-                    el('time', { class: 'pd-cmt-time', datetime: c.created_at, text: timeAgo(c.created_at) })),
+                    el('time', { class: 'pd-cmt-time', datetime: c.created_at, text: timeAgo(c.created_at) }),
+                    (state.me && c.user_id !== state.me.id)
+                        ? el('button', { type: 'button', class: 'pd-cmt-report', title: 'Report this comment', 'aria-label': 'Report this comment',
+                            style: 'margin-left:auto;padding:0;background:none;border:0;color:inherit;opacity:.55;font:inherit;font-size:12px;text-decoration:underline;cursor:pointer',
+                            onclick: function () { openReport({ type: 'comment', id: c.id, label: 'comment' }); } }, 'Report')
+                        : null),
                 el('p', { class: 'pd-cmt-body', text: c.body })),
             canDelete
                 ? el('button', { type: 'button', class: 'pf-iconbtn pf-iconbtn--danger pd-cmt-del', 'aria-label': 'Delete comment', title: 'Delete', onclick: function () { deleteComment(c); } }, icon('trash'))
@@ -1538,34 +1554,53 @@ async function loadReposts() {
         }
     }
 
-    function openReport(pj) {
+    function fillReportReasons(type) {
+        const box = $('rpReasons');
+        box.textContent = '';
+        (REPORT_REASONS_BY_TYPE[type] || REPORT_REASONS_BY_TYPE.project).forEach(function (r, i) {
+            box.appendChild(el('label', { class: 'rp-reason' },
+                el('input', { type: 'radio', name: 'rpReason', value: r[0], checked: i === 0 }),
+                el('span', { text: r[1] })));
+        });
+    }
+
+    function openReport(target) {
         buildSocialDialogs();
-        if (!state.me) { toast('Log in to report a project.'); return; }
-        reportPj = pj;
+        if (!state.me) { toast('Log in to send a report.'); return; }
+        reportTarget = target;
+        $('rpTitle').textContent = REPORT_TITLES[target.type] || 'Report';
+        fillReportReasons(target.type);
         showMsg('rpMsg', '');
         $('rpNote').value = '';
-        const first = document.querySelector('input[name="rpReason"]');
-        if (first) first.checked = true;
         openDlg($('rpDlg'));
     }
 
     async function submitReport(e) {
         e.preventDefault();
-        if (!state.me || !reportPj || saving) return;
-        if (!needSocial()) return;
+        if (!state.me || !reportTarget || saving) return;
         const reason = (document.querySelector('input[name="rpReason"]:checked') || {}).value || 'other';
+        const note = $('rpNote').value.trim() || null;
         const btn = $('rpSend');
         saving = true;
         setLoading(btn, true);
         try {
-            const res = await sb.from('profile_project_reports').insert({
-                project_id: reportPj.id, reporter_id: state.me.id, reason: reason, note: $('rpNote').value.trim() || null
-            });
+            const res = await sb.rpc('report_submit', { p_type: reportTarget.type, p_target: reportTarget.id, p_reason: reason, p_note: note });
             if (res.error) throw res.error;
+            const d = res.data || {};
+            if (!d.ok) { showMsg('rpMsg', REPORT_ERRORS[d.error] || 'Could not send that report. Please try again.'); return; }
             $('rpDlg').close();
-            toast('Thanks, the team will take a look');
+            toast(d.case_no ? 'Thanks, report sent (case #' + d.case_no + ')' : 'Thanks, the team will take a look');
         } catch (err) {
-            showMsg('rpMsg', socialError(err, 'report'));
+            // reports SQL not installed yet: project reports keep working through the old table
+            if (String(err && err.code) === 'PGRST202' && reportTarget.type === 'project') {
+                const old = await sb.from('profile_project_reports').insert({ project_id: reportTarget.id, reporter_id: state.me.id, reason: reason, note: note });
+                if (!old.error) { $('rpDlg').close(); toast('Thanks, the team will take a look'); return; }
+                showMsg('rpMsg', socialError(old.error, 'report'));
+            } else if (String(err && err.code) === 'PGRST202') {
+                showMsg('rpMsg', 'Run supabase-reports.sql in your Supabase SQL Editor to turn on reports.');
+            } else {
+                showMsg('rpMsg', friendly(err));
+            }
         } finally {
             saving = false;
             setLoading(btn, false);

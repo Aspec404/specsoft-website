@@ -966,8 +966,12 @@
 
         const reactions = el('div', { class: 'ch-reactions' });
         groupReactions(m).forEach(function (g) {
+            const customReaction = /^:([a-z0-9_+-]{1,32}):$/i.exec(g.emoji);
+            const reactionContent = customReaction && CUSTOM_EMOJI[customReaction[1].toLowerCase()]
+                ? el('img', { class: 'ch-reaction-emoji', src: CUSTOM_EMOJI[customReaction[1].toLowerCase()], alt: g.emoji, title: g.emoji })
+                : el('span', { text: g.emoji });
             reactions.appendChild(el('button', { type: 'button', class: 'ch-react' + (g.mine ? ' is-mine' : ''), 'aria-pressed': String(g.mine), 'aria-label': g.emoji + ' ' + g.n, onclick: function (e) { e.stopPropagation(); toggleReaction(m, g.emoji); } },
-                el('span', { text: g.emoji }), el('b', { text: String(g.n) })));
+                reactionContent, el('b', { text: String(g.n) })));
         });
 
         const tools = el('div', { class: 'ch-tools', role: 'toolbar', 'aria-label': 'Message actions' });
@@ -1221,6 +1225,37 @@
         t.style.height = 'auto';
         t.style.height = Math.min(t.scrollHeight, 140) + 'px';
         $('chSend').disabled = !t.value.trim() && !S.pendingFile;
+        renderComposerPreview();
+    }
+
+    function renderComposerPreview() {
+        const input = $('chInput'), preview = $('chInputPreview');
+        if (!input || !preview) return;
+        const value = input.value;
+        const hasCustom = /:([a-z0-9_+-]{1,32}):/i.test(value) && Object.keys(CUSTOM_EMOJI).some(function (name) {
+            return new RegExp(':' + name.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&') + ':', 'i').test(value);
+        });
+        preview.textContent = '';
+        preview.hidden = !hasCustom;
+        input.classList.toggle('has-emoji-preview', hasCustom);
+        if (!hasCustom) return;
+
+        const row = input.parentElement;
+        preview.style.left = (input.offsetLeft - row.offsetLeft) + 'px';
+        preview.style.top = (input.offsetTop - row.offsetTop) + 'px';
+        preview.style.width = input.clientWidth + 'px';
+        preview.style.height = input.clientHeight + 'px';
+        preview.scrollTop = input.scrollTop;
+        const pattern = /:([a-z0-9_+-]{1,32}):/gi;
+        let last = 0, match;
+        while ((match = pattern.exec(value))) {
+            if (match.index > last) preview.appendChild(document.createTextNode(value.slice(last, match.index)));
+            const url = CUSTOM_EMOJI[match[1].toLowerCase()];
+            if (url) preview.appendChild(el('img', { class: 'ch-input-emoji', src: url, alt: match[0] }));
+            else preview.appendChild(document.createTextNode(match[0]));
+            last = pattern.lastIndex;
+        }
+        if (last < value.length) preview.appendChild(document.createTextNode(value.slice(last)));
     }
 
     function paintPendingFile() {
@@ -1390,6 +1425,8 @@
 
     async function toggleReaction(m, emoji) {
         if (!S.me || m.pending) return;
+        const customName = /^:([a-z0-9_+-]{1,32}):$/i.exec(emoji);
+        if (customName && !CUSTOM_EMOJI[customName[1].toLowerCase()]) { toast('That custom emoji is not configured in this chat.'); return; }
         const list = m.reactions || (m.reactions = []);
         const idx = list.findIndex(function (r) { return r.emoji === emoji && r.user_id === S.me.id; });
         const had = idx >= 0;
@@ -1441,7 +1478,31 @@
     // Add categories here. Unicode strings are standard emoji; image entries use { name: 'pepe', image: 'https://example.com/pepe.png' }.
     const CUSTOM_EMOJI = Object.create(null);
     const EMOJI = {
-        'Smileys': ['😀','😃','😄','😁','😆','😅','😂','🤣','🙂','😉','😊','😍','🥰','😘','😎','🤩','🥳','😏','😌','😴','🤔','🫡','😮','😢','😭','😡','🥹','😬','🙃','🤗'],
+        'Emoticons': [
+         { name: 'windows11_grin', image: 'https://cdn3.emoji.gg/emojis/6199-win11emoji-grinning.png' },
+         { name: 'windows11_grinning', image: 'https://cdn3.emoji.gg/emojis/9942-win11emoji-grin.png' },
+         { name: 'windows11_blush', image: 'https://cdn3.emoji.gg/emojis/7583-win11emoji-blush.png' },
+         { name: 'windows11_laughing', image: 'https://cdn3.emoji.gg/emojis/1893-win11emoji-laughing.png' },
+         { name: 'windows11_joy', image: 'https://cdn3.emoji.gg/emojis/7758-win11emoji-joy.png' },
+         { name: 'windows11_rofl', image: 'https://cdn3.emoji.gg/emojis/7369-win11emoji-rofl.png' },
+         { name: 'windows11_heart_eyes', image: 'https://cdn3.emoji.gg/emojis/7008-win11emoji-heart-eyes.png' },
+         { name: 'windows11_kissing_heart', image: 'https://cdn3.emoji.gg/emojis/5680-win11emoji-kissing-heart.png' },
+         { name: 'windows11_kissing', image: 'https://cdn3.emoji.gg/emojis/4115-win11emoji-kissing.png' },
+         { name: 'windows11_smiling_with_3_hearts', image: 'https://cdn3.emoji.gg/emojis/8898-win11emoji-smiling-with-3-hearts.png' },
+         { name: 'windows11_out_tongue', image: 'https://cdn3.emoji.gg/emojis/9518-win11emoji-out-tongue.png' },
+         { name: 'windows11_stuck_out_tongue', image: 'https://cdn3.emoji.gg/emojis/5838-win11emoji-stuck-out-tongue-wink.png' },
+         { name: 'windows11_smile', image: 'https://cdn3.emoji.gg/emojis/8172-win11emoji-smile.png' },
+         { name: 'windows11_sunglasses', image: 'https://cdn3.emoji.gg/emojis/2071-win11emoji-sunglasses.png' },
+         { name: 'windows11_open_mouth', image: 'https://cdn3.emoji.gg/emojis/7212-win11emoji-open-mouth.png' },
+         { name: 'windows11_thinking', image: 'https://cdn3.emoji.gg/emojis/4418-win11emoji-thinking.png' },
+         { name: 'windows11_raising_eyebrows', image: 'https://cdn3.emoji.gg/emojis/9135-win11emoji-raised-eyebrow.png' },
+         { name: 'windows11_flushed', image: 'https://cdn3.emoji.gg/emojis/4134-win11-flushed.png' },
+         { name: 'windows11_sob', image: 'https://cdn3.emoji.gg/emojis/4612-win11emoji-sob.png' },
+         { name: 'windows11_sweat', image: 'https://cdn3.emoji.gg/emojis/8098-win11emoji-sweat.png' },
+         { name: 'windows11_fearful', image: 'https://cdn3.emoji.gg/emojis/9942-win11emoji-fearful.png' },
+         { name: 'windows11_unamused', image: 'https://cdn3.emoji.gg/emojis/1910-win11emoji-unamused.png' },
+         { name: 'windows11_angry', image: 'https://cdn3.emoji.gg/emojis/1316-win11emoji-rage.png'}
+        ],
         'People': ['👍','👎','👏','🙌','🙏','💪','👀','🤝','✌️','🤞','👋','🫶','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','🔥','✨','⭐','💯','🎉','🎊'],
         'Things': ['🎮','🕹️','💻','⌨️','🖥️','🧠','🛠️','⚙️','🚀','🛰️','🔒','🔑','📦','📁','📌','🧩','🎨','🎧','🎵','📸','💡','🔔','☕','🍕','🍔','🏆','🥇'],
         'Symbols': ['✅','❌','⚠️','❓','❗','➕','➖','➡️','⬆️','⬇️','🔴','🟢','🟡','🔵','⚪','⚫','🟣','💬','💭','🔗','📣'],
@@ -1452,6 +1513,9 @@
          { name: 'sonnn', image: 'https://cdn3.emoji.gg/emojis/896534-sonnnnnn.png' },
          { name: 'ohmygodbruh', image: 'https://cdn3.emoji.gg/emojis/56486-ohmygodbruh.gif' },
          { name: 'sus', image: 'https://cdn3.emoji.gg/emojis/761721-sus.png' },
+         { name: 'monkeythink', image: 'https://cdn3.emoji.gg/emojis/801254-monkeythinking.png' },
+         { name: 'soncrine', image: 'https://cdn3.emoji.gg/emojis/888036-soncrine.png' },
+         { name: 'terified', image: 'https://cdn3.emoji.gg/emojis/126907-terrified.png' }
         ]
     };
     Object.keys(EMOJI).forEach(function (category) {
@@ -2788,6 +2852,7 @@
         // composer
         const input = $('chInput');
         input.addEventListener('input', function () { autosize(); if (input.value.trim()) sendTyping(); });
+        input.addEventListener('scroll', renderComposerPreview);
         input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;

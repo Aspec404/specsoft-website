@@ -1,3 +1,4 @@
+/* SPECSOFT build 2026-10-21 · admin.js · v4 (cases) */
 /* ==========================================================================
    SPECSOFT® Console (admin.js)
 
@@ -66,6 +67,11 @@
         no_password: 'No admin password has been created yet.',
         network: 'Network error. Try again.',
         bad_status: 'Pick a valid status.',
+        case_closed: 'That case is already closed. Reopen it first.',
+        bad_assignee: 'Only staff can be assigned to a case.',
+        bad_outcome: 'Pick an outcome.',
+        conflict: 'You cannot handle a report about yourself or someone above your level.',
+        already_open: 'There is already an open case about that.',
         bad_category: 'Pick Main, Events or System.',
         title_required: 'A title is required.',
         bad_link: 'The link must start with https://'
@@ -394,7 +400,7 @@
         { id: 'appeals',   label: 'Appeals',   ico: 'mail',   min: 'moderator' },
         { id: 'staff',     label: 'Staff',     ico: 'shield', min: 'admin' },
         { id: 'notifications', label: 'Notifications', ico: 'bell', min: 'moderator' },
-        { id: 'reports',   label: 'Reports',   ico: 'flag',   min: 'moderator', soon: true },
+        { id: 'cases',     label: 'Cases',     ico: 'flag',   min: 'moderator' },
         { id: 'content',   label: 'Content',   ico: 'file',   min: 'moderator', soon: true }
     ];
 
@@ -460,7 +466,7 @@
 
         var token = nextToken();
         stopViewTimers();                                  // auto refresh belongs to the dashboard only
-        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications', appeals: 'Appeals' }[view];
+        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications', appeals: 'Appeals', cases: 'Cases' }[view];
         $('adTitle').textContent = title;
         $('adTopSub').textContent = '';
         var root = clear($('adView'));
@@ -473,6 +479,7 @@
         else if (view === 'staff') viewStaff(root, token);
         else if (view === 'notifications') viewNotifications(root, token);
         else if (view === 'appeals') viewAppeals(root, token);
+        else if (view === 'cases') { if (parts[1] && UUID_RE.test(parts[1])) viewCase(root, parts[1].toLowerCase(), token); else viewCases(root, token); }
     }
 
     /* ----------------------------------------------------------------------
@@ -483,7 +490,8 @@
         roles_set: 'Roles changed', role_def_upsert: 'Role definition edited', staff_set: 'Staff changed',
         password_create: 'Admin password created', password_change: 'Admin password changed', password_reset: 'Admin password reset',
         panel_unlock: 'Console unlock', hub_hide: 'Hub visibility changed', sanction_details: 'Ban details updated',
-        appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered'
+        appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered',
+        case_assign: 'Case assigned', case_status: 'Case status changed', case_resolve: 'Case closed', case_note: 'Case note added'
     };
 
     function actionLabel(a) {
@@ -512,9 +520,10 @@
     }
 
     async function paintDashboard(root, token) {
-        var results = await Promise.all([rpc('admin_dashboard'), rpc('admin_online_users', {}, { quiet: true }), rpc('admin_appeals_list', { p_status: 'open', p_limit: 1 }, { quiet: true })]);
+        var results = await Promise.all([rpc('admin_dashboard'), rpc('admin_online_users', {}, { quiet: true }), rpc('admin_appeals_list', { p_status: 'open', p_limit: 1 }, { quiet: true }), rpc('admin_cases_summary', {}, { quiet: true })]);
         var d = results[0], on = results[1];
         var apOpen = results[2] && results[2].ok ? (Number(results[2].open_count) || 0) : 0;
+        var cs = results[3] && results[3].ok ? results[3] : { pending: 0, investigating: 0, unassigned: 0, mine: 0 };
         if (stale(token) || !d.ok) return;
         clear(root);
 
@@ -529,7 +538,7 @@
             stat('Banned', d.bans_active),
             stat('Restricted', d.restrictions_active),
             stat('Open appeals', apOpen, 'mistake reports waiting', apOpen > 0 ? 'is-hot' : ''),
-            stat('Project reports', d.reports_total, 'all time (cases arrive in Phase 2)'),
+            stat('Open cases', (Number(cs.pending) || 0) + (Number(cs.investigating) || 0), (cs.pending || 0) + ' new \u00B7 ' + (cs.unassigned || 0) + ' unassigned', (cs.pending || 0) > 0 ? 'is-hot' : ''),
             stat('Staff actions', d.actions_24h, 'last 24h'),
             stat('Security alerts', d.alerts_24h, 'last 24h', d.alerts_24h > 0 ? 'is-hot' : '')));
 
@@ -810,6 +819,234 @@
     }
 
     /* ----------------------------------------------------------------------
+       CASES (what members report: projects, comments, members, chat, bugs)
+       Several reports about the same thing are ONE case. Closing a case tells every reporter.
+       ---------------------------------------------------------------------- */
+    var TYPE_LABEL = { project: 'Project', comment: 'Comment', user: 'Member', chat_message: 'Chat message', bug: 'Bug report' };
+    var REASON_LABEL = { spam: 'Spam or scam', inappropriate: 'Inappropriate', harassment: 'Harassment or hate', copyright: 'Stolen work', impersonation: 'Impersonation', bug: 'Bug', other: 'Other' };
+    var STATUS_KIND = { pending: 'warn', investigating: 'info', resolved: 'ok', dismissed: '' };
+    var STATUS_LABEL = { pending: 'NEW', investigating: 'INVESTIGATING', resolved: 'RESOLVED', dismissed: 'DISMISSED' };
+    var OUTCOME_LABEL = { action_taken: 'Action taken', no_violation: 'No violation', duplicate: 'Duplicate', other: 'Closed' };
+
+    var myIdCache = null;
+    async function getMyId() {
+        if (myIdCache) return myIdCache;
+        try { var u = await sb.auth.getUser(); myIdCache = u && u.data && u.data.user ? u.data.user.id : null; } catch (e) { myIdCache = null; }
+        return myIdCache;
+    }
+
+    function viewCases(root, token) {
+        var status = el('select', { class: 'ad-select', 'aria-label': 'Filter by status' },
+            [['open', 'Open (new + investigating)'], ['pending', 'New'], ['investigating', 'Investigating'], ['resolved', 'Resolved'], ['dismissed', 'Dismissed'], ['', 'All']].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        var type = el('select', { class: 'ad-select', 'aria-label': 'Filter by type' },
+            [['', 'All types'], ['project', 'Projects'], ['comment', 'Comments'], ['user', 'Members'], ['chat_message', 'Chat messages'], ['bug', 'Bug reports']].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        var mine = el('input', { type: 'checkbox' });
+        var list = el('div', { class: 'ad-list' });
+
+        root.appendChild(el('div', { class: 'ad-toolbar' }, status, type, el('label', { class: 'ad-role-opt' }, mine, el('span', { text: 'Assigned to me' }))));
+        root.appendChild(panel('Cases', list));
+        root.appendChild(el('p', { class: 'ad-help', text: 'Reports about the same thing are grouped into one case, most-reported first. Reporters are only visible to staff.' }));
+
+        async function load() {
+            var d = await rpc('admin_cases_list', { p_status: status.value || null, p_type: type.value || null, p_mine: mine.checked, p_limit: 50, p_offset: 0 });
+            if (stale(token) || !d.ok) return;
+            var c = d.counts || {};
+            $('adTopSub').textContent = (c.pending || 0) + ' NEW \u00B7 ' + (c.investigating || 0) + ' INVESTIGATING \u00B7 ' + (c.unassigned || 0) + ' UNASSIGNED \u00B7 ' + (c.mine || 0) + ' MINE';
+            clear(list);
+            (d.cases || []).forEach(function (k) {
+                list.appendChild(el('button', { type: 'button', class: 'ad-row', onclick: function () { go('cases', k.id); } },
+                    el('div', { class: 'ad-row-main' },
+                        el('div', { class: 'ad-row-title', text: '#' + k.case_no + ' \u00B7 ' + (k.summary || TYPE_LABEL[k.target_type] || k.target_type) }),
+                        el('div', { class: 'ad-row-sub', text: (TYPE_LABEL[k.target_type] || k.target_type) + ' \u00B7 ' + k.report_count + (k.report_count === 1 ? ' report' : ' reports') + ' \u00B7 ' + (REASON_LABEL[k.top_reason] || k.top_reason || '') +
+                            (k.target_name ? ' \u00B7 about @' + k.target_name : '') + ' \u00B7 last ' + ago(k.last_reported_at) + ' \u00B7 ' + (k.assigned_name ? 'with @' + k.assigned_name : 'unassigned') })),
+                    el('div', { class: 'ad-row-end' }, pill(STATUS_LABEL[k.status] || k.status, STATUS_KIND[k.status]))));
+            });
+            if (!(d.cases || []).length) list.appendChild(el('p', { class: 'ad-empty', text: 'No cases here. Nice and quiet.' }));
+        }
+        [status, type, mine].forEach(function (c) { c.addEventListener('change', load); });
+        load();
+    }
+
+    function kv(label, value) {
+        return el('div', { class: 'ad-kv' }, el('small', { text: label }), el('div', {}, value));
+    }
+
+    function renderSnapshot(c) {
+        var sn = c.snapshot || {};
+        var box = el('div', {});
+        if (c.target_type === 'project') {
+            box.appendChild(kv('Title', sn.title || c.summary));
+            box.appendChild(kv('Category', sn.category || 'other'));
+            box.appendChild(kv('Owner', sn.owner_username ? '@' + sn.owner_username : 'unknown'));
+            if (sn.summary) box.appendChild(kv('Summary', sn.summary));
+            var url = safeHttps(sn.url);
+            if (url) box.appendChild(kv('Link', el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', text: url })));
+        } else if (c.target_type === 'comment') {
+            box.appendChild(kv('Comment', sn.body || '(no text)'));
+            var img = safeHttps(sn.image_url);
+            if (img) box.appendChild(kv('Attached image', el('a', { href: img, target: '_blank', rel: 'noopener noreferrer', text: 'Open image' })));
+            box.appendChild(kv('Written by', sn.author_username ? '@' + sn.author_username : 'unknown'));
+            box.appendChild(kv('On project', sn.project_title || 'unknown'));
+        } else if (c.target_type === 'user') {
+            box.appendChild(kv('Display name', sn.display_name || '(none)'));
+            box.appendChild(kv('Username', '@' + (sn.username || '?')));
+            if (sn.headline) box.appendChild(kv('Headline', sn.headline));
+            if (sn.bio) box.appendChild(kv('Bio', sn.bio));
+        } else {
+            box.appendChild(kv('Chat', (sn.room_name || 'unknown') + ' \u00B7 sent ' + (sn.sent_at ? fmt(sn.sent_at) : '?') + (sn.sender_username ? ' by @' + sn.sender_username : '')));
+            var bug = null;
+            if (c.target_type === 'bug' && typeof sn.body === 'string' && sn.body.slice(0, 6) === '[[bug:') {
+                try { bug = JSON.parse(sn.body.slice(6, -2)); } catch (e) { bug = null; }
+            }
+            if (bug) {
+                box.appendChild(kv('Bug title', bug.t || ''));
+                box.appendChild(kv('Severity', String(bug.s || 'medium')));
+                if (bug.d) box.appendChild(kv('What happened', bug.d));
+                if (bug.c) box.appendChild(kv('Code or error', el('pre', { text: bug.c })));
+            } else box.appendChild(kv('Message', sn.body || ''));
+        }
+        box.appendChild(el('p', { class: 'ad-help', text: 'This is a copy taken when the first report came in, so it stays here even if the content is edited or deleted.' }));
+        return box;
+    }
+
+    async function viewCase(root, id, token) {
+        var results = await Promise.all([rpc('admin_case_detail', { p_case: id }), getMyId()]);
+        var d = results[0], myId = results[1];
+        if (stale(token)) return;
+        if (!d.ok) { root.appendChild(el('p', { class: 'ad-empty', text: ERR[d.error] || 'Could not load that case.' })); return; }
+        clear(root);
+
+        var c = d.case, isOpen = c.status === 'pending' || c.status === 'investigating', blocked = !!d.conflict;
+        $('adTitle').textContent = 'Case #' + c.case_no;
+        $('adTopSub').textContent = (TYPE_LABEL[c.target_type] || c.target_type).toUpperCase();
+
+        root.appendChild(el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm ad-back', text: '\u2190 All cases', onclick: function () { go('cases'); } }));
+
+        // ----- header + actions
+        var pills = el('div', { class: 'ad-pills' }, pill(STATUS_LABEL[c.status] || c.status, STATUS_KIND[c.status]), pill((TYPE_LABEL[c.target_type] || c.target_type).toUpperCase(), 'info'),
+            pill(c.report_count + (c.report_count === 1 ? ' REPORT' : ' REPORTS'), c.report_count >= 3 ? 'bad' : ''));
+        if (c.outcome) pills.appendChild(pill(String(OUTCOME_LABEL[c.outcome] || c.outcome).toUpperCase(), c.outcome === 'action_taken' ? 'ok' : ''));
+        if (d.target && d.target.banned) pills.appendChild(pill('TARGET BANNED', 'bad'));
+        if (d.target && d.target.suspended) pills.appendChild(pill('TARGET SUSPENDED', 'warn'));
+
+        function act(text, kind, handler, extra) { return el('button', { type: 'button', class: 'ad-btn ad-btn--sm' + (kind ? ' ad-btn--' + kind : ''), text: text, onclick: handler }); }
+        function call(fn, args, okMsg) {
+            return async function () {
+                var r = await rpc(fn, args);
+                if (r.ok) { toast(okMsg); route(); }
+            };
+        }
+
+        var actions = el('div', { class: 'ad-user-actions' });
+        if (blocked) {
+            actions.appendChild(el('p', { class: 'ad-help', text: 'This case is about you or someone above your level, so another staff member has to handle it.' }));
+        } else if (isOpen) {
+            if (c.assigned_to !== myId) actions.appendChild(act('Assign to me', '', call('admin_case_assign', { p_case: c.id, p_user: myId }, 'Assigned to you')));
+            if (c.assigned_to) actions.appendChild(act('Unassign', 'ghost', call('admin_case_assign', { p_case: c.id, p_user: null }, 'Unassigned')));
+            if (canAtLeast('admin')) actions.appendChild(act('Assign to\u2026', 'ghost', function () { caseAssignDialog(c, function () { route(); }); }));
+            if (c.status === 'pending') actions.appendChild(act('Mark investigating', 'ghost', call('admin_case_status', { p_case: c.id, p_status: 'investigating' }, 'Marked investigating')));
+            else actions.appendChild(act('Back to new', 'ghost', call('admin_case_status', { p_case: c.id, p_status: 'pending' }, 'Moved back to new')));
+            actions.appendChild(act('Resolve\u2026', '', function () { caseResolveDialog(c, 'resolved', function () { route(); }); }));
+            actions.appendChild(act('Dismiss\u2026', 'ghost', function () { caseResolveDialog(c, 'dismissed', function () { route(); }); }));
+        } else {
+            actions.appendChild(act('Reopen as new', 'ghost', call('admin_case_status', { p_case: c.id, p_status: 'pending' }, 'Reopened')));
+            actions.appendChild(act('Reopen as investigating', 'ghost', call('admin_case_status', { p_case: c.id, p_status: 'investigating' }, 'Reopened')));
+        }
+        // shortcuts to deal with what was reported
+        if (c.target_user) actions.appendChild(act('Open member', 'ghost', function () { go('users', c.target_user); }));
+        if (c.target_type === 'project' && !blocked) actions.appendChild(act('Hide from hub\u2026', 'ghost', function () { hubHideDialog({ id: c.target_id, title: c.summary }, true, function () { route(); }); }));
+
+        var owner = c.snapshot && c.snapshot.owner_username;
+        root.appendChild(el('section', { class: 'ad-panel' },
+            el('h2', { style: 'font-size:20px;letter-spacing:-.3px;margin-bottom:12px;overflow-wrap:anywhere', text: c.summary || (TYPE_LABEL[c.target_type] || 'Case') }), pills,
+            el('div', { class: 'ad-user-meta' },
+                el('span', { text: 'First report ' + fmt(c.first_reported_at) }), el('span', { text: 'Latest ' + ago(c.last_reported_at) }),
+                el('span', { text: c.assigned_name ? 'Assigned to @' + c.assigned_name : 'Unassigned' }),
+                c.resolved_at ? el('span', { text: 'Closed ' + fmt(c.resolved_at) + (c.resolved_by_name ? ' by @' + c.resolved_by_name : '') }) : null),
+            c.outcome_note ? el('p', { class: 'ad-help', text: 'Message to reporters: ' + c.outcome_note }) : null,
+            actions,
+            (c.target_type === 'project' && owner) ? el('p', { class: 'ad-help' }, el('a', { href: 'profile.html?u=' + encodeURIComponent(owner) + '#project-' + encodeURIComponent(c.target_id), target: '_blank', rel: 'noopener', text: 'View the project on the site' })) : null));
+
+        root.appendChild(panel('What was reported', renderSnapshot(c)));
+
+        // ----- the reports themselves (reporters are only ever shown to staff)
+        var rl = el('div', { class: 'ad-list' });
+        (d.reports || []).forEach(function (r) {
+            rl.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' },
+                    el('div', { class: 'ad-row-title', text: r.reporter_name ? '@' + r.reporter_name : 'deleted account' }),
+                    el('div', { class: 'ad-row-sub', text: (r.note ? '\u201C' + r.note + '\u201D' : 'No details written') })),
+                el('div', { class: 'ad-row-end' }, pill(String(REASON_LABEL[r.reason] || r.reason).toUpperCase()), ' ', r.notified_at ? pill('NOTIFIED', 'ok') : null, el('div', { text: ago(r.created_at) }))));
+        });
+        root.appendChild(panel('Reports (' + (d.reports || []).length + ')', rl));
+
+        // ----- notes
+        var noteIn = el('input', { class: 'ad-field', placeholder: 'Internal note about this case (reporters never see it)', maxlength: '1000' });
+        var noteBtn = el('button', { type: 'submit', class: 'ad-btn ad-btn--sm', text: 'ADD NOTE' });
+        var noteForm = el('form', { class: 'ad-note-form', novalidate: true }, noteIn, noteBtn);
+        noteForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            if (noteIn.value.trim().length < 2) return;
+            noteBtn.disabled = true;
+            var r = await rpc('admin_case_note', { p_case: c.id, p_note: noteIn.value });
+            noteBtn.disabled = false;
+            if (r.ok) { toast('Note added'); route(); }
+        });
+        var nl = el('div', {});
+        (d.notes || []).forEach(function (n) { nl.appendChild(el('div', { class: 'ad-note' }, el('p', { text: n.note }), el('small', { text: (n.author_name || 'unknown') + ' \u00B7 ' + fmt(n.created_at) }))); });
+        if (!(d.notes || []).length) nl.appendChild(el('p', { class: 'ad-empty', text: 'No notes yet.' }));
+        root.appendChild(panel('Staff notes', [noteForm, nl]));
+
+        // ----- timeline
+        var tl = el('div', { class: 'ad-list' });
+        (d.events || []).slice().reverse().forEach(function (ev) {
+            tl.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: ev.text || ev.kind }), el('div', { class: 'ad-row-sub', text: ev.actor_name ? 'by @' + ev.actor_name : 'a member' })),
+                el('div', { class: 'ad-row-end', text: ago(ev.at) })));
+        });
+        root.appendChild(panel('Timeline', tl));
+    }
+
+    function caseResolveDialog(c, status, done) {
+        var closing = status === 'dismissed' ? 'Dismiss' : 'Resolve';
+        var outcome = el('select', { class: 'ad-select' }, [['action_taken', 'Action taken (warned, removed, banned...)'], ['no_violation', 'No violation found'], ['duplicate', 'Duplicate of another case'], ['other', 'Something else']]
+            .map(function (o) { return el('option', { value: o[0], text: o[1], selected: o[0] === (status === 'dismissed' ? 'no_violation' : 'action_taken') }); }));
+        var msg = el('textarea', { class: 'ad-area', maxlength: '400', placeholder: 'Optional. Added after our standard message.' });
+        var notify = el('input', { type: 'checkbox', checked: true });
+        var err = el('div', { class: 'ad-err', hidden: true, role: 'alert' });
+        var n = c.report_count || 0;
+        dialog({
+            title: closing + ' case #' + c.case_no,
+            body: [field('OUTCOME', outcome), field('MESSAGE FOR THE ' + (n === 1 ? 'REPORTER' : n + ' REPORTERS') + ' (OPTIONAL)', msg, 'They see a short standard update in their notification bell. We never tell them who or what action, only what you write here.'),
+                el('label', { class: 'ad-role-opt', style: 'margin-top:14px' }, notify, el('span', { text: 'Notify the reporter' + (n === 1 ? '' : 's') })), err],
+            buttons: [{ text: 'Cancel' }, { text: closing + ' case', primary: true, onClick: async function () {
+                err.hidden = true;
+                var r = await rpc('admin_case_resolve', { p_case: c.id, p_status: status, p_outcome: outcome.value, p_message: msg.value.trim() || null, p_notify: notify.checked });
+                if (!r.ok) { err.textContent = ERR[r.error] || 'Could not close that case.'; err.hidden = false; return false; }
+                toast('Case closed' + (r.notified ? '. ' + r.notified + ' reporter(s) notified' : ''));
+                done();
+            } }]
+        });
+    }
+
+    async function caseAssignDialog(c, done) {
+        var d = await rpc('admin_staff_list');
+        if (!d.ok) return;
+        var sel = el('select', { class: 'ad-select' }, (d.staff || []).map(function (m) { return el('option', { value: m.id, text: '@' + m.username + ' (' + m.level + ')', selected: m.id === c.assigned_to }); }));
+        var err = el('div', { class: 'ad-err', hidden: true, role: 'alert' });
+        dialog({
+            title: 'Assign case #' + c.case_no,
+            body: [field('STAFF MEMBER', sel), err],
+            buttons: [{ text: 'Cancel' }, { text: 'Assign', primary: true, onClick: async function () {
+                var r = await rpc('admin_case_assign', { p_case: c.id, p_user: sel.value });
+                if (!r.ok) { err.textContent = ERR[r.error] || 'Could not assign that.'; err.hidden = false; return false; }
+                toast('Case assigned');
+                done();
+            } }]
+        });
+    }
+
+    /* ----------------------------------------------------------------------
        APPEALS ("report this as a mistake" from the ban screen)
        ---------------------------------------------------------------------- */
     function viewAppeals(root, token) {
@@ -1052,7 +1289,7 @@
        AUDIT LOG
        ---------------------------------------------------------------------- */
     var ACTION_FILTERS = [['', 'All actions'], ['sanction_', 'Sanctions'], ['roles_', 'Role changes'], ['role_def', 'Role definitions'], ['note_', 'Staff notes'],
-        ['staff_', 'Staff changes'], ['panel_unlock', 'Console unlocks'], ['password_', 'Passwords'], ['hub_', 'Hub moderation'], ['appeal', 'Appeals'], ['security:', 'Security alerts']];
+        ['staff_', 'Staff changes'], ['panel_unlock', 'Console unlocks'], ['password_', 'Passwords'], ['case_', 'Cases'], ['hub_', 'Hub moderation'], ['appeal', 'Appeals'], ['security:', 'Security alerts']];
 
     function viewAudit(root, token, targetId) {
         var action = el('select', { class: 'ad-select', 'aria-label': 'Filter by action' }, ACTION_FILTERS.map(function (f) { return el('option', { value: f[0], text: f[1] }); }));

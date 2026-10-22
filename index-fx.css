@@ -233,3 +233,45 @@
    8. magnetic buttons — just the fast-transition hook, JS does the math
    -------------------------------------------------------------------------- */
 .fx-magnetic { will-change: transform; }
+
+/* --------------------------------------------------------------------------
+   9. 3D background canvas (index-3d.js) — sits behind everything, same
+      stacking layer as .grid-bg, painted on top of it in DOM order
+   -------------------------------------------------------------------------- */
+#bg3d {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.85;
+}
+@media (prefers-reduced-motion: reduce) {
+    #bg3d { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   10. data-pulse motion graphic — a small traveling dot on every section's
+       dashed header line, like a packet moving along a circuit trace
+   -------------------------------------------------------------------------- */
+.section-line .line { position: relative; }
+.fx-pulse {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 5px;
+    height: 5px;
+    margin-top: -2.5px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent-glow);
+    opacity: 0;
+    animation: fxPulseTravel 3.2s linear infinite;
+}
+@keyframes fxPulseTravel {
+    0%   { left: 0%;   opacity: 0; }
+    6%   { opacity: 1; }
+    94%  { opacity: 1; }
+    100% { left: 100%; opacity: 0; }
+}

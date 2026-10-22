@@ -307,3 +307,10 @@ button.ad-row:hover { background: var(--accent-dim); }
 .ad-appeal-msg { margin-top: 12px; padding: 12px 14px; background: color-mix(in srgb, var(--text-primary) 5%, transparent); border: 1px solid var(--border-subtle); border-radius: 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ad-appeal-case { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-subtle); }
 .ad-appeal-case small { color: var(--text-secondary); font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.4px; }
+
+/* ---------- cases ---------- */
+.ad-kv { margin: 0 0 12px; }
+.ad-kv small { display: block; margin-bottom: 3px; color: var(--text-secondary); font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; }
+.ad-kv > div { font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ad-kv a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
+.ad-kv pre { margin: 4px 0 0; padding: 10px 12px; max-height: 240px; overflow: auto; background: color-mix(in srgb, var(--text-primary) 5%, transparent); border: 1px solid var(--border-subtle); border-radius: 10px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -798,6 +798,7 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 
 .ch-react b { font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.ch-reaction-emoji { width: 20px; height: 20px; object-fit: contain; display: block; }
 .ch-react:hover { border-color: var(--border-hover); }
 .ch-react.is-mine { border-color: var(--text-primary); background: var(--accent-dim); color: var(--text-primary); }
 
@@ -914,6 +915,7 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ch-replybar-text span { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ch-compose-row {
+    position: relative;
     display: flex;
     align-items: flex-end;
     gap: 6px;
@@ -981,6 +983,10 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 
 .ch-input::placeholder { color: var(--text-secondary); }
+.ch-input.has-emoji-preview { color: transparent; caret-color: var(--text-primary); }
+.ch-input-preview { position: absolute; z-index: 2; overflow: hidden; padding: 9px 4px; color: var(--text-primary); font-family: var(--font-sans); font-size: 16px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none; }
+.ch-input-preview[hidden] { display: none !important; }
+.ch-input-emoji { display: inline-block; width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
 
 .ch-send {
     flex: 0 0 auto;

@@ -391,6 +391,21 @@
     }
 
     /* ----------------------------------------------------------------------
+       9. DATA-PULSE MOTION GRAPHIC — a dot traveling along every section's
+          dashed header line, staggered so they don't all pulse in sync
+       ---------------------------------------------------------------------- */
+    function initLinePulse() {
+        if (reduceMotion()) return;
+        document.querySelectorAll('.section-line .line').forEach(function (line, i) {
+            var pulse = document.createElement('span');
+            pulse.className = 'fx-pulse';
+            pulse.setAttribute('aria-hidden', 'true');
+            pulse.style.animationDelay = (i * 0.6) + 's';
+            line.appendChild(pulse);
+        });
+    }
+
+    /* ----------------------------------------------------------------------
        boot
        ---------------------------------------------------------------------- */
     function start() {
@@ -402,6 +417,7 @@
         try { initReveal(); } catch (e) {}
         try { initRail(); } catch (e) {}
         try { initMagnetic(); } catch (e) {}
+        try { initLinePulse(); } catch (e) {}
     }
 
     window.SpecFX = {
