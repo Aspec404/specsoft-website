@@ -982,11 +982,11 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
     outline: none;
 }
 
-.ch-input::placeholder { color: var(--text-secondary); }
-.ch-input.has-emoji-preview { color: transparent; caret-color: var(--text-primary); }
-.ch-input-preview { position: absolute; z-index: 2; overflow: hidden; padding: 9px 4px; color: var(--text-primary); font-family: var(--font-sans); font-size: 16px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none; }
-.ch-input-preview[hidden] { display: none !important; }
-.ch-input-emoji { display: inline-block; width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
+/* the message box is a contenteditable div: custom emoji are real inline images, no hidden text */
+.ch-input { overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; cursor: text; -webkit-user-select: text; user-select: text; }
+.ch-input.is-empty::before { content: attr(data-placeholder); float: left; height: 0; color: var(--text-secondary); pointer-events: none; }
+.ch-input[aria-disabled="true"] { cursor: not-allowed; opacity: 0.7; }
+.ch-input-emoji { display: inline-block; width: 22px; height: 22px; margin: 0 1px; object-fit: contain; vertical-align: -5px; -webkit-user-drag: none; user-select: all; }
 
 .ch-send {
     flex: 0 0 auto;
@@ -1735,7 +1735,7 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 .ch-foot-btns { flex: 1 1 100%; gap: 2px; }
 
 .ch-iconbtn:disabled { opacity: 0.32; cursor: not-allowed; pointer-events: none; }
-.ch-input:disabled { cursor: not-allowed; opacity: 0.7; }
+.ch-input:disabled, .ch-input[aria-disabled="true"] { cursor: not-allowed; opacity: 0.7; }
 #chNotifBtn[aria-pressed="true"] { color: var(--text-primary); }
 
 /* ----- list row + three dots ----- */
@@ -1962,3 +1962,20 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 }
 .ch-emoji-btn.is-custom img { width: 28px; height: 28px; object-fit: contain; }
 
+/* ==========================================================================
+   Sensitive message card + filter dialog
+   ========================================================================== */
+.ch-bubble--sensitive,
+.ch-msg--own .ch-bubble--sensitive { background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+.ch-sensitive { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; max-width: min(420px, 100%); padding: 11px 13px; border: 1px solid var(--border-hover); border-radius: 14px; background: var(--bg-card); color: var(--text-primary); font-size: 13px; line-height: 1.45; text-align: left; }
+.ch-sensitive-head { display: flex; align-items: flex-start; gap: 8px; }
+.ch-sensitive-head svg { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; color: var(--text-secondary); }
+.ch-sensitive-text { margin: 0; }
+.ch-sensitive-link { display: inline; padding: 0; background: none; border: 0; color: var(--text-primary); font: inherit; text-decoration: underline; cursor: pointer; }
+.ch-sensitive-link:hover { color: var(--ch-error); }
+.ch-sensitive-show { min-height: 34px; padding: 0 14px; border: 1px solid var(--border-hover); border-radius: 999px; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease; }
+.ch-sensitive-show:hover { border-color: var(--text-primary); }
+.ch-sensitive-why { padding: 0; background: none; border: 0; color: var(--text-secondary); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
+.ch-sensitive-why:hover { color: var(--text-primary); }
+.ch-sensitive-link:focus-visible, .ch-sensitive-show:focus-visible, .ch-sensitive-why:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ch-help-list { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 6px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }

@@ -1855,3 +1855,64 @@
     bg3d.async = false;
     document.head.appendChild(bg3d);
 })();
+
+
+/* ======================================================================
+   SPECSOFT® terminal loader: press "/" anywhere, or the icon in the HUD
+   bar, to open the command terminal. See site-terminal.js/.css.
+   ====================================================================== */
+(function () {
+    if (document.querySelector('link[href$="site-terminal.css"]')) return;
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'site-terminal.css';
+    document.head.appendChild(link);
+})();
+(function () {
+    if (window.SpecTerminal || document.querySelector('script[src$="site-terminal.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'site-terminal.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();
+
+
+/* ======================================================================
+   SPECSOFT® sound loader: tiny synthesized UI sounds, off by default. A
+   visitor turns it on from the speaker icon in the HUD bar. See
+   site-sound.js — nothing here ever plays audio on its own.
+   ====================================================================== */
+(function () {
+    if (window.SpecSound || document.querySelector('script[src$="site-sound.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'site-sound.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();
+
+
+/* ======================================================================
+   SPECSOFT® presence loader: real "X online now" in the HUD bar via
+   Supabase Realtime Presence. See site-presence.js — shows nothing if the
+   Supabase SDK isn't on the page.
+   ====================================================================== */
+(function () {
+    if (window.SpecPresence || document.querySelector('script[src$="site-presence.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'site-presence.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();
+
+
+/* ======================================================================
+   SPECSOFT® page transitions loader: a fade before leaving via an internal
+   link, a scanline sweep on arrival. See site-transitions.js.
+   ====================================================================== */
+(function () {
+    if (window.SpecTransitions || document.querySelector('script[src$="site-transitions.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'site-transitions.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();

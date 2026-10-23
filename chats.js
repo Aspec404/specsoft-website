@@ -194,6 +194,89 @@
     /* HELPERS END */
 
     /* ----------------------------------------------------------------------
+       SENSITIVE MESSAGE FILTER
+       Runs on the VIEWER's screen only. Nothing is changed in the database and
+       the sender is never told. Edit the word lists below to tune it.
+       ---------------------------------------------------------------------- */
+    // STRONG: the word itself plus anything stuck to the end (fuck, fucking, fucker...)
+    const FILTER_STRONG = [
+        'fuck', 'motherfuck', 'shit', 'bullshit', 'horseshit', 'dipshit', 'cunt', 'bitch', 'asshole', 'dumbass', 'jackass',
+        'dickhead', 'cocksuck', 'bastard', 'wanker', 'twat', 'whore', 'nigger', 'nigga', 'faggot', 'retard',
+        // Tagalog / Bisaya
+        'putang', 'tangina', 'tanginamo', 'gago', 'ulol', 'tarantado', 'pakyu', 'pakshet', 'punyeta', 'bwisit', 'buwisit',
+        'siraulo', 'kantot', 'pekpek', 'yawa', 'pisti', 'piste', 'bilat'
+    ];
+    // EXACT: only the whole word (plus s / es / ed / ing / er) so "class" and "assistant" stay safe
+    const FILTER_EXACT = [
+        'ass', 'dick', 'pussy', 'slut', 'piss', 'prick', 'douche', 'bollocks', 'bobo', 'tanga', 'inutil', 'tite', 'boang', 'buang'
+    ];
+    // PHRASES: harsh things people say to hurt each other
+    const FILTER_PHRASES = [
+        'kill yourself', 'kys', 'go die', 'hope you die', 'hang yourself', 'neck yourself', 'end yourself',
+        'nobody likes you', 'you are worthless', 'you re worthless', 'hayop ka'
+    ];
+
+    function filterNormalize(text) {
+        let s = String(text || '')
+            .replace(/https?:\/\/\S+/gi, ' ')                    // links are not text
+            .replace(/:[a-z0-9_+-]{1,32}:/gi, ' ')               // :custom_emoji: codes are not text
+            .normalize('NFKD')
+            .replace(/[\u0300-\u036f\u200B-\u200D\uFEFF]/g, '')   // accents + invisible characters
+            .toLowerCase()
+            .replace(/shii?take/g, ' ');                          // harmless words that look like a bad one
+        // sneaky spellings: f4ck, sh!t, $hit, a$$ (only inside words, so "5 minutes" is left alone)
+        s = s.replace(/[a-z0-9@$!|*]+/g, function (tok) {
+            if (!/[a-z]/.test(tok)) return tok;
+            return tok
+                .replace(/([a-z])[!|]([a-z])/g, '$1i$2')
+                .replace(/@/g, 'a').replace(/\$/g, 's')
+                .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
+        });
+        return s;
+    }
+
+    function filterPattern(word, tail) {
+        const parts = word.split('').map(function (ch) {
+            if (ch === ' ') return '[^a-z]+';
+            return (/[aeiou]/.test(ch) ? '[' + ch + '*]' : ch) + '+';     // fuuuck, f*ck
+        });
+        return new RegExp('(?:^|[^a-z])' + parts.join('[.\\-_]{0,2}') + tail + '(?![a-z])');   // f.u.c.k
+    }
+
+    const FILTER_RES = []
+        .concat(FILTER_STRONG.map(function (w) { return filterPattern(w, '[a-z]{0,8}'); }))
+        .concat(FILTER_EXACT.map(function (w) { return filterPattern(w, '(?:s|es|ed|ing|er|ers|y)?'); }))
+        .concat(FILTER_PHRASES.map(function (w) { return filterPattern(w, ''); }));
+
+    const sensCache = new Map();
+    function isSensitive(text) {
+        const s = String(text || '');
+        if (!s || s.slice(0, 6) === '[[bug:') return false;
+        if (sensCache.has(s)) return sensCache.get(s);
+        const n = filterNormalize(s);
+        const hit = FILTER_RES.some(function (re) { return re.test(n); });
+        if (sensCache.size > 600) sensCache.clear();
+        sensCache.set(s, hit);
+        return hit;
+    }
+
+    // previews (chat list, reply bar, banners) must not leak the words either
+    function safePreview(body, senderId) {
+        const theirs = !!(senderId && S.me && senderId !== S.me.id);
+        if (theirs && S.blocked.has(senderId)) return 'Message from a blocked user';
+        if (theirs && S.filterOn && isSensitive(body)) return 'Sensitive message hidden';
+        return previewText(body);
+    }
+
+    // which messages get covered for THIS viewer ('blocked' | 'sensitive' | null)
+    function hideKindFor(m, mine, deleted, bug) {
+        if (deleted || mine || bug || m.pending) return null;
+        if (S.blocked.has(m.sender_id)) return 'blocked';
+        if (S.filterOn && isSensitive(m.body)) return 'sensitive';
+        return null;
+    }
+
+    /* ----------------------------------------------------------------------
        2. DOM TOOLKIT + ICONS
        ---------------------------------------------------------------------- */
     const $ = id => document.getElementById(id);
@@ -254,6 +337,10 @@
         tag:     svg('<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'),
         bell:    svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
         belloff: svg('<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>'),
+        flag:    svg('<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>'),
+        shield:  svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+        shieldoff: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="3" y1="3" x2="21" y2="21"/>'),
+        info:    svg('<circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'),
         ban:     svg('<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/>'),
         xcircle: svg('<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>'),
         logout:  svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>'),
@@ -310,7 +397,8 @@
         onlineAll: new Set(),          // everybody who is online right now (global presence)
         userCh: null, presCh: null, outCh: new Map(),
         menu: null, lastClosed: null, lpFired: false, nickRoom: null,
-        desk: false, banners: new Map()
+        desk: false, banners: new Map(),
+        filterOn: true, revealed: new Set(), blocked: new Set()
     };
 
     const ERR = {
@@ -664,7 +752,7 @@
 
     function subText(r) {
         const mineLast = r.last_sender && S.me && r.last_sender === S.me.id;
-        return r.last_body ? (mineLast ? 'You: ' : '') + previewText(r.last_body) : (r.kind === 'dm' ? 'Say hi' : (r.description || 'No messages yet'));
+        return r.last_body ? (mineLast ? 'You: ' : '') + safePreview(r.last_body, r.last_sender) : (r.kind === 'dm' ? 'Say hi' : (r.description || 'No messages yet'));
     }
 
     function roomRow(r) {
@@ -726,7 +814,7 @@
             el('span', { class: 'ch-item-av' }, avatar(i.sender || {}, 46)),
             el('span', { class: 'ch-item-main' },
                 el('span', { class: 'ch-item-title', text: text }),
-                i.preview && i.kind !== 'invite' ? el('span', { class: 'ch-item-sub', text: previewText(i.preview) }) : null),
+                i.preview && i.kind !== 'invite' ? el('span', { class: 'ch-item-sub', text: safePreview(i.preview, i.from_id) }) : null),
             el('span', { class: 'ch-item-meta' }, el('time', { text: fmtListTime(i.created_at) }), i.read_at ? null : el('span', { class: 'ch-dot', 'aria-label': 'Unread' })));
     }
 
@@ -909,7 +997,7 @@
     function replyQuote(m) {
         const p = S.byId.get(m.reply_to) || S.extra.get(m.reply_to);
         const who = p ? nameOf(senderOf(p)) : 'a message';
-        const txt = p ? (p.deleted_at ? 'Message deleted' : previewText(p.body)) : 'Original message not loaded';
+        const txt = p ? (p.deleted_at ? 'Message deleted' : safePreview(p.body, p.sender_id)) : 'Original message not loaded';
         return el('button', { type: 'button', class: 'ch-replyq', onclick: function (e) { e.stopPropagation(); jumpToMessage(m.reply_to); } },
             el('strong', { text: who }), el('span', { text: txt }));
     }
@@ -961,8 +1049,10 @@
 
         const bug = deleted ? null : parseBug(m.body);
         const jumboEmoji = !deleted && !bug && !m.attachment_path && !m.reply_to && !m.edited_at && !m.deleted_at && getJumboEmojiCount(m.body) > 0 && getJumboEmojiCount(m.body) <= 6;
-        const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') + (jumboEmoji ? ' ch-bubble--emoji-only' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (bug ? buildBugCard(m, bug) : renderRich(m.body, mine, jumboEmoji)));
-        if (!deleted && m.attachment_path) renderAttachment(m, bubble);
+        const hideKind = hideKindFor(m, mine, deleted, bug);
+        const hidden = !!hideKind && !S.revealed.has(m.id);
+        const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? buildBugCard(m, bug) : renderRich(m.body, mine, jumboEmoji))));
+        if (!deleted && m.attachment_path && !hidden) renderAttachment(m, bubble);
 
         const reactions = el('div', { class: 'ch-reactions' });
         groupReactions(m).forEach(function (g) {
@@ -979,6 +1069,7 @@
             tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'React', 'aria-label': 'React', onclick: function (e) { e.stopPropagation(); openQuick(m, e.currentTarget); } }, icon('smile')));
             tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Reply', 'aria-label': 'Reply', onclick: function (e) { e.stopPropagation(); startReply(m); } }, icon('reply')));
             if (mine && !bug) tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Edit', 'aria-label': 'Edit', onclick: function (e) { e.stopPropagation(); startEdit(m); } }, icon('edit')));
+            if (!mine && !bug) tools.appendChild(el('button', { type: 'button', class: 'ch-tool ch-tool--danger', title: 'Report', 'aria-label': 'Report message', onclick: function (e) { e.stopPropagation(); openReport(m); } }, icon('flag')));
         }
         const canDelete = !deleted && !m.pending && (mine || (S.current && (S.current.role === 'owner' || S.current.role === 'admin')));
         if (canDelete) tools.appendChild(el('button', { type: 'button', class: 'ch-tool ch-tool--danger', title: 'Delete', 'aria-label': 'Delete', onclick: function (e) { e.stopPropagation(); deleteMessage(m); } }, icon('trash')));
@@ -1005,6 +1096,115 @@
             if (!open) node.classList.add('is-open');
         });
         return node;
+    }
+
+    /* ----------------------------------------------------------------------
+       HIDDEN-MESSAGE CARD, BLOCK, REPORT, FILTER SETTINGS
+       ---------------------------------------------------------------------- */
+    function buildSensitiveCard(m, kind) {
+        const blocked = kind === 'blocked';
+        const stop = function (fn) { return function (e) { e.stopPropagation(); fn(); }; };
+        const link = function (label, fn) { return el('button', { type: 'button', class: 'ch-sensitive-link', onclick: stop(fn) }, label); };
+
+        const line = blocked
+            ? el('p', { class: 'ch-sensitive-text' }, 'You blocked this user, so their message is hidden. ', link('Unblock', function () { setSenderBlock(m, false); }))
+            : el('p', { class: 'ch-sensitive-text' }, 'This message contains harmful or sensitive content. You can ',
+                link('block', function () { setSenderBlock(m, true); }), ' and ', link('report', function () { openReport(m); }), ' the sender.');
+
+        return el('div', { class: 'ch-sensitive', role: 'group', 'aria-label': 'Hidden message' },
+            el('div', { class: 'ch-sensitive-head' }, icon('info'), line),
+            el('button', { type: 'button', class: 'ch-sensitive-show', onclick: stop(function () { S.revealed.add(m.id); rebuildNode(m); }) }, 'Show message'),
+            blocked ? null : el('button', { type: 'button', class: 'ch-sensitive-why', onclick: stop(openFilterDlg) }, 'Why am I seeing this? Learn more.'));
+    }
+
+    async function loadBlocks() {
+        try {
+            const res = await sb.from('chat_blocks').select('blocked_id').eq('blocker_id', S.me.id);
+            if (res.error) return;
+            S.blocked = new Set((res.data || []).map(function (r) { return r.blocked_id; }));
+        } catch (e) { /* blocking is optional, the page works without it */ }
+    }
+
+    async function setSenderBlock(m, block) {
+        const who = nameOf(senderOf(m));
+        if (block && !window.confirm('Block ' + who + '?\n\nTheir messages will be hidden for you, and you will not be able to message each other in DMs until you unblock them.')) return;
+        try {
+            const res = await sb.rpc('chat_set_block', { p_user: m.sender_id, p_block: block });
+            if (res.error) throw res.error;
+            if (block) S.blocked.add(m.sender_id); else S.blocked.delete(m.sender_id);
+            S.rooms.forEach(function (r) { if (r.kind === 'dm' && r.other_id === m.sender_id) r.blocked_by_me = block; });
+            if (S.current && S.current.kind === 'dm' && S.current.other_id === m.sender_id) { S.current.blocked_by_me = block; paintHeader(); }
+            toast(block ? 'Blocked ' + who : 'Unblocked ' + who);
+            renderFeed({ keepScroll: true });
+            renderList();
+        } catch (err) { toast(friendly(err)); }
+    }
+
+    // ----- report a message (uses report_submit from supabase-reports.sql) -----
+    const REPORT_ERR = {
+        login: 'Please log in again.',
+        restricted: 'Your account cannot send reports right now.',
+        bad_reason: 'Pick a reason first.',
+        bad_note: 'Keep the note under 300 characters.',
+        too_many: 'You have sent a lot of reports today. Try again tomorrow.',
+        own_content: 'You cannot report your own message.',
+        not_found: 'That message is no longer available.'
+    };
+    let reportTarget = null;
+
+    function openReport(m) {
+        reportTarget = m;
+        showBox('reportMsg', '');
+        $('reportReason').value = 'harassment';
+        $('reportNote').value = '';
+        openDlg('reportDlg');
+    }
+
+    async function submitReport(e) {
+        e.preventDefault();
+        if (!reportTarget) return;
+        const btn = $('reportSave');
+        setLoading(btn, true);
+        try {
+            const res = await sb.rpc('report_submit', {
+                p_type: 'chat_message',
+                p_target: reportTarget.id,
+                p_reason: $('reportReason').value,
+                p_note: $('reportNote').value.trim() || null
+            });
+            if (res.error) throw res.error;
+            const out = res.data || {};
+            if (out.ok === false) { showBox('reportMsg', REPORT_ERR[out.error] || 'Could not send the report. Please try again.'); return; }
+            closeDlg('reportDlg');
+            toast('Report sent. Thanks for helping keep SPECSOFT safe.');
+        } catch (err) {
+            const msg = String(err && err.message || '');
+            showBox('reportMsg', /report_submit/.test(msg) && isSetupMissing(err) ? 'Run supabase-reports.sql in your Supabase SQL Editor to turn on reporting.' : friendly(err));
+        } finally { setLoading(btn, false); }
+    }
+
+    // ----- the "hide sensitive messages" switch -----
+    function paintFilterBtn() {
+        setIcon('chFilterBtn', S.filterOn ? 'shield' : 'shieldoff');
+        $('chFilterBtn').setAttribute('aria-pressed', String(S.filterOn));
+    }
+
+    function initFilter() {
+        try { S.filterOn = localStorage.getItem('specsoft.chat.filter') !== 'off'; } catch (e) { /* ignore */ }
+        paintFilterBtn();
+    }
+
+    function setFilter(on) {
+        S.filterOn = !!on;
+        try { localStorage.setItem('specsoft.chat.filter', S.filterOn ? 'on' : 'off'); } catch (e) { /* ignore */ }
+        paintFilterBtn();
+        if (S.current) renderFeed({ keepScroll: true });
+        renderList();
+    }
+
+    function openFilterDlg() {
+        $('filterToggle').checked = S.filterOn;
+        openDlg('filterDlg');
     }
 
     function dayLabel(iso) { return el('div', { class: 'ch-day', role: 'separator' }, el('span', { text: fmtDay(iso) })); }
@@ -1220,42 +1420,153 @@
     /* ----------------------------------------------------------------------
        8. SENDING, REPLYING, EDITING, DELETING, REACTING
        ---------------------------------------------------------------------- */
-    function autosize() {
-        const t = $('chInput');
-        t.style.height = 'auto';
-        t.style.height = Math.min(t.scrollHeight, 140) + 'px';
-        $('chSend').disabled = !t.value.trim() && !S.pendingFile;
-        renderComposerPreview();
+    /* ----------------------------------------------------------------------
+       COMPOSER
+       The message box is a contenteditable div, so a custom emoji is ONE real
+       image inside the text (no hidden :name: text taking up space, no overlay
+       that drifts out of line). Everything else in this file still reads and
+       writes it through  $('chInput').value  exactly like the old textarea.
+       ---------------------------------------------------------------------- */
+    let composerRange = null;
+
+    // DOM -> plain text (emoji images turn back into their :name: code)
+    function serializeComposer(root) {
+        let out = '';
+        const nodes = root.childNodes;
+        for (let i = 0; i < nodes.length; i++) {
+            const n = nodes[i];
+            if (n.nodeType === 3) out += n.nodeValue;
+            else if (n.nodeType === 1) {
+                if (n.nodeName === 'IMG') out += n.getAttribute('data-code') || n.getAttribute('alt') || '';
+                else if (n.nodeName === 'BR') { if (i !== nodes.length - 1) out += '\n'; }   // a last <br> is only the browser's caret placeholder
+                else {
+                    const inner = serializeComposer(n);                                       // <div> = a new line
+                    if (out && out.slice(-1) !== '\n') out += '\n';
+                    out += inner;
+                }
+            }
+        }
+        return out.replace(/\u200B/g, '');
     }
 
-    function renderComposerPreview() {
-        const input = $('chInput'), preview = $('chInputPreview');
-        if (!input || !preview) return;
-        const value = input.value;
-        const hasCustom = /:([a-z0-9_+-]{1,32}):/i.test(value) && Object.keys(CUSTOM_EMOJI).some(function (name) {
-            return new RegExp(':' + name.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&') + ':', 'i').test(value);
-        });
-        preview.textContent = '';
-        preview.hidden = !hasCustom;
-        input.classList.toggle('has-emoji-preview', hasCustom);
-        if (!hasCustom) return;
+    function makeComposerEmoji(code, url) {
+        return el('img', { class: 'ch-input-emoji', src: url, alt: code, 'data-code': code, draggable: 'false', contenteditable: 'false' });
+    }
 
-        const row = input.parentElement;
-        preview.style.left = (input.offsetLeft - row.offsetLeft) + 'px';
-        preview.style.top = (input.offsetTop - row.offsetTop) + 'px';
-        preview.style.width = input.clientWidth + 'px';
-        preview.style.height = input.clientHeight + 'px';
-        preview.scrollTop = input.scrollTop;
-        const pattern = /:([a-z0-9_+-]{1,32}):/gi;
-        let last = 0, match;
-        while ((match = pattern.exec(value))) {
-            if (match.index > last) preview.appendChild(document.createTextNode(value.slice(last, match.index)));
-            const url = CUSTOM_EMOJI[match[1].toLowerCase()];
-            if (url) preview.appendChild(el('img', { class: 'ch-input-emoji', src: url, alt: match[0] }));
-            else preview.appendChild(document.createTextNode(match[0]));
-            last = pattern.lastIndex;
+    // plain text -> DOM nodes (:name: becomes an image, \n becomes <br>)
+    function composerNodes(text) {
+        const nodes = [];
+        const re = /:([a-z0-9_+-]{1,32}):/gi;
+        let last = 0, m;
+        const pushText = function (t) {
+            t.split('\n').forEach(function (line, i) {
+                if (i) nodes.push(document.createElement('br'));
+                if (line) nodes.push(document.createTextNode(line));
+            });
+        };
+        while ((m = re.exec(text))) {
+            const url = CUSTOM_EMOJI[m[1].toLowerCase()];
+            if (!url) { re.lastIndex = m.index + 1; continue; }    // not one of ours: leave as text, keep scanning
+            if (m.index > last) pushText(text.slice(last, m.index));
+            nodes.push(makeComposerEmoji(m[0], url));
+            last = re.lastIndex;
         }
-        if (last < value.length) preview.appendChild(document.createTextNode(value.slice(last)));
+        if (last < text.length) pushText(text.slice(last));
+        return nodes;
+    }
+
+    function setComposerValue(text) {
+        const root = $('chInput');
+        text = String(text == null ? '' : text);
+        root.textContent = '';
+        composerNodes(text).forEach(function (n) { root.appendChild(n); });
+        root.classList.toggle('is-empty', !text);
+        composerRange = null;
+    }
+
+    // keeps  $('chInput').value / .placeholder / .disabled working like on a textarea
+    function installComposer() {
+        const root = $('chInput');
+        Object.defineProperty(root, 'value', {
+            configurable: true,
+            get: function () { return serializeComposer(root); },
+            set: function (v) { setComposerValue(v); }
+        });
+        Object.defineProperty(root, 'placeholder', {
+            configurable: true,
+            get: function () { return root.getAttribute('data-placeholder') || ''; },
+            set: function (v) { root.setAttribute('data-placeholder', v); }
+        });
+        Object.defineProperty(root, 'disabled', {
+            configurable: true,
+            get: function () { return root.getAttribute('aria-disabled') === 'true'; },
+            set: function (v) {
+                root.setAttribute('contenteditable', v ? 'false' : 'true');
+                root.setAttribute('aria-disabled', String(!!v));
+            }
+        });
+    }
+
+    function composerCaretRange() {
+        const root = $('chInput');
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && root.contains(sel.anchorNode)) return sel.getRangeAt(0);
+        if (composerRange && root.contains(composerRange.startContainer)) return composerRange;
+        const r = document.createRange();
+        r.selectNodeContents(root);
+        r.collapse(false);
+        return r;
+    }
+
+    // type / paste / pick something at the caret (works for emoji codes too)
+    function insertIntoComposer(text) {
+        const root = $('chInput');
+        if (root.disabled) return;
+        root.focus();
+        const range = composerCaretRange();
+        range.deleteContents();
+        const frag = document.createDocumentFragment();
+        composerNodes(String(text)).forEach(function (n) { frag.appendChild(n); });
+        const lastNode = frag.lastChild;
+        range.insertNode(frag);
+        if (lastNode) { range.setStartAfter(lastNode); range.collapse(true); }
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        composerRange = range.cloneRange();
+    }
+
+    // typing  :name:  turns it into the emoji right away
+    function convertTypedEmoji() {
+        const root = $('chInput');
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+        const node = sel.anchorNode;
+        if (!node || node.nodeType !== 3 || !root.contains(node)) return;
+        const upto = node.nodeValue.slice(0, sel.anchorOffset);
+        const m = /:([a-z0-9_+-]{1,32}):$/i.exec(upto);
+        if (!m) return;
+        const url = CUSTOM_EMOJI[m[1].toLowerCase()];
+        if (!url) return;
+        const after = node.nodeValue.slice(sel.anchorOffset);
+        const parent = node.parentNode;
+        const img = makeComposerEmoji(m[0], url);
+        node.nodeValue = node.nodeValue.slice(0, m.index);
+        parent.insertBefore(img, node.nextSibling);
+        let tail = null;
+        if (after) { tail = document.createTextNode(after); parent.insertBefore(tail, img.nextSibling); }
+        const r = document.createRange();
+        if (tail) r.setStart(tail, 0); else r.setStartAfter(img);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+
+    function autosize() {
+        const t = $('chInput');
+        const v = t.value;
+        t.classList.toggle('is-empty', !v);                    // shows the placeholder (the box grows by itself)
+        $('chSend').disabled = !v.trim() && !S.pendingFile;
     }
 
     function paintPendingFile() {
@@ -1288,7 +1599,7 @@
     function startReply(m) {
         S.editing = null;
         S.replyTo = m;
-        showBar('Replying to ' + nameOf(senderOf(m)), previewText(m.body));
+        showBar('Replying to ' + nameOf(senderOf(m)), safePreview(m.body, m.sender_id));
         $('chInput').focus();
     }
 
@@ -1557,12 +1868,7 @@
             if (m) toggleReaction(m, e);
             return;
         }
-        const t = $('chInput');
-        const s = t.selectionStart == null ? t.value.length : t.selectionStart;
-        const en = t.selectionEnd == null ? s : t.selectionEnd;
-        t.value = t.value.slice(0, s) + e + t.value.slice(en);
-        t.focus();
-        try { t.setSelectionRange(s + e.length, s + e.length); } catch (err) { /* ignore */ }
+        insertIntoComposer(e);
         autosize();
     }
 
@@ -2059,7 +2365,7 @@
     function closeDlg(id) { const d = $(id); if (d && d.open) d.close(); }
 
     function wireDialogs() {
-        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg', 'nickDlg'].forEach(function (id) {
+        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg', 'nickDlg', 'filterDlg', 'reportDlg'].forEach(function (id) {
             const d = $(id);
             d.addEventListener('click', function (e) {
                 if (e.target === d || (e.target.closest && e.target.closest('[data-close]'))) {
@@ -2325,11 +2631,25 @@
     function closeDev() { $('chDevMenu').hidden = true; $('chDevBtn').setAttribute('aria-expanded', 'false'); }
 
     function insertCodeBlock() {
-        const t = $('chInput');
-        const a = t.selectionStart, b = t.selectionEnd;
-        t.value = t.value.slice(0, a) + '```js\n' + t.value.slice(a, b) + '\n```' + t.value.slice(b);
-        t.focus();
-        t.setSelectionRange(a + 3, a + 5);               // "js" is selected so you can retype the language
+        const root = $('chInput');
+        if (root.disabled) return;
+        root.focus();
+        const range = composerCaretRange();
+        const selected = serializeComposer(range.cloneContents());
+        range.deleteContents();
+        const frag = document.createDocumentFragment();
+        const lang = document.createTextNode('js');
+        frag.appendChild(document.createTextNode('```'));
+        frag.appendChild(lang);
+        composerNodes('\n' + selected + '\n```').forEach(function (n) { frag.appendChild(n); });
+        range.insertNode(frag);
+        const pick = document.createRange();             // "js" is selected so you can retype the language
+        pick.setStart(lang, 0);
+        pick.setEnd(lang, 2);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(pick);
+        composerRange = pick.cloneRange();
         autosize();
     }
 
@@ -2592,6 +2912,8 @@
             if (res.error) throw res.error;
             const live = S.roomMap.get(r.room_id) || r;
             live.blocked_by_me = block;
+            if (block) S.blocked.add(live.other_id); else S.blocked.delete(live.other_id);
+            if (sameRoom(live)) renderFeed({ keepScroll: true });
             if (block) S.tl.delete(live.room_id);
             toast(block ? 'Blocked ' + realName(r) : 'Unblocked ' + realName(r));
             if (sameRoom(live)) paintHeader();
@@ -2800,7 +3122,7 @@
         const sender = m.sender || S.profiles.get(m.sender_id) || {};
         const dm = room.kind === 'dm';
         const who = dm ? roomTitle(room) : nameOf(sender);
-        const preview = previewText(m.body) || 'Sent a message';
+        const preview = safePreview(m.body, m.sender_id) || 'Sent a message';
         const text = mention ? who + ' mentioned you: ' + preview : (dm ? preview : who + ': ' + preview);
 
         pushNotice({
@@ -2851,8 +3173,30 @@
 
         // composer
         const input = $('chInput');
-        input.addEventListener('input', function () { autosize(); if (input.value.trim()) sendTyping(); });
-        input.addEventListener('scroll', renderComposerPreview);
+        input.addEventListener('input', function (e) {
+            if (e.inputType === 'insertText' && e.data === ':' && !e.isComposing) convertTypedEmoji();
+            autosize();
+            if (input.value.trim()) sendTyping();
+        });
+        input.addEventListener('beforeinput', function (e) {            // 2000 character limit, like the old maxlength
+            if (e.inputType && e.inputType.indexOf('insert') === 0 && e.inputType !== 'insertCompositionText') {
+                const sel = window.getSelection();
+                if (sel && sel.isCollapsed && serializeComposer(input).length >= 2000) e.preventDefault();
+            }
+        });
+        input.addEventListener('paste', function (e) {                  // always paste as plain text (:emoji: codes still become images)
+            e.preventDefault();
+            const text = ((e.clipboardData || window.clipboardData).getData('text/plain') || '').replace(/\r\n?/g, '\n');
+            if (!text) return;
+            insertIntoComposer(text.slice(0, Math.max(0, 2000 - serializeComposer(input).length)));
+            autosize();
+            sendTyping();
+        });
+        input.addEventListener('drop', function (e) { e.preventDefault(); });
+        document.addEventListener('selectionchange', function () {      // remember the caret so the emoji picker inserts in the right place
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount && input.contains(sel.anchorNode)) composerRange = sel.getRangeAt(0).cloneRange();
+        });
         input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -2865,6 +3209,9 @@
             }
         });
         $('chSend').addEventListener('click', sendMessage);
+        $('chFilterBtn').addEventListener('click', openFilterDlg);
+        $('filterToggle').addEventListener('change', function (e) { setFilter(e.target.checked); });
+        $('reportForm').addEventListener('submit', submitReport);
         $('chAttachBtn').addEventListener('click', function () { $('chFileInput').click(); });
         $('chFileInput').addEventListener('change', function (e) { chooseFile(e.target.files && e.target.files[0]); });
         $('chFileClear').addEventListener('click', function () { S.pendingFile = null; paintPendingFile(); });
@@ -2957,6 +3304,8 @@
     async function boot() {
         initTheme();
         initSound();
+        installComposer();
+        initFilter();
         fitViewport();
         wire();
         gate('loading');
@@ -2971,7 +3320,7 @@
         try {
             S.profile = await ensureProfile(S.me);
             S.profiles.set(S.profile.id, S.profile);
-            await Promise.all([loadRooms(), loadInvites(), loadInbox()]);
+            await Promise.all([loadRooms(), loadInvites(), loadInbox(), loadBlocks()]);
         } catch (err) {
             console.error('Chats failed to load:', err);
             if (isSetupMissing(err)) gate('sql'); else gate('error', friendly(err));

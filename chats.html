@@ -81,6 +81,7 @@
                 <div class="ch-foot-btns">
                     <button type="button" class="ch-iconbtn" id="chNotifBtn" aria-pressed="false" aria-label="Desktop notifications" title="Desktop notifications"></button>
                     <button type="button" class="ch-iconbtn" id="chSoundBtn" aria-pressed="true" aria-label="Message sound" title="Message sound"></button>
+                    <button type="button" class="ch-iconbtn" id="chFilterBtn" aria-pressed="true" aria-label="Sensitive message filter" title="Sensitive message filter"></button>
                     <button type="button" class="ch-iconbtn" id="chThemeBtn" aria-label="Switch light or dark mode" title="Light / dark"></button>
                 </div>
             </div>
@@ -151,9 +152,7 @@
                         <button type="button" class="ch-iconbtn" id="chAttachBtn" aria-label="Attach image or file" title="Attach image or file"></button>
                         <button type="button" class="ch-iconbtn" id="chEmojiBtn" aria-label="Emoji" aria-expanded="false" title="Emoji"></button>
                         <button type="button" class="ch-iconbtn" id="chDevBtn" aria-label="Developer tools" aria-haspopup="menu" aria-expanded="false" title="Developer tools"></button>
-                        <label class="ch-sr" for="chInput">Message</label>
-                        <textarea class="ch-input" id="chInput" rows="1" maxlength="2000" placeholder="Message..." enterkeyhint="send" autocomplete="off"></textarea>
-                        <div class="ch-input-preview" id="chInputPreview" aria-hidden="true" hidden></div>
+                        <div class="ch-input is-empty" id="chInput" role="textbox" aria-multiline="true" aria-label="Message" contenteditable="true" spellcheck="true" data-placeholder="Message..." enterkeyhint="send" tabindex="0"></div>
                         <button type="button" class="ch-send" id="chSend" aria-label="Send message" disabled></button>
                     </div>
                     <input class="ch-sr" type="file" id="chFileInput" aria-label="Choose an image or file">
@@ -357,6 +356,52 @@
             <footer class="ch-dlg-foot">
                 <button type="button" class="ch-btn ch-btn--ghost" data-close>Cancel</button>
                 <button type="submit" class="ch-btn" id="bugSave"><span class="ch-btn-label">Send report</span><span class="ch-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- sensitive message filter: what it is + the on/off switch -->
+    <dialog class="ch-dlg ch-dlg--small" id="filterDlg" aria-labelledby="filterTitle">
+        <header class="ch-dlg-head"><h2 id="filterTitle">Why am I seeing this?</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+        <div class="ch-dlg-body">
+            <p class="ch-help">SPECSOFT Chats covers messages that look like swearing or harsh language with a warning, so you choose whether to read them.</p>
+            <ul class="ch-help-list">
+                <li>It only happens on <strong>your</strong> screen. The sender is not told, and their message is not changed.</li>
+                <li>It works from a word list, so it can miss things or flag a harmless message. <strong>Show message</strong> always works.</li>
+                <li>You can block or report the sender straight from the warning.</li>
+            </ul>
+            <label class="ch-check">
+                <input type="checkbox" id="filterToggle">
+                <span class="ch-box" aria-hidden="true"></span>
+                <span>Hide sensitive messages for me</span>
+            </label>
+        </div>
+        <footer class="ch-dlg-foot">
+            <button type="button" class="ch-btn" data-close>Done</button>
+        </footer>
+    </dialog>
+
+    <!-- report a chat message -->
+    <dialog class="ch-dlg ch-dlg--small" id="reportDlg" aria-labelledby="reportTitle">
+        <form id="reportForm" novalidate>
+            <header class="ch-dlg-head"><h2 id="reportTitle">Report message</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+            <div class="ch-dlg-body">
+                <div class="ch-msgbox" id="reportMsg" role="alert"></div>
+                <label class="ch-label" for="reportReason">REASON</label>
+                <select class="ch-field" id="reportReason">
+                    <option value="harassment">Harassment or bullying</option>
+                    <option value="inappropriate">Inappropriate or harmful</option>
+                    <option value="spam">Spam</option>
+                    <option value="impersonation">Pretending to be someone</option>
+                    <option value="other">Something else</option>
+                </select>
+                <label class="ch-label" for="reportNote">NOTE (OPTIONAL)</label>
+                <textarea class="ch-field" id="reportNote" rows="3" maxlength="300" placeholder="Anything the moderators should know"></textarea>
+                <p class="ch-help">Moderators will review this message.</p>
+            </div>
+            <footer class="ch-dlg-foot">
+                <button type="button" class="ch-btn ch-btn--ghost" data-close>Cancel</button>
+                <button type="submit" class="ch-btn" id="reportSave"><span class="ch-btn-label">Send report</span><span class="ch-spin" aria-hidden="true"></span></button>
             </footer>
         </form>
     </dialog>

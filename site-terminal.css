@@ -1,0 +1,137 @@
+/* ==========================================================================
+   SPECSOFT® site-terminal.css  -  the interactive command terminal
+   Auto-loaded on every page by main.js, alongside site-terminal.js.
+   ========================================================================== */
+
+.st-trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    margin-right: 6px;
+    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+    border: 1px solid var(--border-hover);
+    border-radius: 10px;
+    color: var(--text-primary);
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+.st-trigger:hover { background: color-mix(in srgb, var(--text-primary) 11%, transparent); }
+.st-trigger svg { width: 16px; height: 16px; }
+
+.st-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10100;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.st-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.st-panel {
+    position: fixed;
+    left: 50%;
+    bottom: -100%;
+    transform: translateX(-50%);
+    width: min(640px, calc(100vw - 32px));
+    max-height: min(60vh, 460px);
+    z-index: 10101;
+    display: flex;
+    flex-direction: column;
+    background: var(--code-bg, var(--bg-card));
+    border: 1px solid var(--border-hover);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
+    transition: bottom 0.3s cubic-bezier(.16,.8,.3,1);
+    font-family: var(--font-mono);
+    overflow: hidden;
+}
+.st-backdrop.is-open .st-panel { bottom: 0; }
+
+.st-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--code-header-bg, var(--bg-card-hover));
+    border-bottom: 1px solid var(--border-subtle);
+    flex: 0 0 auto;
+}
+.st-head-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+.st-head-dots { display: flex; gap: 6px; }
+.st-head-dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--border-hover); }
+.st-close {
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+}
+.st-close:hover { color: var(--text-primary); }
+
+.st-log {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--code-text, var(--text-secondary));
+}
+.st-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.st-line.st-cmd { color: var(--text-primary); }
+.st-line.st-cmd::before { content: '$ '; color: var(--text-tertiary); }
+.st-line.st-err { color: #e06c75; }
+.st-line.st-ok { color: #98c379; }
+
+.st-inputrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border-subtle);
+    flex: 0 0 auto;
+}
+.st-prompt { color: var(--text-tertiary); font-size: 13px; white-space: nowrap; }
+.st-input {
+    flex: 1;
+    background: none;
+    border: 0;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+.st-input::placeholder { color: var(--text-tertiary); }
+
+/* matrix rain easter egg */
+#stMatrix {
+    position: fixed;
+    inset: 0;
+    z-index: 10200;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+#stMatrix.is-on { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    .st-backdrop, .st-panel { transition: none; }
+    #stMatrix { display: none; }
+}

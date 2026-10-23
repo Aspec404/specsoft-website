@@ -144,6 +144,46 @@
 }
 
 /* -------------------------------------------------------------------------
+   page transitions (site-transitions.js) — a fade on the way OUT (safe to
+   hide content you're about to leave) and a one-shot scanline sweep on
+   arrival that plays ON TOP of the already-rendered page, so there's never
+   a reason to hide real content while this script loads
+   ------------------------------------------------------------------------- */
+.pt-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    background: var(--bg-base);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+}
+.pt-overlay.is-leaving { opacity: 1; }
+
+.pt-arrive {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: -4px;
+    height: 4px;
+    z-index: 20001;
+    background: linear-gradient(90deg, transparent, var(--text-primary), transparent);
+    box-shadow: 0 0 22px var(--accent-glow);
+    pointer-events: none;
+}
+.pt-arrive.pt-run {
+    animation: ptArriveSweep 0.7s cubic-bezier(.4,0,.2,1) forwards;
+}
+@keyframes ptArriveSweep {
+    0%   { top: -4px; opacity: 1; }
+    100% { top: 100%; opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pt-overlay, .pt-arrive { display: none; }
+}
+
+/* -------------------------------------------------------------------------
    data-pulse motion graphic — a dot traveling along a dashed section line
    ------------------------------------------------------------------------- */
 .section-line .line { position: relative; }
