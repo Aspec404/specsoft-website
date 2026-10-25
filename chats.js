@@ -399,7 +399,8 @@
         userCh: null, presCh: null, outCh: new Map(),
         menu: null, lastClosed: null, lpFired: false, nickRoom: null,
         desk: false, banners: new Map(),
-        filterOn: true, revealed: new Set(), blocked: new Set(), pinIds: new Set()
+        filterOn: true, revealed: new Set(), blocked: new Set(), pinIds: new Set(),
+        imgOn: true, imgStrict: false
     };
 
     const ERR = {
@@ -1033,6 +1034,7 @@
             card.classList.remove('ch-attachment--loading');
             card.textContent = '';
             card.appendChild(link);
+            if (String(m.attachment_type || '').indexOf('image/') === 0) guardImage(card, m.attachment_path, url, !!(S.me && m.sender_id === S.me.id), false);
         }).catch(function () {
             if (card.isConnected) card.textContent = 'Attachment unavailable';
         });
@@ -1195,6 +1197,7 @@
 
     function initFilter() {
         try { S.filterOn = localStorage.getItem('specsoft.chat.filter') !== 'off'; } catch (e) { /* ignore */ }
+        loadImgPrefs();
         paintFilterBtn();
     }
 
@@ -1208,6 +1211,10 @@
 
     function openFilterDlg() {
         $('filterToggle').checked = S.filterOn;
+        $('filterImgToggle').checked = S.imgOn;
+        $('filterImgStrict').checked = S.imgStrict;
+        $('filterImgStrict').disabled = !S.imgOn;
+        paintScannerStatus();
         openDlg('filterDlg');
     }
 
@@ -1574,6 +1581,7 @@
         const t = $('chInput');
         const v = t.value;
         t.classList.toggle('is-empty', !v);                    // shows the placeholder (the box grows by itself)
+        t.parentNode.classList.toggle('is-typing', !!v);       // on phones the attach and code buttons tuck away while you type
         $('chSend').disabled = !v.trim() && !S.pendingFile;
     }
 
@@ -2120,11 +2128,14 @@
         const wrap = el('div', { class: SET.kind === 'images' ? 'ch-media-grid' : 'ch-media-files' });
         items.forEach(function (x) {
             if (SET.kind === 'images') {
-                const a = el('a', { class: 'ch-media-tile', target: '_blank', rel: 'noopener noreferrer', title: (x.attachment_name || 'Image') + ' · ' + memberName(x.sender_id) });
-                wrap.appendChild(a);
+                const tile = el('div', { class: 'ch-media-tile' });
+                const a = el('a', { target: '_blank', rel: 'noopener noreferrer', title: (x.attachment_name || 'Image') + ' · ' + memberName(x.sender_id) });
+                tile.appendChild(a);
+                wrap.appendChild(tile);
                 signedFileUrl(x.attachment_path).then(function (url) {
                     a.href = url;
                     a.appendChild(el('img', { src: url, alt: x.attachment_name || 'Shared image', loading: 'lazy' }));
+                    guardImage(tile, x.attachment_path, url, !!(S.me && x.sender_id === S.me.id), true);
                 }).catch(function () { a.textContent = '?'; });
             } else {
                 const row = el('a', { class: 'ch-media-file', target: '_blank', rel: 'noopener noreferrer', download: x.attachment_name || 'file' },
@@ -2162,6 +2173,206 @@
         $('setKindImages').addEventListener('click', function () { SET.kind = 'images'; paintMedia(); });
         $('setKindFiles').addEventListener('click', function () { SET.kind = 'files'; paintMedia(); });
         $('setMore').addEventListener('click', function () { loadMedia(false); });
+    }
+
+    /* ----------------------------------------------------------------------
+       IMAGE FILTER (NSFWJS)
+       Every viewer's own browser checks a shared image BEFORE it is shown and
+       keeps it blurred if it looks explicit. Nothing is uploaded for the check,
+       and the uploader cannot switch it off. It cannot detect graphic violence.
+       ---------------------------------------------------------------------- */
+    const NSFW_CFG = {
+        // Files are tried in order. Put your own copies in an "nsfw" folder next to chats.html
+        // (the NSFWJS authors ask people to host the files themselves) and they are used first.
+        tf:  ['nsfw/tf.min.js', 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'],
+        lib: ['nsfw/nsfwjs.min.js', 'https://cdn.jsdelivr.net/npm/nsfwjs@4.4.0/dist/browser/nsfwjs.min.js', 'https://unpkg.com/nsfwjs@4.4.0'],
+        model: '',          // e.g. 'nsfw/model/' when you host the model files too. '' = the model that comes inside the library
+        explicit: 0.55,     // Porn + Hentai at or above this = explicit
+        suggestive: 0.75    // Sexy at or above this = suggestive (only blurred when "also blur suggestive" is on)
+    };
+
+    const NSFW = { state: 'idle', model: null, promise: null, scanned: 0, unreadable: 0 };
+    const nsfwCache = new Map();          // attachment path -> { x: porn+hentai, s: sexy }
+    let nsfwQueue = Promise.resolve();
+    let nsfwSaveTimer = null;
+
+    function loadScript(url) {
+        return new Promise(function (resolve, reject) {
+            const s = document.createElement('script');
+            s.src = url;
+            s.async = true;
+            if (/^https?:/i.test(url)) { s.crossOrigin = 'anonymous'; s.referrerPolicy = 'no-referrer'; }
+            s.onload = function () { resolve(); };
+            s.onerror = function () { s.remove(); reject(new Error('could not load ' + url)); };
+            document.head.appendChild(s);
+        });
+    }
+
+    async function loadFirst(urls, ready) {
+        let last = null;
+        for (let i = 0; i < urls.length; i++) {
+            try { await loadScript(urls[i]); if (ready()) return; } catch (e) { last = e; }
+        }
+        throw last || new Error('script did not start');
+    }
+
+    // loads TensorFlow.js + NSFWJS + the model once, the first time an image needs checking
+    function ensureNsfw() {
+        if (NSFW.promise) return NSFW.promise;
+        NSFW.state = 'loading';
+        paintScannerStatus();
+        NSFW.promise = (async function () {
+            try {
+                if (!window.tf) await loadFirst(NSFW_CFG.tf, function () { return !!window.tf; });
+                if (!window.nsfwjs) await loadFirst(NSFW_CFG.lib, function () { return !!window.nsfwjs; });
+                NSFW.model = NSFW_CFG.model ? await window.nsfwjs.load(NSFW_CFG.model) : await window.nsfwjs.load();
+                NSFW.state = 'ready';
+            } catch (e) {
+                NSFW.model = null;
+                NSFW.state = 'failed';
+                console.warn('[SPECSOFT chats] the image scanner could not start, images will show normally:', e);
+            }
+            paintScannerStatus();
+            return NSFW.model;
+        })();
+        return NSFW.promise;
+    }
+
+    function loadImageForScan(url) {
+        return new Promise(function (resolve, reject) {
+            const im = new Image();
+            im.crossOrigin = 'anonymous';
+            im.onload = function () { resolve(im); };
+            im.onerror = function () { reject(new Error('image could not be read')); };
+            im.src = url;
+        });
+    }
+
+    function nsfwScores(preds) {
+        const p = {};
+        (preds || []).forEach(function (x) { p[x.className] = x.probability; });
+        return { x: Math.round(((p.Porn || 0) + (p.Hentai || 0)) * 1000) / 1000, s: Math.round((p.Sexy || 0) * 1000) / 1000 };
+    }
+
+    // 'explicit' | 'suggestive' | 'safe' | 'unknown'
+    function nsfwVerdict(entry) {
+        if (!entry) return 'unknown';
+        if (entry.x >= NSFW_CFG.explicit) return 'explicit';
+        if (entry.s >= NSFW_CFG.suggestive) return 'suggestive';
+        return 'safe';
+    }
+
+    function shouldBlur(verdict) {
+        if (!S.imgOn) return false;
+        return verdict === 'explicit' || (verdict === 'suggestive' && S.imgStrict);
+    }
+
+    function saveNsfwCache() {
+        clearTimeout(nsfwSaveTimer);
+        nsfwSaveTimer = setTimeout(function () {
+            try {
+                const o = {};
+                Array.from(nsfwCache.entries()).slice(-300).forEach(function (kv) { o[kv[0]] = kv[1]; });
+                localStorage.setItem('specsoft.nsfw.cache', JSON.stringify(o));
+            } catch (e) { /* storage is optional */ }
+        }, 800);
+    }
+
+    // one image at a time keeps phones responsive
+    function scanImage(path, url) {
+        if (nsfwCache.has(path)) return Promise.resolve(nsfwCache.get(path));
+        const job = nsfwQueue.then(async function () {
+            if (nsfwCache.has(path)) return nsfwCache.get(path);
+            const model = await ensureNsfw();
+            if (!model) return null;
+            try {
+                const img = await loadImageForScan(url);
+                const entry = nsfwScores(await model.classify(img));
+                nsfwCache.set(path, entry);
+                NSFW.scanned++;
+                saveNsfwCache();
+                paintScannerStatus();
+                return entry;
+            } catch (e) {
+                NSFW.unreadable++;
+                paintScannerStatus();
+                return null;
+            }
+        });
+        nsfwQueue = job.catch(function () { /* keep the queue moving */ });
+        return job;
+    }
+
+    // keeps one image blurred under a veil until it has been checked (and while it is flagged)
+    function guardImage(card, path, url, mine, compact) {
+        if (mine || !S.imgOn || !card) return;
+        const key = 'img:' + path;
+        card.classList.add('ch-imgguard');
+        if (S.revealed.has(key)) return;
+        card.classList.add('is-scanning');
+        const veil = el('div', { class: 'ch-imgveil' + (compact ? ' ch-imgveil--compact' : ''), role: 'group', 'aria-label': 'Image hidden while it is checked' },
+            el('span', { class: 'ch-imgveil-text', text: 'Checking image…' }));
+        card.appendChild(veil);
+
+        scanImage(path, url).then(function (entry) {
+            if (!veil.isConnected) return;
+            const verdict = nsfwVerdict(entry);
+            if (!shouldBlur(verdict)) {                              // clean, or the scanner could not run: show it
+                card.classList.remove('is-scanning', 'is-blurred');
+                veil.remove();
+                return;
+            }
+            card.classList.remove('is-scanning');
+            card.classList.add('is-blurred');
+            veil.textContent = '';
+            veil.setAttribute('aria-label', 'Sensitive image hidden');
+            veil.appendChild(icon('info'));
+            veil.appendChild(el('span', { class: 'ch-imgveil-text', text: verdict === 'explicit' ? 'This image may contain nudity or explicit content.' : 'This image may be sexually suggestive.' }));
+            veil.appendChild(el('button', {
+                type: 'button', class: 'ch-imgveil-btn',
+                onclick: function (e) {
+                    e.preventDefault(); e.stopPropagation();
+                    S.revealed.add(key);
+                    card.classList.remove('is-blurred');
+                    veil.remove();
+                }
+            }, compact ? 'Show' : 'Show image'));
+            if (!compact) veil.appendChild(el('button', { type: 'button', class: 'ch-imgveil-why', onclick: function (e) { e.preventDefault(); e.stopPropagation(); openFilterDlg(); } }, 'Why am I seeing this? Learn more.'));
+        });
+    }
+
+    // ----- the viewer's choices -----
+    function loadImgPrefs() {
+        try {
+            S.imgOn = localStorage.getItem('specsoft.chat.img') !== 'off';
+            S.imgStrict = localStorage.getItem('specsoft.chat.imgstrict') === 'on';
+            const c = JSON.parse(localStorage.getItem('specsoft.nsfw.cache') || '{}');
+            Object.keys(c).forEach(function (k) { if (c[k] && typeof c[k].x === 'number') nsfwCache.set(k, c[k]); });
+        } catch (e) { /* ignore */ }
+    }
+
+    function setImgPrefs(on, strict) {
+        S.imgOn = !!on;
+        S.imgStrict = !!strict;
+        try {
+            localStorage.setItem('specsoft.chat.img', S.imgOn ? 'on' : 'off');
+            localStorage.setItem('specsoft.chat.imgstrict', S.imgStrict ? 'on' : 'off');
+        } catch (e) { /* ignore */ }
+        if (S.current) renderFeed({ keepScroll: true });
+        if ($('settingsDlg').open && SET.tab === 'media') paintMedia();
+        paintScannerStatus();
+    }
+
+    function paintScannerStatus() {
+        const box = $('filterImgStatus');
+        if (!box) return;
+        const t = {
+            idle: 'The image checker starts the first time someone shares an image.',
+            loading: 'Image checker: loading…',
+            ready: 'Image checker: ready.' + (NSFW.unreadable && !NSFW.scanned ? ' It could not read the images it tried.' : ''),
+            failed: 'The image checker could not load, so images show normally for now.'
+        };
+        box.textContent = t[NSFW.state] || '';
     }
 
     /* ----------------------------------------------------------------------
@@ -3601,6 +3812,8 @@
         $('chSend').addEventListener('click', sendMessage);
         $('chFilterBtn').addEventListener('click', openFilterDlg);
         $('filterToggle').addEventListener('change', function (e) { setFilter(e.target.checked); });
+        $('filterImgToggle').addEventListener('change', function (e) { $('filterImgStrict').disabled = !e.target.checked; setImgPrefs(e.target.checked, $('filterImgStrict').checked); });
+        $('filterImgStrict').addEventListener('change', function (e) { setImgPrefs($('filterImgToggle').checked, e.target.checked); });
         $('reportForm').addEventListener('submit', submitReport);
         wireSettings();
         $('chAttachBtn').addEventListener('click', function () { $('chFileInput').click(); });

@@ -370,12 +370,24 @@
                 <li>It only happens on <strong>your</strong> screen. The sender is not told, and their message is not changed.</li>
                 <li>It works from a word list, so it can miss things or flag a harmless message. <strong>Show message</strong> always works.</li>
                 <li>You can block or report the sender straight from the warning.</li>
+                <li><strong>Images</strong> are checked on your own device by a small AI model, and nothing is uploaded for the check. It cannot spot graphic violence, so report anything harmful you see.</li>
             </ul>
             <label class="ch-check">
                 <input type="checkbox" id="filterToggle">
                 <span class="ch-box" aria-hidden="true"></span>
                 <span>Hide sensitive messages for me</span>
             </label>
+            <label class="ch-check">
+                <input type="checkbox" id="filterImgToggle">
+                <span class="ch-box" aria-hidden="true"></span>
+                <span>Blur sensitive images</span>
+            </label>
+            <label class="ch-check">
+                <input type="checkbox" id="filterImgStrict">
+                <span class="ch-box" aria-hidden="true"></span>
+                <span>Also blur suggestive images</span>
+            </label>
+            <p class="ch-help" id="filterImgStatus"></p>
         </div>
         <footer class="ch-dlg-foot">
             <button type="button" class="ch-btn" data-close>Done</button>
