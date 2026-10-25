@@ -1253,6 +1253,7 @@
         if (!room) { toast('That chat was not found.'); return; }
 
         leaveRoomChannel();
+        closeMention();
         S.current = room;
         S.pendingFile = null;
         paintPendingFile();
@@ -1482,6 +1483,7 @@
         composerNodes(text).forEach(function (n) { root.appendChild(n); });
         root.classList.toggle('is-empty', !text);
         composerRange = null;
+        if (typeof closeMention === 'function') closeMention();
     }
 
     // keeps  $('chInput').value / .placeholder / .disabled working like on a textarea
@@ -1781,6 +1783,129 @@
         if (res.error) return;
         m.reactions = res.data || [];
         rebuildNode(m);
+    }
+
+    /* ----------------------------------------------------------------------
+       MENTIONS: type @ and pick a member of this group / community
+       ---------------------------------------------------------------------- */
+    const MEN = { open: false, items: [], index: 0, token: 0, node: null };
+
+    async function ensureMentionPool() {
+        if (!S.current || S.current.kind === 'dm') return [];
+        const fresh = S.membersRoom === S.current.room_id && S.members.length && Date.now() - (S.membersAt || 0) < 60000;
+        if (!fresh) { try { await loadMembers(); } catch (e) { /* use what we have */ } }
+        return S.membersRoom === (S.current && S.current.room_id) ? S.members : [];
+    }
+
+    // is the caret right after "@something"?
+    function mentionContext() {
+        const root = $('chInput');
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+        const node = sel.anchorNode;
+        if (!node || node.nodeType !== 3 || !root.contains(node)) return null;
+        const upto = node.nodeValue.slice(0, sel.anchorOffset);
+        const m = /(^|[\s(])@([A-Za-z0-9_]{0,20})$/.exec(upto);
+        if (!m) return null;
+        return { node: node, start: m.index + m[1].length, end: sel.anchorOffset, query: m[2] };
+    }
+
+    function closeMention() {
+        MEN.open = false;
+        MEN.token++;
+        const pop = $('chMentionPop');
+        if (pop) pop.hidden = true;
+        $('chInput').removeAttribute('aria-activedescendant');
+    }
+
+    function paintMention() {
+        let pop = $('chMentionPop');
+        if (!pop) {
+            pop = el('div', { class: 'ch-mention-pop', id: 'chMentionPop', role: 'listbox', 'aria-label': 'Members to mention', hidden: true });
+            pop.addEventListener('mousedown', function (e) { e.preventDefault(); });      // keep the caret in the message box
+            document.querySelector('.ch-composer').appendChild(pop);
+        }
+        pop.textContent = '';
+        pop.appendChild(el('div', { class: 'ch-mention-head', text: 'MEMBERS' }));
+        MEN.items.forEach(function (it, i) {
+            const p = it.profile;
+            pop.appendChild(el('button', {
+                type: 'button', id: 'chMen' + i, role: 'option', 'aria-selected': String(i === MEN.index),
+                class: 'ch-mention-item' + (i === MEN.index ? ' is-active' : ''),
+                onclick: function () { pickMention(it); }
+            },
+                avatar(p, 28),
+                el('span', { class: 'ch-mention-name' }, el('strong', { text: p.display_name || p.username }), el('small', { text: '@' + p.username })),
+                it.role === 'owner' || it.role === 'admin' ? el('span', { class: 'ch-mention-role', text: it.role.toUpperCase() }) : null,
+                S.onlineAll.has(it.user_id) ? el('i', { class: 'ch-mention-dot', title: 'Online' }) : null));
+        });
+        pop.hidden = false;
+        MEN.open = true;
+        $('chInput').setAttribute('aria-activedescendant', 'chMen' + MEN.index);
+        const active = $('chMen' + MEN.index);
+        if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+    }
+
+    async function updateMention() {
+        if (!S.current || S.current.kind === 'dm' || !mentionContext()) { closeMention(); return; }
+        const token = ++MEN.token;
+        const pool = await ensureMentionPool();
+        if (token !== MEN.token) return;                    // typed on while the list was loading
+        const ctx = mentionContext();
+        if (!ctx) { closeMention(); return; }
+        const q = ctx.query.toLowerCase();
+        const items = pool.filter(function (mm) {
+            const p = mm.profile;
+            return p && p.username && mm.user_id !== S.me.id &&
+                (!q || p.username.toLowerCase().indexOf(q) >= 0 || String(p.display_name || '').toLowerCase().indexOf(q) >= 0);
+        }).map(function (mm) {
+            const p = mm.profile;
+            const starts = p.username.toLowerCase().indexOf(q) === 0 || String(p.display_name || '').toLowerCase().indexOf(q) === 0;
+            return { user_id: mm.user_id, role: mm.role, profile: p, rank: (starts ? 0 : 4) + (S.onlineAll.has(mm.user_id) ? 0 : 2) };
+        }).sort(function (a, b) {
+            return a.rank - b.rank || a.profile.username.localeCompare(b.profile.username);
+        }).slice(0, 6);
+        if (!items.length) { closeMention(); return; }
+        MEN.items = items;
+        MEN.index = 0;
+        paintMention();
+    }
+
+    function pickMention(it) {
+        const ctx = mentionContext();
+        if (!ctx) { closeMention(); return; }
+        const text = '@' + it.profile.username + ' ';
+        const v = ctx.node.nodeValue;
+        ctx.node.nodeValue = v.slice(0, ctx.start) + text + v.slice(ctx.end);
+        const r = document.createRange();
+        r.setStart(ctx.node, ctx.start + text.length);
+        r.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+        composerRange = r.cloneRange();
+        closeMention();
+        autosize();
+        $('chInput').focus();
+    }
+
+    // arrow keys / Enter / Tab / Escape while the list is open. returns true when it used the key
+    function handleMentionKey(e) {
+        if (!MEN.open) return false;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            MEN.index = (MEN.index + (e.key === 'ArrowDown' ? 1 : -1) + MEN.items.length) % MEN.items.length;
+            paintMention();
+            return true;
+        }
+        if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+            if (e.isComposing) return false;
+            e.preventDefault();
+            pickMention(MEN.items[MEN.index]);
+            return true;
+        }
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMention(); return true; }
+        return false;
     }
 
     /* ----------------------------------------------------------------------
@@ -2225,9 +2350,13 @@
     function closeMembers() { $('chMembers').hidden = true; }
 
     async function loadMembers() {
-        const res = await sb.from('chat_members').select('user_id,role,joined_at,profile:profiles(id,username,display_name,avatar_url)').eq('room_id', S.current.room_id).order('joined_at', { ascending: true });
+        const rid = S.current.room_id;
+        const res = await sb.from('chat_members').select('user_id,role,joined_at,profile:profiles(id,username,display_name,avatar_url)').eq('room_id', rid).order('joined_at', { ascending: true });
         if (res.error) throw res.error;
+        if (!S.current || S.current.room_id !== rid) return;      // switched chats while loading
         S.members = res.data || [];
+        S.membersRoom = rid;
+        S.membersAt = Date.now();
     }
 
     async function openMembers() {
@@ -3176,8 +3305,12 @@
         input.addEventListener('input', function (e) {
             if (e.inputType === 'insertText' && e.data === ':' && !e.isComposing) convertTypedEmoji();
             autosize();
+            updateMention();
             if (input.value.trim()) sendTyping();
         });
+        input.addEventListener('click', updateMention);
+        input.addEventListener('keyup', function (e) { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') updateMention(); });
+        input.addEventListener('blur', function () { setTimeout(closeMention, 150); });
         input.addEventListener('beforeinput', function (e) {            // 2000 character limit, like the old maxlength
             if (e.inputType && e.inputType.indexOf('insert') === 0 && e.inputType !== 'insertCompositionText') {
                 const sel = window.getSelection();
@@ -3198,6 +3331,7 @@
             if (sel && sel.rangeCount && input.contains(sel.anchorNode)) composerRange = sel.getRangeAt(0).cloneRange();
         });
         input.addEventListener('keydown', function (e) {
+            if (handleMentionKey(e)) return;
             if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
                 if (!isTouch) { e.preventDefault(); sendMessage(); }
