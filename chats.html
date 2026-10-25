@@ -130,6 +130,7 @@
                         <span class="ch-online" id="chOnline" hidden><i></i><span id="chOnlineN">0</span> online</span>
                         <button type="button" class="ch-iconbtn" id="chInviteBtn" aria-label="Invite someone" title="Invite" hidden></button>
                         <button type="button" class="ch-iconbtn" id="chMembersBtn" aria-label="Show members" title="Members"></button>
+                        <button type="button" class="ch-iconbtn" id="chSettingsBtn" aria-label="Chat settings" title="Settings"></button>
                     </div>
                 </header>
 
@@ -404,6 +405,73 @@
                 <button type="submit" class="ch-btn" id="reportSave"><span class="ch-btn-label">Send report</span><span class="ch-spin" aria-hidden="true"></span></button>
             </footer>
         </form>
+    </dialog>
+
+    <!-- chat settings: general, pinned messages, media and files -->
+    <dialog class="ch-dlg ch-dlg--settings" id="settingsDlg" aria-labelledby="setTitle">
+        <header class="ch-dlg-head"><h2 id="setTitle">Chat settings</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+        <div class="ch-set">
+            <nav class="ch-set-nav" role="tablist" aria-label="Settings sections">
+                <button type="button" role="tab" class="ch-set-tab" id="setTabGeneral" data-tab="general" aria-selected="true">General</button>
+                <button type="button" role="tab" class="ch-set-tab" id="setTabPinned" data-tab="pinned" aria-selected="false">Pinned messages</button>
+                <button type="button" role="tab" class="ch-set-tab" id="setTabMedia" data-tab="media" aria-selected="false">Media &amp; files</button>
+            </nav>
+            <div class="ch-set-body">
+                <section id="setPanelGeneral" role="tabpanel" aria-labelledby="setTabGeneral">
+                    <form id="setForm" novalidate>
+                        <div class="ch-msgbox" id="setMsg" role="alert"></div>
+                        <div class="ch-set-row">
+                            <div><label class="ch-label" for="setIcon">ICON</label><input class="ch-field" id="setIcon" maxlength="8" autocomplete="off"></div>
+                            <div><label class="ch-label" for="setName">NAME</label><input class="ch-field" id="setName" maxlength="40" autocomplete="off"></div>
+                        </div>
+                        <label class="ch-label" for="setDesc">DESCRIPTION</label>
+                        <textarea class="ch-field" id="setDesc" rows="3" maxlength="200"></textarea>
+                        <p class="ch-set-count"><span id="setDescN">0</span>/200</p>
+                        <label class="ch-check">
+                            <input type="checkbox" id="setPublic">
+                            <span class="ch-box" aria-hidden="true"></span>
+                            <span id="setPublicLabel">Public</span>
+                        </label>
+                        <p class="ch-help" id="setNote"></p>
+                        <button type="submit" class="ch-btn" id="setSave"><span class="ch-btn-label">Save changes</span><span class="ch-spin" aria-hidden="true"></span></button>
+                    </form>
+                    <div class="ch-set-group" id="setInviteGroup">
+                        <span class="ch-label">INVITE CODE</span>
+                        <div class="ch-set-code">
+                            <code id="setCode"></code>
+                            <button type="button" class="ch-btn ch-btn--ghost" id="setCopy">Copy</button>
+                            <button type="button" class="ch-btn ch-btn--ghost" id="setRegen">New code</button>
+                        </div>
+                    </div>
+                    <div class="ch-set-group">
+                        <span class="ch-label">YOUR SETTINGS</span>
+                        <label class="ch-check">
+                            <input type="checkbox" id="setMute">
+                            <span class="ch-box" aria-hidden="true"></span>
+                            <span>Mute notifications for this chat</span>
+                        </label>
+                    </div>
+                    <div class="ch-set-group">
+                        <span class="ch-label">DANGER ZONE</span>
+                        <div class="ch-set-actions">
+                            <button type="button" class="ch-btn ch-btn--ghost ch-btn--danger" id="setLeave">Leave chat</button>
+                            <button type="button" class="ch-btn ch-btn--ghost ch-btn--danger" id="setDelete">Delete chat</button>
+                        </div>
+                    </div>
+                </section>
+                <section id="setPanelPinned" role="tabpanel" aria-labelledby="setTabPinned" hidden>
+                    <div id="setPinned"></div>
+                </section>
+                <section id="setPanelMedia" role="tabpanel" aria-labelledby="setTabMedia" hidden>
+                    <div class="ch-set-seg">
+                        <button type="button" id="setKindImages" class="is-active">Images</button>
+                        <button type="button" id="setKindFiles">Files</button>
+                    </div>
+                    <div id="setMedia"></div>
+                    <button type="button" class="ch-btn ch-btn--ghost" id="setMore" hidden>Load more</button>
+                </section>
+            </div>
+        </div>
     </dialog>
 
     <!-- shared code snippet -->

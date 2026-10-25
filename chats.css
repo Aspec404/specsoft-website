@@ -1993,3 +1993,47 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 .ch-mention-name small { color: var(--text-secondary); font-size: 12px; }
 .ch-mention-role { padding: 2px 6px; border: 1px solid var(--border-hover); border-radius: 6px; color: var(--text-secondary); font-size: 10px; letter-spacing: 0.08em; }
 .ch-mention-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #3ba55d; }
+
+/* ==========================================================================
+   Chat settings dialog
+   ========================================================================== */
+.ch-dlg--settings { width: min(820px, calc(100vw - 32px)); height: min(640px, calc(100dvh - 32px)); }
+.ch-dlg--settings[open] { display: flex; flex-direction: column; }
+.ch-set { display: grid; grid-template-columns: 200px minmax(0, 1fr); flex: 1; min-height: 0; }
+.ch-set-nav { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-right: 1px solid var(--border-subtle); overflow-y: auto; }
+.ch-set-tab { padding: 10px 12px; border: 0; border-radius: 10px; background: none; color: var(--text-secondary); font: inherit; font-size: 14px; text-align: left; cursor: pointer; transition: background 0.2s ease, color 0.2s ease; }
+.ch-set-tab:hover, .ch-set-tab.is-active { color: var(--text-primary); background: color-mix(in srgb, var(--text-primary) 10%, transparent); }
+.ch-set-tab[hidden] { display: none; }
+.ch-set-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ch-set-body { min-width: 0; padding: 18px 20px 22px; overflow-y: auto; }
+.ch-set-body [hidden] { display: none !important; }
+.ch-set-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px; }
+.ch-set-count { margin: 4px 0 12px; color: var(--text-secondary); font-size: 12px; text-align: right; }
+.ch-set-group { display: grid; gap: 10px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+.ch-set-code { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ch-set-code code { padding: 8px 12px; border: 1px solid var(--border-hover); border-radius: 10px; font-size: 15px; letter-spacing: 0.16em; }
+.ch-set-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.ch-set-empty { padding: 28px 4px; color: var(--text-secondary); font-size: 14px; text-align: center; }
+.ch-pin { display: grid; gap: 8px; margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 14px; }
+.ch-pin-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; color: var(--text-secondary); font-size: 13px; }
+.ch-pin-meta strong { color: var(--text-primary); font-size: 14px; }
+.ch-pin-text { margin: 0; max-height: 6.5em; overflow: hidden; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ch-pin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ch-set-seg { display: inline-flex; gap: 4px; margin-bottom: 14px; padding: 4px; border: 1px solid var(--border-subtle); border-radius: 999px; }
+.ch-set-seg button { padding: 6px 16px; border: 0; border-radius: 999px; background: none; color: var(--text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+.ch-set-seg button.is-active { background: var(--text-primary); color: var(--bg-base); }
+.ch-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.ch-media-tile { display: grid; place-items: center; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg-base); color: var(--text-secondary); }
+.ch-media-tile img { width: 100%; height: 100%; object-fit: cover; }
+.ch-media-files { display: grid; gap: 8px; }
+.ch-media-file { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: 12px; color: inherit; text-decoration: none; }
+.ch-media-file:hover { border-color: var(--border-hover); }
+.ch-media-file-name { display: flex; flex-direction: column; min-width: 0; }
+.ch-media-file-name strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.ch-media-file-name small { color: var(--text-secondary); font-size: 12px; }
+@media (max-width: 640px) {
+    .ch-dlg--settings { height: calc(100dvh - 32px); }
+    .ch-set { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+    .ch-set-nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border-subtle); }
+    .ch-set-tab { white-space: nowrap; }
+}

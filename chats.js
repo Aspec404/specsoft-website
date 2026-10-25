@@ -337,6 +337,7 @@
         tag:     svg('<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'),
         bell:    svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
         belloff: svg('<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>'),
+        settings: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
         flag:    svg('<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>'),
         shield:  svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
         shieldoff: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="3" y1="3" x2="21" y2="21"/>'),
@@ -398,7 +399,7 @@
         userCh: null, presCh: null, outCh: new Map(),
         menu: null, lastClosed: null, lpFired: false, nickRoom: null,
         desk: false, banners: new Map(),
-        filterOn: true, revealed: new Set(), blocked: new Set()
+        filterOn: true, revealed: new Set(), blocked: new Set(), pinIds: new Set()
     };
 
     const ERR = {
@@ -424,7 +425,9 @@
         not_a_bug: 'That message is not a bug report.',
         blocked: 'You cannot message this user.',
         snippet_not_found: 'That snippet was not found.',
-        too_many_snippets: 'You have saved the maximum number of snippets (300).'
+        too_many_snippets: 'You have saved the maximum number of snippets (300).',
+        pin_limit: 'This chat already has 50 pinned messages. Unpin one first.',
+        message_not_found: 'That message is no longer available.'
     };
 
     function isSetupMissing(err) {
@@ -1069,6 +1072,7 @@
             tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'React', 'aria-label': 'React', onclick: function (e) { e.stopPropagation(); openQuick(m, e.currentTarget); } }, icon('smile')));
             tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Reply', 'aria-label': 'Reply', onclick: function (e) { e.stopPropagation(); startReply(m); } }, icon('reply')));
             if (mine && !bug) tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: 'Edit', 'aria-label': 'Edit', onclick: function (e) { e.stopPropagation(); startEdit(m); } }, icon('edit')));
+            if (!bug && canPinHere(S.current)) tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: S.pinIds.has(m.id) ? 'Unpin message' : 'Pin message', 'aria-label': S.pinIds.has(m.id) ? 'Unpin message' : 'Pin message', onclick: function (e) { e.stopPropagation(); togglePinMessage(m); } }, icon('pin')));
             if (!mine && !bug) tools.appendChild(el('button', { type: 'button', class: 'ch-tool ch-tool--danger', title: 'Report', 'aria-label': 'Report message', onclick: function (e) { e.stopPropagation(); openReport(m); } }, icon('flag')));
         }
         const canDelete = !deleted && !m.pending && (mine || (S.current && (S.current.role === 'owner' || S.current.role === 'admin')));
@@ -1255,6 +1259,8 @@
         leaveRoomChannel();
         closeMention();
         S.current = room;
+        S.pinIds = new Set();
+        loadPinIds(room);
         S.pendingFile = null;
         paintPendingFile();
         S.messages = []; S.byId = new Map(); S.extra = new Map();
@@ -1909,6 +1915,256 @@
     }
 
     /* ----------------------------------------------------------------------
+       CHAT SETTINGS: General, Pinned messages, Media & files
+       (needs supabase-chat-settings.sql)
+       ---------------------------------------------------------------------- */
+    const SET = { tab: 'general', kind: 'images', media: [], more: false, loading: false };
+
+    function canManage(r) { return !!r && r.kind !== 'dm' && (r.role === 'owner' || r.role === 'admin'); }
+    function canPinHere(r) { return !!r && (r.kind === 'dm' || canManage(r)); }
+
+    function settingsErr(err) {
+        const msg = String(err && err.message || '');
+        if (isSetupMissing(err) && /chat_(update_room|regen_invite|set_pin|pinned|pins|room_media|audit)/.test(msg)) {
+            return 'Run supabase-chat-settings.sql in your Supabase SQL Editor first.';
+        }
+        return friendly(err);
+    }
+
+    function memberName(id) {
+        const r = S.current;
+        if (S.me && id === S.me.id) return 'You';
+        if (r && r.kind === 'dm' && id === r.other_id) return r.other_display || r.other_username || 'Them';
+        const mm = (S.membersRoom === (r && r.room_id) ? S.members : []).find(function (x) { return x.user_id === id; });
+        return mm && mm.profile ? (mm.profile.display_name || mm.profile.username) : 'Member';
+    }
+
+    function openSettings(tab) {
+        const r = S.current;
+        if (!r) return;
+        const dm = r.kind === 'dm';
+        $('setTitle').textContent = dm ? 'Chat info' : (r.kind === 'community' ? 'Community settings' : 'Group settings');
+        $('setTabGeneral').hidden = dm;
+        showBox('setMsg', '');
+        paintSettingsGeneral();
+        selectSettingsTab(tab && !(dm && tab === 'general') ? tab : (dm ? 'pinned' : 'general'));
+        openDlg('settingsDlg');
+    }
+
+    function selectSettingsTab(tab) {
+        SET.tab = tab;
+        ['general', 'pinned', 'media'].forEach(function (t) {
+            const on = t === tab;
+            const btn = $('setTab' + t.charAt(0).toUpperCase() + t.slice(1));
+            btn.setAttribute('aria-selected', String(on));
+            btn.classList.toggle('is-active', on);
+            $('setPanel' + t.charAt(0).toUpperCase() + t.slice(1)).hidden = !on;
+        });
+        if (tab === 'pinned') loadPinnedPanel();
+        if (tab === 'media') { SET.media = []; SET.more = false; loadMedia(true); }
+    }
+
+    // ----- General -----
+    function paintSettingsGeneral() {
+        const r = S.current;
+        if (!r || r.kind === 'dm') return;
+        const manage = canManage(r), owner = r.role === 'owner';
+        $('setIcon').value = r.icon || '';
+        $('setName').value = r.name || '';
+        $('setDesc').value = r.description || '';
+        $('setDescN').textContent = String(($('setDesc').value || '').length);
+        $('setPublic').checked = !!r.is_public;
+        ['setIcon', 'setName', 'setDesc'].forEach(function (id) { $(id).disabled = !manage; });
+        $('setPublic').disabled = !owner;
+        $('setPublicLabel').textContent = r.kind === 'community' ? 'Public: anyone can find and join this community' : 'Public: anyone can find and join this group';
+        $('setSave').hidden = !manage;
+        $('setNote').textContent = !manage ? 'Only the owner and admins can edit this chat.' : (!owner ? 'Only the owner can change who can find this chat.' : '');
+        $('setInviteGroup').hidden = !(manage || r.kind === 'group') || !r.invite_code;
+        $('setCode').textContent = r.invite_code || '';
+        $('setRegen').hidden = !manage;
+        $('setMute').checked = !!r.muted;
+        $('setDelete').hidden = r.role !== 'owner';
+    }
+
+    async function saveSettings(e) {
+        e.preventDefault();
+        const r = S.current;
+        if (!r || !canManage(r)) return;
+        const name = $('setName').value.trim();
+        if (name.length < 2) { showBox('setMsg', ERR.bad_name); return; }
+        const desc = $('setDesc').value.trim().slice(0, 200);
+        const icn = Array.from($('setIcon').value.trim()).slice(0, 2).join('') || r.icon || '💬';
+        const btn = $('setSave');
+        showBox('setMsg', '');
+        setLoading(btn, true);
+        try {
+            const res = await sb.rpc('chat_update_room', {
+                p_room: r.room_id, p_name: name, p_desc: desc || null, p_icon: icn,
+                p_public: r.role === 'owner' ? $('setPublic').checked : null
+            });
+            if (res.error) throw res.error;
+            r.name = name.slice(0, 40);
+            r.description = desc || null;
+            r.icon = icn;
+            if (r.role === 'owner') r.is_public = $('setPublic').checked;
+            paintHeader();
+            renderList();
+            paintSettingsGeneral();
+            toast('Settings saved');
+        } catch (err) { showBox('setMsg', settingsErr(err)); }
+        finally { setLoading(btn, false); }
+    }
+
+    async function regenInvite() {
+        const r = S.current;
+        if (!r || !canManage(r)) return;
+        if (!window.confirm('Make a new invite code?\n\nThe old code will stop working.')) return;
+        try {
+            const res = await sb.rpc('chat_regen_invite', { p_room: r.room_id });
+            if (res.error) throw res.error;
+            r.invite_code = String(res.data || '');
+            paintSettingsGeneral();
+            toast('New invite code ready');
+        } catch (err) { toast(settingsErr(err)); }
+    }
+
+    // ----- Pinned messages -----
+    async function loadPinIds(room) {
+        try {
+            const res = await sb.from('chat_pins').select('message_id').eq('room_id', room.room_id);
+            if (res.error || !sameRoom(room)) return;
+            S.pinIds = new Set((res.data || []).map(function (x) { return x.message_id; }));
+            S.messages.forEach(function (m) { if (S.pinIds.has(m.id)) rebuildNode(m); });
+        } catch (e) { /* pins are optional until the SQL is run */ }
+    }
+
+    async function togglePinMessage(m) {
+        const r = S.current;
+        if (!r || !canPinHere(r)) return;
+        const next = !S.pinIds.has(m.id);
+        try {
+            const res = await sb.rpc('chat_set_pin', { p_room: r.room_id, p_message: m.id, p_pin: next });
+            if (res.error) throw res.error;
+            if (next) S.pinIds.add(m.id); else S.pinIds.delete(m.id);
+            const live = S.byId.get(m.id);
+            if (live) rebuildNode(live);
+            toast(next ? 'Message pinned' : 'Message unpinned');
+        } catch (err) { toast(settingsErr(err)); }
+    }
+
+    async function loadPinnedPanel() {
+        const r = S.current, box = $('setPinned');
+        box.textContent = '';
+        box.appendChild(el('p', { class: 'ch-set-empty', text: 'Loading pinned messages…' }));
+        try {
+            if (r.kind !== 'dm') await ensureMentionPool();       // so we can show names
+            const res = await sb.rpc('chat_pinned', { p_room: r.room_id });
+            if (res.error) throw res.error;
+            if (!sameRoom(r)) return;
+            const rows = res.data || [];
+            S.pinIds = new Set(rows.map(function (x) { return x.message_id; }));
+            box.textContent = '';
+            if (!rows.length) {
+                box.appendChild(el('p', { class: 'ch-set-empty', text: canPinHere(r) ? 'Nothing pinned yet. Use the pin button on a message to keep it here.' : 'Nothing pinned yet.' }));
+                return;
+            }
+            rows.forEach(function (x) {
+                const text = x.body ? safePreview(x.body, x.sender_id) : (x.attachment_name ? 'Attachment: ' + x.attachment_name : 'Message');
+                box.appendChild(el('article', { class: 'ch-pin' },
+                    el('div', { class: 'ch-pin-meta' }, el('strong', { text: memberName(x.sender_id) }), el('span', { text: fmtDay(x.created_at) + ' · ' + fmtTime(x.created_at) })),
+                    el('p', { class: 'ch-pin-text', text: text }),
+                    el('div', { class: 'ch-pin-actions' },
+                        el('button', { type: 'button', class: 'ch-btn ch-btn--ghost', onclick: function () { closeDlg('settingsDlg'); jumpToMessage(x.message_id); } }, 'Jump to message'),
+                        canPinHere(r) ? el('button', { type: 'button', class: 'ch-btn ch-btn--ghost', onclick: async function () { await togglePinMessage({ id: x.message_id }); loadPinnedPanel(); } }, 'Unpin') : null)));
+            });
+        } catch (err) {
+            box.textContent = '';
+            box.appendChild(el('p', { class: 'ch-set-empty', text: settingsErr(err) }));
+        }
+    }
+
+    // ----- Media & files -----
+    async function loadMedia(reset) {
+        const r = S.current;
+        if (!r || SET.loading) return;
+        SET.loading = true;
+        const box = $('setMedia');
+        if (reset) { box.textContent = ''; box.appendChild(el('p', { class: 'ch-set-empty', text: 'Loading…' })); }
+        try {
+            const last = SET.media.length ? SET.media[SET.media.length - 1].created_at : null;
+            const res = await sb.rpc('chat_room_media', { p_room: r.room_id, p_before: reset ? null : last, p_limit: 60 });
+            if (res.error) throw res.error;
+            if (!sameRoom(r)) return;
+            const rows = res.data || [];
+            SET.more = rows.length >= 60;
+            SET.media = reset ? rows : SET.media.concat(rows);
+            paintMedia();
+        } catch (err) {
+            box.textContent = '';
+            box.appendChild(el('p', { class: 'ch-set-empty', text: settingsErr(err) }));
+        } finally { SET.loading = false; }
+    }
+
+    function paintMedia() {
+        const box = $('setMedia');
+        const isImg = function (x) { return String(x.attachment_type || '').indexOf('image/') === 0; };
+        const items = SET.media.filter(function (x) { return SET.kind === 'images' ? isImg(x) : !isImg(x); });
+        box.textContent = '';
+        $('setKindImages').classList.toggle('is-active', SET.kind === 'images');
+        $('setKindFiles').classList.toggle('is-active', SET.kind === 'files');
+        $('setMore').hidden = !SET.more;
+        if (!items.length) {
+            box.appendChild(el('p', { class: 'ch-set-empty', text: SET.more ? 'None in the newest items. Load more to look further back.' : (SET.kind === 'images' ? 'No images shared yet.' : 'No files shared yet.') }));
+            return;
+        }
+        const wrap = el('div', { class: SET.kind === 'images' ? 'ch-media-grid' : 'ch-media-files' });
+        items.forEach(function (x) {
+            if (SET.kind === 'images') {
+                const a = el('a', { class: 'ch-media-tile', target: '_blank', rel: 'noopener noreferrer', title: (x.attachment_name || 'Image') + ' · ' + memberName(x.sender_id) });
+                wrap.appendChild(a);
+                signedFileUrl(x.attachment_path).then(function (url) {
+                    a.href = url;
+                    a.appendChild(el('img', { src: url, alt: x.attachment_name || 'Shared image', loading: 'lazy' }));
+                }).catch(function () { a.textContent = '?'; });
+            } else {
+                const row = el('a', { class: 'ch-media-file', target: '_blank', rel: 'noopener noreferrer', download: x.attachment_name || 'file' },
+                    el('span', { class: 'ch-attachment-file-icon', text: '↧' }),
+                    el('span', { class: 'ch-media-file-name' }, el('strong', { text: x.attachment_name || 'File' }), el('small', { text: memberName(x.sender_id) + ' · ' + fmtDay(x.created_at) + ' · ' + formatBytes(Number(x.attachment_size) || 0) })));
+                wrap.appendChild(row);
+                signedFileUrl(x.attachment_path).then(function (url) { row.href = url; }).catch(function () { /* stays inert */ });
+            }
+        });
+        box.appendChild(wrap);
+    }
+
+    function wireSettings() {
+        $('chSettingsBtn').addEventListener('click', function () { openSettings(); });
+        $('setForm').addEventListener('submit', saveSettings);
+        $('setDesc').addEventListener('input', function () { $('setDescN').textContent = String($('setDesc').value.length); });
+        document.querySelectorAll('#settingsDlg .ch-set-tab').forEach(function (b) {
+            b.addEventListener('click', function () { selectSettingsTab(b.dataset.tab); });
+        });
+        $('setCopy').addEventListener('click', function () { if (S.current && S.current.invite_code) copyText(S.current.invite_code, 'Invite code copied'); });
+        $('setRegen').addEventListener('click', regenInvite);
+        $('setMute').addEventListener('change', function () { if (S.current) toggleMute(S.current); });
+        $('setLeave').addEventListener('click', async function () {
+            const r = S.current;
+            if (!r) return;
+            await leaveChat(r);
+            if (!S.roomMap.has(r.room_id)) closeDlg('settingsDlg');
+        });
+        $('setDelete').addEventListener('click', async function () {
+            const r = S.current;
+            if (!r) return;
+            await deleteChat(r);
+            if (!S.roomMap.has(r.room_id)) closeDlg('settingsDlg');
+        });
+        $('setKindImages').addEventListener('click', function () { SET.kind = 'images'; paintMedia(); });
+        $('setKindFiles').addEventListener('click', function () { SET.kind = 'files'; paintMedia(); });
+        $('setMore').addEventListener('click', function () { loadMedia(false); });
+    }
+
+    /* ----------------------------------------------------------------------
        9. EMOJI PICKER + QUICK REACTIONS
        ---------------------------------------------------------------------- */
     // Add categories here. Unicode strings are standard emoji; image entries use { name: 'pepe', image: 'https://example.com/pepe.png' }.
@@ -2494,7 +2750,7 @@
     function closeDlg(id) { const d = $(id); if (d && d.open) d.close(); }
 
     function wireDialogs() {
-        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg', 'nickDlg', 'filterDlg', 'reportDlg'].forEach(function (id) {
+        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg', 'nickDlg', 'filterDlg', 'reportDlg', 'settingsDlg'].forEach(function (id) {
             const d = $(id);
             d.addEventListener('click', function (e) {
                 if (e.target === d || (e.target.closest && e.target.closest('[data-close]'))) {
@@ -3270,7 +3526,7 @@
     function wire() {
         setIcon('chSideClose', 'close'); setIcon('chMenuBtn', 'menu'); setIcon('chMenuBtnConvo', 'menu'); setIcon('chBack', 'back');
         setIcon('chEmojiBtn', 'smile'); setIcon('chSend', 'send'); setIcon('chReplyCancel', 'close'); setIcon('chAttachBtn', 'attach'); setIcon('chFileClear', 'close');
-        setIcon('chInviteBtn', 'userplus'); setIcon('chMembersBtn', 'users'); setIcon('chMembersClose', 'close');
+        setIcon('chInviteBtn', 'userplus'); setIcon('chMembersBtn', 'users'); setIcon('chSettingsBtn', 'settings'); setIcon('chMembersClose', 'close');
         setIcon('chSearchIcon', 'search');
         document.querySelectorAll('.ch-dlg .ch-iconbtn[data-close]').forEach(function (b) { b.innerHTML = ICON.close; });
 
@@ -3346,6 +3602,7 @@
         $('chFilterBtn').addEventListener('click', openFilterDlg);
         $('filterToggle').addEventListener('change', function (e) { setFilter(e.target.checked); });
         $('reportForm').addEventListener('submit', submitReport);
+        wireSettings();
         $('chAttachBtn').addEventListener('click', function () { $('chFileInput').click(); });
         $('chFileInput').addEventListener('change', function (e) { chooseFile(e.target.files && e.target.files[0]); });
         $('chFileClear').addEventListener('click', function () { S.pendingFile = null; paintPendingFile(); });
