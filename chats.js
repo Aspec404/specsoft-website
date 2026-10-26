@@ -2188,7 +2188,11 @@
         selfHosted: false,
         local: 'nsfw/nsfwjs.min.js',
         cdn: ['https://cdn.jsdelivr.net/npm/nsfwjs@4.4.0/dist/browser/nsfwjs.min.js', 'https://unpkg.com/nsfwjs@4.4.0'],
-        model: '',          // e.g. 'nsfw/model/' when you host the model files too. '' = the model that comes inside the library
+        // The browser version of NSFWJS does NOT contain the AI model, so the model files have to live on your site:
+        // nsfw/mobilenet_v2_mid/model.json  (+ the shard files that sit next to it in the same folder)
+        // (If you copied the plain 'mobilenet_v2' folder instead, use model: 'nsfw/mobilenet_v2/' and modelType: ''.)
+        model: 'nsfw/mobilenet_v2_mid/',
+        modelType: 'graph', // the _mid model is a "graph" model, the plain mobilenet_v2 is not
         explicit: 0.55,     // Porn + Hentai at or above this = explicit
         suggestive: 0.75    // Sexy at or above this = suggestive (only blurred when "also blur suggestive" is on)
     };
@@ -2227,7 +2231,7 @@
             try {
                 // the NSFWJS file already contains TensorFlow.js, so it is the only script we load
                 if (!window.nsfwjs) await loadFirst(NSFW_CFG.selfHosted ? [NSFW_CFG.local] : NSFW_CFG.cdn, function () { return !!window.nsfwjs; });
-                NSFW.model = NSFW_CFG.model ? await window.nsfwjs.load(NSFW_CFG.model) : await window.nsfwjs.load();
+                NSFW.model = NSFW_CFG.model ? await window.nsfwjs.load(new URL(NSFW_CFG.model, location.href).href, NSFW_CFG.modelType ? { type: NSFW_CFG.modelType } : undefined) : await window.nsfwjs.load();
                 NSFW.state = 'ready';
             } catch (e) {
                 NSFW.model = null;
@@ -2373,7 +2377,7 @@
             idle: 'The image checker starts the first time someone shares an image.',
             loading: 'Image checker: loading…',
             ready: 'Image checker: ready.' + (NSFW.unreadable && !NSFW.scanned ? ' It could not read the images it tried.' : ''),
-            failed: 'The image checker could not load, so images show normally for now.' + (NSFW.error ? ' (' + NSFW.error + ')' : '')
+            failed: 'The image checker could not load, so images show normally for now.' + (NSFW.error ? ' (' + NSFW.error + ')' : '') + (/model/i.test(NSFW.error) ? ' The model files are probably missing from the nsfw folder.' : '')
         };
         box.textContent = t[NSFW.state] || '';
     }
