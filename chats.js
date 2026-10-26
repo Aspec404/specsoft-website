@@ -2182,16 +2182,18 @@
        and the uploader cannot switch it off. It cannot detect graphic violence.
        ---------------------------------------------------------------------- */
     const NSFW_CFG = {
-        // Files are tried in order. Put your own copies in an "nsfw" folder next to chats.html
-        // (the NSFWJS authors ask people to host the files themselves) and they are used first.
-        tf:  ['nsfw/tf.min.js', 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'],
-        lib: ['nsfw/nsfwjs.min.js', 'https://cdn.jsdelivr.net/npm/nsfwjs@4.4.0/dist/browser/nsfwjs.min.js', 'https://unpkg.com/nsfwjs@4.4.0'],
+        // false = download NSFWJS from a public CDN (works with no setup).
+        // true  = use your own copy at nsfw/nsfwjs.min.js next to chats.html. The NSFWJS authors
+        //         recommend hosting it yourself, so switch this on once the file is there.
+        selfHosted: false,
+        local: 'nsfw/nsfwjs.min.js',
+        cdn: ['https://cdn.jsdelivr.net/npm/nsfwjs@4.4.0/dist/browser/nsfwjs.min.js', 'https://unpkg.com/nsfwjs@4.4.0'],
         model: '',          // e.g. 'nsfw/model/' when you host the model files too. '' = the model that comes inside the library
         explicit: 0.55,     // Porn + Hentai at or above this = explicit
         suggestive: 0.75    // Sexy at or above this = suggestive (only blurred when "also blur suggestive" is on)
     };
 
-    const NSFW = { state: 'idle', model: null, promise: null, scanned: 0, unreadable: 0 };
+    const NSFW = { state: 'idle', model: null, promise: null, scanned: 0, unreadable: 0, error: '' };
     const nsfwCache = new Map();          // attachment path -> { x: porn+hentai, s: sexy }
     let nsfwQueue = Promise.resolve();
     let nsfwSaveTimer = null;
@@ -2223,13 +2225,14 @@
         paintScannerStatus();
         NSFW.promise = (async function () {
             try {
-                if (!window.tf) await loadFirst(NSFW_CFG.tf, function () { return !!window.tf; });
-                if (!window.nsfwjs) await loadFirst(NSFW_CFG.lib, function () { return !!window.nsfwjs; });
+                // the NSFWJS file already contains TensorFlow.js, so it is the only script we load
+                if (!window.nsfwjs) await loadFirst(NSFW_CFG.selfHosted ? [NSFW_CFG.local] : NSFW_CFG.cdn, function () { return !!window.nsfwjs; });
                 NSFW.model = NSFW_CFG.model ? await window.nsfwjs.load(NSFW_CFG.model) : await window.nsfwjs.load();
                 NSFW.state = 'ready';
             } catch (e) {
                 NSFW.model = null;
                 NSFW.state = 'failed';
+                NSFW.error = String((e && e.message) || e || 'unknown error').slice(0, 140);
                 console.warn('[SPECSOFT chats] the image scanner could not start, images will show normally:', e);
             }
             paintScannerStatus();
@@ -2370,7 +2373,7 @@
             idle: 'The image checker starts the first time someone shares an image.',
             loading: 'Image checker: loading…',
             ready: 'Image checker: ready.' + (NSFW.unreadable && !NSFW.scanned ? ' It could not read the images it tried.' : ''),
-            failed: 'The image checker could not load, so images show normally for now.'
+            failed: 'The image checker could not load, so images show normally for now.' + (NSFW.error ? ' (' + NSFW.error + ')' : '')
         };
         box.textContent = t[NSFW.state] || '';
     }
