@@ -2311,8 +2311,11 @@
     }
 
     // keeps one image blurred under a veil until it has been checked (and while it is flagged)
+    // testing helper: run  localStorage.setItem('specsoft.nsfw.testown','1')  in the console and reload to check your OWN images too
+    function scanOwnImages() { try { return localStorage.getItem('specsoft.nsfw.testown') === '1'; } catch (e) { return false; } }
+
     function guardImage(card, path, url, mine, compact) {
-        if (mine || !S.imgOn || !card) return;
+        if ((mine && !scanOwnImages()) || !S.imgOn || !card) return;
         const key = 'img:' + path;
         card.classList.add('ch-imgguard');
         if (S.revealed.has(key)) return;
