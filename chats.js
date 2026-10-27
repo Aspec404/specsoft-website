@@ -400,7 +400,7 @@
         menu: null, lastClosed: null, lpFired: false, nickRoom: null,
         desk: false, banners: new Map(),
         filterOn: true, revealed: new Set(), blocked: new Set(), pinIds: new Set(),
-        imgOn: true, imgStrict: false
+        imgOn: true, imgStrict: true
     };
 
     const ERR = {
@@ -2194,10 +2194,10 @@
         model: 'nsfw/mobilenet_v2_mid/',
         modelType: 'graph', // the _mid model is a "graph" model, the plain mobilenet_v2 is not
         explicit: 0.55,     // Porn + Hentai at or above this = explicit
-        suggestive: 0.75    // Sexy at or above this = suggestive (only blurred when "also blur suggestive" is on)
+        suggestive: 0.75    // Sexy at or above this = suggestive (blurred unless the viewer turns "also blur suggestive" off)
     };
 
-    const NSFW = { state: 'idle', model: null, promise: null, scanned: 0, unreadable: 0, error: '' };
+    const NSFW = { state: 'idle', model: null, promise: null, scanned: 0, unreadable: 0, error: '', readError: '', logged: {} };
     const nsfwCache = new Map();          // attachment path -> { x: porn+hentai, s: sexy }
     let nsfwQueue = Promise.resolve();
     let nsfwSaveTimer = null;
@@ -2245,14 +2245,25 @@
         return NSFW.promise;
     }
 
-    function loadImageForScan(url) {
-        return new Promise(function (resolve, reject) {
-            const im = new Image();
-            im.crossOrigin = 'anonymous';
-            im.onload = function () { resolve(im); };
-            im.onerror = function () { reject(new Error('image could not be read')); };
-            im.src = url;
-        });
+    // Reads the picture's bytes ourselves instead of re-using the browser's picture cache. The cached copy of an
+    // image the page already shows can come back "tainted" (blocked from being read), which made the check fail.
+    async function loadImageForScan(url) {
+        const res = await fetch(url, { mode: 'cors', cache: 'no-store', credentials: 'omit' });
+        if (!res.ok) throw new Error('image download failed (HTTP ' + res.status + ')');
+        const objUrl = URL.createObjectURL(await res.blob());
+        try {
+            const img = await new Promise(function (resolve, reject) {
+                const im = new Image();
+                im.onload = function () { resolve(im); };
+                im.onerror = function () { reject(new Error('image could not be decoded')); };
+                im.setAttribute('data-origin', url);
+                im.src = objUrl;
+            });
+            return { img: img, objUrl: objUrl };
+        } catch (e) {
+            URL.revokeObjectURL(objUrl);
+            throw e;
+        }
     }
 
     function nsfwScores(preds) {
@@ -2293,8 +2304,9 @@
             const model = await ensureNsfw();
             if (!model) return null;
             try {
-                const img = await loadImageForScan(url);
-                const preds = await model.classify(img);
+                const loaded = await loadImageForScan(url);
+                let preds;
+                try { preds = await model.classify(loaded.img); } finally { URL.revokeObjectURL(loaded.objUrl); }
                 const entry = nsfwScores(preds);
                 try {
                     if (localStorage.getItem('specsoft.nsfw.debug') === '1') {   // tuning helper: shows what the model thinks of each image
@@ -2310,6 +2322,8 @@
                 return entry;
             } catch (e) {
                 NSFW.unreadable++;
+                NSFW.readError = String((e && e.message) || e || 'unknown error').slice(0, 120);
+                if (!NSFW.logged[path]) { NSFW.logged[path] = 1; console.warn('[nsfw] could not check this image, it will show normally:', path, e); }
                 paintScannerStatus();
                 return null;
             }
@@ -2345,7 +2359,7 @@
             veil.textContent = '';
             veil.setAttribute('aria-label', 'Sensitive image hidden');
             veil.appendChild(icon('info'));
-            veil.appendChild(el('span', { class: 'ch-imgveil-text', text: verdict === 'explicit' ? 'This image may contain nudity or explicit content.' : 'This image may be sexually suggestive.' }));
+            veil.appendChild(el('span', { class: 'ch-imgveil-text', text: verdict === 'explicit' ? 'This image may contain nudity or explicit content.' : 'This image may contain sensitive or suggestive content.' }));
             veil.appendChild(el('button', {
                 type: 'button', class: 'ch-imgveil-btn',
                 onclick: function (e) {
@@ -2363,7 +2377,7 @@
     function loadImgPrefs() {
         try {
             S.imgOn = localStorage.getItem('specsoft.chat.img') !== 'off';
-            S.imgStrict = localStorage.getItem('specsoft.chat.imgstrict') === 'on';
+            S.imgStrict = localStorage.getItem('specsoft.chat.imgstrict') !== 'off';   // suggestive images are blurred unless the viewer turns it off
             const c = JSON.parse(localStorage.getItem('specsoft.nsfw.cache') || '{}');
             Object.keys(c).forEach(function (k) { if (c[k] && typeof c[k].x === 'number') nsfwCache.set(k, c[k]); });
         } catch (e) { /* ignore */ }
@@ -2387,7 +2401,7 @@
         const t = {
             idle: 'The image checker starts the first time someone shares an image.',
             loading: 'Image checker: loading…',
-            ready: 'Image checker: ready.' + (NSFW.unreadable && !NSFW.scanned ? ' It could not read the images it tried.' : ''),
+            ready: 'Image checker: ready.' + (NSFW.unreadable ? ' It could not check ' + NSFW.unreadable + ' image(s)' + (NSFW.readError ? ' (' + NSFW.readError + ')' : '') + ', so they show normally.' : ''),
             failed: 'The image checker could not load, so images show normally for now.' + (NSFW.error ? ' (' + NSFW.error + ')' : '') + (/model/i.test(NSFW.error) ? ' The model files are probably missing from the nsfw folder.' : '')
         };
         box.textContent = t[NSFW.state] || '';
