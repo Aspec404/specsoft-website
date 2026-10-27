@@ -2073,11 +2073,13 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
    ========================================================================== */
 @media (max-width: 700px) {
     .ch-compose-row #chAttachBtn,
+    .ch-compose-row #chGifBtn,
     .ch-compose-row #chDevBtn {
         overflow: hidden;
         transition: width 0.22s ease, margin 0.22s ease, opacity 0.18s ease, visibility 0s linear 0s;
     }
     .ch-compose-row.is-typing #chAttachBtn,
+    .ch-compose-row.is-typing #chGifBtn,
     .ch-compose-row.is-typing #chDevBtn {
         width: 0;
         min-width: 0;
@@ -2090,5 +2092,62 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
     }
 }
 @media (max-width: 700px) and (prefers-reduced-motion: reduce) {
-    .ch-compose-row #chAttachBtn, .ch-compose-row #chDevBtn { transition: none !important; }
+    .ch-compose-row #chAttachBtn, .ch-compose-row #chGifBtn, .ch-compose-row #chDevBtn { transition: none !important; }
+}
+
+/* ==========================================================================
+   GIFs (Tenor): button, picker panel, and GIFs inside messages
+   ========================================================================== */
+.ch-gifbtn { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; line-height: 1; }
+
+.ch-gif {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: calc(100% - 6px);
+    max-width: 380px;
+    height: 340px;
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: 1px solid var(--border-hover);
+    border-radius: 16px;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    z-index: 6;
+    animation: chPop 0.16s ease;
+}
+.ch-gif[hidden] { display: none; }
+.ch-gif-head { padding: 10px 10px 8px; flex: none; }
+.ch-gif-search { width: 100%; }
+.ch-gif-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 10px 8px; }
+.ch-gif-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: start; }
+.ch-gif-cols > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ch-gif-item {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--accent-dim);
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.ch-gif-item:hover, .ch-gif-item:focus-visible { transform: scale(0.97); box-shadow: 0 0 0 2px var(--accent); outline: none; }
+.ch-gif-item img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ch-gif-status { margin: 10px 0 4px; text-align: center; color: var(--text-secondary); font-size: 12px; }
+.ch-gif-status:empty { display: none; }
+.ch-gif-foot { flex: none; padding: 6px 12px; text-align: right; color: var(--text-secondary); font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; border-top: 1px solid var(--border-hover); }
+
+.ch-gif-link { display: inline-block; line-height: 0; text-decoration: none; }
+.ch-gif-img { display: block; max-width: min(300px, 100%); max-height: 300px; border-radius: 12px; }
+.ch-bubble--gif { line-height: 0; }
+
+@media (max-width: 700px) {
+    .ch-gif { left: 8px; right: 8px; max-width: none; height: 42vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ch-gif { animation: none; }
 }

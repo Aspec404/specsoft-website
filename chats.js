@@ -175,6 +175,7 @@
     }
 
     function previewText(body) {
+        if (gifMediaUrl(body)) return 'GIF';
         if (String(body || '').slice(0, 6) === '[[bug:') { const b = parseBug(body); return '\uD83D\uDC1B Bug' + (b ? ': ' + b.t : ' report'); }
         return String(body || '').replace(/```[\s\S]*?```/g, '[code]').replace(/\s+/g, ' ').trim().slice(0, 90);
     }
@@ -264,7 +265,7 @@
     function safePreview(body, senderId) {
         const theirs = !!(senderId && S.me && senderId !== S.me.id);
         if (theirs && S.blocked.has(senderId)) return 'Message from a blocked user';
-        if (theirs && S.filterOn && isSensitive(body)) return 'Sensitive message hidden';
+        if (theirs && S.filterOn && !gifMediaUrl(body) && isSensitive(body)) return 'Sensitive message hidden';
         return previewText(body);
     }
 
@@ -272,7 +273,7 @@
     function hideKindFor(m, mine, deleted, bug) {
         if (deleted || mine || bug || m.pending) return null;
         if (S.blocked.has(m.sender_id)) return 'blocked';
-        if (S.filterOn && isSensitive(m.body)) return 'sensitive';
+        if (S.filterOn && !gifMediaUrl(m.body) && isSensitive(m.body)) return 'sensitive';
         return null;
     }
 
@@ -1059,7 +1060,8 @@
         const hidden = !!hideKind && !S.revealed.has(m.id);
         const imageAttachment = !deleted && !hidden && !!m.attachment_path && /^image\//i.test(m.attachment_type || '');
         const imageOnlyAttachment = imageAttachment && (!String(m.body || '').trim() || /^Attachment:\s*/i.test(m.body));
-        const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (imageOnlyAttachment ? ' ch-bubble--image-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? buildBugCard(m, bug) : (imageOnlyAttachment ? null : renderRich(m.body, mine, jumboEmoji)))));
+        const gifUrl = (!deleted && !bug && !m.attachment_path) ? gifMediaUrl(m.body) : null;
+        const bubble = el('div', { class: 'ch-bubble' + (gifUrl && !hidden ? ' ch-bubble--image-only ch-bubble--gif' : '') + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (imageOnlyAttachment ? ' ch-bubble--image-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? buildBugCard(m, bug) : (imageOnlyAttachment ? null : (gifUrl ? makeGifView(gifUrl) : renderRich(m.body, mine, jumboEmoji))))));
         const imageAttachmentView = imageAttachment ? el('div', { class: 'ch-attachment ch-attachment--standalone' }) : null;
         if (imageAttachmentView) renderAttachment(m, imageAttachmentView);
         else if (!deleted && m.attachment_path && !hidden) renderAttachment(m, bubble);
@@ -1279,6 +1281,7 @@
         cancelCompose(true);
         closeMembers();
         $('chEmoji').hidden = true;
+        closeGif();
 
         $('chApp').dataset.view = 'chat';
         closeDrawer();
@@ -1364,7 +1367,7 @@
         const input = $('chInput');
         input.disabled = lock;
         input.placeholder = lockedMine ? 'You blocked this user. Unblock them to chat again.' : lockedThem ? 'You can no longer message this user.' : 'Message...';
-        ['chAttachBtn', 'chEmojiBtn', 'chDevBtn'].forEach(function (id) { $(id).disabled = lock; });
+        ['chAttachBtn', 'chEmojiBtn', 'chGifBtn', 'chDevBtn'].forEach(function (id) { $(id).disabled = lock; });
         $('chSend').disabled = lock || (!input.value.trim() && !S.pendingFile);
     }
 
@@ -2496,11 +2499,153 @@
     }
 
     function toggleEmoji(forMsg) {
+        closeGif();
         const box = $('chEmoji');
         const open = !box.hidden && !forMsg;
         S.pickerFor = forMsg ? forMsg.id : null;
         box.hidden = open;
         $('chEmojiBtn').setAttribute('aria-expanded', String(!box.hidden));
+    }
+
+    /* ----------------------------------------------------------------------
+       9b. GIFS (GIPHY)
+       A GIF is sent as a normal message whose whole body is one GIPHY media
+       link. Every client turns that link into an <img>, so no database change
+       is needed. Only giphy.com media hosts are ever rendered as images.
+       ---------------------------------------------------------------------- */
+    const GIPHY_KEY = String(window.GIPHY_API_KEY || '').trim();
+    const GIPHY_READY = !!GIPHY_KEY && !/^PASTE_/i.test(GIPHY_KEY);
+    const GIF = { q: '', offset: 0, loading: false, done: false, heights: [0, 0], seq: 0, timer: null };
+
+    // returns a clean https GIPHY media url if the whole body is exactly one, else null
+    function gifMediaUrl(body) {
+        const t = String(body || '').trim();
+        if (!/^https:\/\/[^\s]+$/i.test(t)) return null;
+        try {
+            const u = new URL(t);
+            if (/^(?:media\d*|i)\.giphy\.com$/i.test(u.hostname) && /\.(?:gif|webp)$/i.test(u.pathname)) return t;
+        } catch (e) { /* not a url */ }
+        return null;
+    }
+
+    function makeGifView(url) {
+        const img = el('img', { class: 'ch-gif-img', src: url, alt: 'GIF', loading: 'lazy', referrerpolicy: 'no-referrer' });
+        const link = el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'ch-gif-link', 'aria-label': 'Open GIF' }, img);
+        img.onerror = function () { link.replaceWith(el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: 'GIF unavailable, open link' })); };
+        return link;
+    }
+
+    function gifStatus(text) { $('chGifStatus').textContent = text || ''; }
+
+    function giphyFetch(q, offset) {
+        const p = new URLSearchParams({ api_key: GIPHY_KEY, limit: '24', offset: String(offset || 0), rating: 'pg-13', lang: 'en' });
+        if (q) p.set('q', q);
+        return fetch('https://api.giphy.com/v1/gifs/' + (q ? 'search' : 'trending') + '?' + p.toString())
+            .then(function (r) { if (!r.ok) throw new Error('giphy ' + r.status); return r.json(); });
+    }
+
+    function gifReset(q) {
+        GIF.q = q; GIF.offset = 0; GIF.done = false; GIF.loading = false; GIF.heights = [0, 0]; GIF.seq++;
+        const cols = $('chGifCols').children;
+        cols[0].textContent = ''; cols[1].textContent = '';
+        $('chGifBody').scrollTop = 0;
+        gifStatus('');
+        gifLoad(false);
+    }
+
+    function gifAdd(r) {
+        const im = r.images || {};
+        const prev = im.fixed_width_small || im.fixed_width || im.downsized;
+        const send = im.downsized || im.fixed_width || prev;
+        if (!prev || !send || !/^https:\/\//i.test(prev.url || '')) return;
+        const clean = String(send.url || '').split('?')[0];     // drop tracking params, keeps the message short
+        if (!gifMediaUrl(clean)) return;
+        const w = Number(prev.width) || 1, h = Number(prev.height) || 1;
+        const col = GIF.heights[0] <= GIF.heights[1] ? 0 : 1;
+        GIF.heights[col] += h / w + 0.02;
+        const label = r.title || 'GIF';
+        const img = el('img', { src: prev.url, alt: label, loading: 'lazy', referrerpolicy: 'no-referrer' });
+        const btn = el('button', { type: 'button', class: 'ch-gif-item', title: label, 'aria-label': 'Send GIF: ' + label, onclick: function () { pickGif(clean); } }, img);
+        btn.style.aspectRatio = w + ' / ' + h;
+        img.onerror = function () { btn.remove(); };
+        $('chGifCols').children[col].appendChild(btn);
+    }
+
+    async function gifLoad(more) {
+        if (GIF.loading || (more && GIF.done)) return;
+        if (!GIPHY_READY) { gifStatus('GIFs are not set up yet. Add your GIPHY API key in chats.html.'); return; }
+        const seq = GIF.seq;
+        GIF.loading = true;
+        gifStatus('Loading GIFs...');
+        try {
+            const data = await giphyFetch(GIF.q, GIF.offset);
+            if (seq !== GIF.seq) return;
+            const list = data.data || [];
+            list.forEach(gifAdd);
+            const pg = data.pagination || {};
+            GIF.offset = (pg.offset || GIF.offset) + (pg.count || list.length);
+            if (!list.length || (pg.total_count && GIF.offset >= pg.total_count)) GIF.done = true;
+            const any = $('chGifCols').querySelector('.ch-gif-item');
+            gifStatus(any ? '' : 'No GIFs found. Try another word.');
+        } catch (err) {
+            if (seq !== GIF.seq) return;
+            gifStatus('Could not load GIFs. Check your connection or GIPHY key.');
+        } finally {
+            if (seq === GIF.seq) GIF.loading = false;
+        }
+    }
+
+    function closeGif() {
+        const box = $('chGif');
+        if (box) box.hidden = true;
+        const btn = $('chGifBtn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    function toggleGif() {
+        const box = $('chGif');
+        if (!box.hidden) { closeGif(); return; }
+        $('chEmoji').hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false');
+        closeDev(); closeQuick();
+        box.hidden = false;
+        $('chGifBtn').setAttribute('aria-expanded', 'true');
+        if (!$('chGifCols').querySelector('.ch-gif-item') && !GIF.loading) gifReset($('chGifSearch').value.trim());
+        if (!(window.matchMedia && matchMedia('(pointer: coarse)').matches)) $('chGifSearch').focus();
+    }
+
+    function pickGif(url) {
+        closeGif();
+        sendGif(url);
+    }
+
+    async function sendGif(url) {
+        if (!S.current || S.sending || !gifMediaUrl(url)) return;
+        if (S.editing) { toast('Finish editing first, then send a GIF.'); return; }
+        if (S.pendingFile) { toast('Remove the attached file first, then send a GIF.'); return; }
+        const input = $('chInput');
+        const draft = input.value;            // keep whatever they were typing
+        input.value = url;
+        autosize();
+        try { await sendMessage(); }
+        finally { input.value = draft; autosize(); }
+    }
+
+    function wireGif() {
+        $('chGifBtn').addEventListener('click', function (e) { e.stopPropagation(); toggleGif(); });
+        $('chGifSearch').addEventListener('input', function (e) {
+            const v = e.target.value.trim();
+            clearTimeout(GIF.timer);
+            GIF.timer = setTimeout(function () { if (v !== GIF.q) gifReset(v); }, 350);
+        });
+        $('chGifBody').addEventListener('scroll', function () {
+            const b = $('chGifBody');
+            if (b.scrollTop + b.clientHeight >= b.scrollHeight - 160) gifLoad(true);
+        });
+        document.addEventListener('click', function (e) {
+            const box = $('chGif');
+            if (!box.hidden && !box.contains(e.target) && !$('chGifBtn').contains(e.target)) closeGif();
+        });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeGif(); });
     }
 
     let quickEl = null;
@@ -3855,6 +4000,7 @@
         $('chReplyCancel').addEventListener('click', function () { cancelCompose(); });
         $('chEmojiBtn').addEventListener('click', function () { toggleEmoji(null); });
         buildPicker();
+        wireGif();
 
         // feed
         $('chFeed').addEventListener('scroll', function () {
@@ -3905,7 +4051,7 @@
             const menu = $('chDevMenu');
             menu.hidden = !menu.hidden;
             $('chDevBtn').setAttribute('aria-expanded', String(!menu.hidden));
-            if (!menu.hidden) { $('chEmoji').hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); }
+            if (!menu.hidden) { $('chEmoji').hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); closeGif(); }
         });
         $('chDevCode').addEventListener('click', function () { closeDev(); insertCodeBlock(); });
         $('chDevBug').addEventListener('click', function () { closeDev(); openBug(''); });

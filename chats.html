@@ -158,6 +158,7 @@
                     <div class="ch-compose-row">
                         <button type="button" class="ch-iconbtn" id="chAttachBtn" aria-label="Attach image or file" title="Attach image or file"></button>
                         <button type="button" class="ch-iconbtn" id="chEmojiBtn" aria-label="Emoji" aria-expanded="false" title="Emoji"></button>
+                        <button type="button" class="ch-iconbtn ch-gifbtn" id="chGifBtn" aria-label="Send a GIF" aria-expanded="false" title="GIF">GIF</button>
                         <button type="button" class="ch-iconbtn" id="chDevBtn" aria-label="Developer tools" aria-haspopup="menu" aria-expanded="false" title="Developer tools"></button>
                         <div class="ch-input is-empty" id="chInput" role="textbox" aria-multiline="true" aria-label="Message" contenteditable="true" spellcheck="true" data-placeholder="Message..." enterkeyhint="send" tabindex="0"></div>
                         <button type="button" class="ch-send" id="chSend" aria-label="Send message" disabled></button>
@@ -169,6 +170,17 @@
                     </div>
 
                     <div class="ch-emoji" id="chEmoji" hidden role="dialog" aria-label="Emoji picker"></div>
+
+                    <div class="ch-gif" id="chGif" hidden role="dialog" aria-label="GIF picker">
+                        <div class="ch-gif-head">
+                            <input class="ch-field ch-gif-search" type="search" id="chGifSearch" placeholder="Search GIPHY" autocomplete="off" spellcheck="false" aria-label="Search GIFs">
+                        </div>
+                        <div class="ch-gif-body" id="chGifBody">
+                            <div class="ch-gif-cols" id="chGifCols"><div></div><div></div></div>
+                            <p class="ch-gif-status" id="chGifStatus" role="status"></p>
+                        </div>
+                        <div class="ch-gif-foot">Powered by GIPHY</div>
+                    </div>
 
                     <div class="ch-devmenu" id="chDevMenu" hidden role="menu" aria-label="Developer tools">
                         <button type="button" class="ch-devitem" id="chDevCode" role="menuitem"><span id="chDevCodeIco" aria-hidden="true"></span><span>Code block<small>Syntax highlighted, one-click copy</small></span></button>
@@ -509,6 +521,8 @@
     <script src="supabase-config.js"></script>
     <!-- highlight.js (pinned). Colors come from chats.css, so no theme file is needed. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- GIPHY GIF key: create an app at https://developers.giphy.com/dashboard/ (choose "API", not "SDK") -->
+    <script>window.GIPHY_API_KEY = 'IgtQEHpwsqV93RhhuyJnDCFvQEvA2zqn';</script>
     <script src="chats.js"></script>
     <script src="main.js?v=3"></script>
     <script src="cursor.js" defer></script>
