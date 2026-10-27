@@ -2443,7 +2443,8 @@
          { name: 'sus', image: 'https://cdn3.emoji.gg/emojis/761721-sus.png' },
          { name: 'monkeythink', image: 'https://cdn3.emoji.gg/emojis/801254-monkeythinking.png' },
          { name: 'soncrine', image: 'https://cdn3.emoji.gg/emojis/888036-soncrine.png' },
-         { name: 'terified', image: 'https://cdn3.emoji.gg/emojis/126907-terrified.png' }
+         { name: 'terified', image: 'https://cdn3.emoji.gg/emojis/126907-terrified.png' },
+         { name: 'absolutecinema', image: 'https://cdn3.emoji.gg/emojis/74929-absolutecinema.png' }
         ]
     };
     Object.keys(EMOJI).forEach(function (category) {
