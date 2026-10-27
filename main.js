@@ -1741,7 +1741,7 @@
         }
     }
 
-    /* ======================================================================
+       /* ======================================================================
        PART 4 — AUTO UPDATE CHECKER
        ====================================================================== */
     function initUpdateChecker() {
@@ -1757,12 +1757,13 @@
                     currentVersion = data.version;
                 } else if (data.version !== currentVersion && !hasWarned) {
                     hasWarned = true;
-                    showUpdatePopup();
+                    // Pass the release version (e.g. "2.4.8") to the popup
+                    showUpdatePopup(data.release || "Latest");
                 }
             } catch (e) {}
         }
 
-        function showUpdatePopup() {
+        function showUpdatePopup(releaseVersion) {
             if (document.getElementById('specsoft-update-popup')) return;
             const popup = document.createElement('div');
             popup.id = 'specsoft-update-popup';
@@ -1816,6 +1817,13 @@
                         margin-bottom: 12px; letter-spacing: -0.5px; text-transform: uppercase;
                         text-shadow: 0 0 20px var(--accent-glow, rgba(255,255,255,0.1));
                     }
+
+                    .sp-version {
+                        display: inline-block; font-family: var(--font-mono, monospace); font-size: 11px;
+                        color: var(--accent, #fff); border: 1px solid var(--border-hover, #404040); 
+                        padding: 4px 10px; border-radius: 4px; margin-bottom: 16px; letter-spacing: 1px;
+                        background: var(--accent-dim, rgba(255,255,255,0.05));
+                    }
                     
                     .sp-text {
                         color: var(--text-secondary, #999999); font-size: 14px; line-height: 1.6;
@@ -1853,6 +1861,7 @@
                         </svg>
                     </div>
                     <h3 class="sp-title">System Update</h3>
+                    <div class="sp-version">VERSION ${releaseVersion}</div>
                     <p class="sp-text">The Website got its latest update. Please restart the page to apply the latest changes, thank you!</p>
                     <button class="sp-btn" onclick="location.reload(true)">Restart Page</button>
                 </div>
@@ -1866,7 +1875,7 @@
             if (!document.hidden) checkVersion();
         });
     }
-
+    
     /* ======================================================================
        PART 3 — BOOTSTRAP
        ====================================================================== */

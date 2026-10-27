@@ -49,10 +49,10 @@ if "!commitmsg!"=="" (
     set "commitmsg=Auto-sync !datepart! !timepart!"
 )
 
-:: ---- Update Version File (This triggers the website popup) ----
+:: ---- Update Version File ----
 echo.
 echo  [2/5] Updating version.json for live site popup...
-powershell -NoProfile -Command "$v = Get-Date -Format 'yyyyMMddHHmmss'; '{ \"version\": \"' + $v + '\" }' | Out-File -FilePath version.json -Encoding utf8"
+powershell -NoProfile -Command "$build = Get-Date -Format 'yyyyMMddHHmmss'; $release = '2.4.8'; '{ \"version\": \"' + $build + '\", \"release\": \"' + $release + '\" }' | Out-File -FilePath version.json -Encoding utf8"
 
 :: ---- Stage all changes ----
 echo  [3/5] Staging changes...
