@@ -493,9 +493,8 @@
     function drawTrail(now) {
         if (!CFG.trail || !ctx || !ready) return;
 
-        var visible = state !== 'text' && state !== 'loading';
         var dx = mx - lastX, dy = my - lastY;
-        if (visible && (dx > 0.5 || dx < -0.5 || dy > 0.5 || dy < -0.5)) {
+        if (dx > 0.5 || dx < -0.5 || dy > 0.5 || dy < -0.5) {
             pts.push({ x: mx, y: my, t: now });
             travelled += Math.sqrt(dx * dx + dy * dy);
             if (travelled >= CFG.trailMarkerEvery) {
