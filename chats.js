@@ -400,7 +400,7 @@
         menu: null, lastClosed: null, lpFired: false, nickRoom: null,
         desk: false, banners: new Map(),
         filterOn: true, revealed: new Set(), blocked: new Set(), pinIds: new Set(),
-        imgOn: true, imgStrict: true
+        imgOn: true
     };
 
     const ERR = {
@@ -1212,8 +1212,6 @@
     function openFilterDlg() {
         $('filterToggle').checked = S.filterOn;
         $('filterImgToggle').checked = S.imgOn;
-        $('filterImgStrict').checked = S.imgStrict;
-        $('filterImgStrict').disabled = !S.imgOn;
         paintScannerStatus();
         openDlg('filterDlg');
     }
@@ -2194,7 +2192,7 @@
         model: 'nsfw/mobilenet_v2_mid/',
         modelType: 'graph', // the _mid model is a "graph" model, the plain mobilenet_v2 is not
         explicit: 0.55,     // Porn + Hentai at or above this = explicit
-        suggestive: 0.75    // Sexy at or above this = suggestive (blurred unless the viewer turns "also blur suggestive" off)
+        suggestive: 0.75    // Sexy at or above this = also counted as sensitive
     };
 
     const NSFW = { state: 'idle', model: null, promise: null, scanned: 0, unreadable: 0, error: '', readError: '', logged: {} };
@@ -2280,9 +2278,9 @@
         return 'safe';
     }
 
+    // the model often files explicit art under "suggestive", so both count as one thing: sensitive
     function shouldBlur(verdict) {
-        if (!S.imgOn) return false;
-        return verdict === 'explicit' || (verdict === 'suggestive' && S.imgStrict);
+        return !!S.imgOn && (verdict === 'explicit' || verdict === 'suggestive');
     }
 
     function saveNsfwCache() {
@@ -2359,7 +2357,7 @@
             veil.textContent = '';
             veil.setAttribute('aria-label', 'Sensitive image hidden');
             veil.appendChild(icon('info'));
-            veil.appendChild(el('span', { class: 'ch-imgveil-text', text: verdict === 'explicit' ? 'This image may contain nudity or explicit content.' : 'This image may contain sensitive or suggestive content.' }));
+            veil.appendChild(el('span', { class: 'ch-imgveil-text', text: 'This image may contain nudity or other sensitive content.' }));
             veil.appendChild(el('button', {
                 type: 'button', class: 'ch-imgveil-btn',
                 onclick: function (e) {
@@ -2377,19 +2375,14 @@
     function loadImgPrefs() {
         try {
             S.imgOn = localStorage.getItem('specsoft.chat.img') !== 'off';
-            S.imgStrict = localStorage.getItem('specsoft.chat.imgstrict') !== 'off';   // suggestive images are blurred unless the viewer turns it off
             const c = JSON.parse(localStorage.getItem('specsoft.nsfw.cache') || '{}');
             Object.keys(c).forEach(function (k) { if (c[k] && typeof c[k].x === 'number') nsfwCache.set(k, c[k]); });
         } catch (e) { /* ignore */ }
     }
 
-    function setImgPrefs(on, strict) {
+    function setImgPrefs(on) {
         S.imgOn = !!on;
-        S.imgStrict = !!strict;
-        try {
-            localStorage.setItem('specsoft.chat.img', S.imgOn ? 'on' : 'off');
-            localStorage.setItem('specsoft.chat.imgstrict', S.imgStrict ? 'on' : 'off');
-        } catch (e) { /* ignore */ }
+        try { localStorage.setItem('specsoft.chat.img', S.imgOn ? 'on' : 'off'); } catch (e) { /* ignore */ }
         if (S.current) renderFeed({ keepScroll: true });
         if ($('settingsDlg').open && SET.tab === 'media') paintMedia();
         paintScannerStatus();
@@ -3844,8 +3837,7 @@
         $('chSend').addEventListener('click', sendMessage);
         $('chFilterBtn').addEventListener('click', openFilterDlg);
         $('filterToggle').addEventListener('change', function (e) { setFilter(e.target.checked); });
-        $('filterImgToggle').addEventListener('change', function (e) { $('filterImgStrict').disabled = !e.target.checked; setImgPrefs(e.target.checked, $('filterImgStrict').checked); });
-        $('filterImgStrict').addEventListener('change', function (e) { setImgPrefs($('filterImgToggle').checked, e.target.checked); });
+        $('filterImgToggle').addEventListener('change', function (e) { setImgPrefs(e.target.checked); });
         $('reportForm').addEventListener('submit', submitReport);
         wireSettings();
         $('chAttachBtn').addEventListener('click', function () { $('chFileInput').click(); });
