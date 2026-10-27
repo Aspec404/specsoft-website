@@ -4770,3 +4770,59 @@ body.light-mode .cm-hero-ok { color: #50a14f; }
     .sp-chip { transition: none; }
 }
 /* END account-css */
+
+/* START apex-credits */
+/* ==========================================================================
+   APEX Credits pill  [icon 120]  (used by apex-credits.js and store.html)
+   The logo file is white, so light mode inverts it to black.
+   ========================================================================== */
+.apex-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 14px 0 9px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    text-decoration: none;
+    font-variant-numeric: tabular-nums;
+    transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+.apex-pill:hover { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 18px var(--accent-glow); }
+.apex-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.apex-pill[hidden] { display: none !important; }
+
+.apex-ico { display: block; width: 18px; height: 18px; object-fit: contain; flex: 0 0 auto; }
+body.light-mode .apex-ico { filter: invert(1); }
+
+.apex-pill.is-bump .apex-ico { animation: apexBump 0.5s ease; }
+@keyframes apexBump {
+    0%   { transform: scale(1) rotate(0); }
+    40%  { transform: scale(1.35) rotate(-14deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+
+.apex-pill--hud { height: 30px; font-size: 11px; padding: 0 12px 0 8px; }
+.apex-pill--hud .apex-ico { width: 16px; height: 16px; }
+
+.apex-pill--float { position: fixed; top: 14px; right: 24px; z-index: 150; }
+
+.apex-pill--mobile { height: 38px; margin-left: auto; margin-right: 8px; }
+.apex-pill--mobile + .sp-chip--mobile { margin-left: 0; }
+
+@media (min-width: 851px) { .apex-pill--mobile { display: none !important; } }
+@media (max-width: 850px) {
+    .apex-pill--hud,
+    .apex-pill--float { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .apex-pill { transition: none; }
+    .apex-pill.is-bump .apex-ico { animation: none; }
+}
+/* END apex-credits */

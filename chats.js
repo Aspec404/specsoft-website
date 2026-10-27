@@ -429,7 +429,8 @@
         snippet_not_found: 'That snippet was not found.',
         too_many_snippets: 'You have saved the maximum number of snippets (300).',
         pin_limit: 'This chat already has 50 pinned messages. Unpin one first.',
-        message_not_found: 'That message is no longer available.'
+        message_not_found: 'That message is no longer available.',
+        emote_not_owned: 'You can only send emotes you own. Get it in the Store.'
     };
 
     function isSetupMissing(err) {
@@ -1485,7 +1486,7 @@
             });
         };
         while ((m = re.exec(text))) {
-            const url = CUSTOM_EMOJI[m[1].toLowerCase()];
+            const url = composerEmojiUrl(m[1]);
             if (!url) { re.lastIndex = m.index + 1; continue; }    // not one of ours: leave as text, keep scanning
             if (m.index > last) pushText(text.slice(last, m.index));
             nodes.push(makeComposerEmoji(m[0], url));
@@ -1567,7 +1568,7 @@
         const upto = node.nodeValue.slice(0, sel.anchorOffset);
         const m = /:([a-z0-9_+-]{1,32}):$/i.exec(upto);
         if (!m) return;
-        const url = CUSTOM_EMOJI[m[1].toLowerCase()];
+        const url = composerEmojiUrl(m[1]);
         if (!url) return;
         const after = node.nodeValue.slice(sel.anchorOffset);
         const parent = node.parentNode;
@@ -1760,6 +1761,7 @@
         if (!S.me || m.pending) return;
         const customName = /^:([a-z0-9_+-]{1,32}):$/i.exec(emoji);
         if (customName && !CUSTOM_EMOJI[customName[1].toLowerCase()]) { toast('That custom emoji is not configured in this chat.'); return; }
+        if (customName && STORE_EMOTE[customName[1].toLowerCase()] && !MY_EMOTES.has(customName[1].toLowerCase())) { toast('Buy this emote in the Store to react with it.'); return; }
         const list = m.reactions || (m.reactions = []);
         const idx = list.findIndex(function (r) { return r.emoji === emoji && r.user_id === S.me.id; });
         const had = idx >= 0;
@@ -2464,9 +2466,68 @@
     });
     const QUICK = ['👍', '❤️', '😂', '🔥', '😭', '🎉', '💀'];
 
+    /* ----------------------------------------------------------------------
+       MY EMOTES: custom emoji bought in the Store (supabase-store-emotes.sql)
+       Everybody can SEE every store emote in messages; only owners can SEND them.
+       ---------------------------------------------------------------------- */
+    const STORE_EMOTE = Object.create(null);   // every store emote: name -> image url
+    let MY_EMOTES = new Map();                 // emotes this member owns: name -> image url
+    let emotesAt = 0;
+
+    function composerEmojiUrl(name) {
+        const k = String(name).toLowerCase();
+        if (STORE_EMOTE[k]) return MY_EMOTES.has(k) ? STORE_EMOTE[k] : null;   // not yours: stays plain text
+        return CUSTOM_EMOJI[k] || null;
+    }
+
+    async function loadEmotes() {
+        if (!sb) return false;
+        try {
+            const r = await Promise.all([sb.rpc('chat_emotes'), sb.rpc('chat_my_emotes')]);
+            if (r[0].error) return false;                                   // store SQL not installed yet: chats keep working
+            (r[0].data || []).forEach(function (e) {
+                const k = String(e.emote_name || '').toLowerCase();
+                if (!/^[a-z0-9_+-]{1,32}$/.test(k) || !/^https:\/\/[^\s]+$/i.test(e.image_url || '')) return;
+                if (CUSTOM_EMOJI[k] && !STORE_EMOTE[k]) return;             // never replace a built-in emoji
+                STORE_EMOTE[k] = e.image_url; CUSTOM_EMOJI[k] = e.image_url;
+            });
+            const next = new Map();
+            if (!r[1].error) (r[1].data || []).forEach(function (e) { const k = String(e.emote_name || '').toLowerCase(); if (STORE_EMOTE[k]) next.set(k, STORE_EMOTE[k]); });
+            const sig = function (m) { return Array.from(m.keys()).sort().join('|'); };
+            const changed = sig(next) !== sig(MY_EMOTES);
+            MY_EMOTES = next; emotesAt = Date.now();
+            return changed;
+        } catch (e) { return false; }
+    }
+
+    async function refreshEmotes(force) {
+        if (!force && Date.now() - emotesAt < 15000) return;
+        if (await loadEmotes()) buildPicker();
+    }
+
+    function appendMyEmotes(box) {
+        box.appendChild(el('div', { class: 'ch-emoji-cat', text: 'MY EMOTES' }));
+        const names = Array.from(MY_EMOTES.keys());
+        if (!names.length) {
+            box.appendChild(el('p', { class: 'ch-emoji-empty' }, 'Custom emotes you buy show up here. ', el('a', { class: 'ch-link', href: 'store.html#items' }, 'Open the store')));
+            return;
+        }
+        const grid = el('div', { class: 'ch-emoji-grid' });
+        names.forEach(function (name) {
+            const button = el('button', { type: 'button', class: 'ch-emoji-btn is-custom', 'aria-label': name, title: ':' + name + ':', onclick: function () { pickEmoji(':' + name + ':'); } });
+            const img = el('img', { src: MY_EMOTES.get(name), alt: name, loading: 'lazy', referrerpolicy: 'no-referrer' });
+            img.onerror = function () { button.disabled = true; };
+            button.appendChild(img);
+            grid.appendChild(button);
+        });
+        grid.appendChild(el('a', { class: 'ch-emoji-btn ch-emoji-more', href: 'store.html#items', title: 'Get more emotes', 'aria-label': 'Get more emotes', text: '+' }));
+        box.appendChild(grid);
+    }
+
     function buildPicker() {
         const box = $('chEmoji');
         box.textContent = '';
+        appendMyEmotes(box);
         Object.keys(EMOJI).forEach(function (cat) {
             box.appendChild(el('div', { class: 'ch-emoji-cat', text: cat.toUpperCase() }));
             const grid = el('div', { class: 'ch-emoji-grid' });
@@ -2505,6 +2566,7 @@
         S.pickerFor = forMsg ? forMsg.id : null;
         box.hidden = open;
         $('chEmojiBtn').setAttribute('aria-expanded', String(!box.hidden));
+        if (!box.hidden) refreshEmotes(false);               // pick up emotes just bought in the store
     }
 
     /* ----------------------------------------------------------------------
@@ -4040,6 +4102,7 @@
             if (document.hidden) return;
             if (S.current && S.atBottom && S.current.unread) markRead(S.current.room_id);
             resync({ light: true });                      // woke up: catch up on anything that was missed
+            refreshEmotes(false);                         // you may have just bought an emote in another tab
         });
         window.addEventListener('online', function () { resync(); });
         window.addEventListener('focus', function () { if (S.current && S.atBottom && S.current.unread) markRead(S.current.room_id); });
@@ -4103,7 +4166,8 @@
         try {
             S.profile = await ensureProfile(S.me);
             S.profiles.set(S.profile.id, S.profile);
-            await Promise.all([loadRooms(), loadInvites(), loadInbox(), loadBlocks()]);
+            await Promise.all([loadRooms(), loadInvites(), loadInbox(), loadBlocks(), loadEmotes()]);
+            buildPicker();                                   // adds MY EMOTES now that we know what you own
         } catch (err) {
             console.error('Chats failed to load:', err);
             if (isSetupMissing(err)) gate('sql'); else gate('error', friendly(err));

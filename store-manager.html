@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Store Manager | SPECSOFT®</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Store Manager: everything it needs lives in this one file. */
+        .sm-app { position: relative; z-index: 2; flex: 1 1 auto; min-width: 0; width: min(1100px, 100%); margin: 0 auto; padding: 22px clamp(14px, 3vw, 30px) 80px; }
+        .sm-app [hidden] { display: none !important; }
+        .sm-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
+        .sm-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; margin-right: auto; }
+        .sm-head a, .sm-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 14px; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 9px; color: var(--text-primary); font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; transition: border-color .2s, background .2s, opacity .2s; }
+        .sm-head a:hover, .sm-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-dim); }
+        .sm-btn:disabled { opacity: .45; cursor: default; }
+        .sm-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg-base); font-weight: 600; }
+        .sm-btn--primary:hover:not(:disabled) { background: var(--accent); opacity: .88; }
+        .sm-btn--danger { color: #f23f43; }
+        .sm-btn--sm { min-height: 30px; padding: 0 10px; font-size: 12px; }
+        .sm-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0; }
+        .sm-tab { height: 34px; padding: 0 16px; background: none; border: 1px solid var(--border-subtle); border-radius: 999px; color: var(--text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+        .sm-tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg-base); font-weight: 600; }
+        .sm-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+        .sm-bar .sm-grow { flex: 1; }
+        .sm-note { color: var(--text-secondary); font-size: 13px; line-height: 1.55; max-width: 70ch; }
+        .sm-card { padding: 18px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; margin-bottom: 16px; }
+        .sm-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+        .sm-list { display: grid; gap: 8px; }
+        .sm-row { display: grid; grid-template-columns: 46px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .sm-row.is-off { opacity: .55; }
+        .sm-thumb { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 10px; background: var(--bg-card-hover); border: 1px solid var(--border-subtle); font-size: 24px; overflow: hidden; }
+        .sm-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .sm-main strong { display: block; font-size: 14px; font-weight: 600; }
+        .sm-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; align-items: center; color: var(--text-secondary); font-size: 12px; font-family: var(--font-mono); }
+        .sm-badge { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-hover); font-size: 11px; font-family: var(--font-sans); }
+        .sm-badge--live { background: var(--accent); color: var(--bg-base); border-color: var(--accent); font-weight: 600; }
+        .sm-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+        .sm-empty { padding: 28px; text-align: center; color: var(--text-secondary); border: 1px dashed var(--border-hover); border-radius: 12px; font-size: 14px; }
+        .sm-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+        .sm-form .sm-wide { grid-column: 1 / -1; }
+        .sm-field label { display: block; margin-bottom: 5px; color: var(--text-secondary); font-size: 12px; }
+        .sm-field input:not([type=checkbox]), .sm-field select, .sm-field textarea { width: 100%; min-height: 38px; padding: 8px 11px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; color: var(--text-primary); font: inherit; font-size: 13px; }
+        .sm-field textarea { resize: vertical; min-height: 70px; }
+        .sm-field input:focus, .sm-field select:focus, .sm-field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+        .sm-field .sm-hint { margin-top: 4px; color: var(--text-tertiary); font-size: 11.5px; }
+        .sm-check { display: flex; align-items: center; gap: 8px; min-height: 38px; font-size: 13px; cursor: pointer; }
+        .sm-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+        .sm-dlg { width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 30px); padding: 0; margin: auto; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-hover); border-radius: 16px; overflow: auto; }
+        .sm-dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(4px); }
+        .sm-dlg form { padding: 20px; }
+        .sm-dlg h3 { font-size: 18px; margin-bottom: 14px; }
+        .sm-dlg-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+        .sm-toast { position: fixed; left: 50%; bottom: 24px; z-index: 600; max-width: min(92vw, 440px); padding: 10px 18px; border-radius: 12px; background: var(--text-primary); color: var(--bg-base); font-size: 13.5px; opacity: 0; transform: translate(-50%, 12px); pointer-events: none; transition: opacity .2s, transform .2s; }
+        .sm-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+        .sm-toast.is-bad { background: #f23f43; color: #fff; }
+        .sm-gate { max-width: 560px; margin: 12vh auto; padding: 26px; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 16px; }
+        .sm-gate h1 { font-size: 22px; margin-bottom: 8px; }
+        .sm-gate pre { margin-top: 12px; padding: 12px; background: var(--code-bg); border: 1px solid var(--border-subtle); border-radius: 10px; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--code-text); }
+        .sm-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+        .sm-stat { flex: 1 1 140px; padding: 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .sm-stat strong { display: block; font-family: var(--font-mono); font-size: 22px; }
+        .sm-stat span { color: var(--text-secondary); font-size: 12px; }
+        @media (max-width: 640px) { .sm-row { grid-template-columns: 40px 1fr; } .sm-actions { grid-column: 1 / -1; justify-content: flex-start; } .sm-thumb { width: 40px; height: 40px; } }
+    </style>
+</head>
+<body>
+    <script>try{var t=localStorage.getItem('specsoft-theme');if(t==='light')document.body.classList.add('light-mode')}catch(e){}</script>
+    <div class="grid-bg"></div><div class="scanlines"></div><div class="vignette"></div><div class="ambient-glow"></div>
+
+    <div class="sm-app" id="app">
+        <div class="sm-gate" id="gate"><h1>Store Manager</h1><p class="sm-note">Checking your access...</p></div>
+        <div id="panel" hidden>
+            <header class="sm-head">
+                <h1>Store Manager</h1>
+                <a href="store.html">View store</a>
+            </header>
+            <nav class="sm-tabs" id="tabs" role="tablist" aria-label="Manager sections"></nav>
+            <section id="view"></section>
+        </div>
+    </div>
+
+    <dialog class="sm-dlg" id="dlg"><form id="dlgForm" novalidate></form></dialog>
+    <div class="sm-toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        var CFG = window.SPECSOFT_CONFIG || {};
+        var sb = window.getSupabaseClient ? window.getSupabaseClient()
+            : ((window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY) ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null);
+        var $ = function (id) { return document.getElementById(id); };
+        var S = { tab: 'items', items: [], packs: [], codes: [], settings: null, featured: [], sales: [], names: {}, q: '' };
+        var TABS = [['items', 'Items'], ['featured', 'Featured'], ['packs', 'Credit packs'], ['codes', 'Codes'], ['credits', 'Credits & economy'], ['sales', 'Sales']];
+
+        /* ---------- helpers ---------- */
+        function el(tag, props) {
+            var n = document.createElement(tag);
+            if (props) Object.keys(props).forEach(function (k) {
+                var v = props[k]; if (v == null || v === false) return;
+                if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v;
+                else if (k.slice(0, 2) === 'on') n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? '' : v);
+            });
+            for (var i = 2; i < arguments.length; i++) [].concat(arguments[i]).forEach(function (c) { if (c != null && c !== false) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+            return n;
+        }
+        var tt;
+        function toast(m, bad) { var t = $('toast'); t.textContent = m; t.classList.toggle('is-bad', !!bad); t.classList.add('is-on'); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove('is-on'); }, 3200); }
+        function fail(e) { var m = String(e && e.message || e); toast(/user_not_found/.test(m) ? 'No member with that username.' : /not_admin/.test(m) ? 'You are not a store admin.' : m, true); }
+        function fmt(n) { return (Number(n) || 0).toLocaleString('en-US'); }
+        function when(iso) { return iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : ''; }
+        function toLocalInput(iso) { if (!iso) return ''; var d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }
+        function numOrNull(v) { v = String(v == null ? '' : v).trim(); return v === '' ? null : Math.max(0, Math.floor(Number(v))); }
+        function confirmIt(m) { return window.confirm(m); }
+
+        /* ---------- generic form dialog ---------- */
+        // fields: [{ key, label, type: text|number|textarea|select|checkbox|datetime, options:[[value,label]], hint, wide, required }]
+        function openForm(opt) {
+            var form = $('dlgForm'), dlg = $('dlg'), inputs = {};
+            form.textContent = '';
+            var grid = el('div', { class: 'sm-form' });
+            opt.fields.forEach(function (f) {
+                var v = opt.values && opt.values[f.key], input;
+                if (f.type === 'textarea') input = el('textarea', { rows: '3', maxlength: f.max || null });
+                else if (f.type === 'select') input = el('select', null, f.options.map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+                else if (f.type === 'checkbox') input = el('input', { type: 'checkbox' });
+                else input = el('input', { type: f.type === 'datetime' ? 'datetime-local' : (f.type || 'text'), min: f.type === 'number' ? '0' : null, placeholder: f.placeholder || null, autocomplete: 'off' });
+                if (f.type === 'checkbox') input.checked = !!v;
+                else if (f.type === 'datetime') input.value = toLocalInput(v);
+                else input.value = v == null ? '' : v;
+                inputs[f.key] = input;
+                var box = el('div', { class: 'sm-field' + (f.wide ? ' sm-wide' : '') });
+                if (f.type === 'checkbox') box.appendChild(el('label', { class: 'sm-check' }, input, f.label));
+                else { box.appendChild(el('label', { text: f.label })); box.appendChild(input); }
+                if (f.hint) box.appendChild(el('div', { class: 'sm-hint', text: f.hint }));
+                grid.appendChild(box);
+            });
+            var save = el('button', { type: 'submit', class: 'sm-btn sm-btn--primary', text: opt.saveLabel || 'Save' });
+            form.appendChild(el('h3', { text: opt.title }));
+            form.appendChild(grid);
+            form.appendChild(el('div', { class: 'sm-dlg-foot' }, el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { dlg.close(); } }), save));
+            form.onsubmit = async function (e) {
+                e.preventDefault();
+                var out = {};
+                for (var i = 0; i < opt.fields.length; i++) {
+                    var f = opt.fields[i], inp = inputs[f.key], val;
+                    if (f.type === 'checkbox') val = inp.checked;
+                    else if (f.type === 'number') val = f.nullable ? numOrNull(inp.value) : (inp.value === '' ? null : Number(inp.value));
+                    else if (f.type === 'datetime') val = inp.value ? new Date(inp.value).toISOString() : null;
+                    else { val = inp.value.trim(); if (val === '' && f.nullable) val = null; }
+                    if (f.required && (val == null || val === '' || (f.type === 'number' && isNaN(val)))) { toast('Fill in: ' + f.label, true); inp.focus(); return; }
+                    out[f.key] = val;
+                }
+                save.disabled = true;
+                try { await opt.onSave(out); dlg.close(); } catch (err) { fail(err); } finally { save.disabled = false; }
+            };
+            dlg.showModal();
+            var first = form.querySelector('input,textarea,select'); if (first) first.focus();
+        }
+
+        /* ---------- data ---------- */
+        async function loadAll() {
+            var r = await Promise.all([
+                sb.from('store_items').select('*').order('sort', { ascending: true }).order('created_at', { ascending: true }),
+                sb.from('credit_packs').select('*').order('sort', { ascending: true }),
+                sb.from('apex_codes').select('*').order('created_at', { ascending: false }),
+                sb.from('store_settings').select('*').eq('id', 1).maybeSingle(),
+                sb.rpc('store_featured')
+            ]);
+            for (var i = 0; i < r.length; i++) if (r[i].error) throw r[i].error;
+            S.items = r[0].data || []; S.packs = r[1].data || []; S.codes = r[2].data || [];
+            S.settings = r[3].data; S.featured = r[4].data || [];
+        }
+        async function reload(keepTab) { try { await loadAll(); render(); } catch (e) { fail(e); } }
+
+        /* ---------- ITEMS ---------- */
+        var ITEM_FIELDS = [
+            { key: 'name', label: 'Name', required: true },
+            { key: 'emoji', label: 'Emoji (used when there is no image)', nullable: true, placeholder: '🎁' },
+            { key: 'description', label: 'Description', type: 'textarea', wide: true, max: 240, nullable: true },
+            { key: 'category', label: 'Category', type: 'select', options: [['emote', 'Emote (goes to MY EMOTES in chats)'], ['badge', 'Badge'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
+            { key: 'emote_name', label: 'Emote code (Emote category only)', nullable: true, placeholder: 'pepe_happy', hint: 'Letters, numbers and _ + -. Members use it as :pepe_happy:. Needs an Image URL. Do not reuse a built-in emoji name.' },
+            { key: 'rarity', label: 'Rarity', type: 'select', options: [['common', 'Common'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary']] },
+            { key: 'price', label: 'Price (APEX Credits)', type: 'number', required: true },
+            { key: 'stock', label: 'Stock', type: 'number', nullable: true, hint: 'Leave empty for unlimited.' },
+            { key: 'per_user_limit', label: 'Max per person', type: 'number', nullable: true, hint: 'Leave empty to allow buying many. Use 1 for one-time items.' },
+            { key: 'sort', label: 'Sort order', type: 'number', hint: 'Lower numbers show first.' },
+            { key: 'image_url', label: 'Image URL (https). Required for emotes', wide: true, nullable: true, hint: 'Use a square PNG or GIF, about 128x128, on a host that stays online.' },
+            { key: 'in_rotation', label: 'Include in the automatic featured rotation', type: 'checkbox', wide: true },
+            { key: 'active', label: 'Visible in the store', type: 'checkbox', wide: true }
+        ];
+        function itemPayload(o) {
+            var isEmote = o.category === 'emote';
+            var code = isEmote ? String(o.emote_name || '').toLowerCase().replace(/[^a-z0-9_+-]/g, '').slice(0, 32) : null;
+            if (isEmote && !code) throw new Error('Emotes need a code like pepe_happy.');
+            if (isEmote && !/^https:\/\//i.test(o.image_url || '')) throw new Error('Emotes need an https image URL.');
+            if (isEmote) o.per_user_limit = 1;
+            return { emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
+                per_user_limit: o.per_user_limit == null ? null : Math.max(1, o.per_user_limit), sort: Math.floor(o.sort || 0), image_url: o.image_url, in_rotation: o.in_rotation, active: o.active };
+        }
+        function editItem(it) {
+            var isNew = !it;
+            openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: ITEM_FIELDS,
+                values: it || { category: 'badge', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' },
+                onSave: async function (o) {
+                    var q = isNew ? sb.from('store_items').insert(itemPayload(o)) : sb.from('store_items').update(itemPayload(o)).eq('id', it.id);
+                    var r = await q; if (r.error) throw (/emote_name_key|duplicate/i.test(r.error.message) ? new Error('That emote code is already used.') : (/emote_rules|category_check/i.test(r.error.message) ? new Error('Run supabase-store-emotes.sql first, then try again.') : r.error));
+                    toast(isNew ? 'Item added' : 'Item saved'); await reload();
+                } });
+        }
+        function pinItem(it) {
+            openForm({ title: 'Feature ' + it.name, saveLabel: 'Feature now',
+                fields: [{ key: 'days', label: 'Feature for how many days?', type: 'number', required: true, hint: 'It jumps to the top of Featured right away and ends by itself.' }],
+                values: { days: (S.settings && S.settings.rotation_days) || 3 },
+                onSave: async function (o) {
+                    var days = Math.max(0.04, Number(o.days) || 3);
+                    var until = new Date(Date.now() + days * 86400000).toISOString();
+                    var r = await sb.from('store_items').update({ featured_until: until, active: true }).eq('id', it.id); if (r.error) throw r.error;
+                    toast('Featured until ' + when(until)); await reload();
+                } });
+        }
+        async function patchItem(it, patch, msg) { var r = await sb.from('store_items').update(patch).eq('id', it.id); if (r.error) return fail(r.error); toast(msg); reload(); }
+        async function deleteItem(it) {
+            if (!confirmIt('Delete "' + it.name + '"? ' + (it.category === 'emote' ? 'Owners would LOSE this emote and old messages stop showing it. Use Hide instead to keep it working.' : 'People who bought it keep it in their history. To just hide it, use Hide instead.'))) return;
+            var r = await sb.from('store_items').delete().eq('id', it.id); if (r.error) return fail(r.error); toast('Item deleted'); reload();
+        }
+        function featState(it) {
+            var f = S.featured.find(function (x) { return x.item_id === it.id; });
+            return f ? (f.is_pinned ? { live: true, text: 'Featured until ' + when(f.ends_at) } : { live: true, text: 'In this rotation until ' + when(f.ends_at) }) : null;
+        }
+        function renderItems(root) {
+            root.appendChild(el('div', { class: 'sm-bar' },
+                el('button', { class: 'sm-btn sm-btn--primary', text: 'New item', onclick: function () { editItem(null); } }),
+                el('div', { class: 'sm-field sm-grow' }, el('input', { type: 'search', placeholder: 'Search items', value: S.q, 'aria-label': 'Search items', oninput: function (e) { S.q = e.target.value; paintItemRows(); } }))));
+            root.appendChild(el('div', { class: 'sm-list', id: 'itemRows' }));
+            paintItemRows();
+        }
+        function paintItemRows() {
+            var box = $('itemRows'); if (!box) return; box.textContent = '';
+            var q = S.q.toLowerCase(), list = S.items.filter(function (i) { return !q || (i.name + ' ' + (i.description || '')).toLowerCase().indexOf(q) >= 0; });
+            if (!list.length) { box.appendChild(el('div', { class: 'sm-empty', text: S.items.length ? 'No items match that search.' : 'No items yet. Add your first one.' })); return; }
+            list.forEach(function (it) {
+                var fs = featState(it), pinned = it.featured_until && new Date(it.featured_until) > new Date();
+                var thumb = el('div', { class: 'sm-thumb' });
+                if (/^https:\/\//i.test(it.image_url || '')) thumb.appendChild(el('img', { src: it.image_url, alt: '', referrerpolicy: 'no-referrer' })); else thumb.textContent = it.emoji || '🎁';
+                box.appendChild(el('div', { class: 'sm-row' + (it.active ? '' : ' is-off') },
+                    thumb,
+                    el('div', { class: 'sm-main' }, el('strong', { text: it.name }),
+                        el('div', { class: 'sm-meta' },
+                            el('span', { text: fmt(it.price) + ' credits' }), el('span', { text: it.category }), it.emote_name ? el('span', { text: ':' + it.emote_name + ':' }) : null, el('span', { text: it.rarity }),
+                            el('span', { text: it.stock == null ? 'unlimited' : it.stock + ' left' }),
+                            it.active ? null : el('span', { class: 'sm-badge', text: 'Hidden' }),
+                            it.in_rotation ? el('span', { class: 'sm-badge', text: 'In rotation pool' }) : null,
+                            fs ? el('span', { class: 'sm-badge sm-badge--live', text: fs.text }) : null)),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Edit', onclick: function () { editItem(it); } }),
+                        pinned ? el('button', { class: 'sm-btn sm-btn--sm', text: 'Unfeature', onclick: function () { patchItem(it, { featured_until: null }, 'Removed from featured'); } })
+                               : el('button', { class: 'sm-btn sm-btn--sm', text: 'Feature…', onclick: function () { pinItem(it); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: it.in_rotation ? 'Leave rotation' : 'Join rotation', onclick: function () { patchItem(it, { in_rotation: !it.in_rotation }, it.in_rotation ? 'Left the rotation pool' : 'Added to the rotation pool'); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: it.active ? 'Hide' : 'Show', onclick: function () { patchItem(it, { active: !it.active }, it.active ? 'Item hidden' : 'Item visible'); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: function () { deleteItem(it); } }))));
+            });
+        }
+
+        /* ---------- FEATURED ---------- */
+        function renderFeatured(root) {
+            var st = S.settings || {};
+            var live = el('div', { class: 'sm-list' });
+            if (!S.featured.length) live.appendChild(el('div', { class: 'sm-empty', text: 'Nothing is featured. Add items to the rotation pool, or feature one directly from the Items tab.' }));
+            S.featured.forEach(function (f) {
+                var it = S.items.find(function (i) { return i.id === f.item_id; }); if (!it) return;
+                live.appendChild(el('div', { class: 'sm-row' }, el('div', { class: 'sm-thumb', text: it.emoji || '🎁' }),
+                    el('div', { class: 'sm-main' }, el('strong', { text: it.name }), el('div', { class: 'sm-meta', text: (f.is_pinned ? 'Pinned' : 'Rotation') + ' · ends ' + when(f.ends_at) + ' · ' + fmt(it.price) + ' → ' + fmt(Math.round(it.price * (100 - f.discount) / 100)) + ' credits' })),
+                    el('div', { class: 'sm-actions' })));
+            });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Live now' }), live));
+            var pool = S.items.filter(function (i) { return i.active && i.in_rotation; }).length;
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Rotation settings' }),
+                el('p', { class: 'sm-note', text: 'The lineup is picked from the rotation pool (' + pool + ' item' + (pool === 1 ? '' : 's') + ' right now) and changes by itself every few days. Pinned items always show first and use up slots.' }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' },
+                    el('button', { class: 'sm-btn sm-btn--primary', text: 'Edit settings', onclick: function () {
+                        openForm({ title: 'Rotation settings', values: st, fields: [
+                            { key: 'rotation_days', label: 'Rotate every (days)', type: 'number', required: true },
+                            { key: 'rotation_slots', label: 'Featured slots', type: 'number', required: true, hint: '1 to 6.' },
+                            { key: 'featured_discount', label: 'Featured discount (%)', type: 'number', required: true, hint: '0 turns the discount off.' }],
+                            onSave: function (o) { return saveSettings({ rotation_days: o.rotation_days, rotation_slots: o.rotation_slots, featured_discount: o.featured_discount }); } });
+                    } }),
+                    el('button', { class: 'sm-btn', text: 'Start a new rotation now', onclick: async function () {
+                        if (!confirmIt('Start a fresh rotation now? The automatic picks change right away and the timer restarts. Pinned items are not affected.')) return;
+                        await saveSettings({ rotation_epoch: new Date().toISOString() }).catch(fail);
+                    } }),
+                    el('span', { class: 'sm-note', text: 'Every ' + (st.rotation_days || 3) + ' days · ' + (st.rotation_slots || 3) + ' slots · ' + (st.featured_discount || 0) + '% off' }))));
+        }
+        async function saveSettings(patch) {
+            patch.updated_at = new Date().toISOString();
+            var r = await sb.from('store_settings').update(patch).eq('id', 1); if (r.error) throw r.error;
+            toast('Settings saved'); await reload();
+        }
+
+        /* ---------- PACKS ---------- */
+        var PACK_FIELDS = [
+            { key: 'name', label: 'Pack name', required: true },
+            { key: 'price_label', label: 'Price shown (text)', required: true, placeholder: '$4.99' },
+            { key: 'credits', label: 'Credits', type: 'number', required: true },
+            { key: 'bonus', label: 'Bonus credits', type: 'number' },
+            { key: 'badge', label: 'Badge text (optional)', nullable: true, placeholder: 'Best value' },
+            { key: 'sort', label: 'Sort order', type: 'number' },
+            { key: 'checkout_url', label: 'Payment link (https)', wide: true, nullable: true, hint: 'Ko-fi, Stripe Payment Link, PayPal... Empty shows "Coming soon" to members.' },
+            { key: 'active', label: 'Visible in the store', type: 'checkbox', wide: true }
+        ];
+        function editPack(p) {
+            var isNew = !p;
+            openForm({ title: isNew ? 'New credit pack' : 'Edit ' + p.name, fields: PACK_FIELDS, values: p || { credits: 500, bonus: 0, sort: 0, active: true },
+                onSave: async function (o) {
+                    if (o.checkout_url && !/^https:\/\//i.test(o.checkout_url)) throw new Error('The payment link must start with https://');
+                    var row = { name: o.name, price_label: o.price_label, credits: Math.max(1, Math.floor(o.credits)), bonus: Math.max(0, Math.floor(o.bonus || 0)), badge: o.badge, sort: Math.floor(o.sort || 0), checkout_url: o.checkout_url, active: o.active };
+                    var r = await (isNew ? sb.from('credit_packs').insert(row) : sb.from('credit_packs').update(row).eq('id', p.id)); if (r.error) throw r.error;
+                    toast('Pack saved'); await reload();
+                } });
+        }
+        function renderPacks(root) {
+            root.appendChild(el('div', { class: 'sm-bar' }, el('button', { class: 'sm-btn sm-btn--primary', text: 'New pack', onclick: function () { editPack(null); } }),
+                el('span', { class: 'sm-note', text: 'Members pay through your payment link, then you add the credits from the Credits tab. Automatic delivery needs a payment webhook, which is a separate step.' })));
+            var list = el('div', { class: 'sm-list' });
+            if (!S.packs.length) list.appendChild(el('div', { class: 'sm-empty', text: 'No credit packs yet.' }));
+            S.packs.forEach(function (p) {
+                list.appendChild(el('div', { class: 'sm-row' + (p.active ? '' : ' is-off') }, el('div', { class: 'sm-thumb', text: '💎' }),
+                    el('div', { class: 'sm-main' }, el('strong', { text: p.name }), el('div', { class: 'sm-meta', text: fmt(p.credits) + (p.bonus ? ' + ' + fmt(p.bonus) + ' bonus' : '') + ' credits · ' + p.price_label + (p.checkout_url ? ' · link set' : ' · no link') + (p.badge ? ' · ' + p.badge : '') })),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Edit', onclick: function () { editPack(p); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: p.active ? 'Hide' : 'Show', onclick: async function () { var r = await sb.from('credit_packs').update({ active: !p.active }).eq('id', p.id); if (r.error) return fail(r.error); reload(); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete this pack?')) return; var r = await sb.from('credit_packs').delete().eq('id', p.id); if (r.error) return fail(r.error); reload(); } }))));
+            });
+            root.appendChild(list);
+        }
+
+        /* ---------- CODES ---------- */
+        function genCode() { var a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = ''; var b = new Uint8Array(8); crypto.getRandomValues(b); b.forEach(function (x) { s += a[x % a.length]; }); return s.slice(0, 4) + '-' + s.slice(4); }
+        function newCode() {
+            openForm({ title: 'New redeem code', values: { code: genCode(), credits: 50, active: true },
+                fields: [
+                    { key: 'code', label: 'Code', required: true, hint: 'Letters, numbers and dashes. Not case sensitive.' },
+                    { key: 'credits', label: 'Credits it gives', type: 'number', required: true },
+                    { key: 'max_uses', label: 'Max uses', type: 'number', nullable: true, hint: 'Empty = unlimited. Each person can redeem a code once.' },
+                    { key: 'expires_at', label: 'Expires', type: 'datetime', hint: 'Empty = never.' },
+                    { key: 'note', label: 'Note (only you see it)', wide: true, nullable: true, placeholder: 'Halloween giveaway' }],
+                onSave: async function (o) {
+                    var code = o.code.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+                    if (code.length < 3) throw new Error('The code needs at least 3 characters.');
+                    var r = await sb.from('apex_codes').insert({ code: code, credits: Math.max(1, Math.floor(o.credits)), max_uses: o.max_uses, expires_at: o.expires_at, note: o.note, active: true });
+                    if (r.error) throw (/duplicate/i.test(r.error.message) ? new Error('That code already exists.') : r.error);
+                    toast('Code created: ' + code.toUpperCase()); await reload();
+                } });
+        }
+        function renderCodes(root) {
+            root.appendChild(el('div', { class: 'sm-bar' }, el('button', { class: 'sm-btn sm-btn--primary', text: 'New code', onclick: newCode }),
+                el('span', { class: 'sm-note', text: 'Share codes at events, giveaways or in chat. They are the main way people get big chunks of credits.' })));
+            var list = el('div', { class: 'sm-list' });
+            if (!S.codes.length) list.appendChild(el('div', { class: 'sm-empty', text: 'No codes yet.' }));
+            S.codes.forEach(function (c) {
+                var expired = c.expires_at && new Date(c.expires_at) < new Date(), spent = c.max_uses != null && c.uses >= c.max_uses;
+                list.appendChild(el('div', { class: 'sm-row' + (c.active && !expired && !spent ? '' : ' is-off') }, el('div', { class: 'sm-thumb', text: '🎟️' }),
+                    el('div', { class: 'sm-main' }, el('strong', { text: c.code.toUpperCase() }),
+                        el('div', { class: 'sm-meta', text: fmt(c.credits) + ' credits · used ' + c.uses + (c.max_uses != null ? '/' + c.max_uses : '') + (c.expires_at ? ' · ' + (expired ? 'expired ' : 'expires ') + when(c.expires_at) : '') + (c.note ? ' · ' + c.note : '') + (c.active ? '' : ' · off') })),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Copy', onclick: function () { navigator.clipboard && navigator.clipboard.writeText(c.code.toUpperCase()); toast('Code copied'); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: c.active ? 'Turn off' : 'Turn on', onclick: async function () { var r = await sb.from('apex_codes').update({ active: !c.active }).eq('code', c.code); if (r.error) return fail(r.error); reload(); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete this code?')) return; var r = await sb.from('apex_codes').delete().eq('code', c.code); if (r.error) return fail(r.error); reload(); } }))));
+            });
+            root.appendChild(list);
+        }
+
+        /* ---------- CREDITS & ECONOMY ---------- */
+        function renderCredits(root) {
+            var st = S.settings || {};
+            var user = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'gUser' });
+            var amt = el('input', { type: 'number', placeholder: '100 or -50', id: 'gAmt' });
+            var why = el('input', { type: 'text', placeholder: 'Pack purchase, giveaway, correction...', id: 'gWhy', maxlength: '80' });
+            var go = el('button', { class: 'sm-btn sm-btn--primary', type: 'button', text: 'Apply', onclick: async function () {
+                var n = Math.trunc(Number(amt.value)); if (!user.value.trim() || !n) return toast('Enter a username and an amount.', true);
+                if (!confirmIt((n > 0 ? 'Give ' : 'Remove ') + fmt(Math.abs(n)) + ' APEX Credits ' + (n > 0 ? 'to ' : 'from ') + user.value.trim() + '?')) return;
+                go.disabled = true;
+                try { var r = await sb.rpc('store_admin_grant', { p_username: user.value.trim(), p_amount: n, p_reason: why.value.trim() }); if (r.error) throw r.error;
+                    toast(user.value.trim() + ' now has ' + fmt(r.data.balance) + ' credits'); amt.value = ''; why.value = ''; } catch (e) { fail(e); } finally { go.disabled = false; }
+            } });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Give or remove credits' }),
+                el('p', { class: 'sm-note', text: 'Use this to deliver credit packs after a payment, run giveaways or fix mistakes. A minus number removes credits (never below 0).' }),
+                el('div', { class: 'sm-form', style: 'margin-top:12px' },
+                    el('div', { class: 'sm-field' }, el('label', { for: 'gUser', text: 'Username' }), user),
+                    el('div', { class: 'sm-field' }, el('label', { for: 'gAmt', text: 'Amount' }), amt),
+                    el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'gWhy', text: 'Reason (saved in their history)' }), why)),
+                el('div', { class: 'sm-dlg-foot' }, go)));
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Earning rates' }),
+                el('p', { class: 'sm-note', text: 'Today: ' + (st.daily_amount || 0) + ' credits a day' + (st.streak_every ? ', plus ' + (st.streak_bonus || 0) + ' every ' + st.streak_every + ' days in a row.' : '.') + ' Keep these low to keep credits hard to get.' }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit earning rates', onclick: function () {
+                    openForm({ title: 'Earning rates', values: st, fields: [
+                        { key: 'daily_amount', label: 'Daily check-in credits', type: 'number', required: true },
+                        { key: 'streak_every', label: 'Bonus every N days in a row', type: 'number', required: true, hint: '0 turns the streak bonus off.' },
+                        { key: 'streak_bonus', label: 'Streak bonus credits', type: 'number', required: true }],
+                        onSave: function (o) { return saveSettings({ daily_amount: o.daily_amount, streak_every: o.streak_every, streak_bonus: o.streak_bonus }); } });
+                } }))));
+        }
+
+        /* ---------- SALES ---------- */
+        async function renderSales(root) {
+            root.appendChild(el('div', { class: 'sm-note', text: 'Loading sales...' }));
+            var r = await sb.from('store_purchases').select('*').order('created_at', { ascending: false }).limit(100);
+            root.textContent = '';
+            if (r.error) return root.appendChild(el('div', { class: 'sm-empty', text: r.error.message }));
+            S.sales = r.data || [];
+            var ids = Array.from(new Set(S.sales.map(function (x) { return x.user_id; })));
+            if (ids.length) { var p = await sb.from('profiles').select('id,username,display_name').in('id', ids); (p.data || []).forEach(function (u) { S.names[u.id] = u.display_name || u.username; }); }
+            var total = S.sales.reduce(function (a, x) { return a + x.price_paid; }, 0);
+            root.appendChild(el('div', { class: 'sm-stats' },
+                el('div', { class: 'sm-stat' }, el('strong', { text: String(S.sales.length) }), el('span', { text: 'Recent sales (last 100)' })),
+                el('div', { class: 'sm-stat' }, el('strong', { text: fmt(total) }), el('span', { text: 'Credits spent in them' }))));
+            var list = el('div', { class: 'sm-list' });
+            if (!S.sales.length) list.appendChild(el('div', { class: 'sm-empty', text: 'No sales yet.' }));
+            S.sales.forEach(function (x) { list.appendChild(el('div', { class: 'sm-row' }, el('div', { class: 'sm-thumb', text: '🧾' }), el('div', { class: 'sm-main' }, el('strong', { text: x.item_name }), el('div', { class: 'sm-meta', text: (S.names[x.user_id] || x.user_id.slice(0, 8)) + ' · ' + fmt(x.price_paid) + ' credits · ' + when(x.created_at) })), el('div'))); });
+            root.appendChild(list);
+        }
+
+        /* ---------- shell ---------- */
+        function render() {
+            var tabs = $('tabs'); tabs.textContent = '';
+            TABS.forEach(function (t) { tabs.appendChild(el('button', { class: 'sm-tab', role: 'tab', 'aria-selected': String(S.tab === t[0]), text: t[1], onclick: function () { S.tab = t[0]; render(); } })); });
+            var v = $('view'); v.textContent = '';
+            ({ items: renderItems, featured: renderFeatured, packs: renderPacks, codes: renderCodes, credits: renderCredits, sales: renderSales })[S.tab](v);
+        }
+
+        async function start() {
+            var gate = $('gate');
+            if (!sb) { gate.innerHTML = '<h1>Store Manager</h1><p class="sm-note">Cannot connect. Check supabase-config.js.</p>'; return; }
+            var s = await sb.auth.getSession(), user = s.data && s.data.session && s.data.session.user;
+            if (!user) { gate.innerHTML = '<h1>Store Manager</h1><p class="sm-note">Sign in first, then come back to this page.</p><p style="margin-top:12px"><a class="sm-btn" href="login.html">Sign in</a></p>'; return; }
+            var a = await sb.rpc('store_is_admin');
+            if (a.error) { gate.innerHTML = '<h1>Store Manager</h1><p class="sm-note">The store is not set up yet. Run supabase-store.sql in the Supabase SQL Editor, then reload.</p>'; return; }
+            if (a.data !== true) {
+                gate.innerHTML = '<h1>No access</h1><p class="sm-note">This account is not a store admin. To make it one, run this in the Supabase SQL Editor:</p>';
+                gate.appendChild(el('pre', { text: "insert into public.store_admins (user_id) values ('" + user.id + "');" }));
+                return;
+            }
+            try { await loadAll(); } catch (e) { gate.innerHTML = '<h1>Store Manager</h1><p class="sm-note">Could not load the store. Run supabase-store.sql first.</p>'; return; }
+            gate.hidden = true; $('panel').hidden = false;
+            render();
+        }
+        start();
+    })();
+    </script>
+</body>
+</html>

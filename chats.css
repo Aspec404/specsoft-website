@@ -2151,3 +2151,10 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
     .ch-gif { animation: none; }
 }
+
+/* ==========================================================================
+   MY EMOTES (custom emoji bought in the store)
+   ========================================================================== */
+.ch-emoji-empty { margin: 2px 4px 10px; color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; }
+.ch-emoji-more { color: var(--text-secondary); font-size: 22px; text-decoration: none; border: 1px dashed var(--border-hover); }
+.ch-emoji-more:hover { color: var(--text-primary); border-color: var(--accent); transform: none; }

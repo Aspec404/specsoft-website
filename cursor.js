@@ -183,6 +183,7 @@
         if (ready) return;
         ready = true;
         rx = mx; ry = my; px = mx; py = my;
+        lastX = mx; lastY = my;
         placeDot();
         ringLayer.style.transform = 'translate3d(' + rx + 'px,' + ry + 'px,0)';
         ringLayer.classList.add('is-ready');
@@ -491,7 +492,7 @@
         mo.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] });
     }
 
-    /* ----- trail: dirty-rect cleared, so only the area it touches is repainted ----- */
+    /* ----- trail: dirty-rect cleared and redrawn with a natural fade ----- */
     var pts = [], marks = [], lastX = mx, lastY = my, travelled = 0, prevBox = null;
 
     function drawTrail(now) {
@@ -510,13 +511,11 @@
 
         while (pts.length && now - pts[0].t > CFG.trailLife) pts.shift();
         while (marks.length && now - marks[0].t > CFG.trailLife * 1.6) marks.shift();
-
         if (!pts.length && !marks.length) {
             if (prevBox) { ctx.clearRect(prevBox.x, prevBox.y, prevBox.w, prevBox.h); prevBox = null; }
             return;
         }
 
-        // bounding box of everything we're about to draw
         var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, i, p;
         for (i = 0; i < pts.length; i++) {
             p = pts[i];
@@ -550,13 +549,13 @@
 
         ctx.lineWidth = 1;
         for (var j = 0; j < marks.length; j++) {
-            var m = marks[j];
-            var ml = 1 - (now - m.t) / (CFG.trailLife * 1.6);
+            var mark = marks[j];
+            var ml = 1 - (now - mark.t) / (CFG.trailLife * 1.6);
             if (ml <= 0) continue;
             ctx.strokeStyle = 'rgba(' + trailRGB + ',' + (ml * 0.55).toFixed(3) + ')';
-            var sz = m.r * 2 * (0.6 + ml * 0.6);
+            var sz = mark.r * 2 * (0.6 + ml * 0.6);
             ctx.save();
-            ctx.translate(m.x, m.y);
+            ctx.translate(mark.x, mark.y);
             ctx.rotate((1 - ml) * 1.2);
             ctx.strokeRect(-sz / 2, -sz / 2, sz, sz);
             ctx.restore();
@@ -589,11 +588,6 @@
        and brings them back once frames are smooth again.                      */
     var lastFrame = 0, ema = 16, lite = false, calmSince = 0;
 
-    function clearTrail() {
-        pts.length = 0; marks.length = 0;
-        if (prevBox && ctx) { ctx.clearRect(prevBox.x, prevBox.y, prevBox.w, prevBox.h); prevBox = null; }
-    }
-
     function perfGuard(now) {
         if (lastFrame) {
             var d = now - lastFrame;
@@ -603,7 +597,6 @@
         if (!lite) {
             if (ema > 26) {                           // slower than ~38fps
                 lite = true; calmSince = 0;
-                clearTrail();
                 dotStretch.style.transform = ringBox.style.transform = '';
                 lastStretch = lastRingStretch = '';
             }
@@ -636,7 +629,8 @@
         ry += (ty - ry) * ease;
         ringLayer.style.transform = 'translate3d(' + rx.toFixed(2) + 'px,' + ry.toFixed(2) + 'px,0)';
 
-        if (!lite) { applyStretch(); drawTrail(now); }
+        if (!lite) applyStretch();
+        drawTrail(now);
         tickCharge(now);
 
         // keep the label on-screen
