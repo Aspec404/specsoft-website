@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Settings | SPECSOFT®</title>
+    <link rel="icon" type="image/png" href="logo.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="cursor.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="site-settings.css">
+</head>
+<body class="sx-body">
+    <script>try{var s=JSON.parse(localStorage.getItem('specsoft.settings.v1')||'{}')||{};var t=localStorage.getItem('specsoft-theme');if(s.theme==='system'){t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';localStorage.setItem('specsoft-theme',t)}if(t==='light')document.body.classList.add('light-mode')}catch(e){}</script>
+
+    <!-- background layers (the Effects settings switch these live) -->
+    <div class="grid-bg"></div>
+    <div class="grid-glow" id="gridGlow"></div>
+    <div class="scanner-line"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-2"></div>
+    <div class="geo-shape geo-ring"></div>
+    <div class="geo-shape geo-ring-2"></div>
+    <div class="geo-shape geo-triangle"></div>
+    <div class="geo-shape geo-square"></div>
+    <div class="geo-dot-grid"></div>
+    <div class="crosshair tl"></div>
+    <div class="crosshair tr"></div>
+    <div class="crosshair bl"></div>
+    <div class="crosshair br"></div>
+
+    <div class="sx-app">
+        <header class="sx-bar">
+            <a class="sx-back" id="sxBack" href="index.html" aria-label="Back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                <span>Back</span>
+            </a>
+            <div class="sx-brand">
+                <img src="logo.png" alt="" class="logo-img logo-light" onerror="this.style.display='none';">
+                <img src="logo-dark.png" alt="" class="logo-img logo-dark" onerror="this.style.display='none';">
+                <span>SETTINGS</span>
+            </div>
+            <div class="sx-sync" id="sxSync"><i></i><span>This device</span></div>
+        </header>
+
+        <div class="sx-wrap">
+            <div class="sx-head">
+                <h1>Settings</h1>
+                <p>Changes save automatically and apply on every page.</p>
+            </div>
+
+            <div class="sx-layout">
+                <div class="sx-search-wrap">
+                    <input class="sx-search" id="sxSearch" type="search" placeholder="Search settings" aria-label="Search settings" autocomplete="off">
+                </div>
+                <nav class="sx-cats" id="sxCats" aria-label="Settings categories"></nav>
+                <main class="sx-panel" id="sxPanel" aria-live="polite"></main>
+            </div>
+        </div>
+    </div>
+
+    <div class="sx-toast" id="sxToast" role="status" aria-live="polite"></div>
+    <div class="sx-reload" id="sxReload" hidden>
+        <span>Some changes finish applying after a reload or on your next page.</span>
+        <button type="button" class="sx-btn" id="sxReloadBtn">Reload now</button>
+    </div>
+    <input type="file" id="sxFile" accept="application/json,.json" hidden>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <script src="supabase-config.js"></script>
+    <script src="ban.js"></script>
+    <script src="site-settings.js"></script>
+    <script src="settings.js"></script>
+    <script src="cursor.js" defer></script>
+</body>
+</html>

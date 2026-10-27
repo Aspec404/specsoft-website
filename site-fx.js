@@ -33,10 +33,13 @@
    ========================================================================== */
 (function () {
     'use strict';
+    function ssRead() { try { return JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {}; } catch (e) { return {}; } }
+    function ssOff(k) { return ssRead()[k] === false; }
+    function ssOn(k) { return ssRead()[k] === true; }
     if (window.SpecFX) return;
 
     function reduceMotion() {
-        return !!(window.matchMedia && (
+        return ssOn('reduceMotion') || !!(window.matchMedia && (
             window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
             window.matchMedia('(hover: none)').matches
         ));
@@ -210,6 +213,7 @@
 
     function registerReveal(el, delayMs) {
         if (!el || el.__fxRevealed) return;
+        if (ssOff('fxReveal')) return;   // setting off: leave the element plainly visible
         el.__fxRevealed = true;
         el.classList.add('fx-reveal');
         if (delayMs) el.style.transitionDelay = delayMs + 'ms';
@@ -278,16 +282,20 @@
        boot
        ---------------------------------------------------------------------- */
     function start() {
-        try { initRadar(); } catch (e) {}
-        try { initTilts(); } catch (e) {}
-        try { initReticle(); } catch (e) {}
-        try { initReveal(); } catch (e) {}
-        try { initMagnetic(); } catch (e) {}
-        try { initLinePulse(); } catch (e) {}
+        if (!ssOff('fxHover')) {
+            try { initRadar(); } catch (e) {}
+            try { initTilts(); } catch (e) {}
+            try { initReticle(); } catch (e) {}
+            try { initMagnetic(); } catch (e) {}
+        }
+        if (!ssOff('fxReveal')) {
+            try { initReveal(); } catch (e) {}
+            try { initLinePulse(); } catch (e) {}
+        }
     }
 
     window.SpecFX = {
-        tilt: function (el, opts) { if (el && !reduceMotion()) makeTilt(el, opts); },
+        tilt: function (el, opts) { if (el && !reduceMotion() && !ssOff('fxHover')) makeTilt(el, opts); },
         reveal: registerReveal
     };
 

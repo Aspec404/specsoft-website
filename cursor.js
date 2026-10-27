@@ -28,8 +28,12 @@
    ========================================================================== */
 (function () {
     'use strict';
+    function ssRead() { try { return JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {}; } catch (e) { return {}; } }
+    function ssOff(k) { return ssRead()[k] === false; }
+    function ssOn(k) { return ssRead()[k] === true; }
 
     if (window.__scCursor) return;
+    if (ssOff('cursor')) return;   // turned off in Settings
     if (!window.matchMedia || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
     window.__scCursor = true;
 
@@ -51,7 +55,7 @@
         textOverParagraphs: false // true = I-beam over every bit of body text
     };
 
-    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches || ssOn('reduceMotion');
     if (reduce) { CFG.trail = false; CFG.burst = false; CFG.stretch = false; }
 
     var NS = 'http://www.w3.org/2000/svg';

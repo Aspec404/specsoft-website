@@ -12,6 +12,10 @@
    ========================================================================== */
 (function () {
     'use strict';
+    function ssRead() { try { return JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {}; } catch (e) { return {}; } }
+    function ssOff(k) { return ssRead()[k] === false; }
+    function ssOn(k) { return ssRead()[k] === true; }
+    if (ssOff('presence')) return;
     if (window.SpecPresence) return;
 
     var CFG = window.SPECSOFT_CONFIG || {

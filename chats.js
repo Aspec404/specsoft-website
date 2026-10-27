@@ -512,7 +512,8 @@
         applyTheme(light);
         $('chThemeBtn').addEventListener('click', function () {
             light = !document.body.classList.contains('light-mode');
-            try { localStorage.setItem('specsoft-theme', light ? 'light' : 'dark'); } catch (e) { /* ignore */ }
+            if (window.SpecSettings) SpecSettings.set('theme', light ? 'light' : 'dark');
+            else { try { localStorage.setItem('specsoft-theme', light ? 'light' : 'dark'); } catch (e) { /* ignore */ } }
             applyTheme(light);
         });
     }
@@ -3831,7 +3832,10 @@
             if (handleMentionKey(e)) return;
             if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-                if (!isTouch) { e.preventDefault(); sendMessage(); }
+                // Settings > Chats > "Sending messages": Enter sends, or Ctrl/Cmd+Enter sends
+                let ctrlMode = false;
+                try { ctrlMode = (JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {}).chatEnter === 'ctrl'; } catch (x) { /* ignore */ }
+                if (!isTouch && (!ctrlMode || e.ctrlKey || e.metaKey)) { e.preventDefault(); sendMessage(); }
             }
             else if (e.key === 'Escape') { if (S.replyTo || S.editing) cancelCompose(); else $('chEmoji').hidden = true; }
             else if (e.key === 'ArrowUp' && !input.value) {

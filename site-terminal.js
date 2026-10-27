@@ -3,6 +3,10 @@
    ========================================================================== */
 (function () {
     'use strict';
+    function ssRead() { try { return JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {}; } catch (e) { return {}; } }
+    function ssOff(k) { return ssRead()[k] === false; }
+    function ssOn(k) { return ssRead()[k] === true; }
+    if (ssOff('terminal')) return;
     if (window.SpecTerminal) return;
 
     function reduceMotion() {
@@ -311,7 +315,8 @@
             }
             if (varName === 'themeswitch') {
                 document.body.classList.toggle('light-mode', varValue);
-                try { localStorage.setItem('specsoft-theme', varValue ? 'light' : 'dark'); } catch (e) {}
+                if (window.SpecSettings) SpecSettings.set('theme', varValue ? 'light' : 'dark');
+                else { try { localStorage.setItem('specsoft-theme', varValue ? 'light' : 'dark'); } catch (e) {} }
                 var label = document.getElementById('themeLabel');
                 if (label) label.textContent = varValue ? 'LIGHT MODE' : 'DARK MODE';
                 printLine('themeSwitch = ' + varValue, 'ok');

@@ -8,6 +8,33 @@
    exits immediately if its target elements are not on the page.
    ========================================================================== */
 
+/* ======================================================================
+   SPECSOFT® settings boot. Runs first, on every page: applies the visual
+   switches from Settings before anything paints, then loads site-settings.css
+   and site-settings.js. (Keep this list in sync with site-settings.js.)
+   ====================================================================== */
+(function () {
+    try {
+        var d = document.documentElement;
+        var s = JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {};
+        var off = { fxScanlines: 'ss-no-scanlines', fxVignette: 'ss-no-vignette', fxGlow: 'ss-no-glow', fxShapes: 'ss-no-shapes', fxCrosshairs: 'ss-no-crosshairs', fx3d: 'ss-no-3d' };
+        for (var k in off) { if (s[k] === false) d.classList.add(off[k]); }
+        if (s.reduceMotion === true) d.classList.add('ss-reduce-motion');
+        if (s.accent && s.accent !== 'default') d.setAttribute('data-accent', String(s.accent).replace(/[^a-z]/g, ''));
+        if (s.theme === 'system') localStorage.setItem('specsoft-theme', (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
+    } catch (e) { /* settings are optional */ }
+    if (!document.querySelector('link[href^="site-settings.css"]')) {
+        var l = document.createElement('link');
+        l.rel = 'stylesheet'; l.href = 'site-settings.css';
+        document.head.appendChild(l);
+    }
+    if (!window.SpecSettings && !document.querySelector('script[src^="site-settings.js"]')) {
+        var sc = document.createElement('script');
+        sc.src = 'site-settings.js';
+        document.head.appendChild(sc);
+    }
+})();
+
 (function () {
     'use strict';
 
@@ -150,6 +177,13 @@
                 </svg>
                 <span id="themeLabel">DARK MODE</span>
             </button>
+            <a href="settings.html" class="theme-toggle sidebar-settings" id="settingsLink" aria-label="Settings">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span>SETTINGS</span>
+            </a>
             <button class="theme-toggle sidebar-logout" id="logoutBtn" type="button" data-user-only hidden>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M10 17l5-5-5-5"></path>
@@ -476,7 +510,8 @@
 
         themeToggle.addEventListener('click', function () {
             const isLight = document.body.classList.toggle('light-mode');
-            localStorage.setItem('specsoft-theme', isLight ? 'light' : 'dark');
+            if (window.SpecSettings) SpecSettings.set('theme', isLight ? 'light' : 'dark');
+            else localStorage.setItem('specsoft-theme', isLight ? 'light' : 'dark');
             if (themeLabel) themeLabel.textContent = isLight ? 'LIGHT MODE' : 'DARK MODE';
         });
     }
@@ -1980,6 +2015,7 @@
    2D grid-bg as the real background, so this is a pure bonus layer.
    ====================================================================== */
 (function () {
+    try { if (JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}').fx3d === false) return; } catch (e) { /* ignore */ }
     if (window.THREE || document.getElementById('bg3d') || document.querySelector('script[src$="index-3d.js"]')) return;
     var three = document.createElement('script');
     three.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';

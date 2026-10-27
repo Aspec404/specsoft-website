@@ -19,7 +19,7 @@
 
 </head>
 <body class="ch-body">
-    <script>try{if(localStorage.getItem('specsoft-theme')==='light')document.body.classList.add('light-mode')}catch(e){}</script>
+    <script>try{var s=JSON.parse(localStorage.getItem('specsoft.settings.v1')||'{}')||{};var t=localStorage.getItem('specsoft-theme');if(s.theme==='system'){t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';localStorage.setItem('specsoft-theme',t)}if(t==='light')document.body.classList.add('light-mode')}catch(e){}</script>
 
     <!-- soft background (same look as the rest of the site) -->
     <div class="grid-bg"></div>
@@ -72,6 +72,11 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
                     <span class="ch-nav-text">Inbox</span><span class="ch-badge" id="chBadgeInbox" hidden></span>
                 </button>
+
+                <a class="ch-nav-item" href="settings.html">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span class="ch-nav-text">Settings</span>
+                </a>
             </nav>
 
             <div class="ch-side-foot">
@@ -505,7 +510,7 @@
     <!-- highlight.js (pinned). Colors come from chats.css, so no theme file is needed. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="chats.js"></script>
-    <script src="main.js?v=2"></script>
+    <script src="main.js?v=3"></script>
     <script src="cursor.js" defer></script>
 
 </body>

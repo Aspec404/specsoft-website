@@ -16,6 +16,12 @@
     (function () {
         var KEY = 'specsoft-intro-seen';
 
+        // Settings: intro turned off, or reduce motion turned on
+        try {
+            var ss = JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {};
+            if (ss.intro === false || ss.reduceMotion === true) { sessionStorage.setItem(KEY, '1'); return; }
+        } catch (e) { /* ignore */ }
+
         // Skip intro for users who've opted out of motion
         var reduceMotion = window.matchMedia &&
             window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -646,7 +652,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
     <script src="supabase-config.js"></script>
     <script src="ban.js"></script>
-    <script src="main.js?v=2"></script>
+    <script src="main.js?v=3"></script>
     <!-- main.js now auto-loads site-fx.css/js and the Three.js 3D background (index-3d.js)
          on every page, including this one — no explicit tags needed for those anymore. -->
     <!-- index-fx.js: homepage-only depth layer (3D tilt + cursor radar glow) -->

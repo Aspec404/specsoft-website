@@ -16,15 +16,18 @@
    ========================================================================== */
 (function () {
     'use strict';
+    function ssRead() { try { return JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {}; } catch (e) { return {}; } }
+    function ssOff(k) { return ssRead()[k] === false; }
+    function ssOn(k) { return ssRead()[k] === true; }
     if (window.SpecTransitions) return;
 
     function reduceMotion() {
-        return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        return ssOn('reduceMotion') || !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     }
 
     /* ---- arrival sweep, plays on top of the page, never hides anything ---- */
     function playArrival() {
-        if (reduceMotion()) return;
+        if (reduceMotion() || ssOff('transitions')) return;
         var bar = document.createElement('div');
         bar.className = 'pt-arrive';
         bar.setAttribute('aria-hidden', 'true');
@@ -45,6 +48,7 @@
     }
 
     function qualifies(a, e) {
+        if (ssOff('transitions')) return false;
         if (!a || !a.href) return false;
         if (e.defaultPrevented) return false;
         if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
