@@ -102,6 +102,13 @@
     var ctx = canvas.getContext ? canvas.getContext('2d') : null;
     var dpr = Math.min(1.5, window.devicePixelRatio || 1);
 
+    // A transparent popover gives the cursor its own browser top-layer host,
+    // above native modal dialogs without clipping it to the dialog bounds.
+    var topLayerHost = document.createElement('div');
+    topLayerHost.className = 'sc-top-layer-host';
+    topLayerHost.setAttribute('popover', 'manual');
+    topLayerHost.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;margin:0;padding:0;border:0;overflow:visible;background:transparent;pointer-events:none;z-index:2147483646;';
+
     function sizeCanvas() {
         canvas.width = Math.round(vw * dpr);
         canvas.height = Math.round(vh * dpr);
@@ -114,9 +121,53 @@
         if (CFG.trail && ctx) { document.body.appendChild(canvas); sizeCanvas(); }
         document.body.appendChild(ringLayer);
         document.body.appendChild(dotLayer);
+        document.body.appendChild(topLayerHost);
+        watchTopLayer();
         watchTheme();
     }
     if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+
+    // Native modal dialogs render in the browser's top layer, above body-level
+    // fixed elements regardless of z-index. Host the custom cursor inside the
+    // active modal while it is open, then return it to body when it closes.
+    function syncTopLayer() {
+        if (!document.body) return;
+        var modal = null;
+        try { modal = document.querySelector('dialog:modal'); } catch (e) { /* older selector support */ }
+        if (!modal) {
+            var openDialogs = document.querySelectorAll('dialog[open]');
+            for (var i = openDialogs.length - 1; i >= 0; i--) {
+                if (openDialogs[i].hasAttribute('open')) { modal = openDialogs[i]; break; }
+            }
+        }
+        var host = document.body;
+        if (modal && typeof topLayerHost.showPopover === 'function') {
+            try {
+                if (!topLayerHost.matches(':popover-open')) topLayerHost.showPopover();
+                host = topLayerHost;
+            } catch (e) { host = modal; }
+        } else if (modal) {
+            host = modal;
+        } else if (typeof topLayerHost.hidePopover === 'function') {
+            try { if (topLayerHost.matches(':popover-open')) topLayerHost.hidePopover(); } catch (e) { /* already closed */ }
+        }
+        [CFG.trail && ctx ? canvas : null, ringLayer, dotLayer].forEach(function (layer) {
+            if (layer && layer.parentNode !== host) host.appendChild(layer);
+        });
+    }
+
+    function watchTopLayer() {
+        if (!window.MutationObserver || !document.documentElement) return;
+        var observer = new MutationObserver(syncTopLayer);
+        observer.observe(document.documentElement, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            attributeFilter: ['open']
+        });
+        document.addEventListener('close', syncTopLayer, true);
+        document.addEventListener('cancel', syncTopLayer, true);
+    }
 
     /* ----- helpers ----- */
     function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
