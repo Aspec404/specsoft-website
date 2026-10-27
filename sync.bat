@@ -21,7 +21,7 @@ if errorlevel 1 (
 )
 
 :: ---- Show what's changed ----
-echo  [1/4] Checking for changes...
+echo  [1/5] Checking for changes...
 echo.
 git status --short
 
@@ -49,9 +49,13 @@ if "!commitmsg!"=="" (
     set "commitmsg=Auto-sync !datepart! !timepart!"
 )
 
-:: ---- Stage all changes ----
+:: ---- Update Version File (This triggers the website popup) ----
 echo.
-echo  [2/4] Staging changes...
+echo  [2/5] Updating version.json for live site popup...
+powershell -NoProfile -Command "$v = Get-Date -Format 'yyyyMMddHHmmss'; '{ \"version\": \"' + $v + '\" }' | Out-File -FilePath version.json -Encoding utf8"
+
+:: ---- Stage all changes ----
+echo  [3/5] Staging changes...
 git add .
 if errorlevel 1 (
     color 0C
@@ -62,7 +66,7 @@ if errorlevel 1 (
 )
 
 :: ---- Commit ----
-echo  [3/4] Committing...
+echo  [4/5] Committing...
 git commit -m "!commitmsg!"
 if errorlevel 1 (
     color 0C
@@ -73,7 +77,7 @@ if errorlevel 1 (
 )
 
 :: ---- Push ----
-echo  [4/4] Pushing to GitHub...
+echo  [5/5] Pushing to GitHub...
 git push
 if errorlevel 1 (
     color 0C
@@ -89,6 +93,7 @@ echo  ============================================
 echo    SUCCESS! Pushed to GitHub.
 echo.
 echo    Netlify will auto-deploy in ~30 seconds.
+echo    Active users will be prompted to refresh!
 echo.
 echo    Live site:
 echo    https://specsoftdev.netlify.app

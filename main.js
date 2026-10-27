@@ -1741,10 +1741,69 @@
         }
     }
 
+    /* ======================================================================
+       PART 4 — AUTO UPDATE CHECKER
+       ====================================================================== */
+    function initUpdateChecker() {
+        let currentVersion = null;
+        let hasWarned = false;
 
-/* ======================================================================
+        async function checkVersion() {
+            try {
+                const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+                const data = await res.json();
+
+                if (currentVersion === null) {
+                    currentVersion = data.version;
+                } else if (data.version !== currentVersion && !hasWarned) {
+                    hasWarned = true;
+                    showUpdatePopup();
+                }
+            } catch (e) {}
+        }
+
+        function showUpdatePopup() {
+            if (document.getElementById('specsoft-update-popup')) return;
+            const popup = document.createElement('div');
+            popup.id = 'specsoft-update-popup';
+            popup.innerHTML = `
+                <div style="
+                    position: fixed; bottom: 24px; right: 24px; z-index: 999999;
+                    background: #1e293b; color: #fff; padding: 20px 24px;
+                    border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+                    font-family: 'Space Grotesk', system-ui, sans-serif; max-width: 340px;
+                    border-left: 4px solid #22c55e; animation: slideIn .4s ease;
+                ">
+                    <strong style="display:block; margin-bottom:8px; font-size: 16px;">🎉 Website Updated!</strong>
+                    <span style="font-size:14px; opacity:.85; line-height: 1.4; display: block;">
+                        The Website got its latest update. Please restart the page to apply the latest changes, thank you!
+                    </span>
+                    <button onclick="location.reload(true)" style="
+                        margin-top:14px; background:#22c55e; color:#fff; border:none;
+                        padding:10px 16px; border-radius:6px; cursor:pointer; font-weight:600;
+                        font-family: inherit; width: 100%; transition: background 0.2s;
+                    " onmouseover="this.style.background='#16a34a'" onmouseout="this.style.background='#22c55e'">
+                        Refresh Now
+                    </button>
+                </div>
+                <style>
+                    @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
+                </style>
+            `;
+            document.body.appendChild(popup);
+        }
+
+        checkVersion();
+        setInterval(checkVersion, 30000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) checkVersion();
+        });
+    }
+
+    /* ======================================================================
        PART 3 — BOOTSTRAP
        ====================================================================== */
+       
     document.addEventListener('DOMContentLoaded', function () {
         // Global — every page
         injectFavicon();
@@ -1757,6 +1816,7 @@
         initMobileSidebar();
         initProjectsDropdown();
         initCommunityDropdown();
+        initUpdateChecker();
 
         // Page-specific — each self-guards and exits if its elements aren't present
         // projects.js owns the current Projects Hub when that page-specific
