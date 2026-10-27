@@ -1056,7 +1056,8 @@
         const jumboEmoji = !deleted && !bug && !m.attachment_path && !m.reply_to && !m.edited_at && !m.deleted_at && getJumboEmojiCount(m.body) > 0 && getJumboEmojiCount(m.body) <= 6;
         const hideKind = hideKindFor(m, mine, deleted, bug);
         const hidden = !!hideKind && !S.revealed.has(m.id);
-        const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? buildBugCard(m, bug) : renderRich(m.body, mine, jumboEmoji))));
+        const imageOnlyAttachment = !deleted && !hidden && !!m.attachment_path && /^image\//i.test(m.attachment_type || '') && (!String(m.body || '').trim() || /^Attachment:\s*/i.test(m.body));
+        const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (imageOnlyAttachment ? ' ch-bubble--image-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? buildBugCard(m, bug) : (imageOnlyAttachment ? null : renderRich(m.body, mine, jumboEmoji)))));
         if (!deleted && m.attachment_path && !hidden) renderAttachment(m, bubble);
 
         const reactions = el('div', { class: 'ch-reactions' });

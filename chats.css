@@ -689,6 +689,9 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ch-bubble.ch-bubble--emoji-only,
 .ch-msg--own .ch-bubble.ch-bubble--emoji-only,
 .ch-msg.is-grouped .ch-bubble.ch-bubble--emoji-only { padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.ch-bubble.ch-bubble--image-only,
+.ch-msg--own .ch-bubble.ch-bubble--image-only,
+.ch-msg.is-grouped .ch-bubble.ch-bubble--image-only { width: fit-content; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 .ch-bubble .ch-inline-emoji.ch-inline-emoji--jumbo { display: inline-block; width: auto; height: 48px; max-width: 96px; vertical-align: middle; object-fit: contain; border-radius: 0; }
 .ch-bubble .ch-jumbo-native { display: inline-block; font-size: 48px; line-height: 1; vertical-align: middle; }
 
@@ -948,6 +951,9 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 .ch-attachment-link:hover { border-color: var(--border-hover); }
 .ch-attachment-link--image { display: block; padding: 4px; }
+.ch-bubble--image-only .ch-attachment { margin-top: 0; }
+.ch-bubble--image-only .ch-attachment-link--image { padding: 0; border: 0; background: transparent; }
+.ch-bubble--image-only .ch-attachment-image { border-radius: 8px; }
 .ch-attachment-image { display: block; max-width: min(340px, 100%); max-height: 320px; border-radius: 9px; object-fit: contain; }
 .ch-attachment-file-icon { font-size: 21px; }
 .ch-attachment-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
