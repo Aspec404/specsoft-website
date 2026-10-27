@@ -1767,28 +1767,95 @@
             const popup = document.createElement('div');
             popup.id = 'specsoft-update-popup';
             popup.innerHTML = `
-                <div style="
-                    position: fixed; bottom: 24px; right: 24px; z-index: 999999;
-                    background: #1e293b; color: #fff; padding: 20px 24px;
-                    border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
-                    font-family: 'Space Grotesk', system-ui, sans-serif; max-width: 340px;
-                    border-left: 4px solid #22c55e; animation: slideIn .4s ease;
-                ">
-                    <strong style="display:block; margin-bottom:8px; font-size: 16px;">🎉 Website Updated!</strong>
-                    <span style="font-size:14px; opacity:.85; line-height: 1.4; display: block;">
-                        The Website got its latest update. Please restart the page to apply the latest changes, thank you!
-                    </span>
-                    <button onclick="location.reload(true)" style="
-                        margin-top:14px; background:#22c55e; color:#fff; border:none;
-                        padding:10px 16px; border-radius:6px; cursor:pointer; font-weight:600;
-                        font-family: inherit; width: 100%; transition: background 0.2s;
-                    " onmouseover="this.style.background='#16a34a'" onmouseout="this.style.background='#22c55e'">
-                        Refresh Now
-                    </button>
-                </div>
                 <style>
-                    @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
+                    #specsoft-update-popup {
+                        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                        z-index: 999999; display: grid; place-items: center;
+                        background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+                        animation: spFadeIn 0.3s ease forwards;
+                        font-family: var(--font-sans, 'Space Grotesk', sans-serif);
+                    }
+                    
+                    @keyframes spFadeIn { from { opacity: 0; } to { opacity: 1; } }
+                    @keyframes spScaleIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+                    @keyframes spGlow { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow, rgba(255,255,255,0.1)); } 50% { box-shadow: 0 0 0 10px transparent; } }
+                    
+                    .sp-modal-box {
+                        background: var(--bg-card, #080808); 
+                        border: 1px solid var(--border-subtle, #202020);
+                        border-radius: 12px; padding: 36px 32px; max-width: 440px; width: calc(100% - 32px);
+                        text-align: center; position: relative; overflow: hidden;
+                        box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 40px var(--accent-dim, rgba(255,255,255,0.05));
+                        animation: spScaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                        transition: background 0.5s ease, border-color 0.5s ease;
+                    }
+                    
+                    .sp-modal-box::before {
+                        content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+                        background: linear-gradient(90deg, transparent, var(--accent, #fff), transparent);
+                        box-shadow: 0 0 15px var(--accent-strong, rgba(255,255,255,0.35));
+                    }
+
+                    .sp-modal-box::after {
+                        content: ''; position: absolute; top: 12px; right: 12px; width: 12px; height: 12px;
+                        border-top: 1px solid var(--accent, #fff); border-right: 1px solid var(--accent, #fff);
+                        opacity: 0.5;
+                    }
+                    
+                    .sp-icon-wrap {
+                        width: 56px; height: 56px; margin: 0 auto 20px;
+                        background: var(--bg-card-hover, #0d0d0d); border: 1px solid var(--border-hover, #404040);
+                        border-radius: 50%; display: grid; place-items: center; color: var(--text-primary, #f5f5f5);
+                        animation: spGlow 2s infinite;
+                    }
+                    
+                    .sp-icon-wrap svg { width: 24px; height: 24px; stroke-width: 1.5; }
+                    
+                    .sp-title {
+                        color: var(--text-primary, #f5f5f5); font-size: 22px; font-weight: 400;
+                        margin-bottom: 12px; letter-spacing: -0.5px; text-transform: uppercase;
+                        text-shadow: 0 0 20px var(--accent-glow, rgba(255,255,255,0.1));
+                    }
+                    
+                    .sp-text {
+                        color: var(--text-secondary, #999999); font-size: 14px; line-height: 1.6;
+                        margin-bottom: 28px; font-weight: 300;
+                    }
+                    
+                    .sp-btn {
+                        background: var(--text-primary, #f5f5f5); color: var(--bg-base, #030303); 
+                        border: 1px solid var(--text-primary, #f5f5f5); padding: 14px 24px;
+                        border-radius: 8px; font-size: 12px; font-weight: 600; 
+                        font-family: var(--font-mono, 'JetBrains Mono', monospace);
+                        cursor: pointer; width: 100%; text-transform: uppercase; letter-spacing: 1.5px;
+                        transition: all 0.3s ease; position: relative; overflow: hidden;
+                    }
+                    
+                    .sp-btn::before {
+                        content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+                        background: linear-gradient(90deg, transparent, var(--accent-dim, rgba(255,255,255,0.05)), transparent);
+                        transition: left 0.5s ease;
+                    }
+
+                    .sp-btn:hover::before { left: 100%; }
+                    
+                    .sp-btn:hover { 
+                        background: transparent; color: var(--text-primary, #f5f5f5); 
+                        box-shadow: 0 0 30px var(--accent-glow), inset 0 0 20px var(--accent-dim);
+                    }
                 </style>
+                
+                <div class="sp-modal-box">
+                    <div class="sp-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+                            <path d="M21 3v5h-5"></path>
+                        </svg>
+                    </div>
+                    <h3 class="sp-title">System Update</h3>
+                    <p class="sp-text">The Website got its latest update. Please restart the page to apply the latest changes, thank you!</p>
+                    <button class="sp-btn" onclick="location.reload(true)">Restart Page</button>
+                </div>
             `;
             document.body.appendChild(popup);
         }
