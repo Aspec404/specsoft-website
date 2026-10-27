@@ -1,4 +1,9 @@
-// 🚨 We point to the parent folder's .env file so it doesn't break your website!
+// ============================================================
+//  Terminal → Discord sender (self-bot style)
+//  Usage:  node index.js
+//  Requires ../.env with DISCORD_TOKEN and TROLL_CHANNEL_ID
+// ============================================================
+
 require('dotenv').config({ path: '../.env' });
 
 const {
@@ -10,7 +15,6 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require('discord.js');
-const readline = require('readline');
 
 const client = new Client({
   intents: [
@@ -22,303 +26,249 @@ const client = new Client({
   ],
 });
 
+// ---------- colors ----------
 const COLOR_MAP = {
-  red: 0xED4245,
-  green: 0x57F287,
-  blue: 0x3498DB,
-  yellow: 0xFEE75C,
-  purple: 0x9B59B6,
-  pink: 0xEB459E,
-  orange: 0xE67E22,
-  gold: 0xF1C40F,
-  black: 0x000000,
-  white: 0xFFFFFF,
-  blurple: 0x5865F2,
-  gray: 0x95A5A6,
-  grey: 0x95A5A6,
+  red: 0xED4245, green: 0x57F287, blue: 0x3498DB, yellow: 0xFEE75C,
+  purple: 0x9B59B6, pink: 0xEB459E, orange: 0xE67E22, gold: 0xF1C40F,
+  black: 0x000000, white: 0xFFFFFF, blurple: 0x5865F2,
+  gray: 0x95A5A6, grey: 0x95A5A6,
 };
 
-const BUTTON_STYLES = {
+const STYLES = {
   primary: ButtonStyle.Primary,
   secondary: ButtonStyle.Secondary,
   success: ButtonStyle.Success,
   danger: ButtonStyle.Danger,
 };
 
-// Store pending button configs (in-memory only)
 const pendingButtons = new Map();
 
-// Quick check to make sure your env variables loaded correctly
+// ---------- env check ----------
 if (!process.env.DISCORD_TOKEN || !process.env.TROLL_CHANNEL_ID) {
-  console.error('\n❌ ERROR: Missing environment variables!');
-  console.error('Make sure your ../.env file has BOTH:');
-  console.error('DISCORD_TOKEN=your_token');
-  console.error('TROLL_CHANNEL_ID=your_channel_id\n');
+  console.error('\n[X] Missing DISCORD_TOKEN or TROLL_CHANNEL_ID in ../.env\n');
   process.exit(1);
 }
 
-client.once(Events.ClientReady, (c) => {
-  console.log(`✅ Logged in as ${c.user.tag}`);
-  console.log(`💀 Terminal troll mode ready.\n`);
-  console.log(`   PLAIN:`);
-  console.log(`     hello world                → plain message`);
-  console.log(`     @username hi               → plain message with mention`);
-  console.log(`     r:ID hey                   → plain reply\n`);
-  console.log(`   EMBED (instant, no cooldown):`);
-  console.log(`     /e red Title | Body        → simple embed`);
-  console.log(`     /e white T | D | button:LABEL | RESPONSE | clickcolor:red`);
-  console.log(`                                → embed + button that recolors on click\n`);
-  console.log(`   REACT:`);
-  console.log(`     react:ID 💀                 → react to message`);
-  console.log(`     reactlast 💀                → react to latest message\n`);
-  console.log(`   exit                          → quit\n`);
+// ============================================================
+//  INPUT — works in any real terminal
+// ============================================================
+const readline = require('readline');
 
-  const rl = readline.createInterface({
+let rl = null;
+let quitting = false;
+
+function startInput(onLine) {
+  // Tell Node the keyboard is UTF-8 (fixes garbled emoji).
+  try { process.stdin.setEncoding('utf8'); } catch {}
+
+  rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: '🗣️  > ',
+    terminal: true,
   });
 
+  rl.setPrompt('> ');
   rl.prompt();
 
   rl.on('line', async (line) => {
+    try {
+      await onLine(line);
+    } catch (err) {
+      console.error('[ERR]', err?.message || err);
+    } finally {
+      if (!quitting) rl.prompt();
+    }
+  });
+
+  rl.on('SIGINT', () => rl.close());
+}
+
+// ============================================================
+//  READY
+// ============================================================
+client.once(Events.ClientReady, async (me) => {
+  console.log(`Logged in as ${me.user.tag}`);
+
+  let channel = null;
+  try {
+    channel = await client.channels.fetch(process.env.TROLL_CHANNEL_ID.trim());
+    if (!channel || !channel.isTextBased()) throw new Error('not a text channel');
+    console.log(`Target channel: #${channel.name || channel.id}\n`);
+  } catch (err) {
+    console.error(`[X] Cannot use channel ${process.env.TROLL_CHANNEL_ID}: ${err.message}\n`);
+  }
+
+  console.log('Commands:');
+  console.log('  hello world                     -> plain message');
+  console.log('  @username hi                    -> mention');
+  console.log('  r:MESSAGE_ID hey                -> reply');
+  console.log('  /e red Title | Body             -> embed');
+  console.log('  /e white T | D | button:GO | ok | clickcolor:green');
+  console.log('  react:MESSAGE_ID emoji          -> react');
+  console.log('  reactlast emoji                 -> react to newest');
+  console.log('  exit                            -> quit\n');
+
+  startInput(async (line) => {
     const raw = line.trim();
+    if (!raw) return;
 
     if (raw.toLowerCase() === 'exit') {
-      console.log('👋 Bye!');
+      quitting = true;
+      console.log('Bye');
       rl.close();
-      client.destroy();
+      try { client.destroy(); } catch {}
       process.exit(0);
+      return;
     }
-    if (!raw) return rl.prompt();
+
+    if (!channel) {
+      console.log('[X] No channel loaded. Fix TROLL_CHANNEL_ID.');
+      return;
+    }
+
+    // ---------- react:ID emoji ----------
+    let m = raw.match(/^react:(\d+)\s+(.+)$/);
+    if (m) {
+      try {
+        const msg = await channel.messages.fetch(m[1]);
+        await msg.react(m[2].trim());
+        console.log(`Reacted ${m[2].trim()} -> ${m[1]}`);
+      } catch (err) {
+        console.error('[X] React failed:', err.message);
+      }
+      return;
+    }
+
+    // ---------- reactlast emoji ----------
+    m = raw.match(/^reactlast\s+(.+)$/);
+    if (m) {
+      try {
+        const msgs = await channel.messages.fetch({ limit: 1 });
+        const last = msgs.first();
+        if (!last) console.log('[X] No messages.');
+        else {
+          await last.react(m[1].trim());
+          console.log(`Reacted ${m[1].trim()} -> newest`);
+        }
+      } catch (err) {
+        console.error('[X] React failed:', err.message);
+      }
+      return;
+    }
+
+    // ---------- embed or plain ----------
+    const isEmbed = raw.startsWith('/e ');
+    let text = isEmbed ? raw.slice(3).trim() : raw;
+
+    // mentions
+    for (const mm of [...text.matchAll(/@(\S+)/g)]) {
+      const name = mm[1].toLowerCase();
+      const member = channel.guild.members.cache.find(
+        (x) => x.user.username.toLowerCase() === name || x.displayName.toLowerCase() === name
+      );
+      if (member) text = text.replace(mm[0], `<@${member.id}>`);
+    }
+
+    // reply
+    let replyTo = null;
+    const rm = text.match(/r:(\d+)/);
+    if (rm) {
+      replyTo = rm[1];
+      text = text.replace(rm[0], '').trim();
+    }
+
+    const payload = {};
+    let btnLabel = null, btnResponse = null, clickColor = 0xED4245, btnStyle = ButtonStyle.Primary;
+
+    if (isEmbed) {
+      let color = 0x5865F2;
+      const first = text.split(/\s+/)[0]?.toLowerCase();
+      if (COLOR_MAP[first]) {
+        color = COLOR_MAP[first];
+        text = text.slice(first.length).trim();
+      }
+
+      const parts = text.split('|').map((p) => p.trim());
+      const title = parts[0] || null;
+      const desc = parts[1] || null;
+
+      for (let i = 2; i < parts.length; i++) {
+        const p = parts[i];
+        if (!p) continue;
+        const bm = p.match(/^button(?:\.(primary|secondary|success|danger))?:\s*(.+)$/i);
+        if (bm) {
+          if (bm[1]) btnStyle = STYLES[bm[1].toLowerCase()] ?? ButtonStyle.Primary;
+          btnLabel = bm[2].trim();
+          continue;
+        }
+        const cm = p.match(/^clickcolor:\s*(\w+)$/i);
+        if (cm) {
+          const c = cm[1].toLowerCase();
+          if (COLOR_MAP[c]) clickColor = COLOR_MAP[c];
+          continue;
+        }
+        if (btnLabel && !btnResponse) btnResponse = p;
+      }
+
+      const embed = new EmbedBuilder().setColor(color);
+      if (title) embed.setTitle(title);
+      if (desc) embed.setDescription(desc);
+      payload.embeds = [embed];
+
+      if (btnLabel) {
+        const id = `btn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        payload.components = [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(id).setLabel(btnLabel).setStyle(btnStyle)
+          ),
+        ];
+        pendingButtons.set(id, {
+          clickColor,
+          response: btnResponse || 'OK',
+          embed: embed.toJSON(),
+        });
+      }
+
+      if (/<@!?\d+>|<@&\d+>|<@everyone>|<@here>/.test(text)) payload.content = '\u200b';
+    } else {
+      payload.content = text;
+    }
+
+    if (replyTo) payload.reply = { messageReference: replyTo, failIfNotExists: false };
 
     try {
-      const channel = await client.channels.fetch(process.env.TROLL_CHANNEL_ID);
-      if (!channel || !channel.isTextBased()) {
-        console.log('❌ Channel not found or not text-based.');
-        return rl.prompt();
-      }
-
-      // ============================================
-      // ⌨️ TYPING INDICATOR (conditional delay)
-      // - Plain messages: short natural delay
-      // - Embed commands (/e): INSTANT, no delay
-      // - React commands: no typing at all
-      // ============================================
-      const isReactCommand = /^react:|^reactlast/.test(raw);
-      const isEmbedCommand = raw.startsWith('/e ');
-
-      if (!isReactCommand) {
-        await channel.sendTyping().catch(() => {});
-
-        if (isEmbedCommand) {
-          // Embeds fire instantly
-          console.log('   ⚡ embed mode — instant send');
-        } else {
-          // Plain messages get a short natural delay
-          process.stdout.write('   ⌨️  typing...');
-          const delay = Math.min(300 + raw.length * 15, 1800);
-          await new Promise((r) => setTimeout(r, delay));
-          process.stdout.write('\r                \r');
-        }
-      }
-
-      // ============================================
-      // 🎯 REACT to specific message: react:ID emoji
-      // ============================================
-      const reactMatch = raw.match(/^react:(\d+)\s+(.+)$/);
-      if (reactMatch) {
-        const [, msgId, emoji] = reactMatch;
-        try {
-          const targetMsg = await channel.messages.fetch(msgId);
-          await targetMsg.react(emoji.trim());
-          console.log(`✅ Reacted ${emoji.trim()} to ${msgId}`);
-        } catch (err) {
-          console.error('❌ React failed:', err.message);
-        }
-        return rl.prompt();
-      }
-
-      // ============================================
-      // 🎯 REACT to last message: reactlast emoji
-      // ============================================
-      const reactLastMatch = raw.match(/^reactlast\s+(.+)$/);
-      if (reactLastMatch) {
-        const emoji = reactLastMatch[1].trim();
-        try {
-          const messages = await channel.messages.fetch({ limit: 1 });
-          const lastMsg = messages.first();
-          if (!lastMsg) {
-            console.log('❌ No messages found.');
-          } else {
-            await lastMsg.react(emoji);
-            console.log(`✅ Reacted ${emoji} to last message`);
-          }
-        } catch (err) {
-          console.error('❌ React failed:', err.message);
-        }
-        return rl.prompt();
-      }
-
-      // ============================================
-      // 📝 MESSAGE MODE (plain or embed)
-      // ============================================
-      const isEmbed = raw.startsWith('/e ');
-      let text = isEmbed ? raw.slice(3).trim() : raw;
-
-      // --- Parse mentions: @username → <@id> ---
-      const mentionMatches = [...text.matchAll(/@(\S+)/g)];
-      for (const match of mentionMatches) {
-        const username = match[1];
-        const member = channel.guild.members.cache.find(
-          (m) =>
-            m.user.username.toLowerCase() === username.toLowerCase() ||
-            m.displayName.toLowerCase() === username.toLowerCase()
-        );
-        if (member) text = text.replace(match[0], `<@${member.id}>`);
-      }
-
-      // --- Parse reply: r:ID ---
-      let replyTo = null;
-      const replyMatch = text.match(/r:(\d+)/);
-      if (replyMatch) {
-        replyTo = replyMatch[1];
-        text = text.replace(replyMatch[0], '').trim();
-      }
-
-      // --- Build payload ---
-      const payload = {};
-
-      // Declared OUTSIDE embed block so both branches can use them
-      let buttonLabel = null;
-      let buttonResponse = null;
-      let clickColor = 0xED4245;
-      let buttonStyle = ButtonStyle.Primary;
-
-      if (isEmbed) {
-        // Check for color keyword
-        let color = 0x5865F2;
-        const firstWord = text.split(/\s+/)[0]?.toLowerCase();
-        if (COLOR_MAP[firstWord]) {
-          color = COLOR_MAP[firstWord];
-          text = text.slice(firstWord.length).trim();
-        }
-
-        // Split by | for parts
-        const parts = text.split('|').map((p) => p.trim());
-        const title = parts[0] || null;
-        const desc = parts[1] || null;
-
-        for (let i = 2; i < parts.length; i++) {
-          const part = parts[i];
-          if (!part) continue;
-
-          const btnMatch = part.match(
-            /^button(?:\.(primary|secondary|success|danger))?:\s*(.+)$/i
-          );
-          if (btnMatch) {
-            if (btnMatch[1]) {
-              buttonStyle = BUTTON_STYLES[btnMatch[1].toLowerCase()] ?? ButtonStyle.Primary;
-            }
-            buttonLabel = btnMatch[2].trim();
-            continue;
-          }
-
-          const colorMatch = part.match(/^clickcolor:\s*(\w+)$/i);
-          if (colorMatch) {
-            const c = colorMatch[1].toLowerCase();
-            if (COLOR_MAP[c]) clickColor = COLOR_MAP[c];
-            continue;
-          }
-
-          if (buttonLabel && !buttonResponse) {
-            buttonResponse = part;
-          }
-        }
-
-        const embed = new EmbedBuilder().setColor(color);
-        if (title) embed.setTitle(title);
-        if (desc) embed.setDescription(desc);
-
-        payload.embeds = [embed];
-
-        if (buttonLabel) {
-          const customId = `btn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-          const button = new ButtonBuilder()
-            .setCustomId(customId)
-            .setLabel(buttonLabel)
-            .setStyle(buttonStyle);
-
-          const row = new ActionRowBuilder().addComponents(button);
-          payload.components = [row];
-
-          pendingButtons.set(customId, {
-            clickColor,
-            buttonResponse: buttonResponse || '▸ ACKNOWLEDGED.',
-            originalEmbed: embed.toJSON(),
-            channelId: channel.id,
-          });
-        }
-
-        // Keep mentions pinging even inside embeds
-        if (text.match(/<@!?\d+>|<@&\d+>|<@everyone>|<@here>/)) {
-          payload.content = '​';
-        }
-      } else {
-        payload.content = text;
-      }
-
-      if (replyTo) {
-        payload.reply = { messageReference: replyTo, failIfNotExists: false };
-      }
-
       await channel.send(payload);
-      console.log(
-        `✅ Sent ${isEmbed ? '[EMBED]' : '[PLAIN]'}${buttonLabel ? ' [BUTTON]' : ''}: ${text}`
-      );
+      console.log(`Sent${isEmbed ? ' [embed]' : ''}${btnLabel ? ' [button]' : ''}: ${text}`);
     } catch (err) {
-      console.error('❌ Failed:', err.message);
+      console.error('[X] Send failed:', err.message);
     }
-
-    rl.prompt();
   });
 });
 
-// ============================================
-// 🖱️ BUTTON INTERACTION HANDLER
-// ============================================
-client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isButton()) return;
-
-  const config = pendingButtons.get(interaction.customId);
-  if (!config) {
-    return interaction.reply({
-      content: '▸ STALE BUTTON. NO CONFIG FOUND.',
-      ephemeral: true,
-    });
-  }
-
+// ============================================================
+//  BUTTON CLICKS
+// ============================================================
+client.on(Events.InteractionCreate, async (i) => {
+  if (!i.isButton()) return;
+  const cfg = pendingButtons.get(i.customId);
+  if (!cfg) return i.reply({ content: 'Stale button.', ephemeral: true });
   try {
-    await interaction.reply({ content: config.buttonResponse, ephemeral: true });
-
-    const updatedEmbed = EmbedBuilder.from(config.originalEmbed).setColor(config.clickColor);
-    await interaction.message.edit({ embeds: [updatedEmbed] });
-
-    // Uncomment to remove the button after one click:
-    // await interaction.message.edit({ embeds: [updatedEmbed], components: [] });
+    await i.reply({ content: cfg.response, ephemeral: true });
+    const updated = EmbedBuilder.from(cfg.embed).setColor(cfg.clickColor);
+    await i.message.edit({ embeds: [updated] });
   } catch (err) {
-    console.error('❌ Button interaction failed:', err.message);
+    console.error('[X] Button failed:', err.message);
   }
 });
 
-// ============================================
-// 🤖 DISCORD-SIDE COMMANDS (no auto-reactions)
-// ============================================
-client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot) return;
-
-  if (message.content === '!ping') return message.reply('🏓 Pong!');
-  if (message.content === '!hello') return message.reply(`Hey ${message.author.username}! 👋`);
+// ============================================================
+//  EXIT
+// ============================================================
+process.on('SIGINT', () => {
+  quitting = true;
+  console.log('\nBye');
+  try { client.destroy(); } catch {}
+  process.exit(0);
 });
 
 client.login(process.env.DISCORD_TOKEN);

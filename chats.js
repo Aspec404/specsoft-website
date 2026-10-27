@@ -2294,7 +2294,15 @@
             if (!model) return null;
             try {
                 const img = await loadImageForScan(url);
-                const entry = nsfwScores(await model.classify(img));
+                const preds = await model.classify(img);
+                const entry = nsfwScores(preds);
+                try {
+                    if (localStorage.getItem('specsoft.nsfw.debug') === '1') {   // tuning helper: shows what the model thinks of each image
+                        const o = {};
+                        (preds || []).forEach(function (x) { o[x.className] = Math.round(x.probability * 1000) / 1000; });
+                        console.log('[nsfw]', path, JSON.stringify(o), '=>', nsfwVerdict(entry));
+                    }
+                } catch (e) { /* ignore */ }
                 nsfwCache.set(path, entry);
                 NSFW.scanned++;
                 saveNsfwCache();
