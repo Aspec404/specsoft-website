@@ -1,13 +1,5 @@
 /* ==========================================================================
-   SPECSOFT® site-terminal.js  -  the interactive command terminal
-
-   Press "/" anywhere (when not typing in a field) or click the terminal
-   icon in the HUD bar to open it. Type a command, hit enter. Auto-loaded
-   on every page by main.js, so it works the same everywhere.
-
-   Reads the real social links straight out of the sidebar at runtime
-   (main.js renders them) instead of hardcoding a second copy that could
-   drift out of sync.
+   SPECSOFT® site-terminal.js - Revamped Interactive Terminal
    ========================================================================== */
 (function () {
     'use strict';
@@ -19,6 +11,27 @@
 
     function sound(name) {
         try { if (window.SpecSound) window.SpecSound.play(name); } catch (e) {}
+    }
+
+    // Inject CSS for the rainbow effect dynamically
+    if (!document.getElementById('st-dynamic-css')) {
+        var style = document.createElement('style');
+        style.id = 'st-dynamic-css';
+        style.innerHTML = `
+            @keyframes stRainbow {
+                0%   { color: #ff5f56; }
+                17%  { color: #ffbd2e; }
+                33%  { color: #27c93f; }
+                50%  { color: #007aff; }
+                67%  { color: #af52de; }
+                83%  { color: #ff2d55; }
+                100% { color: #ff5f56; }
+            }
+            .st-rainbow * {
+                animation: stRainbow 2s linear infinite !important;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     var els = {};
@@ -80,8 +93,9 @@
         els.panel = panel;
         els.log = log;
         els.input = input;
+        els.prompt = prompt;
 
-        printLine('SPECSOFT® terminal \u2014 type "help" to see what this does.', 'ok');
+        printLine('SPECSOFT® terminal v2.4.8 \u2014 type "help" to see what this does.', 'ok');
     }
 
     function printLine(text, kind) {
@@ -142,7 +156,7 @@
 
     /* ---- the matrix easter egg ---- */
     function runMatrix() {
-        if (reduceMotion()) { printLine('(reduced motion is on, skipping the visual \u2014 but you found it.)', 'ok'); return; }
+        if (reduceMotion()) { printLine('(reduced motion is on, skipping the visual)', 'ok'); return; }
         var canvas = document.getElementById('stMatrix');
         if (!canvas) {
             canvas = document.createElement('canvas');
@@ -159,7 +173,7 @@
 
         canvas.classList.add('is-on');
         var frames = 0;
-        var maxFrames = 220; // ~7s at ~30fps
+        var maxFrames = 220;
         var timer = setInterval(function () {
             ctx.fillStyle = 'rgba(3,3,3,0.08)';
             ctx.fillRect(0, 0, w, h);
@@ -182,12 +196,66 @@
 
     /* ---- command registry ---- */
     var COMMANDS = {
-        help: function () {
-            printLine('available commands:');
-            ['help', 'whoami', 'home / about / build / projects / team / faq',
-                'discord / github / roblox', 'theme [light|dark]', 'clear'].forEach(function (c) {
-                printLine('  ' + c);
-            });
+        help: function (arg) {
+            if (arg) {
+                // Strip quotes so help 'color' works like help color
+                var topic = arg.toLowerCase().replace(/['"]/g, '');
+                
+                printLine('--- MANUAL: ' + topic + ' ---', 'ok');
+                
+                if (topic === 'color' || topic === 'colors' || topic === 'c0') {
+                    printLine('Changes the text color of your terminal session.');
+                    printLine('Usage: c0 - c7  OR  color c0 - c7  OR  color cRainbow[seconds]');
+                    printLine('');
+                    printLine('  c0 = White', 'ok');
+                    printLine('  c1 = Red', 'err');
+                    printLine('  c2 = Green', 'ok');
+                    printLine('  c3 = Blue');
+                    printLine('  c4 = Yellow');
+                    printLine('  c5 = Orange');
+                    printLine('  c6 = Pink');
+                    printLine('  c7 = Violet');
+                    printLine('');
+                    printLine('Trick: "color cRainbow10" animates in a rainbow for 10s.');
+                    return;
+                }
+                if (topic === 'matrix') {
+                    printLine('Turns on the Matrix digital rain background.');
+                    printLine('Usage: matrix = true');
+                    printLine('Tip: Refresh the page to turn it off.');
+                    return;
+                }
+                if (topic === 'themeswitch') {
+                    printLine('Toggles the website theme.');
+                    printLine('Usage: themeSwitch = true (Light) or = false (Dark)');
+                    return;
+                }
+                if (topic === 'reset') {
+                    printLine('Clears your browser cache and settings. Logs you out.', 'err');
+                    printLine('Usage: reset settings');
+                    printLine('You must type "reset confirm" to proceed.');
+                    return;
+                }
+                if (topic === 'sudo') {
+                    printLine('Executes a command as superuser.');
+                    printLine('Usage: sudo [command]');
+                    printLine('Trick: Try "sudo make me a sandwich".');
+                    return;
+                }
+                
+                printLine('No manual entry for ' + topic, 'err');
+                return;
+            }
+
+            printLine('--- SPECSOFT TERMINAL v2.4.8 ---');
+            printLine('Type "help [command]" for detailed info.');
+            printLine('');
+            printLine('SYSTEM:  sysinfo, ping, date, whoami, reset');
+            printLine('NAV:     home, about, build, projects, team, faq');
+            printLine('SOCIAL:  discord, github, roblox');
+            printLine('STYLE:   themeSwitch = true/false, c0-c7, color cRainbow10');
+            printLine('EFFECTS: matrix = true');
+            printLine('FUN:     sudo, clear');
         },
         whoami: function () {
             var user = window.SpecAuth && window.SpecAuth.getUser ? window.SpecAuth.getUser() : null;
@@ -204,37 +272,95 @@
         projects: function () { goTo('projects'); },
         team: function () { goTo('team'); },
         faq: function () { goTo('faq'); },
-        matrix: function () { printLine('wake up\u2026', 'ok'); runMatrix(); },
-        theme: function (arg) {
-            var light = arg === 'light' ? true : arg === 'dark' ? false : !document.body.classList.contains('light-mode');
-            document.body.classList.toggle('light-mode', light);
-            try { localStorage.setItem('specsoft-theme', light ? 'light' : 'dark'); } catch (e) {}
-            var label = document.getElementById('themeLabel');
-            if (label) label.textContent = light ? 'LIGHT MODE' : 'DARK MODE';
-            printLine('theme set to ' + (light ? 'light' : 'dark') + '.', 'ok');
-        },
+        date: function () { printLine(new Date().toString(), 'ok'); },
         'make me a sandwich': function () { printLine('what? make it yourself.', 'err'); },
-        'sudo make me a sandwich': function () { printLine('okay. \uD83E\uDD6A', 'ok'); }
+        'sudo make me a sandwich': function () { printLine('okay. \uD83E\uDD6A', 'ok'); },
+        'reset settings': function() {
+            printLine('WARNING: This will clear all local settings and log you out.', 'err');
+            printLine('To confirm, type: reset confirm', 'ok');
+        },
+        'reset confirm': function() {
+            printLine('Wiping local storage...', 'err');
+            setTimeout(() => {
+                try { localStorage.clear(); sessionStorage.clear(); } catch(e) {}
+                printLine('Settings cleared. Rebooting...', 'ok');
+                setTimeout(() => { window.location.reload(); }, 1000);
+            }, 800);
+        }
     };
 
     function runCommand(raw) {
         var cmd = raw.trim();
+        if (!cmd) return;
+
         history.push(cmd);
         historyIndex = history.length;
         printLine(cmd, 'cmd');
         sound('click');
 
+        // 1. Variables (e.g. matrix = true)
+        if (cmd.includes('=')) {
+            var parts = cmd.split('=');
+            var varName = parts[0].trim().toLowerCase();
+            var varValue = parts[1].trim().toLowerCase() === 'true';
+
+            if (varName === 'matrix') {
+                if (varValue) { printLine('matrix = true', 'ok'); runMatrix(); }
+                else { printLine('matrix = false (reload to fully stop)', 'ok'); }
+                return;
+            }
+            if (varName === 'themeswitch') {
+                document.body.classList.toggle('light-mode', varValue);
+                try { localStorage.setItem('specsoft-theme', varValue ? 'light' : 'dark'); } catch (e) {}
+                var label = document.getElementById('themeLabel');
+                if (label) label.textContent = varValue ? 'LIGHT MODE' : 'DARK MODE';
+                printLine('themeSwitch = ' + varValue, 'ok');
+                return;
+            }
+            printLine('Unknown variable: ' + varName, 'err');
+            return;
+        }
+
+        // 2. Colors (c0 - c7) and "color c1"
+        var colorMatch = cmd.match(/^(?:color\s+)?(c[0-7])$/i);
+        if (colorMatch) {
+            var colorCode = colorMatch[1].toLowerCase();
+            var colors = ['#ffffff', '#ff5f56', '#27c93f', '#007aff', '#ffbd2e', '#ff9500', '#ff2d55', '#af52de'];
+            var colorHex = colors[parseInt(colorCode[1])];
+            els.log.style.color = colorHex;
+            els.input.style.color = colorHex;
+            els.prompt.style.color = colorHex;
+            printLine('Color set to ' + colorCode, 'ok');
+            return;
+        }
+
+        // 3. Rainbow (color cRainbow10 or cRainbow10)
+        if (cmd.match(/^(?:color\s+)?cRainbow/i)) {
+            var secs = parseInt(cmd.replace(/color\s+cRainbow/i, '').replace(/cRainbow/i, '')) || 5;
+            printLine('Rainbow activated for ' + secs + ' seconds.', 'ok');
+            els.panel.classList.add('st-rainbow');
+            setTimeout(function() {
+                els.panel.classList.remove('st-rainbow');
+                els.log.style.color = ''; els.input.style.color = ''; els.prompt.style.color = '';
+                printLine('Rainbow ended. Back to normal.', 'ok');
+            }, secs * 1000);
+            return;
+        }
+
+        // 4. Normal Commands
         if (COMMANDS[cmd]) { COMMANDS[cmd](); return; }
 
         var parts = cmd.split(/\s+/);
         var name = parts[0].toLowerCase();
-        var arg = parts[1];
+        var arg = cmd.substring(name.length).trim(); 
+        
         if (COMMANDS[name]) { COMMANDS[name](arg); return; }
+        if (COMMANDS[cmd]) { COMMANDS[cmd](); return; }
 
         printLine('command not found: ' + cmd + ' \u2014 try "help"', 'err');
     }
 
-    /* ---- open triggers: "/" key, and a HUD button ---- */
+    /* ---- open triggers ---- */
     function trigIcon() {
         var span = document.createElement('span');
         span.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>';
@@ -251,9 +377,6 @@
 
         var hudRight = document.querySelector('.hud-bar .hud-right');
         if (hudRight) hudRight.insertBefore(btn, hudRight.firstChild);
-
-        // Keep the trigger in the HUD only. Duplicating it in the mobile header
-        // produced a second terminal button above the page HUD.
     }
 
     function onGlobalKey(e) {

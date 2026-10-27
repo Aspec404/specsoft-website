@@ -1056,9 +1056,12 @@
         const jumboEmoji = !deleted && !bug && !m.attachment_path && !m.reply_to && !m.edited_at && !m.deleted_at && getJumboEmojiCount(m.body) > 0 && getJumboEmojiCount(m.body) <= 6;
         const hideKind = hideKindFor(m, mine, deleted, bug);
         const hidden = !!hideKind && !S.revealed.has(m.id);
-        const imageOnlyAttachment = !deleted && !hidden && !!m.attachment_path && /^image\//i.test(m.attachment_type || '') && (!String(m.body || '').trim() || /^Attachment:\s*/i.test(m.body));
+        const imageAttachment = !deleted && !hidden && !!m.attachment_path && /^image\//i.test(m.attachment_type || '');
+        const imageOnlyAttachment = imageAttachment && (!String(m.body || '').trim() || /^Attachment:\s*/i.test(m.body));
         const bubble = el('div', { class: 'ch-bubble' + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (imageOnlyAttachment ? ' ch-bubble--image-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? buildBugCard(m, bug) : (imageOnlyAttachment ? null : renderRich(m.body, mine, jumboEmoji)))));
-        if (!deleted && m.attachment_path && !hidden) renderAttachment(m, bubble);
+        const imageAttachmentView = imageAttachment ? el('div', { class: 'ch-attachment ch-attachment--standalone' }) : null;
+        if (imageAttachmentView) renderAttachment(m, imageAttachmentView);
+        else if (!deleted && m.attachment_path && !hidden) renderAttachment(m, bubble);
 
         const reactions = el('div', { class: 'ch-reactions' });
         groupReactions(m).forEach(function (g) {
@@ -1091,7 +1094,7 @@
             dataset: { id: m.id }
         },
             grouped ? el('span', { class: 'ch-msg-gap', 'aria-hidden': 'true' }) : el('span', { class: 'ch-msg-av' }, avatar(sender, 36)),
-            el('div', { class: 'ch-msg-body' }, head, m.reply_to && !deleted ? replyQuote(m) : null, bubble, reactions.children.length ? reactions : null),
+            el('div', { class: 'ch-msg-body' }, head, m.reply_to && !deleted ? replyQuote(m) : null, bubble, imageAttachmentView, reactions.children.length ? reactions : null),
             tools);
 
         // tap a message on a phone to show its actions
