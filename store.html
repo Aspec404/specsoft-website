@@ -37,7 +37,8 @@
                 <a href="#featured">Featured</a>
                 <a href="#items">Items</a>
                 <a href="#credits">Get credits</a>
-                <a href="#owned">Yours</a>
+                <a href="#send">Send</a>
+                <a href="#history">History</a>
             </nav>
 
             <div class="st-top-right">
@@ -139,10 +140,49 @@
                 <div class="st-earn-grid" id="stEarn"></div>
             </section>
 
+            <!-- ================= SEND CREDITS ================= -->
+            <section class="st-section" id="send" aria-labelledby="stSendTitle" hidden>
+                <header class="st-sechead">
+                    <div>
+                        <h2 id="stSendTitle">Send credits</h2>
+                        <p class="st-sub">Give APEX Credits to another member. You get a receipt number they can verify as proof.</p>
+                    </div>
+                </header>
+                <div class="st-send">
+                    <form class="st-send-form" id="stSendForm" novalidate>
+                        <label for="stSendTo">Send to</label>
+                        <div class="st-at"><span aria-hidden="true">@</span><input type="text" id="stSendTo" class="st-field" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="username"></div>
+                        <label for="stSendAmt">Amount</label>
+                        <input type="number" id="stSendAmt" class="st-field" min="1" step="1" inputmode="numeric" placeholder="50">
+                        <label for="stSendNote">Note <small>(optional)</small></label>
+                        <input type="text" id="stSendNote" class="st-field st-field--text" maxlength="80" autocomplete="off" placeholder="Thanks for the help">
+                        <button type="submit" class="st-btn st-btn--primary" id="stSendBtn">Review transfer</button>
+                    </form>
+                    <aside class="st-send-info" id="stSendInfo" aria-live="polite"></aside>
+                </div>
+            </section>
+
             <!-- ================= OWNED ================= -->
             <section class="st-section" id="owned" aria-labelledby="stOwnTitle">
                 <header class="st-sechead"><div><h2 id="stOwnTitle">Your items</h2><p class="st-sub" id="stOwnSub"></p></div></header>
                 <div class="st-owned" id="stOwned"></div>
+            </section>
+
+            <!-- ================= TRANSACTIONS ================= -->
+            <section class="st-section" id="history" aria-labelledby="stHistTitle" hidden>
+                <header class="st-sechead">
+                    <div>
+                        <h2 id="stHistTitle">My transactions</h2>
+                        <p class="st-sub">Every credit you earned, spent, sent or received.</p>
+                    </div>
+                    <form class="st-verify" id="stVerifyForm" novalidate>
+                        <input type="text" id="stVerifyNo" class="st-field" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Verify a receipt: APX-..." aria-label="Receipt number to verify">
+                        <button type="submit" class="st-btn">Verify</button>
+                    </form>
+                </header>
+                <div class="st-chips" id="stTxChips" role="tablist" aria-label="Transaction filter"></div>
+                <div class="st-tx" id="stTx"></div>
+                <div class="st-tx-more"><button type="button" class="st-btn" id="stTxMore" hidden>Load more</button></div>
             </section>
 
         </main>
@@ -164,6 +204,44 @@
                 <button type="submit" class="st-btn st-btn--primary" id="stBuyOk">Buy</button>
             </div>
         </form>
+    </dialog>
+
+    <!-- confirm a transfer -->
+    <dialog class="st-dlg" id="stSendDlg" aria-labelledby="stSendDlgTitle">
+        <form method="dialog" id="stSendDlgForm">
+            <h3 id="stSendDlgTitle">Confirm transfer</h3>
+            <div class="st-who" id="stWho"></div>
+            <dl class="st-sum">
+                <div><dt>They receive</dt><dd id="stSdAmt"></dd></div>
+                <div><dt>Fee</dt><dd id="stSdFee"></dd></div>
+                <div><dt>You pay</dt><dd id="stSdTotal"></dd></div>
+                <div class="st-sum-after"><dt>Your balance after</dt><dd id="stSdAfter"></dd></div>
+            </dl>
+            <p class="st-dlg-desc" id="stSdNote"></p>
+            <p class="st-help">Transfers cannot be undone. Check the username before you confirm.</p>
+            <div class="st-dlg-foot">
+                <button type="button" class="st-btn" id="stSdCancel">Cancel</button>
+                <button type="submit" class="st-btn st-btn--primary" id="stSdOk">Send credits</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- receipt -->
+    <dialog class="st-dlg st-rcpt-dlg" id="stRcptDlg" aria-labelledby="stRcptTitle">
+        <div class="st-rcpt" id="stRcpt">
+            <div class="st-rcpt-badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12.5 10 17.5 19 7.5"/></svg>
+            </div>
+            <h3 id="stRcptTitle">Delivered</h3>
+            <p class="st-rcpt-sub" id="stRcptSub"></p>
+            <div class="st-rcpt-amt"><img class="apex-ico" src="apex-credits.png" alt="" width="26" height="26"><strong id="stRcptAmt">0</strong></div>
+            <dl class="st-rcpt-rows" id="stRcptRows"></dl>
+            <p class="st-rcpt-foot">Verified by SPECSOFT® Store. Anyone with the receipt number can check it here under My transactions.</p>
+        </div>
+        <div class="st-dlg-foot">
+            <button type="button" class="st-btn" id="stRcptCopy">Copy receipt</button>
+            <button type="button" class="st-btn st-btn--primary" id="stRcptClose">Done</button>
+        </div>
     </dialog>
 
     <div class="st-toast" id="stToast" role="status" aria-live="polite"></div>

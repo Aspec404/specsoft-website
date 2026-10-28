@@ -396,6 +396,16 @@
                     el('div', { class: 'sm-field' }, el('label', { for: 'gAmt', text: 'Amount' }), amt),
                     el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'gWhy', text: 'Reason (saved in their history)' }), why)),
                 el('div', { class: 'sm-dlg-foot' }, go)));
+            var tr = el('div', { class: 'sm-card' }, el('h2', { text: 'Transfer rules' }),
+                el('p', { class: 'sm-note', text: (st.transfers_enabled === false ? 'Sending credits is OFF. ' : 'Sending is on. ') + 'Fee ' + (st.transfer_fee_percent || 0) + '%, cap ' + (st.transfer_daily_cap ? fmt(st.transfer_daily_cap) + ' per 24h' : 'none') + ', accounts must be ' + (st.transfer_min_age_days || 0) + '+ days old. A cap and an age limit stop people farming daily check-ins on extra accounts.' }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit transfer rules', onclick: function () {
+                    openForm({ title: 'Transfer rules', values: st, fields: [
+                        { key: 'transfers_enabled', label: 'Members can send credits', type: 'checkbox', wide: true },
+                        { key: 'transfer_fee_percent', label: 'Fee (%)', type: 'number', required: true, hint: '0 to 50. Paid by the sender on top of the amount.' },
+                        { key: 'transfer_daily_cap', label: 'Max sent per 24h', type: 'number', required: true, hint: '0 = no limit.' },
+                        { key: 'transfer_min_age_days', label: 'Minimum account age (days)', type: 'number', required: true }],
+                        onSave: function (o) { return saveSettings({ transfers_enabled: o.transfers_enabled, transfer_fee_percent: Math.min(50, Math.max(0, Math.floor(o.transfer_fee_percent))), transfer_daily_cap: Math.max(0, Math.floor(o.transfer_daily_cap)), transfer_min_age_days: Math.max(0, Math.floor(o.transfer_min_age_days)) }); } });
+                } })));
             root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Earning rates' }),
                 el('p', { class: 'sm-note', text: 'Today: ' + (st.daily_amount || 0) + ' credits a day' + (st.streak_every ? ', plus ' + (st.streak_bonus || 0) + ' every ' + st.streak_every + ' days in a row.' : '.') + ' Keep these low to keep credits hard to get.' }),
                 el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit earning rates', onclick: function () {
@@ -405,6 +415,7 @@
                         { key: 'streak_bonus', label: 'Streak bonus credits', type: 'number', required: true }],
                         onSave: function (o) { return saveSettings({ daily_amount: o.daily_amount, streak_every: o.streak_every, streak_bonus: o.streak_bonus }); } });
                 } }))));
+            root.appendChild(tr);
         }
 
         /* ---------- SALES ---------- */

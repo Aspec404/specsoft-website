@@ -12,7 +12,8 @@
     var $ = function (id) { return document.getElementById(id); };
     var S = {
         user: null, wallet: null, items: [], featured: [], settings: null, packs: [], owned: [],
-        cat: 'all', q: '', buying: null, busy: false
+        cat: 'all', q: '', buying: null, busy: false,
+        tx: [], txMore: false, txBefore: null, txFilter: 'all', txBusy: false, txReady: false, pendingSend: null, receipt: null
     };
 
     var CATS = [['all', 'All'], ['emote', 'Emotes'], ['badge', 'Badges'], ['theme', 'Themes'], ['boost', 'Boosts'], ['cosmetic', 'Cosmetics'], ['misc', 'Misc']];
@@ -26,7 +27,14 @@
         already_claimed: 'You already claimed today. Come back after the reset.',
         bad_code: 'That code is not valid or has expired.',
         code_used_up: 'That code has no uses left.',
-        code_already_used: 'You already redeemed that code.'
+        code_already_used: 'You already redeemed that code.',
+        transfers_off: 'Sending credits is paused right now.',
+        bad_amount: 'Enter a whole number of credits, at least 1.',
+        self_transfer: 'You cannot send credits to yourself.',
+        user_not_found: 'No member with that username.',
+        cap_reached: 'That would go over your 24 hour sending limit.',
+        account_too_new: 'Your account is too new to send credits yet.',
+        receipt_not_found: 'No receipt with that number.'
     };
 
     /* ---------- tiny helpers ---------- */
@@ -119,6 +127,7 @@
         window.dispatchEvent(new CustomEvent('apex:balance', { detail: { balance: n } }));
         paintWallet();
         paintAll();
+        if (S.txReady) loadTx(true);
     }
 
     /* ---------- hero: wallet + daily ---------- */
@@ -138,6 +147,7 @@
             if (pill) pill.textContent = fmt(S.wallet.balance);
         }
         paintDaily();
+        paintSend();
     }
 
     function paintDaily() {
@@ -386,6 +396,163 @@
         } finally { S.busy = false; S.buying = null; }
     }
 
+    /* ---------- send credits ---------- */
+    function feeFor(amount) { var p = (S.wallet && S.wallet.transfer && Number(S.wallet.transfer.fee_percent)) || 0; return Math.ceil(amount * p / 100); }
+
+    function paintSend() {
+        $('send').hidden = !S.user; $('history').hidden = !S.user;
+        if (!S.user) return;
+        var tr = (S.wallet && S.wallet.transfer) || {}, info = $('stSendInfo');
+        info.textContent = '';
+        var off = tr.enabled === false;
+        ['stSendTo', 'stSendAmt', 'stSendNote', 'stSendBtn'].forEach(function (id) { $(id).disabled = off; });
+        if (off) { info.appendChild(el('p', { text: 'Sending credits is paused right now.' })); return; }
+        var cap = Number(tr.daily_cap) || 0, sent = Number((S.wallet && S.wallet.sent_24h) || 0);
+        info.appendChild(el('p', { text: tr.fee_percent > 0 ? 'Fee: ' + tr.fee_percent + '% on top of what you send.' : 'No fee. The person gets exactly what you send.' }));
+        if (cap > 0) {
+            info.appendChild(el('p', {}, 'Sent in the last 24 hours: ', el('strong', { text: fmt(sent) + ' / ' + fmt(cap) })));
+            var bar = el('div', { class: 'st-meter', 'aria-hidden': 'true' }, el('i')); bar.firstChild.style.width = Math.min(100, sent / cap * 100) + '%';
+            info.appendChild(bar);
+        }
+        if (tr.min_age_days > 0) info.appendChild(el('p', { text: 'Your account must be at least ' + tr.min_age_days + ' days old to send.' }));
+        info.appendChild(el('p', { text: 'Every transfer creates a receipt number. Send it to the other person if they want proof.' }));
+    }
+
+    async function reviewTransfer(e) {
+        e.preventDefault();
+        if (!S.user) { toast('Sign in to send credits.', true); return; }
+        var to = $('stSendTo').value.trim().replace(/^@/, ''), amt = Math.floor(Number($('stSendAmt').value)), note = $('stSendNote').value.trim();
+        if (!to) { $('stSendTo').focus(); toast('Enter who to send to.', true); return; }
+        if (!(amt >= 1)) { $('stSendAmt').focus(); toast(ERR.bad_amount, true); return; }
+        var fee = feeFor(amt), bal = S.wallet ? Number(S.wallet.balance) : 0;
+        if (bal < amt + fee) { toast(ERR.not_enough_credits, true); return; }
+        var btn = $('stSendBtn'); btn.disabled = true;
+        try {
+            var r = await sb.rpc('apex_lookup_user', { p_username: to });
+            if (r.error) throw r.error;
+            if (r.data.is_self) throw new Error('self_transfer');
+            var who = $('stWho'); who.textContent = '';
+            var av = el('span', { class: 'st-who-av' });
+            var url = safeUrl(r.data.avatar_url);
+            if (url) { var img = el('img', { src: url, alt: '', referrerpolicy: 'no-referrer' }); img.onerror = function () { img.remove(); av.textContent = (r.data.username || '?').charAt(0).toUpperCase(); }; av.appendChild(img); }
+            else av.textContent = (r.data.username || '?').charAt(0).toUpperCase();
+            who.appendChild(av);
+            who.appendChild(el('div', {}, el('strong', { text: r.data.display_name || r.data.username }), el('small', { text: '@' + r.data.username })));
+            [['stSdAmt', amt], ['stSdFee', fee], ['stSdTotal', amt + fee], ['stSdAfter', bal - amt - fee]].forEach(function (x) {
+                var n = $(x[0]); n.textContent = ''; n.appendChild(apexIcon()); n.appendChild(document.createTextNode(fmt(x[1])));
+            });
+            $('stSdNote').textContent = note ? 'Note: ' + note : '';
+            S.pendingSend = { to: r.data.username, amount: amt, note: note };
+            $('stSendDlg').showModal();
+        } catch (err) { toast(friendly(err), true); }
+        finally { btn.disabled = false; }
+    }
+
+    async function confirmTransfer(e) {
+        e.preventDefault();
+        var p = S.pendingSend;
+        if (!p || S.busy) return;
+        S.busy = true; $('stSdOk').disabled = true;
+        try {
+            var r = await sb.rpc('apex_transfer', { p_to: p.to, p_amount: p.amount, p_note: p.note || null });
+            if (r.error) throw r.error;
+            $('stSendDlg').close();
+            $('stSendForm').reset();
+            if (S.wallet) S.wallet.sent_24h = Number(S.wallet.sent_24h || 0) + p.amount;
+            setBalance(Number(r.data.balance));
+            showReceipt(r.data, 'sender');
+        } catch (err) {
+            $('stSendDlg').close();
+            toast(friendly(err), true);
+            try { await loadUser(); paintWallet(); } catch (e2) { /* ignore */ }
+        } finally { S.busy = false; S.pendingSend = null; $('stSdOk').disabled = false; }
+    }
+
+    /* ---------- receipts ---------- */
+    function showReceipt(d, viewer) {
+        S.receipt = d;
+        var me = viewer || d.viewer;
+        $('stRcptSub').textContent = me === 'recipient' ? '@' + d.from + ' sent you credits' : me === 'sender' ? 'Sent to @' + d.to : '@' + d.from + ' sent credits to @' + d.to;
+        $('stRcptAmt').textContent = fmt(d.amount);
+        var rows = [['Receipt', d.receipt_no], ['Date', new Date(d.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })], ['From', '@' + d.from], ['To', '@' + d.to]];
+        if (Number(d.fee) > 0) rows.push(['Fee', fmt(d.fee)]);
+        if (d.note) rows.push(['Note', d.note]);
+        rows.push(['Status', 'Delivered']);
+        var box = $('stRcptRows'); box.textContent = '';
+        rows.forEach(function (r) { box.appendChild(el('div', {}, el('dt', { text: r[0] }), el('dd', { text: r[1] }))); });
+        var dlg = $('stRcptDlg'); if (!dlg.open) dlg.showModal();
+    }
+
+    function copyReceipt() {
+        var d = S.receipt; if (!d) return;
+        var text = ['APEX Credits receipt', 'Receipt: ' + d.receipt_no, 'Date: ' + new Date(d.at).toLocaleString(), 'From: @' + d.from, 'To: @' + d.to, 'Amount: ' + fmt(d.amount) + (Number(d.fee) > 0 ? ' (fee ' + fmt(d.fee) + ')' : ''), d.note ? 'Note: ' + d.note : null, 'Status: Delivered'].filter(Boolean).join('\n');
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { toast('Receipt copied'); }, function () { toast('Could not copy', true); });
+        else toast('Could not copy', true);
+    }
+
+    async function openReceipt(no) {
+        try {
+            var r = await sb.rpc('apex_receipt', { p_no: no });
+            if (r.error) throw r.error;
+            showReceipt(r.data);
+        } catch (err) { toast(friendly(err), true); }
+    }
+
+    function verifyReceipt(e) {
+        e.preventDefault();
+        var v = $('stVerifyNo').value.trim();
+        if (!v) { $('stVerifyNo').focus(); return; }
+        openReceipt(v);
+    }
+
+    /* ---------- my transactions ---------- */
+    function txKind(r) {
+        var t = String(r.reason || '');
+        if (/^Sent to/i.test(t)) return 'Sent';
+        if (/^Received from/i.test(t)) return 'Received';
+        if (/^Bought/i.test(t)) return 'Purchase';
+        if (/^Daily check-in/i.test(t)) return 'Check-in';
+        if (/^Code:/i.test(t)) return 'Code';
+        return Number(r.delta) >= 0 ? 'Credit' : 'Debit';
+    }
+
+    async function loadTx(reset) {
+        if (!S.user || S.txBusy) return;
+        S.txBusy = true;
+        try {
+            var r = await sb.rpc('apex_my_transactions', { p_limit: 30, p_before: reset ? null : S.txBefore });
+            if (r.error) throw r.error;
+            var rows = r.data || [];
+            S.tx = reset ? rows : S.tx.concat(rows);
+            S.txMore = rows.length === 30;
+            if (rows.length) S.txBefore = rows[rows.length - 1].id;
+            S.txReady = true;
+        } catch (err) { S.txReady = true; if (reset) S.tx = []; S.txErr = friendly(err); }
+        finally { S.txBusy = false; paintTx(); }
+    }
+
+    function paintTx() {
+        var chips = $('stTxChips'); chips.textContent = '';
+        [['all', 'All'], ['in', 'Money in'], ['out', 'Money out']].forEach(function (c) {
+            chips.appendChild(el('button', { type: 'button', class: 'st-chip', role: 'tab', 'aria-selected': String(S.txFilter === c[0]), text: c[1], onclick: function () { S.txFilter = c[0]; paintTx(); } }));
+        });
+        var box = $('stTx'); box.textContent = '';
+        var list = S.tx.filter(function (r) { return S.txFilter === 'all' || (S.txFilter === 'in' ? Number(r.delta) > 0 : Number(r.delta) < 0); });
+        if (!list.length) {
+            box.appendChild(el('div', { class: 'st-empty', text: !S.txReady ? 'Loading...' : (S.tx.length ? 'Nothing in this filter yet.' : (S.txErr || 'No transactions yet. Claim your daily credits to get started.')) }));
+        }
+        list.forEach(function (r) {
+            var inn = Number(r.delta) > 0;
+            var sub = el('div', { class: 'st-tx-sub' }, new Date(r.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }));
+            if (r.ref) { sub.appendChild(document.createTextNode(' · ')); sub.appendChild(el('button', { type: 'button', text: 'Receipt ' + r.ref, onclick: function () { openReceipt(r.ref); } })); }
+            box.appendChild(el('div', { class: 'st-tx-row ' + (inn ? 'is-in' : 'is-out') },
+                el('span', { class: 'st-tx-tag', text: txKind(r) }),
+                el('div', { class: 'st-tx-main' }, el('div', { class: 'st-tx-title', text: r.reason }), sub),
+                el('div', { class: 'st-tx-amt' }, (inn ? '+' : '') + fmt(r.delta), el('small', { text: 'Balance ' + fmt(r.balance_after) }))));
+        });
+        $('stTxMore').hidden = !S.txMore;
+    }
+
     /* ---------- start ---------- */
     function wire() {
         $('stTheme').addEventListener('click', function () {
@@ -396,6 +563,14 @@
         $('stRedeem').addEventListener('submit', redeem);
         $('stBuyForm').addEventListener('submit', confirmBuy);
         $('stBuyCancel').addEventListener('click', function () { $('stBuy').close(); });
+        $('stSendForm').addEventListener('submit', reviewTransfer);
+        $('stSendDlgForm').addEventListener('submit', confirmTransfer);
+        $('stSdCancel').addEventListener('click', function () { $('stSendDlg').close(); });
+        $('stRcptCopy').addEventListener('click', copyReceipt);
+        $('stRcptClose').addEventListener('click', function () { $('stRcptDlg').close(); });
+        $('stVerifyForm').addEventListener('submit', verifyReceipt);
+        $('stTxMore').addEventListener('click', function () { loadTx(false); });
+        ['stSendDlg', 'stRcptDlg'].forEach(function (id) { $(id).addEventListener('click', function (e) { if (e.target === $(id)) $(id).close(); }); });
         $('stBuy').addEventListener('click', function (e) { if (e.target === $('stBuy')) $('stBuy').close(); });
         var t; $('stSearch').addEventListener('input', function (e) { var v = e.target.value; clearTimeout(t); t = setTimeout(function () { S.q = v.trim(); paintGrid(); }, 150); });
         setInterval(paintClock, 1000);
@@ -416,6 +591,7 @@
             return;
         }
         paintWallet(); paintChips(); paintGrid(); paintFeatured(); paintPacks(); paintEarn(); paintOwned();
+        if (S.user) loadTx(true);
         if (window.ApexCredits && S.wallet) window.ApexCredits.set(Number(S.wallet.balance));
         if (location.hash) { try { var t2 = document.querySelector(location.hash); if (t2 && t2.scrollIntoView) t2.scrollIntoView(); } catch (e3) { /* odd hash */ } }
     }
