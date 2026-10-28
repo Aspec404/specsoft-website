@@ -298,6 +298,9 @@
         preview.style.setProperty('--pf-preview-color-5', gradientColors[4]);
     }
 
+    // puts the member's equipped store frame (avatar-frames.js) on an avatar, if they have one
+    function framed(node, userId) { if (window.SpecFrames && userId) window.SpecFrames.adorn(node, userId); return node; }
+
     // profile picture: uses the shared SpecAuth.avatar from main.js (falls back to a plain letter)
     function avatarEl(user) {
         if (window.SpecAuth && window.SpecAuth.avatar) return window.SpecAuth.avatar(user);
@@ -603,7 +606,7 @@
                     href: 'profile.html?u=' + encodeURIComponent(p.username),
                     title: '@' + p.username
                 },
-                    avatarEl({ name: name, avatar: safeHttps(p.avatar_url) || '' }),
+                    framed(avatarEl({ name: name, avatar: safeHttps(p.avatar_url) || '' }), p.id),
                     el('span', { class: 'pf-follow-text' },
                         el('span', { class: 'pf-follow-name', text: name }),
                         el('span', { class: 'pf-follow-sub', text: '@' + p.username })));
@@ -736,7 +739,7 @@
         // avatar + status badge
         const wrap = $('pfAvatarWrap');
         wrap.textContent = '';
-        wrap.appendChild(avatarEl({ name: name, avatar: safeHttps(p.avatar_url) || '' }));
+        wrap.appendChild(framed(avatarEl({ name: name, avatar: safeHttps(p.avatar_url) || '' }), p.id));
         const st = STATUS[p.status] || STATUS.offline;
         const badge = el('span', { class: 'pf-status-badge', role: 'img', 'aria-label': st.aria });
         badge.innerHTML = statusIcon(p.status);
@@ -1407,7 +1410,7 @@ async function loadReposts() {
         const a = c.author || {};
         const name = a.display_name || a.username || 'member';
         const canDelete = !!(state.me && detailPj && (c.user_id === state.me.id || detailPj.owner_id === state.me.id));
-        const av = avatarEl({ name: name, avatar: safeHttps(a.avatar_url) || '' });
+        const av = framed(avatarEl({ name: name, avatar: safeHttps(a.avatar_url) || '' }), c.user_id);
         const profileHref = a.username ? 'profile.html?u=' + encodeURIComponent(a.username) : null;
 
         return el('article', { class: 'pd-cmt', dataset: { id: c.id } },

@@ -13,10 +13,11 @@
     var S = {
         user: null, wallet: null, items: [], featured: [], settings: null, packs: [], owned: [],
         cat: 'all', q: '', buying: null, busy: false,
+        bundles: {}, equipped: null, me: null,
         tx: [], txMore: false, txBefore: null, txFilter: 'all', txBusy: false, txReady: false, pendingSend: null, receipt: null
     };
 
-    var CATS = [['all', 'All'], ['emote', 'Emotes'], ['badge', 'Badges'], ['theme', 'Themes'], ['boost', 'Boosts'], ['cosmetic', 'Cosmetics'], ['misc', 'Misc']];
+    var CATS = [['all', 'All'], ['bundle', 'Bundles'], ['frame', 'Frames'], ['emote', 'Emotes'], ['badge', 'Badges'], ['theme', 'Themes'], ['boost', 'Boosts'], ['cosmetic', 'Cosmetics'], ['misc', 'Misc']];
     var RARITY = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
     var ERR = {
         not_signed_in: 'Sign in to do that.',
@@ -34,7 +35,9 @@
         user_not_found: 'No member with that username.',
         cap_reached: 'That would go over your 24 hour sending limit.',
         account_too_new: 'Your account is too new to send credits yet.',
-        receipt_not_found: 'No receipt with that number.'
+        receipt_not_found: 'No receipt with that number.',
+        already_own_all: 'You already own everything in this bundle.',
+        not_owned: 'You need to own that frame first.'
     };
 
     /* ---------- tiny helpers ---------- */
@@ -99,13 +102,16 @@
             sb.from('store_items').select('*').eq('active', true).order('sort', { ascending: true }).order('created_at', { ascending: true }),
             sb.rpc('store_featured'),
             sb.from('store_settings').select('*').eq('id', 1).maybeSingle(),
-            sb.from('credit_packs').select('*').eq('active', true).order('sort', { ascending: true })
+            sb.from('credit_packs').select('*').eq('active', true).order('sort', { ascending: true }),
+            sb.from('store_bundle_items').select('bundle_id,item_id')
         ]);
         if (r[0].error) throw r[0].error;
         S.items = r[0].data || [];
         S.featured = r[1].error ? [] : (r[1].data || []);
         S.settings = r[2].data || { rotation_days: 3, featured_discount: 20, daily_amount: 3, streak_every: 7, streak_bonus: 15 };
         S.packs = r[3].error ? [] : (r[3].data || []);
+        S.bundles = {};
+        (r[4].error ? [] : (r[4].data || [])).forEach(function (b) { (S.bundles[b.bundle_id] = S.bundles[b.bundle_id] || []).push(b.item_id); });
     }
 
     async function loadUser() {
@@ -115,10 +121,14 @@
         if (!S.user) return;
         var r = await Promise.all([
             sb.rpc('apex_wallet'),
-            sb.from('store_purchases').select('id,item_id,item_name,price_paid,created_at').eq('user_id', S.user.id).order('created_at', { ascending: false })
+            sb.from('store_purchases').select('id,item_id,item_name,price_paid,created_at').eq('user_id', S.user.id).order('created_at', { ascending: false }),
+            sb.from('user_equipped').select('frame_item').eq('user_id', S.user.id).maybeSingle(),
+            sb.from('profiles').select('username,display_name,avatar_url').eq('id', S.user.id).maybeSingle()
         ]);
         if (!r[0].error) S.wallet = r[0].data;
         if (!r[1].error) S.owned = r[1].data || [];
+        S.equipped = (!r[2].error && r[2].data && r[2].data.frame_item) || null;
+        S.me = (!r[3].error && r[3].data) || null;
         try { var a = await sb.rpc('store_is_admin'); $('stManage').hidden = !(a && a.data === true); } catch (e) { /* not an admin */ }
     }
 
@@ -215,7 +225,51 @@
     }
 
     /* ---------- cards ---------- */
+    /* ---------- frames + bundles art ---------- */
+    function frameAvatar(frame, size) {
+        var name = S.me ? (S.me.display_name || S.me.username || 'You') : 'You';
+        var node = el('span', { class: 'sp-avatar', style: '--sp-size:' + size + 'px' }, el('span', { class: 'sp-initial', text: String(name).charAt(0).toUpperCase() }));
+        var url = S.me && safeUrl(S.me.avatar_url);
+        if (url) { var img = el('img', { src: url, alt: '', referrerpolicy: 'no-referrer' }); img.onerror = function () { img.remove(); }; node.appendChild(img); }
+        if (window.SpecFrames) window.SpecFrames.apply(node, frame);
+        return node;
+    }
+
+    function bundleContents(item) { return (S.bundles[item.id] || []).map(function (id) { return S.items.find(function (i) { return i.id === id; }); }).filter(Boolean); }
+    function ownsAllOfBundle(item) { var l = bundleContents(item); return l.length > 0 && l.every(isOwnedMax); }
+    function bundleLine(item) {
+        var l = bundleContents(item), worth = l.reduce(function (a, c) { return a + c.price; }, 0);
+        return 'Bundle · ' + l.length + ' items' + (worth > item.price ? ' · worth ' + fmt(worth) : '');
+    }
+    function miniArt(c) {
+        if (c.category === 'frame' && c.frame_data) return frameAvatar(c.frame_data, 28);
+        return mediaOf(c);
+    }
+    function bundleArt(item) {
+        var list = bundleContents(item), box = el('div', { class: 'st-bundle-art' });
+        if (!list.length) return el('span', { class: 'st-emoji', text: item.emoji || '🎁' });
+        list.slice(0, list.length > 4 ? 3 : 4).forEach(function (c) { box.appendChild(el('span', { class: 'st-bundle-cell' }, miniArt(c))); });
+        if (list.length > 4) box.appendChild(el('span', { class: 'st-bundle-cell st-bundle-more', text: '+' + (list.length - 3) }));
+        return box;
+    }
+
+    async function equipFrame(id, quiet) {
+        if (S.busy || !S.user) return;
+        S.busy = true;
+        try {
+            var r = await sb.rpc('store_equip', { p_item: id });
+            if (r.error) throw r.error;
+            S.equipped = r.data.item || null;
+            if (window.SpecFrames) window.SpecFrames.setMine(S.user.id, r.data.frame);
+            paintAll();
+            if (!quiet) toast(id ? 'Frame equipped. It shows in chats and on your profile.' : 'Frame removed');
+        } catch (err) { toast(friendly(err), true); }
+        finally { S.busy = false; }
+    }
+
     function mediaOf(item, big) {
+        if (item.category === 'frame' && item.frame_data) return frameAvatar(item.frame_data, typeof big === 'number' ? big : (big ? 92 : 72));
+        if (item.category === 'bundle') return bundleArt(item);
         var url = safeUrl(item.image_url);
         if (url) {
             var img = el('img', { src: url, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
@@ -228,6 +282,13 @@
     function buyButton(item, price) {
         var btn = el('button', { type: 'button', class: 'st-btn st-btn--primary' });
         var bal = S.wallet ? Number(S.wallet.balance) : 0;
+        if (item.category === 'frame' && S.user && isOwnedMax(item)) {
+            var worn = S.equipped === item.id;
+            btn.textContent = worn ? 'Unequip' : 'Equip'; btn.className = 'st-btn' + (worn ? '' : ' st-btn--primary');
+            btn.addEventListener('click', function () { equipFrame(worn ? null : item.id); });
+            return btn;
+        }
+        if (item.category === 'bundle' && ownsAllOfBundle(item)) { btn.textContent = 'Owned'; btn.disabled = true; btn.className = 'st-btn'; return btn; }
         if (isOwnedMax(item)) { btn.textContent = 'Owned'; btn.disabled = true; btn.className = 'st-btn'; }
         else if (item.stock != null && item.stock <= 0) { btn.textContent = 'Sold out'; btn.disabled = true; btn.className = 'st-btn'; }
         else if (!S.user) { btn.textContent = 'Sign in'; btn.className = 'st-btn'; btn.addEventListener('click', function () { location.href = 'login.html'; }); }
@@ -244,8 +305,8 @@
 
     function buildCard(item, feat) {
         var f = featInfo(item), price = priceOf(item);
-        var card = el('article', { class: 'st-card is-' + item.rarity + (item.category === 'emote' ? ' st-card--emote' : '') + (feat ? ' st-card--feat' : '') + (isOwnedMax(item) ? ' is-owned' : '') });
-        var media = el('div', { class: 'st-card-media' }, mediaOf(item));
+        var card = el('article', { class: 'st-card is-' + item.rarity + (' st-card--' + item.category) + (feat ? ' st-card--feat' : '') + (isOwnedMax(item) ? ' is-owned' : '') });
+        var media = el('div', { class: 'st-card-media' }, mediaOf(item, !!feat));
         if (f && f.discount) media.appendChild(el('span', { class: 'st-tag', text: '-' + f.discount + '%' }));
         if (feat && f && f.is_pinned) { var e = el('span', { class: 'st-ends', 'data-ends': f.ends_at, text: timeLeft(f.ends_at) + ' left' }); media.appendChild(e); }
         card.appendChild(media);
@@ -255,6 +316,7 @@
                 item.stock != null ? el('span', { class: 'st-stock', text: item.stock > 0 ? item.stock + ' left' : 'sold out' }) : null),
             el('h3', { text: item.name }),
             item.category === 'emote' && item.emote_name ? el('div', { class: 'st-emote-code', text: ':' + item.emote_name + ':' }) : null,
+            item.category === 'bundle' ? el('div', { class: 'st-emote-code', text: bundleLine(item) }) : null,
             item.description ? el('p', { text: item.description }) : null,
             el('div', { class: 'st-card-foot' }, priceView(item), buyButton(item, price))));
         return card;
@@ -351,10 +413,13 @@
             var key = p.item_id || p.item_name;
             if (seen[key]) return; seen[key] = true;
             var it = S.items.find(function (i) { return i.id === p.item_id; }) || { name: p.item_name, rarity: 'common', emoji: '🎁' };
-            box.appendChild(el('div', { class: 'st-own is-' + it.rarity },
-                el('div', { class: 'st-own-ico' }, mediaOf(it)),
+            if (it.category === 'bundle') return;          // the items inside are listed on their own
+            var isFrame = it.category === 'frame' && it.id, worn = isFrame && S.equipped === it.id;
+            box.appendChild(el('div', { class: 'st-own is-' + it.rarity + (worn ? ' is-equipped' : '') },
+                el('div', { class: 'st-own-ico' }, mediaOf(it, 46)),
                 el('strong', { text: it.name }),
-                el('small', { text: it.category === 'emote' ? 'In MY EMOTES' : (counts[key] > 1 ? 'x' + counts[key] : 'Owned') })));
+                el('small', { text: it.category === 'emote' ? 'In MY EMOTES' : (isFrame ? (worn ? 'Equipped' : 'Frame') : (counts[key] > 1 ? 'x' + counts[key] : 'Owned')) }),
+                isFrame ? el('button', { type: 'button', class: 'st-btn st-own-btn', text: worn ? 'Unequip' : 'Equip', onclick: function () { equipFrame(worn ? null : it.id); } }) : null));
         });
         $('stOwnSub').textContent = S.owned.length ? '' : 'Nothing yet. Items you buy show up here.';
         if (!S.owned.length) box.appendChild(el('div', { class: 'st-empty', text: 'Your items will appear here after your first purchase.' }));
@@ -368,6 +433,16 @@
         S.buying = item;
         var media = $('stBuyMedia'); media.textContent = ''; media.appendChild(mediaOf(item));
         $('stBuyTitle').textContent = item.name;
+        var ul = $('stBuyList'), warn = $('stBuyWarn');
+        ul.textContent = ''; ul.hidden = item.category !== 'bundle'; warn.hidden = true;
+        if (item.category === 'bundle') {
+            var have = 0;
+            bundleContents(item).forEach(function (c) {
+                var own = isOwnedMax(c); if (own) have++;
+                ul.appendChild(el('li', { class: own ? 'is-owned' : '' }, el('span', { class: 'st-incl-ico' }, miniArt(c)), c.name + (own ? ' (you already own this)' : '')));
+            });
+            if (have) { warn.hidden = false; warn.textContent = 'You already own ' + have + ' of these. You still get the rest, at the same price.'; }
+        }
         $('stBuyDesc').textContent = (item.description || '') + (item.category === 'emote' ? ((item.description ? ' ' : '') + 'Goes straight to MY EMOTES in chats. Type it as :' + item.emote_name + ':') : '');
         [['stBuyPrice', price], ['stBuyBal', bal], ['stBuyAfter', bal - price]].forEach(function (x) {
             var n = $(x[0]); n.textContent = ''; n.appendChild(apexIcon()); n.appendChild(document.createTextNode(fmt(x[1])));
@@ -385,10 +460,22 @@
             var r = await sb.rpc('store_buy', { p_item: item.id });
             if (r.error) throw r.error;
             $('stBuy').close();
-            S.owned.unshift({ id: 'new', item_id: item.id, item_name: item.name, price_paid: r.data.price, created_at: new Date().toISOString() });
+            var wasEquipped = S.equipped, newFrame = null;
+            if (item.category === 'bundle') {
+                await loadUser();                                   // the bundle added several items: reload what you own
+                newFrame = bundleContents(item).find(function (c) { return c.category === 'frame' && (r.data.granted || []).indexOf(c.name) >= 0; }) || null;
+            } else {
+                S.owned.unshift({ id: 'new', item_id: item.id, item_name: item.name, price_paid: r.data.price, created_at: new Date().toISOString() });
+                if (item.category === 'frame') newFrame = item;
+            }
             if (item.stock != null) item.stock = Math.max(0, item.stock - 1);
             setBalance(Number(r.data.balance));
-            toast(item.category === 'emote' ? item.name + ' added to MY EMOTES in chats' : 'Bought ' + item.name + ' for ' + fmt(r.data.price) + ' credits');
+            var autoWear = !wasEquipped && newFrame;
+            toast(item.category === 'emote' ? item.name + ' added to MY EMOTES in chats'
+                : item.category === 'bundle' ? item.name + ': ' + (r.data.granted || []).length + ' items added' + (autoWear ? ' and your new frame is on' : '')
+                : item.category === 'frame' ? item.name + (autoWear ? ' bought and equipped' : ' bought. Press Equip to wear it')
+                : 'Bought ' + item.name + ' for ' + fmt(r.data.price) + ' credits');
+            if (autoWear) setTimeout(function () { equipFrame(newFrame.id, true); }, 60);
         } catch (err) {
             $('stBuy').close();
             toast(friendly(err), true);
@@ -590,6 +677,7 @@
             $('featured').hidden = true;
             return;
         }
+        if (S.user && window.SpecFrames) { var mine = S.items.find(function (i) { return i.id === S.equipped; }); window.SpecFrames.setMine(S.user.id, mine ? mine.frame_data : null); }
         paintWallet(); paintChips(); paintGrid(); paintFeatured(); paintPacks(); paintEarn(); paintOwned();
         if (S.user) loadTx(true);
         if (window.ApexCredits && S.wallet) window.ApexCredits.set(Number(S.wallet.balance));

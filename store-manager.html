@@ -65,6 +65,12 @@
         .sm-stat { flex: 1 1 140px; padding: 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; }
         .sm-stat strong { display: block; font-family: var(--font-mono); font-size: 22px; }
         .sm-stat span { color: var(--text-secondary); font-size: 12px; }
+        .sm-pv { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px; margin-bottom: 14px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .sm-pv[hidden] { display: none; }
+        .sm-pv-note { font-size: 12px; color: var(--text-secondary); }
+        .sm-pv-stage { padding: 12px; }
+        .sm-multi { display: grid; gap: 2px; max-height: 190px; overflow: auto; padding: 8px 10px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; }
+        .sm-multi .sm-check { min-height: 30px; }
         @media (max-width: 640px) { .sm-row { grid-template-columns: 40px 1fr; } .sm-actions { grid-column: 1 / -1; justify-content: flex-start; } .sm-thumb { width: 40px; height: 40px; } }
     </style>
 </head>
@@ -89,6 +95,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
     <script src="supabase-config.js"></script>
+    <script src="avatar-frames.js"></script>
     <script>
     (function () {
         'use strict';
@@ -129,11 +136,16 @@
                 var v = opt.values && opt.values[f.key], input;
                 if (f.type === 'textarea') input = el('textarea', { rows: '3', maxlength: f.max || null });
                 else if (f.type === 'select') input = el('select', null, f.options.map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+                else if (f.type === 'multi') input = el('div', { class: 'sm-multi' }, f.options.length ? f.options.map(function (o) {
+                    var cb = el('input', { type: 'checkbox', value: o[0] });
+                    if ((v || []).indexOf(o[0]) >= 0) cb.checked = true;
+                    return el('label', { class: 'sm-check' }, cb, o[1]);
+                }) : el('span', { class: 'sm-note', text: 'No items to pick yet.' }));
                 else if (f.type === 'checkbox') input = el('input', { type: 'checkbox' });
                 else input = el('input', { type: f.type === 'datetime' ? 'datetime-local' : (f.type || 'text'), min: f.type === 'number' ? '0' : null, placeholder: f.placeholder || null, autocomplete: 'off' });
                 if (f.type === 'checkbox') input.checked = !!v;
                 else if (f.type === 'datetime') input.value = toLocalInput(v);
-                else input.value = v == null ? '' : v;
+                else if (f.type !== 'multi') input.value = v == null ? '' : v;
                 inputs[f.key] = input;
                 var box = el('div', { class: 'sm-field' + (f.wide ? ' sm-wide' : '') });
                 if (f.type === 'checkbox') box.appendChild(el('label', { class: 'sm-check' }, input, f.label));
@@ -144,13 +156,21 @@
             var save = el('button', { type: 'submit', class: 'sm-btn sm-btn--primary', text: opt.saveLabel || 'Save' });
             form.appendChild(el('h3', { text: opt.title }));
             form.appendChild(grid);
+            if (opt.preview) {
+                var pv = opt.preview(inputs);
+                form.insertBefore(pv.node, grid);
+                grid.addEventListener('input', pv.update);
+                grid.addEventListener('change', pv.update);
+                pv.update();
+            }
             form.appendChild(el('div', { class: 'sm-dlg-foot' }, el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { dlg.close(); } }), save));
             form.onsubmit = async function (e) {
                 e.preventDefault();
                 var out = {};
                 for (var i = 0; i < opt.fields.length; i++) {
                     var f = opt.fields[i], inp = inputs[f.key], val;
-                    if (f.type === 'checkbox') val = inp.checked;
+                    if (f.type === 'multi') val = Array.from(inp.querySelectorAll('input:checked')).map(function (x) { return x.value; });
+                    else if (f.type === 'checkbox') val = inp.checked;
                     else if (f.type === 'number') val = f.nullable ? numOrNull(inp.value) : (inp.value === '' ? null : Number(inp.value));
                     else if (f.type === 'datetime') val = inp.value ? new Date(inp.value).toISOString() : null;
                     else { val = inp.value.trim(); if (val === '' && f.nullable) val = null; }
@@ -176,6 +196,11 @@
             for (var i = 0; i < r.length; i++) if (r[i].error) throw r[i].error;
             S.items = r[0].data || []; S.packs = r[1].data || []; S.codes = r[2].data || [];
             S.settings = r[3].data; S.featured = r[4].data || [];
+            S.bundleItems = {};
+            try {
+                var b = await sb.from('store_bundle_items').select('bundle_id,item_id');
+                (b.data || []).forEach(function (x) { (S.bundleItems[x.bundle_id] = S.bundleItems[x.bundle_id] || []).push(x.item_id); });
+            } catch (e) { /* frames SQL not run yet */ }
         }
         async function reload(keepTab) { try { await loadAll(); render(); } catch (e) { fail(e); } }
 
@@ -184,8 +209,13 @@
             { key: 'name', label: 'Name', required: true },
             { key: 'emoji', label: 'Emoji (used when there is no image)', nullable: true, placeholder: '🎁' },
             { key: 'description', label: 'Description', type: 'textarea', wide: true, max: 240, nullable: true },
-            { key: 'category', label: 'Category', type: 'select', options: [['emote', 'Emote (goes to MY EMOTES in chats)'], ['badge', 'Badge'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
+            { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS ring)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['badge', 'Badge'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
             { key: 'emote_name', label: 'Emote code (Emote category only)', nullable: true, placeholder: 'pepe_happy', hint: 'Letters, numbers and _ + -. Members use it as :pepe_happy:. Needs an Image URL. Do not reuse a built-in emoji name.' },
+            { key: 'frame_style', label: 'Frame style (Frame category only)', type: 'select', options: [['spin', 'Spinning ring'], ['rainbow', 'Rainbow ring'], ['pulse', 'Pulse glow'], ['orbit', 'Dashed orbit'], ['neon', 'Neon'], ['fire', 'Fire'], ['dots', 'Dotted rings'], ['aurora', 'Aurora'], ['twin', 'Twin rings']] },
+            { key: 'frame_speed', label: 'Frame speed (seconds per turn)', type: 'number', hint: 'Lower is faster. 0.5 to 20.' },
+            { key: 'frame_c1', label: 'Frame color 1', type: 'color' },
+            { key: 'frame_c2', label: 'Frame color 2', type: 'color' },
+            { key: 'bundle_items', label: 'Bundle contents (Bundle category only). Pick 2 or more', type: 'multi', wide: true, options: [] },
             { key: 'rarity', label: 'Rarity', type: 'select', options: [['common', 'Common'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary']] },
             { key: 'price', label: 'Price (APEX Credits)', type: 'number', required: true },
             { key: 'stock', label: 'Stock', type: 'number', nullable: true, hint: 'Leave empty for unlimited.' },
@@ -201,16 +231,56 @@
             if (isEmote && !code) throw new Error('Emotes need a code like pepe_happy.');
             if (isEmote && !/^https:\/\//i.test(o.image_url || '')) throw new Error('Emotes need an https image URL.');
             if (isEmote) o.per_user_limit = 1;
-            return { emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
+            var isFrame = o.category === 'frame', isBundle = o.category === 'bundle', frame = null;
+            if (isFrame) {
+                var hex = /^#[0-9a-fA-F]{6}$/;
+                if (!hex.test(o.frame_c1 || '') || !hex.test(o.frame_c2 || '')) throw new Error('Pick two frame colors.');
+                frame = { style: o.frame_style, c1: o.frame_c1, c2: o.frame_c2, speed: Math.min(20, Math.max(0.5, Number(o.frame_speed) || 3)) };
+                o.per_user_limit = 1;
+            }
+            if (isBundle) {
+                if ((o.bundle_items || []).length < 2) throw new Error('Pick at least 2 items for a bundle.');
+                o.per_user_limit = 1;
+            }
+            return { frame_data: frame, emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
                 per_user_limit: o.per_user_limit == null ? null : Math.max(1, o.per_user_limit), sort: Math.floor(o.sort || 0), image_url: o.image_url, in_rotation: o.in_rotation, active: o.active };
         }
+        function itemErr(e) {
+            var msg = String(e && e.message || e);
+            if (/emote_name_key|duplicate/i.test(msg)) return new Error('That emote code is already used.');
+            if (/frame_rules/.test(msg)) return new Error('Frames need a valid style, two colors, and one per person.');
+            if (/bundle_rules/.test(msg)) return new Error('Bundles can only hold normal items (no bundles inside bundles).');
+            if (/emote_rules|category_check/.test(msg)) return new Error('Run supabase-store-emotes.sql and supabase-store-frames.sql first, then try again.');
+            return e;
+        }
+        async function syncBundle(id, ids) {
+            var d = await sb.from('store_bundle_items').delete().eq('bundle_id', id); if (d.error) throw itemErr(d.error);
+            if (!ids.length) return;
+            var n = await sb.from('store_bundle_items').insert(ids.map(function (x) { return { bundle_id: id, item_id: x }; })); if (n.error) throw itemErr(n.error);
+        }
+        function framePreview(inputs) {
+            var av = el('span', { class: 'sp-avatar', style: '--sp-size:72px', text: 'A' });
+            var node = el('div', { class: 'sm-pv' }, el('span', { class: 'sm-pv-note', text: 'Frame preview' }), el('div', { class: 'sm-pv-stage' }, av));
+            return { node: node, update: function () {
+                var show = inputs.category.value === 'frame';
+                node.hidden = !show;
+                if (show && window.SpecFrames) window.SpecFrames.apply(av, { style: inputs.frame_style.value, c1: inputs.frame_c1.value, c2: inputs.frame_c2.value, speed: Number(inputs.frame_speed.value) || 3 });
+            } };
+        }
         function editItem(it) {
-            var isNew = !it;
-            openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: ITEM_FIELDS,
-                values: it || { category: 'badge', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' },
+            var isNew = !it, fd = (it && it.frame_data) || {};
+            var fields = ITEM_FIELDS.map(function (f) {
+                return f.key !== 'bundle_items' ? f : Object.assign({}, f, { options: S.items.filter(function (i) { return i.category !== 'bundle' && (!it || i.id !== it.id); }).map(function (i) { return [i.id, i.name + ' (' + fmt(i.price) + ')']; }) });
+            });
+            var base = { frame_style: fd.style || 'spin', frame_c1: fd.c1 || '#7F77DD', frame_c2: fd.c2 || '#D4537E', frame_speed: fd.speed || 3, bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
+            openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: fields, preview: framePreview,
+                values: Object.assign({}, it || { category: 'badge', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' }, base),
                 onSave: async function (o) {
-                    var q = isNew ? sb.from('store_items').insert(itemPayload(o)) : sb.from('store_items').update(itemPayload(o)).eq('id', it.id);
-                    var r = await q; if (r.error) throw (/emote_name_key|duplicate/i.test(r.error.message) ? new Error('That emote code is already used.') : (/emote_rules|category_check/i.test(r.error.message) ? new Error('Run supabase-store-emotes.sql first, then try again.') : r.error));
+                    var row = itemPayload(o);
+                    var r = await (isNew ? sb.from('store_items').insert(row).select('id').single() : sb.from('store_items').update(row).eq('id', it.id).select('id').single());
+                    if (r.error) throw itemErr(r.error);
+                    if (o.category === 'bundle') await syncBundle(r.data.id, o.bundle_items);
+                    else if (!isNew) await sb.from('store_bundle_items').delete().eq('bundle_id', r.data.id);
                     toast(isNew ? 'Item added' : 'Item saved'); await reload();
                 } });
         }
@@ -248,12 +318,16 @@
             list.forEach(function (it) {
                 var fs = featState(it), pinned = it.featured_until && new Date(it.featured_until) > new Date();
                 var thumb = el('div', { class: 'sm-thumb' });
-                if (/^https:\/\//i.test(it.image_url || '')) thumb.appendChild(el('img', { src: it.image_url, alt: '', referrerpolicy: 'no-referrer' })); else thumb.textContent = it.emoji || '🎁';
+                if (it.category === 'frame' && it.frame_data && window.SpecFrames) {
+                    thumb.style.overflow = 'visible';
+                    var fav = el('span', { class: 'sp-avatar', style: '--sp-size:26px', text: 'A' });
+                    window.SpecFrames.apply(fav, it.frame_data); thumb.appendChild(fav);
+                } else if (/^https:\/\//i.test(it.image_url || '')) thumb.appendChild(el('img', { src: it.image_url, alt: '', referrerpolicy: 'no-referrer' })); else thumb.textContent = it.emoji || '🎁';
                 box.appendChild(el('div', { class: 'sm-row' + (it.active ? '' : ' is-off') },
                     thumb,
                     el('div', { class: 'sm-main' }, el('strong', { text: it.name }),
                         el('div', { class: 'sm-meta' },
-                            el('span', { text: fmt(it.price) + ' credits' }), el('span', { text: it.category }), it.emote_name ? el('span', { text: ':' + it.emote_name + ':' }) : null, el('span', { text: it.rarity }),
+                            el('span', { text: fmt(it.price) + ' credits' }), el('span', { text: it.category }), it.emote_name ? el('span', { text: ':' + it.emote_name + ':' }) : null, it.category === 'bundle' ? el('span', { text: ((S.bundleItems || {})[it.id] || []).length + ' items inside' }) : null, el('span', { text: it.rarity }),
                             el('span', { text: it.stock == null ? 'unlimited' : it.stock + ' left' }),
                             it.active ? null : el('span', { class: 'sm-badge', text: 'Hidden' }),
                             it.in_rotation ? el('span', { class: 'sm-badge', text: 'In rotation pool' }) : null,

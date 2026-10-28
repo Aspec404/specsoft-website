@@ -58,6 +58,44 @@
     var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches || ssOn('reduceMotion');
     if (reduce) { CFG.trail = false; CFG.burst = false; CFG.stretch = false; }
 
+    /* ----- Settings > Cursor. SCCursor.refresh() re-reads all of this live ----- */
+    var STYLE = { enabled: true, dot: 'circle', dotSize: 6, ring: 'circle', ringSize: 40, spin: true, ticks: true,
+                  cross: false, follow: 0.18, trailStyle: 'classic', burstKind: 'shapes', sig: '' };
+    var FOLLOW = { snappy: 0.32, normal: 0.18, floaty: 0.09 };
+    var TRAIL_LIFE = { short: 320, normal: 520, long: 900 };
+    function sv(k, d) {
+        var p = window.__ssPreview;                       // unsaved "try it" values from the settings page
+        if (p && Object.prototype.hasOwnProperty.call(p, k)) return p[k];
+        var s = ssRead();
+        return Object.prototype.hasOwnProperty.call(s, k) ? s[k] : d;
+    }
+    function pick(v, list, d) { return list.indexOf(v) !== -1 ? v : d; }
+    function num(v, lo, hi, d) { v = Number(v); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; }
+    function readSettings() {
+        STYLE.enabled = sv('cursor', true) !== false;
+        STYLE.dot = pick(sv('cursorDot', 'circle'), ['circle', 'square', 'diamond', 'none'], 'circle');
+        STYLE.dotSize = num(sv('cursorDotSize', 6), 3, 14, 6);
+        STYLE.ring = pick(sv('cursorRing', 'circle'), ['circle', 'rounded', 'square', 'diamond', 'none'], 'circle');
+        STYLE.ringSize = num(sv('cursorRingSize', 40), 28, 72, 40);
+        STYLE.spin = sv('cursorSpin', true) !== false;
+        STYLE.ticks = sv('cursorTicks', true) !== false;
+        STYLE.cross = sv('cursorCross', false) === true;
+        STYLE.follow = FOLLOW[pick(sv('cursorFollow', 'normal'), ['snappy', 'normal', 'floaty'], 'normal')];
+        STYLE.trailStyle = pick(sv('cursorTrail', 'classic'), ['off', 'classic', 'thin', 'dots', 'glow'], 'classic');
+        CFG.trailLife = TRAIL_LIFE[pick(sv('cursorTrailLen', 'normal'), ['short', 'normal', 'long'], 'normal')];
+        var click = pick(sv('cursorClick', 'both'), ['both', 'ripple', 'burst', 'sparks', 'none'], 'both');
+        CFG.ripple = click === 'both' || click === 'ripple' || click === 'sparks';
+        CFG.burst = click === 'both' || click === 'burst' || click === 'sparks';
+        STYLE.burstKind = click === 'sparks' ? 'sparks' : 'shapes';
+        CFG.trail = STYLE.trailStyle !== 'off';
+        CFG.magnet = sv('cursorMagnet', true) !== false;
+        CFG.labels = sv('cursorLabels', true) !== false;
+        CFG.stretch = sv('cursorStretch', true) !== false;
+        CFG.charge = sv('cursorCharge', true) !== false;
+        if (reduce) { CFG.trail = false; CFG.burst = false; CFG.stretch = false; }
+    }
+    readSettings();
+
     var NS = 'http://www.w3.org/2000/svg';
     var root = document.documentElement;
     var vw = window.innerWidth, vh = window.innerHeight;
@@ -113,6 +151,45 @@
     topLayerHost.setAttribute('popover', 'manual');
     topLayerHost.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;margin:0;padding:0;border:0;overflow:visible;background:transparent;pointer-events:none;z-index:2147483646;';
 
+    var crossLayer = document.createElement('div');
+    crossLayer.className = 'sc-cross';
+    crossLayer.innerHTML = '<div class="sc-cross-h"></div><div class="sc-cross-v"></div>';
+    var crossH = crossLayer.firstChild, crossV = crossLayer.lastChild;
+
+    function ensureCanvas() {
+        if (!ctx || !document.body) return;
+        if (CFG.trail) {
+            if (!canvas.parentNode) { document.body.appendChild(canvas); sizeCanvas(); }
+        } else if (canvas.parentNode) {
+            canvas.parentNode.removeChild(canvas);
+        }
+    }
+    function clearTrailAll() {
+        pts.length = 0; marks.length = 0; travelled = 0; prevBox = null;
+        if (ctx && canvas.width) ctx.clearRect(0, 0, vw, vh);
+    }
+    function applyStyle() {
+        root.setAttribute('data-sc-dot', STYLE.dot);
+        root.setAttribute('data-sc-ring', STYLE.ring);
+        root.style.setProperty('--sc-dot', STYLE.dotSize + 'px');
+        root.style.setProperty('--sc-ring', STYLE.ringSize + 'px');
+        root.classList.toggle('sc-nospin', !STYLE.spin);
+        root.classList.toggle('sc-noticks', !STYLE.ticks);
+        root.classList.toggle('sc-cross-on', STYLE.cross);
+        root.classList.toggle('sc-cursor-off', !STYLE.enabled);
+        if (ready) root.classList.toggle('sc-cursor-on', STYLE.enabled);
+        var sig = STYLE.trailStyle + '|' + CFG.trailLife;
+        if (sig !== STYLE.sig) { STYLE.sig = sig; clearTrailAll(); }
+        ensureCanvas();
+        if (STYLE.cross) placeDot();
+        readColor();
+    }
+    function refresh() {
+        readSettings();
+        applyStyle();
+        syncTopLayer();
+    }
+
     function sizeCanvas() {
         canvas.width = Math.round(vw * dpr);
         canvas.height = Math.round(vh * dpr);
@@ -122,9 +199,10 @@
     function mount() {
         // park off-screen so the first paint happens before anyone sees it
         ringLayer.style.transform = dotLayer.style.transform = 'translate3d(-300px,-300px,0)';
-        if (CFG.trail && ctx) { document.body.appendChild(canvas); sizeCanvas(); }
+        ensureCanvas();
         document.body.appendChild(ringLayer);
         document.body.appendChild(dotLayer);
+        document.body.appendChild(crossLayer);
         document.body.appendChild(topLayerHost);
         watchTopLayer();
         watchTheme();
@@ -155,7 +233,7 @@
         } else if (typeof topLayerHost.hidePopover === 'function') {
             try { if (topLayerHost.matches(':popover-open')) topLayerHost.hidePopover(); } catch (e) { /* already closed */ }
         }
-        [CFG.trail && ctx ? canvas : null, ringLayer, dotLayer].forEach(function (layer) {
+        [CFG.trail && ctx ? canvas : null, crossLayer, ringLayer, dotLayer].forEach(function (layer) {
             if (layer && layer.parentNode !== host) host.appendChild(layer);
         });
     }
@@ -177,7 +255,13 @@
     function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
     function setPos(x, y) { mx = clamp(x, 0, vw); my = clamp(y, 0, vh); }
     function isMouse(e) { return !e.pointerType || e.pointerType === 'mouse' || e.pointerType === 'pen'; }
-    function placeDot() { dotLayer.style.transform = 'translate3d(' + mx + 'px,' + my + 'px,0)'; }
+    function placeDot() {
+        dotLayer.style.transform = 'translate3d(' + mx + 'px,' + my + 'px,0)';
+        if (STYLE.cross) {
+            crossH.style.transform = 'translate3d(0,' + my + 'px,0)';
+            crossV.style.transform = 'translate3d(' + mx + 'px,0,0)';
+        }
+    }
 
     function show() {
         if (ready) return;
@@ -188,7 +272,7 @@
         ringLayer.style.transform = 'translate3d(' + rx + 'px,' + ry + 'px,0)';
         ringLayer.classList.add('is-ready');
         dotLayer.classList.add('is-ready');
-        root.classList.add('sc-cursor-on');   // real cursor disappears only now
+        if (STYLE.enabled) root.classList.add('sc-cursor-on');   // real cursor disappears only now
         applyState('default');
     }
 
@@ -437,7 +521,7 @@
     }
 
     function ripple(x, y, size, delay, opacity) {
-        if (reduce) return;
+        if (reduce || !CFG.ripple) return;
         var r = document.createElement('div');
         r.className = 'sc-ripple';
         r.style.width = r.style.height = size + 'px';
@@ -450,9 +534,31 @@
         a.onfinish = function () { r.remove(); };
     }
 
+    function sparks(x, y, count) {
+        count = Math.min((count || 6) + 4, lite ? 5 : 14);
+        var offset = Math.random() * Math.PI * 2;
+        for (var i = 0; i < count; i++) {
+            var angle = offset + (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+            var dist = 26 + Math.random() * 46, len = 6 + Math.random() * 8;
+            var deg = angle * 180 / Math.PI;
+            var s = document.createElement('div');
+            s.className = 'sc-spark';
+            s.style.width = len + 'px';
+            document.body.appendChild(s);
+            (function (node, a, d, dg) {
+                var an = node.animate([
+                    { transform: 'translate3d(' + x + 'px,' + y + 'px,0) rotate(' + dg + 'deg) scaleX(0.2)', opacity: 1 },
+                    { transform: 'translate3d(' + (x + Math.cos(a) * d) + 'px,' + (y + Math.sin(a) * d) + 'px,0) rotate(' + dg + 'deg) scaleX(1)', opacity: 0 }
+                ], { duration: 380 + Math.random() * 220, easing: 'cubic-bezier(.1,.8,.3,1)', fill: 'both' });
+                an.onfinish = function () { node.remove(); };
+            })(s, angle, dist, deg);
+        }
+    }
+
     function burst(x, y, count) {
         var kinds = ['tri', 'sq', 'circ'];
         count = count || 6;
+        if (STYLE.burstKind === 'sparks') { sparks(x, y, count); return; }
         if (lite) count = Math.min(count, 3);
         var offset = Math.random() * Math.PI * 2;
         for (var i = 0; i < count; i++) {
@@ -497,12 +603,13 @@
 
     function drawTrail(now) {
         if (!CFG.trail || !ctx || !ready) return;
+        var ts = STYLE.trailStyle;
 
         var dx = mx - lastX, dy = my - lastY;
         if (dx > 0.5 || dx < -0.5 || dy > 0.5 || dy < -0.5) {
             pts.push({ x: mx, y: my, t: now });
             travelled += Math.sqrt(dx * dx + dy * dy);
-            if (travelled >= CFG.trailMarkerEvery) {
+            if (travelled >= (ts === 'dots' ? 16 : CFG.trailMarkerEvery) && (ts === 'classic' || ts === 'dots')) {
                 travelled = 0;
                 marks.push({ x: mx, y: my, t: now, r: 2 + Math.random() * 1.5 });
             }
@@ -527,7 +634,8 @@
             if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
             if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
         }
-        var box = { x: x0 - 10, y: y0 - 10, w: x1 - x0 + 20, h: y1 - y0 + 20 };
+        var bp = ts === 'glow' ? 20 : 10;
+        var box = { x: x0 - bp, y: y0 - bp, w: x1 - x0 + bp * 2, h: y1 - y0 + bp * 2 };
         var ux = box.x, uy = box.y, uw = box.w, uh = box.h;
         if (prevBox) {
             ux = Math.min(box.x, prevBox.x); uy = Math.min(box.y, prevBox.y);
@@ -538,12 +646,17 @@
         prevBox = box;
 
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        for (i = 1; i < pts.length; i++) {
+        for (i = 1; ts !== 'dots' && i < pts.length; i++) {
             var a = pts[i - 1], b = pts[i];
             var life = 1 - (now - b.t) / CFG.trailLife;
             if (life <= 0) continue;
-            ctx.strokeStyle = 'rgba(' + trailRGB + ',' + (life * 0.5).toFixed(3) + ')';
-            ctx.lineWidth = 0.6 + life * 2.2;
+            if (ts === 'glow') {
+                ctx.strokeStyle = 'rgba(' + trailRGB + ',' + (life * 0.14).toFixed(3) + ')';
+                ctx.lineWidth = 5 + life * 9;
+                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+            }
+            ctx.strokeStyle = 'rgba(' + trailRGB + ',' + (life * (ts === 'glow' ? 0.85 : 0.5)).toFixed(3) + ')';
+            ctx.lineWidth = ts === 'thin' ? 0.4 + life * 1.1 : (ts === 'glow' ? 0.8 + life * 2.4 : 0.6 + life * 2.2);
             ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
         }
 
@@ -552,6 +665,11 @@
             var mark = marks[j];
             var ml = 1 - (now - mark.t) / (CFG.trailLife * 1.6);
             if (ml <= 0) continue;
+            if (ts === 'dots') {
+                ctx.fillStyle = 'rgba(' + trailRGB + ',' + (ml * 0.7).toFixed(3) + ')';
+                ctx.beginPath(); ctx.arc(mark.x, mark.y, mark.r * (0.8 + ml * 0.8), 0, 6.2832); ctx.fill();
+                continue;
+            }
             ctx.strokeStyle = 'rgba(' + trailRGB + ',' + (ml * 0.55).toFixed(3) + ')';
             var sz = mark.r * 2 * (0.6 + ml * 0.6);
             ctx.save();
@@ -624,7 +742,7 @@
             tx = magnetBox.cx + (mx - magnetBox.cx) * CFG.magnetPull;
             ty = magnetBox.cy + (my - magnetBox.cy) * CFG.magnetPull;
         }
-        var ease = magnetEl ? 0.28 : 0.18;
+        var ease = magnetEl ? 0.28 : STYLE.follow;
         rx += (tx - rx) * ease;
         ry += (ty - ry) * ease;
         ringLayer.style.transform = 'translate3d(' + rx.toFixed(2) + 'px,' + ry.toFixed(2) + 'px,0)';
@@ -642,12 +760,15 @@
     }
     requestAnimationFrame(frame);
 
+    applyStyle();
+
     /* ----- tiny public API ----- */
     window.SCCursor = {
         busy: function (on) { busyFlag = !!on; pendingTarget = null; needInspect = true; },
         setState: function (name) { forced = name || null; pendingTarget = null; needInspect = true; },
         burst: function (x, y, n) { if (CFG.burst) burst(x == null ? mx : x, y == null ? my : y, n); },
         perf: function () { return { frameMs: +ema.toFixed(1), fps: Math.round(1000 / ema), lite: lite }; },
-        config: CFG
+        config: CFG,
+        refresh: refresh
     };
 })();

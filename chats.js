@@ -362,6 +362,7 @@
         const name = (p && (p.display_name || p.username)) || '?';
         const wrap = el('span', { class: 'sp-avatar' }, el('span', { class: 'sp-initial', text: name.charAt(0).toUpperCase() }));
         if (size) wrap.style.setProperty('--sp-size', size + 'px');
+        if (p && p.id && window.SpecFrames) window.SpecFrames.adorn(wrap, p.id);      // profile frame (avatar-frames.js)
         const url = p && safeHttps(p.avatar_url);
         if (url) {
             const img = el('img', { src: url, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
@@ -683,7 +684,7 @@
     function realName(r) { return r.other_display || r.other_username || 'this user'; }
 
     function roomArt(r, size) {
-        if (r.kind === 'dm') return avatar({ display_name: r.other_display, username: r.other_username, avatar_url: r.other_avatar }, size);
+        if (r.kind === 'dm') return avatar({ id: r.other_id, display_name: r.other_display, username: r.other_username, avatar_url: r.other_avatar }, size);
         return el('span', { class: 'ch-art' + (size ? '' : ''), text: r.icon || '💬' });
     }
 

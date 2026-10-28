@@ -39,6 +39,10 @@
     /* ---------------------------------------------------------------- schema */
     function tg(key, label, desc, def, x) { return Object.assign({ key: key, type: 'toggle', label: label, desc: desc, def: def }, x || {}); }
     function sl(key, label, desc, def, options, x) { return Object.assign({ key: key, type: 'select', label: label, desc: desc, def: def, options: options }, x || {}); }
+    function rg(key, label, desc, def, min, max, step, unit, x) { return Object.assign({ key: key, type: 'range', label: label, desc: desc, def: def, min: min, max: max, step: step, unit: unit || '' }, x || {}); }
+    function pal(key, label, desc, def, options, x) { return Object.assign({ key: key, type: 'palette', label: label, desc: desc, def: def, options: options }, x || {}); }
+    // select / palette options are [value, label, premium?, hex?]. premium ones are locked until
+    // window.SpecShop.owns('<settingKey>:<value>') returns true (the shop plugs in here later).
 
     function themeMode() { return readStore().theme === 'system' ? 'system' : (lsGet('specsoft-theme') === 'light' ? 'light' : 'dark'); }
     function themeWrite(v) {
@@ -76,9 +80,39 @@
             tg('fx3d', '3D background', 'The WebGL background. Turning it off also saves battery.', true, { cls: 'ss-no-3d', reload: true }),
             tg('fxHover', 'Hover effects', 'Card tilt and glare, magnetic buttons and the radar glow.', true, { reload: true }),
             tg('fxReveal', 'Scroll animations', 'Sections fading in as you scroll, plus the pulsing lines.', true, { reload: true }),
-            tg('cursor', 'Custom cursor', 'The SPECSOFT cursor. Mouse and trackpad only.', true, { reload: true }),
             tg('transitions', 'Page transitions', 'The fade and scan sweep between pages.', true),
             tg('intro', 'Intro animation', 'Play the SPECSOFT intro when you open the site.', true)
+          ] },
+        { id: 'cursor', title: 'Cursor', blurb: 'Design your own cursor. Only you see it.',
+          icon: '<polygon points="5 3 19 12 12 13 9 20 5 3"/>',
+          items: [
+            tg('cursor', 'Custom cursor', 'Use the SPECSOFT cursor instead of your system one. Mouse and trackpad only.', true, { reload: true }),
+            { key: 'c_pad', type: 'pad', group: 'Try it', label: 'Practice pad', desc: 'Hover, click, type, drag and hold on these to see every cursor state.' },
+            { key: 'c_presets', type: 'presets', group: 'Presets', label: 'Presets', desc: 'One-tap looks, then tweak anything. Locked looks are preview only until you own them.' },
+            sl('cursorDot', 'Dot shape', 'The small dot that sits right on your pointer.', 'circle', [['circle', 'Circle'], ['square', 'Square'], ['diamond', 'Diamond'], ['none', 'Hidden']], { group: 'Pointer' }),
+            rg('cursorDotSize', 'Dot size', 'How big the dot is.', 6, 3, 14, 1, 'px'),
+            sl('cursorRing', 'Ring shape', 'The ring that follows behind the dot.', 'circle', [['circle', 'Circle'], ['rounded', 'Rounded square'], ['square', 'Square'], ['diamond', 'Diamond'], ['none', 'Hidden']], { group: 'Ring' }),
+            rg('cursorRingSize', 'Ring size', 'How big the ring is.', 40, 28, 72, 2, 'px'),
+            tg('cursorSpin', 'Spinning ring', 'Slowly rotates the ring.', true),
+            tg('cursorTicks', 'Crosshair ticks', 'The four small tick marks on the ring.', true),
+            tg('cursorCross', 'Full crosshair lines', 'Faint lines across the whole screen that cross at your pointer.', false, { group: 'Crosshair' }),
+            sl('cursorFollow', 'Ring follow speed', 'Snappy sticks to the dot, floaty drifts behind it.', 'normal', [['snappy', 'Snappy'], ['normal', 'Normal'], ['floaty', 'Floaty']], { group: 'Movement' }),
+            pal('cursorColor', 'Color', 'Theme follows dark and light mode. Locked colors are preview only.', 'default',
+                [['default', 'Theme', false, null], ['blue', 'Blue', false, '#3b82f6'], ['green', 'Green', false, '#22c55e'], ['purple', 'Purple', false, '#8b5cf6'],
+                 ['red', 'Red', false, '#ef4444'], ['amber', 'Amber', false, '#f59e0b'], ['pink', 'Pink', true, '#ec4899'], ['cyan', 'Cyan', true, '#06b6d4'], ['gold', 'Gold', true, '#eab308']], { group: 'Color' }),
+            sl('cursorTrail', 'Trail', 'What follows behind your pointer when you move.', 'classic', [['off', 'Off'], ['classic', 'Classic'], ['thin', 'Thin line'], ['dots', 'Dots'], ['glow', 'Glow', true]], { group: 'Trail' }),
+            sl('cursorTrailLen', 'Trail length', 'How long the trail lingers.', 'normal', [['short', 'Short'], ['normal', 'Normal'], ['long', 'Long']]),
+            sl('cursorClick', 'Click effect', 'What happens when you click.', 'both', [['both', 'Ripple + shapes'], ['ripple', 'Ripple'], ['burst', 'Shapes'], ['sparks', 'Sparks', true], ['none', 'None']], { group: 'Clicks' }),
+            tg('cursorMagnet', 'Magnetic buttons', 'The ring snaps onto buttons and links.', true, { group: 'Behavior' }),
+            tg('cursorLabels', 'Cursor labels', 'Tiny tags like VIEW or DRAG next to the pointer.', true),
+            tg('cursorStretch', 'Speed stretch', 'The dot stretches when you move fast.', true),
+            tg('cursorCharge', 'Hold to charge', 'Hold the mouse down and a ring fills up.', true),
+            sl('tapFx', 'Tap effect', 'What happens where you tap. Phones and tablets only.', 'none', [['none', 'None'], ['ripple', 'Ripple'], ['burst', 'Shapes'], ['both', 'Ripple + shapes'], ['sparks', 'Sparks', true]], { group: 'Touch screens' }),
+            sl('tapTrail', 'Finger trail', 'A line that follows your finger while you drag.', 'off', [['off', 'Off'], ['thin', 'Thin line'], ['dots', 'Dots'], ['glow', 'Glow', true]]),
+            tg('tapHold', 'Hold ring', 'Press and hold: a ring fills, then pops.', false),
+            tg('tapVibrate', 'Tap vibration', 'A tiny buzz on tap. Android only, iPhones do not allow it.', false),
+            { key: 'c_code', type: 'code', group: 'Share', label: 'Share code', desc: 'Copy your code to share your look, or paste a friend\u2019s code and press Apply.' },
+            { key: 'a_resetcursor', type: 'action', action: 'resetCursor', label: 'Reset cursor', desc: 'Puts every cursor and touch option back to default.', button: 'Reset', danger: true }
           ] },
         { id: 'interface', title: 'Interface & Sound', blurb: 'The top bar tools and UI sounds.',
           icon: '<rect x="3" y="4" width="18" height="12" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/>',
@@ -113,9 +147,30 @@
     var listeners = [];
     function emit(key, val) { listeners.forEach(function (fn) { try { fn(key, val); } catch (e) { /* ignore */ } }); }
 
-    function coerce(it, v) {
+    function ownedId(id) {
+        try { return !!(window.SpecShop && typeof window.SpecShop.owns === 'function' && window.SpecShop.owns(id)); } catch (e) { return false; }
+    }
+    function optionOf(it, v) {
+        if (!it.options) return null;
+        for (var i = 0; i < it.options.length; i++) if (String(it.options[i][0]) === String(v)) return it.options[i];
+        return null;
+    }
+    function isLocked(it, v) { var o = optionOf(it, v); return !!(o && o[2] && !ownedId(it.key + ':' + o[0])); }
+
+    function coerce(it, v, ignoreLock) {
         if (it.type === 'toggle') return (v === true || v === false) ? v : (v === 'true' ? true : (v === 'false' ? false : undefined));
-        if (it.type === 'select') { for (var i = 0; i < it.options.length; i++) if (String(it.options[i][0]) === String(v)) return it.options[i][0]; }
+        if (it.type === 'select' || it.type === 'palette') {
+            var o = optionOf(it, v);
+            if (!o || (!ignoreLock && isLocked(it, o[0]))) return undefined;
+            return o[0];
+        }
+        if (it.type === 'range') {
+            var n = Number(v);
+            if (!isFinite(n)) return undefined;
+            n = Math.min(it.max, Math.max(it.min, n));
+            var st = it.step || 1;
+            return +(Math.round(n / st) * st).toFixed(4);
+        }
         return undefined;
     }
 
@@ -135,6 +190,7 @@
         if (!it || it.type === 'action') return false;
         var v = coerce(it, val);
         if (v === undefined) return false;
+        delete preview[key];
         if (it.write) it.write(v);
         else if (it.ls) lsSet(it.ls.key, v ? it.ls.on : it.ls.off);
         else { var s = readStore(); s[key] = v; writeStore(s); }
@@ -150,6 +206,117 @@
         var out = {};
         LIST.forEach(function (it) { if (it.type !== 'action' && !it.local) out[it.key] = get(it.key); });
         return out;
+    }
+
+    /* ---------------------------------------------------------- cursor extras */
+    var preview = {};                 // unsaved "try it" values (locked styles); cursor.js reads window.__ssPreview
+    window.__ssPreview = preview;
+
+    var CURSOR_KEYS = ['cursorDot', 'cursorDotSize', 'cursorRing', 'cursorRingSize', 'cursorSpin', 'cursorTicks', 'cursorCross', 'cursorFollow',
+        'cursorColor', 'cursorTrail', 'cursorTrailLen', 'cursorClick', 'cursorMagnet', 'cursorLabels', 'cursorStretch', 'cursorCharge'];
+    var TAP_KEYS = ['tapFx', 'tapTrail', 'tapHold', 'tapVibrate'];
+    var SHARE_KEYS = CURSOR_KEYS.concat(TAP_KEYS);
+    var CURSOR_DEFAULTS = {};
+    CURSOR_KEYS.forEach(function (k) { CURSOR_DEFAULTS[k] = ITEMS[k].def; });
+
+    function preset(id, name, desc, over) { return { id: id, name: name, desc: desc, map: Object.assign({}, CURSOR_DEFAULTS, over) }; }
+    var PRESETS = [
+        preset('classic', 'Classic', 'The original SPECSOFT cursor.', {}),
+        preset('minimal', 'Minimal', 'Just a dot. Light on weak PCs.', { cursorRing: 'none', cursorTrail: 'off', cursorClick: 'ripple', cursorStretch: false, cursorCharge: false, cursorDotSize: 7 }),
+        preset('crosshair', 'Crosshair', 'Lines across the screen, sniper style.', { cursorDot: 'square', cursorDotSize: 4, cursorRing: 'square', cursorRingSize: 34, cursorSpin: false, cursorCross: true, cursorTrail: 'off', cursorClick: 'ripple' }),
+        preset('terminal', 'Terminal', 'Green blocks and dotted trail.', { cursorDot: 'square', cursorDotSize: 8, cursorRing: 'square', cursorRingSize: 30, cursorSpin: false, cursorTicks: false, cursorTrail: 'dots', cursorClick: 'burst', cursorColor: 'green', cursorFollow: 'snappy', cursorStretch: false }),
+        preset('neon', 'Neon', 'Cyan glow, sparks and a long trail.', { cursorColor: 'cyan', cursorTrail: 'glow', cursorTrailLen: 'long', cursorClick: 'sparks', cursorRing: 'rounded', cursorFollow: 'floaty' }),
+        preset('royal', 'Royal', 'Gold diamonds with a glowing trail.', { cursorColor: 'gold', cursorDot: 'diamond', cursorRing: 'diamond', cursorRingSize: 44, cursorTrail: 'glow', cursorClick: 'sparks' })
+    ];
+
+    function view(key) { return Object.prototype.hasOwnProperty.call(preview, key) ? preview[key] : get(key); }
+    function setPreview(key, val) {
+        var it = ITEMS[key], v = (it && it.type !== 'action') ? coerce(it, val, true) : undefined;
+        if (v === undefined) return false;
+        preview[key] = v;
+        refreshLive(); emit('__preview');
+        return true;
+    }
+    function clearPreview() {
+        Object.keys(preview).forEach(function (k) { delete preview[k]; });
+        refreshLive(); emit('__preview');
+    }
+    function previewing() { return Object.keys(preview); }
+
+    // free parts are saved, locked parts are only previewed (and lost on reload)
+    function applyPreset(map) {
+        var applied = 0, locked = 0;
+        Object.keys(preview).forEach(function (k) { delete preview[k]; });
+        Object.keys(map).forEach(function (k) {
+            var it = ITEMS[k];
+            if (!it || it.type === 'action') return;
+            var free = coerce(it, map[k]);
+            if (free !== undefined) { if (set(k, free, { noPush: true })) applied++; }
+            else {
+                var raw = coerce(it, map[k], true);
+                if (raw !== undefined) { preview[k] = raw; locked++; }
+            }
+        });
+        if (applied) queuePush();
+        refreshLive(); emit('__preview');
+        return { applied: applied, locked: locked };
+    }
+    function resetCursor() {
+        Object.keys(preview).forEach(function (k) { delete preview[k]; });
+        SHARE_KEYS.forEach(function (k) { set(k, ITEMS[k].def, { noPush: true }); });
+        queuePush(); refreshLive(); emit('__preview');
+    }
+
+    function b64(s) {
+        var bytes = new TextEncoder().encode(s), bin = '';
+        for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function unb64(s) {
+        s = s.replace(/-/g, '+').replace(/_/g, '/');
+        while (s.length % 4) s += '=';
+        var bin = atob(s), bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new TextDecoder().decode(bytes);
+    }
+    function exportCursorCode() {
+        var o = {};
+        SHARE_KEYS.forEach(function (k) { o[k] = view(k); });
+        return 'SPEC1-' + b64(JSON.stringify(o));
+    }
+    function importCursorCode(code) {
+        code = String(code || '').trim();
+        if (code.indexOf('SPEC1-') !== 0 || code.length > 1500) return null;
+        var o;
+        try { o = JSON.parse(unb64(code.slice(6))); } catch (e) { return null; }
+        if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+        var map = {};
+        SHARE_KEYS.forEach(function (k) { if (Object.prototype.hasOwnProperty.call(o, k)) map[k] = o[k]; });
+        return applyPreset(map);
+    }
+
+    function applyColor() {
+        var it = ITEMS.cursorColor, o = it && optionOf(it, view('cursorColor'));
+        if (o && o[3]) DOC.style.setProperty('--sc-color', o[3]); else DOC.style.removeProperty('--sc-color');
+    }
+    // phone tap effects live in their own file, loaded only when a touch option is on
+    // (and on the settings page, so the preview works with a mouse)
+    function ensureTouch() {
+        if (window.SpecTouch || document.querySelector('script[src^="site-touch.js"]')) return;
+        var on = view('tapFx') !== 'none' || view('tapTrail') !== 'off' || view('tapHold') === true || view('tapVibrate') === true;
+        var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        var onSettings = /settings(\.html)?$/.test(location.pathname);
+        if (!(on && coarse) && !onSettings) return;
+        if (!document.head) return;
+        var s = document.createElement('script');
+        s.src = 'site-touch.js';
+        document.head.appendChild(s);
+    }
+    function refreshLive() {
+        applyColor();
+        try { if (window.SCCursor && window.SCCursor.refresh) window.SCCursor.refresh(); } catch (e) { /* ignore */ }
+        try { if (window.SpecTouch && window.SpecTouch.refresh) window.SpecTouch.refresh(); } catch (e) { /* ignore */ }
+        ensureTouch();
     }
 
     /* ----------------------------------------------------------------- apply */
@@ -175,6 +342,7 @@
         var acc = get('accent');
         if (acc && acc !== 'default') DOC.setAttribute('data-accent', acc); else DOC.removeAttribute('data-accent');
         applyTheme();
+        refreshLive();
         var link = document.getElementById('settingsLink');
         if (link && /settings\.html$/.test(location.pathname)) link.classList.add('active');
     }
@@ -257,7 +425,10 @@
 
     /* ------------------------------------------------------------------ boot */
     window.SpecSettings = {
-        CATS: CATS, get: get, set: set, all: snapshot, reset: reset, exportJSON: exportJSON, importJSON: importJSON,
+        CATS: CATS, PRESETS: PRESETS, get: get, view: view, set: set,
+        item: function (k) { return ITEMS[k]; }, isLocked: isLocked,
+        setPreview: setPreview, clearPreview: clearPreview, previewing: previewing,
+        applyPreset: applyPreset, resetCursor: resetCursor, exportCursorCode: exportCursorCode, importCursorCode: importCursorCode, all: snapshot, reset: reset, exportJSON: exportJSON, importJSON: importJSON,
         on: function (fn) { listeners.push(fn); },
         status: function () { return { signedIn: !!uid, lastSync: state.lastSync, error: state.error }; },
         sync: sync

@@ -35,7 +35,7 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
     transition: opacity 0.25s ease;
     will-change: transform;
     contain: layout style;
-    color: var(--text-primary, #f5f5f5);
+    color: var(--sc-color, var(--text-primary, #f5f5f5));
 }
 .sc-layer.is-ready { opacity: 1; }
 
@@ -53,9 +53,9 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
    ========================================================================== */
 .sc-dot-stretch { position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .sc-dot-core {
-    width: 6px;
-    height: 6px;
-    margin: -3px 0 0 -3px;
+    width: var(--sc-dot, 6px);
+    height: var(--sc-dot, 6px);
+    margin: calc(var(--sc-dot, 6px) / -2) 0 0 calc(var(--sc-dot, 6px) / -2);
     border-radius: 50%;
     background: currentColor;
     box-shadow: 0 0 10px var(--accent-strong, rgba(255,255,255,0.35));
@@ -117,9 +117,9 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
    ========================================================================== */
 .sc-ring-box {
     position: relative;
-    width: 40px;
-    height: 40px;
-    margin: -20px 0 0 -20px;
+    width: var(--sc-ring, 40px);
+    height: var(--sc-ring, 40px);
+    margin: calc(var(--sc-ring, 40px) / -2) 0 0 calc(var(--sc-ring, 40px) / -2);
     transition: width 0.28s cubic-bezier(.2,.9,.3,1.15), height 0.28s cubic-bezier(.2,.9,.3,1.15),
                 margin-left 0.28s cubic-bezier(.2,.9,.3,1.15), margin-top 0.28s cubic-bezier(.2,.9,.3,1.15);
 }
@@ -133,7 +133,7 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
     position: absolute;
     inset: 0;
     border: 1px solid currentColor;
-    border-radius: var(--sc-r, 50%);
+    border-radius: var(--sc-r, var(--sc-ring-r, 50%));
     background: transparent;
     animation: scSpin 9s linear infinite;
     transition: background 0.25s ease, border-radius 0.28s ease;
@@ -141,8 +141,8 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
 /* crosshair ticks */
 .sc-ring-rot::before,
 .sc-ring-rot::after { content: ""; position: absolute; background: currentColor; transition: opacity 0.2s ease; }
-.sc-ring-rot::before { left: 50%; top: -5px; width: 1px; height: 9px; margin-left: -0.5px; box-shadow: 0 39px 0 0 currentColor; }
-.sc-ring-rot::after  { top: 50%; left: -5px; height: 1px; width: 9px; margin-top: -0.5px; box-shadow: 39px 0 0 0 currentColor; }
+.sc-ring-rot::before { left: 50%; top: -5px; width: 1px; height: 9px; margin-left: -0.5px; box-shadow: 0 calc(var(--sc-ring, 40px) - 1px) 0 0 currentColor; }
+.sc-ring-rot::after  { top: 50%; left: -5px; height: 1px; width: 9px; margin-top: -0.5px; box-shadow: calc(var(--sc-ring, 40px) - 1px) 0 0 0 currentColor; }
 @keyframes scSpin { to { transform: rotate(360deg); } }
 
 /* extra glyphs (centred on the ring) */
@@ -224,7 +224,7 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
     top: 0;
     z-index: 2147483646;
     pointer-events: none;
-    border: 1px solid var(--text-primary, #f5f5f5);
+    border: 1px solid var(--sc-color, var(--text-primary, #f5f5f5));
     border-radius: 50%;
 }
 .sc-shape {
@@ -233,7 +233,7 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
     top: 0;
     z-index: 2147483646;
     pointer-events: none;
-    color: var(--text-primary, #f5f5f5);
+    color: var(--sc-color, var(--text-primary, #f5f5f5));
     will-change: transform, opacity;
 }
 .sc-shape svg { display: block; overflow: visible; }
@@ -242,3 +242,56 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
     .sc-ring-rot { animation: none; }
     .sc-ibeam-blink { animation: none; }
 }
+
+
+/* ==========================================================================
+   SETTINGS > CURSOR  (shapes, sizes, crosshair lines, sparks, on/off)
+   Driven by attributes/classes that cursor.js puts on <html>.
+   ========================================================================== */
+html[data-sc-dot="square"]  .sc-dot-core { border-radius: 0; }
+html[data-sc-dot="diamond"] .sc-dot-core { border-radius: 0; rotate: 45deg; }
+html[data-sc-dot="none"]    .sc-dot-core { opacity: 0 !important; box-shadow: none; }
+
+html[data-sc-ring="rounded"] { --sc-ring-r: 28%; }
+html[data-sc-ring="square"]  { --sc-ring-r: 3px; }
+html[data-sc-ring="diamond"] { --sc-ring-r: 3px; }
+html[data-sc-ring="diamond"] .sc-ring-rot { rotate: 45deg; }
+html[data-sc-ring="none"] .sc-ring { display: none; }
+
+html.sc-nospin .sc-ring-rot { animation: none; }
+html.sc-noticks .sc-ring-rot::before,
+html.sc-noticks .sc-ring-rot::after { display: none; }
+
+/* full crosshair lines */
+.sc-cross {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483644;
+    pointer-events: none;
+    display: none;
+    color: var(--sc-color, var(--text-primary, #f5f5f5));
+}
+html.sc-cross-on .sc-cross { display: block; }
+.sc-cross-h, .sc-cross-v { position: absolute; left: 0; top: 0; background: currentColor; opacity: 0.22; will-change: transform; }
+.sc-cross-h { width: 100%; height: 1px; }
+.sc-cross-v { width: 1px; height: 100%; }
+
+/* "sparks" click effect */
+.sc-spark {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 2147483646;
+    pointer-events: none;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--sc-color, var(--text-primary, #f5f5f5));
+    box-shadow: 0 0 6px var(--sc-color, var(--text-primary, #f5f5f5));
+    transform-origin: 0 50%;
+    will-change: transform, opacity;
+}
+
+/* custom cursor switched off in Settings: bring the real one back */
+html.sc-cursor-off .sc-layer,
+html.sc-cursor-off .sc-trail,
+html.sc-cursor-off .sc-cross { display: none !important; }
