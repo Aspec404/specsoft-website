@@ -1,0 +1,265 @@
+/* ==========================================================================
+   SPECSOFT® seasons.css  -  seasonal themes
+   Loaded by seasons.js ONLY while a season is active, so it costs nothing the rest of the year.
+   A theme is just new values for the site's CSS variables (style.css), so every page
+   (chats, store, profile, admin...) recolors by itself. Light mode has its own palette.
+   To add a theme: add a palette block below + an entry in THEMES inside seasons.js.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. PALETTES
+   --------------------------------------------------------------------------- */
+
+/* ---- Halloween: deep violet + pumpkin orange ---- */
+html[data-season="halloween"] {
+    --bg-base: #0a0612; --bg-card: #120a1c; --bg-card-hover: #190f26;
+    --text-primary: #f7efe4; --text-secondary: #b6a5bd; --text-tertiary: #6d5a78;
+    --border-subtle: #2a1a3a; --border-hover: #4b2f66;
+    --accent: #ff7a1a; --accent-dim: rgba(255, 122, 26, 0.10); --accent-glow: rgba(255, 122, 26, 0.24); --accent-strong: rgba(255, 122, 26, 0.55);
+    --grid-line: rgba(255, 122, 26, 0.05); --grid-line-bright: rgba(168, 85, 247, 0.24);
+    --glow-color: rgba(255, 122, 26, 0.08); --ambient-glow: rgba(168, 85, 247, 0.20);
+    --code-bg: #0e0817; --code-header-bg: #150c21;
+    --ss-a: #ff7a1a; --ss-b: #a855f7; --ss-c: #ffd08a;
+}
+html[data-season="halloween"] body.light-mode {
+    --bg-base: #fbf0e2; --bg-card: #fffaf2; --bg-card-hover: #fff2e0;
+    --text-primary: #2b1408; --text-secondary: #6e4b36; --text-tertiary: #b49883;
+    --border-subtle: #f0d9c2; --border-hover: #e2c09d;
+    --accent: #c2410c; --accent-dim: rgba(194, 65, 12, 0.07); --accent-glow: rgba(194, 65, 12, 0.16); --accent-strong: rgba(194, 65, 12, 0.4);
+    --grid-line: rgba(194, 65, 12, 0.07); --grid-line-bright: rgba(126, 34, 206, 0.2);
+    --glow-color: rgba(194, 65, 12, 0.05); --ambient-glow: rgba(234, 120, 40, 0.14);
+    --code-bg: #fff6ea; --code-header-bg: #fbe9d4;
+    --ss-a: #c2410c; --ss-b: #7e22ce; --ss-c: #b45309;
+}
+
+/* ---- Christmas: pine green + berry red ---- */
+html[data-season="christmas"] {
+    --bg-base: #05110d; --bg-card: #0a1913; --bg-card-hover: #0f2219;
+    --text-primary: #f2f8f3; --text-secondary: #9db9ac; --text-tertiary: #567163;
+    --border-subtle: #17312a; --border-hover: #2b5848;
+    --accent: #ff5a5a; --accent-dim: rgba(255, 90, 90, 0.10); --accent-glow: rgba(255, 90, 90, 0.24); --accent-strong: rgba(255, 90, 90, 0.55);
+    --grid-line: rgba(120, 255, 180, 0.04); --grid-line-bright: rgba(255, 90, 90, 0.2);
+    --glow-color: rgba(255, 90, 90, 0.07); --ambient-glow: rgba(34, 197, 94, 0.16);
+    --code-bg: #08140f; --code-header-bg: #0d1c15;
+    --ss-a: #ff5a5a; --ss-b: #22c55e; --ss-c: #fcd34d;
+}
+html[data-season="christmas"] body.light-mode {
+    --bg-base: #f4faf5; --bg-card: #ffffff; --bg-card-hover: #eef8f0;
+    --text-primary: #10261b; --text-secondary: #476656; --text-tertiary: #9bb5a6;
+    --border-subtle: #d7eadd; --border-hover: #b8d8c4;
+    --accent: #c81e1e; --accent-dim: rgba(200, 30, 30, 0.06); --accent-glow: rgba(200, 30, 30, 0.14); --accent-strong: rgba(200, 30, 30, 0.38);
+    --grid-line: rgba(22, 120, 70, 0.07); --grid-line-bright: rgba(200, 30, 30, 0.18);
+    --glow-color: rgba(200, 30, 30, 0.04); --ambient-glow: rgba(34, 197, 94, 0.12);
+    --code-bg: #f1f9f3; --code-header-bg: #e3f2e8;
+    --ss-a: #c81e1e; --ss-b: #15803d; --ss-c: #b45309;
+}
+
+/* ---- New Year: midnight + champagne gold ---- */
+html[data-season="newyear"] {
+    --bg-base: #07060b; --bg-card: #0e0c15; --bg-card-hover: #14111e;
+    --text-primary: #f8f4ea; --text-secondary: #b3aa98; --text-tertiary: #6b6354;
+    --border-subtle: #25202f; --border-hover: #453c55;
+    --accent: #f5c542; --accent-dim: rgba(245, 197, 66, 0.10); --accent-glow: rgba(245, 197, 66, 0.24); --accent-strong: rgba(245, 197, 66, 0.55);
+    --grid-line: rgba(245, 197, 66, 0.04); --grid-line-bright: rgba(129, 140, 248, 0.22);
+    --glow-color: rgba(245, 197, 66, 0.07); --ambient-glow: rgba(129, 140, 248, 0.18);
+    --code-bg: #0a0910; --code-header-bg: #110e19;
+    --ss-a: #f5c542; --ss-b: #818cf8; --ss-c: #ffffff;
+}
+html[data-season="newyear"] body.light-mode {
+    --bg-base: #fbf7ec; --bg-card: #fffdf6; --bg-card-hover: #fff8e6;
+    --text-primary: #1f1a0c; --text-secondary: #6a5f3f; --text-tertiary: #b5aa88;
+    --border-subtle: #efe6cb; --border-hover: #e0d2a6;
+    --accent: #a16207; --accent-dim: rgba(161, 98, 7, 0.07); --accent-glow: rgba(161, 98, 7, 0.16); --accent-strong: rgba(161, 98, 7, 0.4);
+    --grid-line: rgba(161, 98, 7, 0.07); --grid-line-bright: rgba(79, 70, 229, 0.18);
+    --glow-color: rgba(161, 98, 7, 0.05); --ambient-glow: rgba(245, 197, 66, 0.16);
+    --code-bg: #fffaf0; --code-header-bg: #f7efd8;
+    --ss-a: #a16207; --ss-b: #4f46e5; --ss-c: #854d0e;
+}
+
+/* ---- Valentine's: rose + blush ---- */
+html[data-season="valentine"] {
+    --bg-base: #12060c; --bg-card: #1b0a13; --bg-card-hover: #24101b;
+    --text-primary: #fdeff3; --text-secondary: #c4a3ae; --text-tertiary: #795a66;
+    --border-subtle: #34182a; --border-hover: #5c2a45;
+    --accent: #ff5c8a; --accent-dim: rgba(255, 92, 138, 0.10); --accent-glow: rgba(255, 92, 138, 0.24); --accent-strong: rgba(255, 92, 138, 0.55);
+    --grid-line: rgba(255, 92, 138, 0.05); --grid-line-bright: rgba(244, 114, 182, 0.22);
+    --glow-color: rgba(255, 92, 138, 0.08); --ambient-glow: rgba(244, 63, 94, 0.18);
+    --code-bg: #160710; --code-header-bg: #200b17;
+    --ss-a: #ff5c8a; --ss-b: #f472b6; --ss-c: #ffd1dc;
+}
+html[data-season="valentine"] body.light-mode {
+    --bg-base: #fff2f5; --bg-card: #ffffff; --bg-card-hover: #ffe8ee;
+    --text-primary: #2d0f1a; --text-secondary: #7a4a5b; --text-tertiary: #c19aa8;
+    --border-subtle: #fadae3; --border-hover: #f1b9ca;
+    --accent: #be185d; --accent-dim: rgba(190, 24, 93, 0.06); --accent-glow: rgba(190, 24, 93, 0.14); --accent-strong: rgba(190, 24, 93, 0.38);
+    --grid-line: rgba(190, 24, 93, 0.06); --grid-line-bright: rgba(219, 39, 119, 0.18);
+    --glow-color: rgba(190, 24, 93, 0.04); --ambient-glow: rgba(244, 114, 182, 0.18);
+    --code-bg: #fff7f9; --code-header-bg: #ffe9ef;
+    --ss-a: #be185d; --ss-b: #db2777; --ss-c: #9d174d;
+}
+
+/* ---------------------------------------------------------------------------
+   2. SHARED POLISH (any season)
+   --------------------------------------------------------------------------- */
+html[data-season] ::selection { background: var(--accent); color: var(--bg-base); }
+html[data-season] { scrollbar-color: var(--accent) var(--bg-base); }
+html[data-season] body { transition: background-color 0.6s ease; }
+html[data-season] .ambient-glow { animation-duration: 14s; }
+html[data-season] .vignette { background: radial-gradient(ellipse at center, transparent 55%, color-mix(in srgb, var(--ss-b) 22%, #000) 130%) !important; }
+html[data-season] body.light-mode .vignette { background: radial-gradient(ellipse at center, transparent 60%, color-mix(in srgb, var(--ss-a) 10%, transparent) 130%) !important; }
+
+/* like / repost colors and toasts (ported from halloween.css, now for every season) */
+html[data-season] .ph-eng[data-kind="like"].is-on, html[data-season] .pf-likebtn--active, html[data-season] .pf-eng--like.is-on { color: #f43f5e !important; }
+html[data-season] .ph-eng[data-kind="like"].is-on svg, html[data-season] .pf-eng--like.is-on svg { fill: currentColor !important; stroke: currentColor !important; filter: drop-shadow(0 0 6px rgba(244, 63, 94, 0.4)); }
+html[data-season] .ph-eng[data-kind="repost"].is-on, html[data-season] .pf-eng--repost.is-on { color: var(--accent) !important; }
+html[data-season] .pf-dlg, html[data-season] .ph-dialog, html[data-season] .ad-dlg, html[data-season] .pf-menu, html[data-season] .st-dlg, html[data-season] .sm-dlg {
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4), 0 0 40px var(--accent-glow) !important; border-color: var(--border-hover) !important;
+}
+html[data-season] .pf-card:hover, html[data-season] .ph-card:hover, html[data-season] .cm-do-card:hover, html[data-season] .cm-team-card:hover, html[data-season] .ad-role-card:hover, html[data-season] .st-card:hover, html[data-season] .st-pack:hover {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 0 25px var(--accent-glow) !important; border-color: var(--accent) !important;
+}
+html[data-season] .ph-toast, html[data-season] .pf-toast { background: var(--accent) !important; color: var(--bg-base) !important; box-shadow: 0 0 20px var(--accent-glow) !important; font-weight: 600 !important; }
+html[data-season] .pf-menu { background: var(--bg-card) !important; border-color: var(--accent) !important; }
+html[data-season] .pf-menu-item:hover { background: var(--accent-dim) !important; color: var(--accent) !important; }
+html[data-season] .ad-pill--ok { color: #22c55e !important; border-color: #22c55e !important; }
+html[data-season] .ad-pill--bad { color: #ef4444 !important; border-color: #ef4444 !important; }
+html[data-season] .ad-pill--warn { color: var(--accent) !important; border-color: var(--accent) !important; }
+html[data-season] .ad-btn, html[data-season] .btn-primary, html[data-season] .pf-btn { background: var(--accent) !important; border-color: var(--accent) !important; color: var(--bg-base) !important; }
+html[data-season] .ad-btn:hover, html[data-season] .btn-primary:hover, html[data-season] .pf-btn:hover { background: transparent !important; color: var(--accent) !important; }
+html[data-season] .ad-btn--ghost { background: transparent !important; color: var(--text-primary) !important; border-color: var(--border-hover) !important; }
+html[data-season] .ad-btn--ghost:hover { border-color: var(--accent) !important; color: var(--accent) !important; }
+html[data-season] .ad-btn--danger { background: transparent !important; color: #ef4444 !important; border-color: #ef4444 !important; }
+html[data-season] .pf-name--gradient, html[data-season] .pf-name--prism {
+    background: linear-gradient(135deg, var(--ss-a), var(--ss-b), var(--ss-c)) !important; -webkit-background-clip: text !important; background-clip: text !important; -webkit-text-fill-color: transparent !important;
+}
+html[data-season] .pf-tab[aria-selected="true"] { color: var(--accent) !important; }
+html[data-season] .pf-tab[aria-selected="true"]::after { background: var(--accent) !important; box-shadow: 0 0 10px var(--accent-glow) !important; }
+html[data-season] .cm-chat-cta::before { background: linear-gradient(90deg, transparent, var(--accent), transparent) !important; box-shadow: 0 0 30px var(--accent-strong) !important; }
+html[data-season] .cm-chat-cta-icon { border-color: var(--accent) !important; color: var(--accent) !important; box-shadow: 0 0 30px var(--accent-glow) !important; }
+html[data-season] .cm-carousel-card.is-active { border-color: var(--accent) !important; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4), 0 0 40px var(--accent-glow) !important; }
+html[data-season] .cm-carousel-dot[aria-current="true"] { background: var(--accent) !important; box-shadow: 0 0 12px var(--accent-strong) !important; }
+html[data-season] .pf-input:focus, html[data-season] .ph-search input:focus, html[data-season] .ad-field:focus, html[data-season] .ad-select:focus, html[data-season] .ad-area:focus {
+    border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-dim) !important;
+}
+html[data-season] img[src^="logo"] { filter: drop-shadow(0 0 8px var(--accent-glow)); }
+
+/* chats: bubbles, composer and send button pick up the season */
+html[data-season] .ch-msg--own .ch-bubble { border-color: var(--accent-strong); box-shadow: 0 0 22px var(--accent-dim); }
+html[data-season] .ch-composer:focus-within { box-shadow: 0 0 0 1px var(--accent-strong), 0 0 28px var(--accent-dim); }
+html[data-season] .ch-send:not(:disabled) { box-shadow: 0 0 20px var(--accent-glow); }
+
+/* ---------------------------------------------------------------------------
+   3. LAYERS (built by seasons.js)
+   #ss-back sits behind page content; #ss-front floats above it, even above the chat window (z-index 9990).
+   --------------------------------------------------------------------------- */
+#ss-back, #ss-front { position: fixed; inset: 0; pointer-events: none; contain: layout paint style; }
+#ss-back { z-index: 1; }
+#ss-front { z-index: 9995; }
+#ss-fx { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* moon + pumpkin glow (Halloween) */
+.ss-moon {
+    position: absolute; top: 7vh; right: 9vw; width: min(180px, 24vw); aspect-ratio: 1; border-radius: 50%;
+    background:
+        radial-gradient(circle at 62% 30%, rgba(190, 120, 60, 0.28) 0 7%, transparent 8%),
+        radial-gradient(circle at 34% 58%, rgba(190, 120, 60, 0.22) 0 11%, transparent 12%),
+        radial-gradient(circle at 70% 70%, rgba(190, 120, 60, 0.2) 0 6%, transparent 7%),
+        radial-gradient(circle at 36% 32%, #fff4d6 0%, #ffd596 48%, #f09a4a 100%);
+    box-shadow: 0 0 60px 8px rgba(255, 160, 70, 0.38), 0 0 180px 70px rgba(255, 110, 30, 0.14);
+    opacity: 0.92; animation: ssMoon 9s ease-in-out infinite alternate;
+}
+body.light-mode .ss-moon { opacity: 0.4; box-shadow: 0 0 60px 8px rgba(255, 160, 70, 0.3); }
+@keyframes ssMoon { from { transform: translateY(0) scale(1); } to { transform: translateY(8px) scale(1.03); } }
+
+/* drifting fog */
+.ss-fog { position: absolute; left: -50%; bottom: -3vh; width: 200%; height: 34vh; will-change: transform; }
+.ss-fog-a {
+    background: radial-gradient(ellipse 22% 80% at 15% 100%, rgba(190, 150, 255, 0.20), transparent 70%), radial-gradient(ellipse 20% 70% at 45% 100%, rgba(255, 140, 60, 0.12), transparent 70%),
+                radial-gradient(ellipse 24% 85% at 78% 100%, rgba(190, 150, 255, 0.18), transparent 70%);
+    animation: ssFog 70s linear infinite alternate;
+}
+.ss-fog-b {
+    height: 26vh; background: radial-gradient(ellipse 18% 75% at 30% 100%, rgba(255, 170, 90, 0.12), transparent 70%), radial-gradient(ellipse 22% 80% at 62% 100%, rgba(170, 120, 255, 0.16), transparent 70%),
+                radial-gradient(ellipse 16% 70% at 92% 100%, rgba(255, 170, 90, 0.10), transparent 70%);
+    animation: ssFog 46s linear infinite alternate-reverse;
+}
+body.light-mode .ss-fog { opacity: 0.45; }
+@keyframes ssFog { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(25%, 0, 0); } }
+
+/* cobwebs */
+.ss-web { position: absolute; top: 0; width: min(230px, 30vw); color: rgba(255, 255, 255, 0.22); }
+.ss-web svg { display: block; width: 100%; height: auto; }
+.ss-web-l { left: 0; }
+.ss-web-r { right: 0; transform: scaleX(-1); }
+body.light-mode .ss-web { color: rgba(70, 35, 10, 0.3); }
+
+/* the spider that drops by */
+.ss-spider { position: absolute; top: 0; left: 12vw; width: 26px; transform: translateY(-140px); animation: ssDrop 13s ease-in-out infinite; }
+.ss-spider::before { content: ""; position: absolute; left: 50%; bottom: 100%; width: 1px; height: 60vh; background: linear-gradient(to top, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.12)); }
+body.light-mode .ss-spider::before { background: linear-gradient(to top, rgba(60, 30, 10, 0.55), rgba(60, 30, 10, 0.15)); }
+.ss-spider svg { display: block; width: 100%; height: auto; color: #1b0f26; filter: drop-shadow(0 0 4px rgba(255, 122, 26, 0.35)); }
+body.light-mode .ss-spider svg { color: #2b1408; }
+@keyframes ssDrop { 0%, 6% { transform: translateY(-140px); } 28%, 60% { transform: translateY(19vh); } 82%, 100% { transform: translateY(-140px); } }
+
+/* christmas lights */
+.ss-lights { position: absolute; top: 0; left: 0; right: 0; height: 40px; }
+.ss-lights svg { position: absolute; inset: 0 0 auto 0; width: 100%; height: 22px; }
+.ss-lights i {
+    position: absolute; width: 8px; height: 13px; margin-left: -4px; border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+    background: var(--c); box-shadow: 0 0 9px 2px var(--c); animation: ssTwinkle 2.6s ease-in-out infinite;
+}
+body.light-mode .ss-lights i { box-shadow: 0 0 6px 1px var(--c); }
+@keyframes ssTwinkle { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.86); } }
+
+/* frosted screen edges (christmas) */
+.ss-frost { position: absolute; inset: 0; box-shadow: inset 0 0 130px rgba(150, 205, 255, 0.14), inset 0 0 40px rgba(200, 230, 255, 0.08); }
+body.light-mode .ss-frost { box-shadow: inset 0 0 110px rgba(120, 180, 240, 0.18); }
+
+/* golden light beams (new year): no mask, the fade is painted into the same layer, so rotating it stays cheap */
+.ss-beams { position: absolute; left: 50%; top: -48vmax; width: 96vmax; height: 96vmax; margin-left: -48vmax; opacity: 0.6;
+    background: radial-gradient(circle at 50% 50%, transparent 0, transparent 8%, var(--bg-base) 50%),
+                repeating-conic-gradient(from 0deg at 50% 50%, rgba(245, 197, 66, 0.16) 0deg 5deg, transparent 5deg 22deg);
+}
+body.light-mode .ss-beams { opacity: 0.35; }
+
+/* soft pink corner glows (valentine) */
+.ss-hearts-glow { position: absolute; inset: 0;
+    background: radial-gradient(circle at 8% 100%, rgba(255, 92, 138, 0.22), transparent 38%), radial-gradient(circle at 96% 0%, rgba(244, 114, 182, 0.18), transparent 36%);
+}
+
+/* ---------------------------------------------------------------------------
+   4. SMALL UI: greeting + effects switch
+   --------------------------------------------------------------------------- */
+.ss-greet {
+    position: fixed; left: 50%; top: 18px; z-index: 9996; transform: translate(-50%, -140%); max-width: min(92vw, 460px);
+    display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-radius: 999px;
+    background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--accent); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), 0 0 30px var(--accent-glow);
+    font: 500 13.5px/1.3 var(--font-sans, system-ui); pointer-events: none; transition: transform 0.7s cubic-bezier(0.2, 0.9, 0.2, 1.1);
+}
+.ss-greet.is-on { transform: translate(-50%, 0); }
+.ss-greet b { font-size: 20px; line-height: 1; }
+
+.ss-toggle {
+    position: fixed; left: 14px; bottom: 14px; z-index: 9996; display: none; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0;
+    background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-hover); border-radius: 50%; font-size: 16px; line-height: 1; cursor: pointer;
+    opacity: 0.55; transition: opacity 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.ss-toggle:hover, .ss-toggle:focus-visible { opacity: 1; border-color: var(--accent); transform: scale(1.08); outline: none; }
+.ss-toggle[aria-pressed="false"] { filter: grayscale(1); opacity: 0.4; }
+@media (min-width: 851px) { .ss-toggle { display: inline-flex; } }
+
+/* LITE MODE: seasons.js switches this on by itself if a page struggles (weak GPU / battery saver).
+   The big full-screen animations stop first; particles are only reduced after that. */
+html.ss-lite .ss-fog, html.ss-lite .ss-moon, html.ss-lite .ss-spider, html.ss-lite .ambient-glow { animation: none !important; }
+html.ss-lite .ss-fog-b { display: none; }
+
+/* ---------------------------------------------------------------------------
+   5. CALM MODE: reduced motion setting, or the switch above turned off
+   --------------------------------------------------------------------------- */
+html.ss-calm #ss-back *, html.ss-calm #ss-front *, html.ss-calm .ambient-glow { animation: none !important; }
+html.ss-calm #ss-fx { display: none; }
+@media (prefers-reduced-motion: reduce) {
+    #ss-back *, #ss-front *, .ss-greet { animation: none !important; transition: none !important; }
+    #ss-fx { display: none; }
+}
+@media (max-width: 700px) { .ss-spider { display: none; } .ss-moon { top: 9vh; right: 6vw; } }

@@ -45,6 +45,7 @@
         forbidden: 'Your staff level cannot do that.',
         bad_kind: 'That action type is not valid.',
         reason_required: 'A reason of at least 3 characters is required.',
+        bad_mode: 'That mode is not valid.', bad_theme: 'Pick a theme first.', bad_dates: 'The end must be after the start.', bad_intensity: 'That intensity is not valid.',
         not_found: 'That user or item no longer exists.',
         not_yourself: 'You cannot do that to yourself.',
         target_outranks_you: 'That person outranks you.',
@@ -116,7 +117,8 @@
         mail:   '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22 6 12 13 2 6"/>',
         file:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
         bell:   '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
-        send:   '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'
+        send:   '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+        sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'
     };
 
     function icon(name) {
@@ -400,6 +402,7 @@
         { id: 'appeals',   label: 'Appeals',   ico: 'mail',   min: 'moderator' },
         { id: 'staff',     label: 'Staff',     ico: 'shield', min: 'admin' },
         { id: 'notifications', label: 'Notifications', ico: 'bell', min: 'moderator' },
+        { id: 'seasons',   label: 'Seasons',   ico: 'sparkle', min: 'admin' },
         { id: 'cases',     label: 'Cases',     ico: 'flag',   min: 'moderator' },
         { id: 'content',   label: 'Content',   ico: 'file',   min: 'moderator', soon: true }
     ];
@@ -466,7 +469,7 @@
 
         var token = nextToken();
         stopViewTimers();                                  // auto refresh belongs to the dashboard only
-        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications', appeals: 'Appeals', cases: 'Cases' }[view];
+        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications', seasons: 'Seasons', appeals: 'Appeals', cases: 'Cases' }[view];
         $('adTitle').textContent = title;
         $('adTopSub').textContent = '';
         var root = clear($('adView'));
@@ -478,6 +481,7 @@
         else if (view === 'audit') viewAudit(root, token, parts[1] && UUID_RE.test(parts[1]) ? parts[1].toLowerCase() : null);
         else if (view === 'staff') viewStaff(root, token);
         else if (view === 'notifications') viewNotifications(root, token);
+        else if (view === 'seasons') viewSeasons(root, token);
         else if (view === 'appeals') viewAppeals(root, token);
         else if (view === 'cases') { if (parts[1] && UUID_RE.test(parts[1])) viewCase(root, parts[1].toLowerCase(), token); else viewCases(root, token); }
     }
@@ -491,6 +495,7 @@
         password_create: 'Admin password created', password_change: 'Admin password changed', password_reset: 'Admin password reset',
         panel_unlock: 'Console unlock', hub_hide: 'Hub visibility changed', sanction_details: 'Ban details updated',
         appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered',
+        seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
         case_assign: 'Case assigned', case_status: 'Case status changed', case_resolve: 'Case closed', case_note: 'Case note added'
     };
 
@@ -1209,6 +1214,124 @@
     /* ----------------------------------------------------------------------
        ROLES LIBRARY (owners edit icons, names, colors)
        ---------------------------------------------------------------------- */
+    /* ----------------------------------------------------------------------
+       SEASONS: themes for the whole site (Halloween, Christmas, ...)
+       Automatic by date, forced on, or off. Everything staff change here is audit logged.
+       ---------------------------------------------------------------------- */
+    function seasonLocal(iso) { if (!iso) return ''; var d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }
+
+    async function viewSeasons(root, token) {
+        add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
+        var d = await rpc('admin_seasons_get');
+        if (stale(token)) return;
+        clear(root);
+        if (!d || d.ok === false) { add(root, el('p', { class: 'ad-help', text: 'Could not load seasons. Is supabase-seasons.sql installed?' })); return; }
+
+        var SS = window.SpecSeasons, THEMES = SS ? SS.THEMES : {}, ids = Object.keys(THEMES);
+        var st = d.settings || {}, now = d.now || {}, previewing = !!(SS && SS.isPreview());
+        function again() { viewSeasons(clear($('adView')), token); }
+        function themeName(id) { return THEMES[id] ? THEMES[id].emoji + ' ' + THEMES[id].name : id; }
+        if (!SS) add(root, el('p', { class: 'ad-help', text: 'seasons.js is not loaded on this page, so previews are off. Add <script src="seasons.js"></script> to admin.html.' }));
+
+        // ---- right now ----
+        var live = now.theme ? THEMES[now.theme] : null;
+        var nowText = !now.theme ? (st.mode === 'off' ? 'Seasonal themes are turned off.' : 'Nothing is scheduled right now.')
+            : now.source === 'schedule' ? 'Following the schedule, until ' + fmt(now.ends_at) + '.' : 'Forced on by staff until someone changes it.';
+        add(root, panel('Right now', el('div', { class: 'ad-now' },
+            el('div', { class: 'ad-now-emoji', text: live ? live.emoji : '\u2600\uFE0F' }),
+            el('div', {},
+                el('div', { class: 'ad-row-title', text: live ? live.name : 'Normal site' }),
+                el('div', { class: 'ad-row-sub', text: nowText }),
+                el('div', { class: 'ad-row-sub', text: 'Last changed ' + ago(st.updated_at) })),
+            el('div', { class: 'ad-row-end' }, pill(now.theme ? 'LIVE' : 'OFF', now.theme ? 'ok' : null), ' ', pill('Effects ' + (st.effects ? 'on' : 'off'), st.effects ? null : 'warn'))),
+            previewing ? el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Stop preview', onclick: function () { SS.endPreview(); again(); } }) : null));
+
+        // ---- control ----
+        var mode = st.mode || 'auto';
+        var modes = el('div', { class: 'ad-modes' });
+        var themeSel = el('select', { class: 'ad-select', 'aria-label': 'Theme to force on' }, ids.map(function (id) { return el('option', { value: id, text: themeName(id) }); }));
+        themeSel.value = st.forced_theme && THEMES[st.forced_theme] ? st.forced_theme : (ids[0] || '');
+        [['auto', 'Automatic', 'Follow the schedule below. Themes switch on and off by themselves.'], ['theme', 'Always on', 'Force one theme for everyone until you change it.'], ['off', 'Off', 'No seasonal theme anywhere.']].forEach(function (m) {
+            var r = el('input', { type: 'radio', name: 'ssmode', value: m[0] }); r.checked = mode === m[0];
+            modes.appendChild(el('label', { class: 'ad-role-opt' }, r, el('span', {}, el('b', { text: m[1] }), el('br'), el('span', { class: 'ad-row-sub', text: m[2] })), m[0] === 'theme' ? themeSel : null));
+        });
+        var fx = el('input', { type: 'checkbox' }); fx.checked = st.effects !== false;
+        var inten = el('select', { class: 'ad-select', 'aria-label': 'Effect intensity' }, [['low', 'Low (calmer, lighter)'], ['normal', 'Normal'], ['high', 'High (more particles)']].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        inten.value = st.intensity || 'normal';
+        var reason = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+        add(root, panel('Control', el('div', {},
+            modes,
+            el('label', { class: 'ad-role-opt' }, fx, el('span', {}, el('b', { text: 'Animated effects' }), el('br'), el('span', { class: 'ad-row-sub', text: 'Particles, bats, snow, fireworks and moving decorations. Off keeps just the colors and still decorations.' }))),
+            field('Effect intensity', inten, 'How many particles. Phones and weaker computers always get fewer automatically.'),
+            field('Reason', reason),
+            el('div', { style: 'margin-top:14px' },
+                el('button', { type: 'button', class: 'ad-btn', text: 'Save changes', onclick: async function (e) {
+                    var m = (document.querySelector('input[name="ssmode"]:checked') || {}).value || 'auto';
+                    if (m === 'theme' && !themeSel.value) { toast('Pick a theme.', true); return; }
+                    e.target.disabled = true;
+                    var r = await rpc('admin_seasons_set', { p_mode: m, p_theme: m === 'theme' ? themeSel.value : null, p_effects: fx.checked, p_intensity: inten.value, p_reason: reason.value.trim() || null });
+                    e.target.disabled = false;
+                    if (r && r.ok) { toast('Saved. Visitors get it within a few minutes.'); if (SS && !previewing) SS.refresh(); again(); }
+                } })))));
+
+        // ---- theme gallery ----
+        var grid = el('div', { class: 'ad-themes' });
+        ids.forEach(function (id) {
+            var t = THEMES[id];
+            grid.appendChild(el('div', { class: 'ad-theme' + (now.theme === id ? ' is-live' : '') },
+                el('div', { class: 'ad-theme-emoji', text: t.emoji }), el('h3', { text: t.name }), el('p', { text: t.blurb }),
+                el('div', { class: 'ad-theme-btns' },
+                    SS ? el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Preview here', onclick: function () { SS.preview(id, { intensity: inten.value }); toast('Previewing ' + t.name + ' on this page only. Nobody else sees it.'); again(); } }) : null,
+                    el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Turn on for everyone', onclick: function () {
+                        dialog({ title: 'Turn on ' + t.name + '?', body: el('p', { class: 'ad-help', text: 'Every visitor will see the ' + t.name + ' theme until you switch it back to automatic or off.' }),
+                            buttons: [{ text: 'Cancel' }, { text: 'Turn on', primary: true, onClick: async function () {
+                                var r = await rpc('admin_seasons_set', { p_mode: 'theme', p_theme: id, p_effects: fx.checked, p_intensity: inten.value, p_reason: 'Forced ' + t.name + ' on' });
+                                if (!(r && r.ok)) return false;
+                                toast(t.name + ' is on for everyone.'); if (SS && !previewing) SS.refresh(); again();
+                            } }] });
+                    } }))));
+        });
+        add(root, panel('Themes', grid, previewing ? pill('Previewing on this page only', 'warn') : null));
+
+        // ---- schedule ----
+        function editEvent(ev) {
+            var isNew = !ev, sel = el('select', { class: 'ad-select' }, ids.map(function (id) { return el('option', { value: id, text: themeName(id) }); }));
+            sel.value = ev && THEMES[ev.theme] ? ev.theme : ids[0];
+            var label = el('input', { class: 'ad-field', type: 'text', maxlength: '60', value: ev ? ev.label || '' : '', placeholder: 'Halloween 2027' });
+            var s = el('input', { class: 'ad-field', type: 'datetime-local', value: ev ? seasonLocal(ev.starts_at) : '' });
+            var e = el('input', { class: 'ad-field', type: 'datetime-local', value: ev ? seasonLocal(ev.ends_at) : '' });
+            var on = el('input', { type: 'checkbox' }); on.checked = ev ? ev.enabled : true;
+            dialog({ title: isNew ? 'Add event' : 'Edit event',
+                body: el('div', {}, field('Theme', sel), field('Name (only staff see it)', label), field('Starts (your local time)', s), field('Ends (your local time)', e),
+                    el('label', { class: 'ad-role-opt' }, on, el('span', { text: 'Enabled' }))),
+                buttons: [{ text: 'Cancel' }, { text: 'Save', primary: true, onClick: async function () {
+                    if (!s.value || !e.value) { toast('Pick a start and an end.', true); return false; }
+                    var r = await rpc('admin_seasons_schedule_save', { p_id: ev ? ev.id : null, p_theme: sel.value, p_label: label.value.trim() || null, p_starts: new Date(s.value).toISOString(), p_ends: new Date(e.value).toISOString(), p_enabled: on.checked });
+                    if (!(r && r.ok)) return false;
+                    toast('Event saved.'); if (SS && !previewing) SS.refresh(); again();
+                } }] });
+        }
+        var list = el('div', { class: 'ad-list' }), nowMs = Date.now();
+        (d.schedule || []).forEach(function (ev) {
+            var running = ev.enabled && Date.parse(ev.starts_at) <= nowMs && nowMs <= Date.parse(ev.ends_at), over = Date.parse(ev.ends_at) < nowMs;
+            list.appendChild(el('div', { class: 'ad-row ad-evt' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: (ev.label || themeName(ev.theme)) }),
+                    el('div', { class: 'ad-row-sub', text: themeName(ev.theme) + ' \u00B7 ' + fmt(ev.starts_at) + ' to ' + fmt(ev.ends_at) })),
+                el('div', { class: 'ad-row-end' }, running ? pill('RUNNING', 'ok') : over ? pill('ENDED') : ev.enabled ? pill('UPCOMING', 'info') : pill('DISABLED', 'warn')),
+                el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Edit', onclick: function () { editEvent(ev); } }),
+                el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'Delete', onclick: function () {
+                    dialog({ title: 'Delete this event?', body: el('p', { class: 'ad-help', text: (ev.label || themeName(ev.theme)) + ' will be removed from the schedule.' }),
+                        buttons: [{ text: 'Cancel' }, { text: 'Delete', kind: 'danger', onClick: async function () {
+                            var r = await rpc('admin_seasons_schedule_delete', { p_id: ev.id });
+                            if (!(r && r.ok)) return false;
+                            toast('Event deleted.'); if (SS && !previewing) SS.refresh(); again();
+                        } }] });
+                } })));
+        });
+        if (!(d.schedule || []).length) list.appendChild(el('p', { class: 'ad-help', text: 'No events yet. Add one and it will switch on by itself in Automatic mode.' }));
+        add(root, panel('Schedule', list, el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Add event', onclick: function () { editEvent(null); } })));
+    }
+
     function viewRoles(root, token) {
         var isOwner = canAtLeast('owner');
         $('adTopSub').textContent = isOwner ? 'OWNER: YOU CAN EDIT' : 'READ ONLY';

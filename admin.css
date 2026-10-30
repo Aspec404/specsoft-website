@@ -314,3 +314,20 @@ button.ad-row:hover { background: var(--accent-dim); }
 .ad-kv > div { font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ad-kv a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
 .ad-kv pre { margin: 4px 0 0; padding: 10px 12px; max-height: 240px; overflow: auto; background: color-mix(in srgb, var(--text-primary) 5%, transparent); border: 1px solid var(--border-subtle); border-radius: 10px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ---------- Seasons ---------- */
+.ad-now { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.ad-now-emoji { font-size: 46px; line-height: 1; }
+.ad-now > .ad-row-end { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.ad-modes { display: grid; gap: 8px; margin-bottom: 14px; }
+.ad-modes .ad-role-opt { align-items: center; }
+.ad-modes .ad-role-opt .ad-select { margin-left: auto; flex: 0 1 190px; width: auto; }
+.ad-themes { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.ad-theme { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-card); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+.ad-theme.is-live { border-color: var(--text-primary); box-shadow: 0 0 24px var(--accent-dim); }
+.ad-theme-emoji { font-size: 34px; line-height: 1; }
+.ad-theme h3 { font-size: 16px; font-weight: 600; }
+.ad-theme p { flex: 1; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.ad-theme-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ad-evt { cursor: default; gap: 10px; flex-wrap: wrap; }
+.ad-evt .ad-btn { flex: 0 0 auto; }
