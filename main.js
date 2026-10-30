@@ -8,33 +8,60 @@
    exits immediately if its target elements are not on the page.
    ========================================================================== */
 
-/* ======================================================================
-   SPECSOFT® settings boot. Runs first, on every page: applies the visual
-   switches from Settings before anything paints, then loads site-settings.css
-   and site-settings.js. (Keep this list in sync with site-settings.js.)
-   ====================================================================== */
-(function () {
-    try {
-        var d = document.documentElement;
-        var s = JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {};
-        var off = { fxScanlines: 'ss-no-scanlines', fxVignette: 'ss-no-vignette', fxGlow: 'ss-no-glow', fxShapes: 'ss-no-shapes', fxCrosshairs: 'ss-no-crosshairs', fx3d: 'ss-no-3d' };
-        for (var k in off) { if (s[k] === false) d.classList.add(off[k]); }
-        if (s.reduceMotion === true) d.classList.add('ss-reduce-motion');
-        if (s.accent && s.accent !== 'default') d.setAttribute('data-accent', String(s.accent).replace(/[^a-z]/g, ''));
-        if (s.theme === 'system') localStorage.setItem('specsoft-theme', (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
-    } catch (e) { /* settings are optional */ }
-    if (!document.querySelector('link[href^="site-settings.css"]')) {
-        var l = document.createElement('link');
-        l.rel = 'stylesheet'; l.href = 'site-settings.css';
-        document.head.appendChild(l);
-    }
-    if (!window.SpecSettings && !document.querySelector('script[src^="site-settings.js"]')) {
-        var sc = document.createElement('script');
-        sc.src = 'site-settings.js';
-        document.head.appendChild(sc);
-    }
-})();
-
+/* ======================================================================
+
+   SPECSOFT® settings boot. Runs first, on every page: applies the visual
+
+   switches from Settings before anything paints, then loads site-settings.css
+
+   and site-settings.js. (Keep this list in sync with site-settings.js.)
+
+   ====================================================================== */
+
+(function () {
+
+    try {
+
+        var d = document.documentElement;
+
+        var s = JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {};
+
+        var off = { fxScanlines: 'ss-no-scanlines', fxVignette: 'ss-no-vignette', fxGlow: 'ss-no-glow', fxShapes: 'ss-no-shapes', fxCrosshairs: 'ss-no-crosshairs', fx3d: 'ss-no-3d' };
+
+        for (var k in off) { if (s[k] === false) d.classList.add(off[k]); }
+
+        if (s.reduceMotion === true) d.classList.add('ss-reduce-motion');
+
+        if (s.accent && s.accent !== 'default') d.setAttribute('data-accent', String(s.accent).replace(/[^a-z]/g, ''));
+
+        if (s.theme === 'system') localStorage.setItem('specsoft-theme', (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
+
+    } catch (e) { /* settings are optional */ }
+
+    if (!document.querySelector('link[href^="site-settings.css"]')) {
+
+        var l = document.createElement('link');
+
+        l.rel = 'stylesheet'; l.href = 'site-settings.css';
+
+        document.head.appendChild(l);
+
+    }
+
+    if (!window.SpecSettings && !document.querySelector('script[src^="site-settings.js"]')) {
+
+        var sc = document.createElement('script');
+
+        sc.src = 'site-settings.js';
+
+        document.head.appendChild(sc);
+
+    }
+
+})();
+
+
+
 (function () {
     'use strict';
 
@@ -100,9 +127,9 @@
                     <span class="sub-bullet"></span>
                     <span>Spectra AI</span>
                 </a>
-                <a href="project-clan-wars.html" class="nav-subitem">
+                <a href="studio.html" class="nav-subitem">
                     <span class="sub-bullet"></span>
-                    <span>Ability Arena Roblox</span>
+                    <span>SPECSOFT Studios</span>
                 </a>
             </div>
 
