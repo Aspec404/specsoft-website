@@ -31,7 +31,7 @@
     --code-text: #abb2bf;
 
     --font-mono: 'JetBrains Mono', monospace;
-    --font-sans: 'Space Grotesk', sans-serif;
+    --font-sans: 'Space Grotesk', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', 'Twemoji Mozilla', sans-serif;
 
     --sidebar-width: 280px;
 }

@@ -679,6 +679,7 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
     border: 1px solid var(--border-subtle);
     border-radius: 6px 18px 18px 18px;
     color: var(--text-primary);
+    font-family: var(--font-sans);
     font-size: 15px;
     line-height: 1.55;
     white-space: pre-wrap;
