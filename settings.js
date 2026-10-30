@@ -165,6 +165,12 @@
         return block(it, [grid]);
     }
 
+    function readoutText() {
+        var d = new Date();
+        return S.fmtTime(d) + '   \u00b7   ' + S.fmtDate(d, { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+    function readoutBlock(it) { return block(it, [h('output', { class: 'sx-readout', 'data-readout': '1', text: readoutText() })]); }
+
     function copyText(inp) {
         var done = function () { flash('Copied'); };
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(inp.value).then(done, function () { inp.select(); document.execCommand('copy'); done(); });
@@ -240,7 +246,7 @@
             var lastGroup = '';
             items.forEach(function (it) {
                 if (it.group && it.group !== lastGroup) { lastGroup = it.group; panel.appendChild(h('h3', { class: 'sx-sub', text: it.group })); }
-                var node = it.type === 'pad' ? padBlock(it) : it.type === 'presets' ? presetsBlock(it) : it.type === 'code' ? codeBlock(it) : row(it);
+                var node = it.type === 'pad' ? padBlock(it) : it.type === 'presets' ? presetsBlock(it) : it.type === 'code' ? codeBlock(it) : it.type === 'readout' ? readoutBlock(it) : row(it);
                 panel.appendChild(node);
                 shown++;
             });
@@ -271,6 +277,7 @@
             }
         });
         panel.querySelectorAll('[data-pal]').forEach(paintPalette);
+        panel.querySelectorAll('[data-readout]').forEach(function (o) { o.textContent = readoutText(); });
         panel.querySelectorAll('[data-presets]').forEach(paintPresets);
         panel.querySelectorAll('[data-code]').forEach(function (inp) { if (document.activeElement !== inp) inp.value = S.exportCursorCode(); });
         paintBanner();
@@ -306,4 +313,5 @@
 
     render();
     paintSync();
+    setInterval(function () { panel.querySelectorAll('[data-readout]').forEach(function (o) { o.textContent = readoutText(); }); }, 15000);
 })();

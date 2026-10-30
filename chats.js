@@ -142,13 +142,16 @@
     }
 
     function sameDay(a, b) {
+        if (window.SpecSettings && SpecSettings.dayKey) return SpecSettings.dayKey(new Date(a)) === SpecSettings.dayKey(new Date(b));
         const x = new Date(a), y = new Date(b);
         return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
     }
 
     function fmtTime(iso) {
         const d = new Date(iso);
-        return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        if (isNaN(d)) return '';
+        if (window.SpecSettings && SpecSettings.fmtTime) return SpecSettings.fmtTime(d);      // Settings > General
+        return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     }
 
     function fmtDay(iso) {
@@ -156,6 +159,7 @@
         if (sameDay(d, n)) return 'Today';
         const y = new Date(n); y.setDate(n.getDate() - 1);
         if (sameDay(d, y)) return 'Yesterday';
+        if (window.SpecSettings && SpecSettings.fmtDate) return SpecSettings.fmtDate(d, { weekday: 'long', month: 'short', day: 'numeric' });
         return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
     }
 
@@ -163,8 +167,8 @@
         if (!iso) return '';
         const d = new Date(iso), n = new Date();
         if (sameDay(d, n)) return fmtTime(iso);
-        if ((n - d) / 86400000 < 7) return d.toLocaleDateString([], { weekday: 'short' });
-        return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        if ((n - d) / 86400000 < 7) return (window.SpecSettings && SpecSettings.fmtDate) ? SpecSettings.fmtDate(d, { weekday: 'short' }) : d.toLocaleDateString([], { weekday: 'short' });
+        return (window.SpecSettings && SpecSettings.fmtDate) ? SpecSettings.fmtDate(d, { month: 'short', day: 'numeric' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
 
     // same person, same day, under 5 minutes apart, not a reply
@@ -1102,14 +1106,8 @@
             el('div', { class: 'ch-msg-body' }, head, m.reply_to && !deleted ? replyQuote(m) : null, bubble, imageAttachmentView, reactions.children.length ? reactions : null),
             tools);
 
-        // tap a message on a phone to show its actions
-        bubble.addEventListener('click', function (e) {
-            if (e.target.closest && e.target.closest('a, button, .ch-spoiler')) return;
-            const feed = $('chFeed');
-            const open = node.classList.contains('is-open');
-            feed.querySelectorAll('.ch-msg.is-open').forEach(function (n) { n.classList.remove('is-open'); });
-            if (!open) node.classList.add('is-open');
-        });
+        // On phones the actions live in a long-press sheet (see wireMessageSheet). A plain tap does nothing,
+        // so it can never land on a hidden button. On a PC they still show on hover.
         return node;
     }
 
@@ -3858,6 +3856,105 @@
     }
 
     /* ----------------------------------------------------------------------
+       12c-2. MESSAGE ACTIONS ON TOUCH SCREENS
+            Press and hold a message: a bottom sheet opens with its actions.
+            A plain tap never opens anything, so it can never hit a hidden button.
+            (On a PC the buttons still appear on hover.)
+       ---------------------------------------------------------------------- */
+    function messageItems(m) {
+        const list = [];
+        if (!m || m.deleted_at || m.pending) return list;
+        const mine = !!(S.me && m.sender_id === S.me.id);
+        const bug = parseBug(m.body);
+        list.push({ ico: 'smile', label: 'React', run: function (node) { openQuick(m, node); } });
+        list.push({ ico: 'reply', label: 'Reply', run: function () { startReply(m); } });
+        if (mine && !bug) list.push({ ico: 'edit', label: 'Edit message', run: function () { startEdit(m); } });
+        if (!bug && canPinHere(S.current)) list.push({ ico: 'pin', label: S.pinIds.has(m.id) ? 'Unpin message' : 'Pin message', run: function () { togglePinMessage(m); } });
+        const text = String(m.body || '').trim();
+        if (text && !bug && !/^Attachment:\s*/i.test(text)) list.push({ ico: 'copy', label: 'Copy text', run: function () { copyText(text, 'Message copied'); } });
+        const canDelete = mine || (S.current && (S.current.role === 'owner' || S.current.role === 'admin'));
+        const danger = [];
+        if (!mine && !bug) danger.push({ ico: 'flag', label: 'Report message', danger: true, run: function () { openReport(m); } });
+        if (canDelete) danger.push({ ico: 'trash', label: 'Delete message', danger: true, run: function () { deleteMessage(m); } });
+        if (danger.length) { list.push('sep'); danger.forEach(function (d) { list.push(d); }); }
+        return list;
+    }
+
+    function openMessageMenu(m, node) {
+        closeMenu();
+        const items = messageItems(m);
+        if (!items.length) return;
+        const preview = String(m.body || '').replace(/\s+/g, ' ').trim().slice(0, 90) || (m.attachment_path ? 'Attachment' : '');
+        const menu = el('div', { class: 'ch-menu is-sheet', role: 'menu', 'aria-label': 'Message actions' });
+        menu.appendChild(el('div', { class: 'ch-menu-head ch-menu-head--msg' },
+            el('strong', { text: nameOf(senderOf(m)) }),
+            preview ? el('span', { class: 'ch-menu-preview', text: preview }) : null));
+        items.forEach(function (it) {
+            if (it === 'sep') { menu.appendChild(el('div', { class: 'ch-menu-sep', role: 'separator' })); return; }
+            menu.appendChild(el('button', {
+                type: 'button', role: 'menuitem',
+                class: 'ch-menu-item' + (it.danger ? ' is-danger' : ''),
+                onclick: function () { closeMenu(); it.run(node); }
+            }, icon(it.ico), el('span', { text: it.label })));
+        });
+        const nodes = [el('div', { class: 'ch-menu-scrim' }), menu];
+        nodes.forEach(function (n) { document.body.appendChild(n); });
+        S.menu = { room: null, nodes: nodes, el: menu, row: null, refocus: null };
+    }
+
+    function wireMessageSheet() {
+        const feed = $('chFeed');
+        if (!feed) return;
+        let timer = null, glow = null, start = null, pressed = null, moved = false;
+        const clearPress = function () {
+            clearTimeout(timer); clearTimeout(glow); timer = glow = null; start = null;
+            if (pressed) { pressed.classList.remove('is-pressing'); pressed = null; }
+        };
+        const tip = function () {                       // explain it once, the first time someone taps a message on a phone
+            try {
+                if (localStorage.getItem('specsoft.chat.tip.press')) return;
+                localStorage.setItem('specsoft.chat.tip.press', '1');
+            } catch (e) { /* ignore */ }
+            toast('Tip: press and hold a message for actions');
+        };
+
+        feed.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'mouse') return;                                   // a mouse uses the hover buttons
+            if (e.target.closest && e.target.closest('a, button, input, textarea, select, .ch-spoiler, .ch-reactions, .ch-tools')) return;
+            const node = e.target.closest && e.target.closest('.ch-msg');
+            if (!node) return;
+            clearPress();
+            moved = false;
+            start = { x: e.clientX, y: e.clientY };
+            pressed = node;
+            glow = setTimeout(function () { if (pressed) pressed.classList.add('is-pressing'); }, 150);
+            timer = setTimeout(function () {
+                timer = null;
+                const m = S.byId.get(node.dataset.id);
+                if (!m || !messageItems(m).length) { clearPress(); return; }
+                S.lpFired = true;                                                    // the click that ends this press is ignored
+                try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* ignore */ }
+                clearPress();
+                openMessageMenu(m, node);
+            }, 460);
+        });
+        feed.addEventListener('pointermove', function (e) {
+            if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) { moved = true; clearPress(); }
+        });
+        feed.addEventListener('pointerup', function (e) {
+            const wasTap = !!timer && !moved && e.pointerType !== 'mouse';           // lifted before the long-press fired
+            clearPress();
+            if (wasTap) tip();
+        });
+        ['pointercancel', 'pointerleave'].forEach(function (t) { feed.addEventListener(t, clearPress); });
+        feed.addEventListener('scroll', clearPress, { passive: true });
+        // Android shows its own menu on long-press; ours replaces it
+        feed.addEventListener('contextmenu', function (e) {
+            if (S.lpFired && e.target.closest && e.target.closest('.ch-msg')) e.preventDefault();
+        });
+    }
+
+    /* ----------------------------------------------------------------------
        12d. NOTIFICATIONS
             in-page banners everywhere, plus real desktop notifications when the tab is in the background
        ---------------------------------------------------------------------- */
@@ -4005,6 +4102,7 @@
 
         $('chSearch').addEventListener('input', function (e) { S.query = e.target.value; renderList(); });
         wireMenu();
+        wireMessageSheet();
 
         // composer
         const input = $('chInput');

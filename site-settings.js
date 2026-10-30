@@ -61,6 +61,22 @@
     }
 
     var CATS = [
+        { id: 'general', title: 'General', blurb: 'Time, date and region.',
+          icon: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
+          items: [
+            sl('timeFormat', 'Time format', 'How times look in chats and across the site.', 'auto',
+               [['auto', 'Automatic (your device)'], ['12h', '12-hour (1:00 PM)'], ['24h', '24-hour (13:00)']]),
+            sl('dateFormat', 'Date format', 'Which comes first, the month or the day.', 'auto',
+               [['auto', 'Automatic (your device)'], ['mdy', 'Month first (Oct 29)'], ['dmy', 'Day first (29 Oct)']]),
+            sl('timezone', 'Time zone', 'Show times in another time zone. Automatic follows your device.', 'auto',
+               [['auto', 'Automatic (your device)'], ['UTC', 'UTC'], ['Asia/Manila', 'Philippines (Manila)'], ['Asia/Tokyo', 'Japan (Tokyo)'],
+                ['Asia/Seoul', 'Korea (Seoul)'], ['Asia/Shanghai', 'China (Shanghai)'], ['Asia/Singapore', 'Singapore'], ['Asia/Dubai', 'UAE (Dubai)'],
+                ['Europe/Moscow', 'Russia (Moscow)'], ['Europe/Berlin', 'Germany (Berlin)'], ['Europe/Madrid', 'Spain (Madrid)'], ['Europe/London', 'UK (London)'],
+                ['America/Sao_Paulo', 'Brazil (Sao Paulo)'], ['America/Mexico_City', 'Mexico (Mexico City)'], ['America/New_York', 'US Eastern (New York)'],
+                ['America/Chicago', 'US Central (Chicago)'], ['America/Denver', 'US Mountain (Denver)'], ['America/Los_Angeles', 'US Pacific (Los Angeles)'],
+                ['Australia/Sydney', 'Australia (Sydney)']]),
+            { key: 'g_preview', type: 'readout', label: 'Preview', desc: 'This is how the current time looks with your choices.' }
+          ] },
         { id: 'appearance', title: 'Appearance', blurb: 'How the site looks.',
           icon: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>',
           items: [
@@ -208,6 +224,32 @@
         return out;
     }
 
+    /* ---------------------------------------------------------- time and date format
+       Any page can call SpecSettings.fmtTime(date), fmtDate(date, opts) and dayKey(date).
+       They follow Settings > General (time format, date format, time zone).        */
+    var fmtCache = {};
+    function localeList() { return undefined; }            // the Language setting will plug in here later
+    function tzName() { var z = get('timezone'); return (z && z !== 'auto') ? z : undefined; }
+    function dtf(locale, o) {
+        var k = (locale || '') + '|' + JSON.stringify(o);
+        if (!fmtCache[k]) {
+            try { fmtCache[k] = new Intl.DateTimeFormat(locale, o); }
+            catch (e) { var o2 = Object.assign({}, o); delete o2.timeZone; fmtCache[k] = new Intl.DateTimeFormat(undefined, o2); }
+        }
+        return fmtCache[k];
+    }
+    function withTz(o) { var z = tzName(); if (z) o.timeZone = z; return o; }
+    function fmtTime(d) {
+        var f = get('timeFormat'), o = { hour: 'numeric', minute: '2-digit' };
+        if (f === '12h') o.hourCycle = 'h12'; else if (f === '24h') { o.hourCycle = 'h23'; o.hour = '2-digit'; }
+        return dtf(localeList(), withTz(o)).format(d);
+    }
+    function fmtDate(d, opts) {
+        var order = get('dateFormat'), loc = order === 'mdy' ? 'en-US' : (order === 'dmy' ? 'en-GB' : localeList());
+        return dtf(loc, withTz(Object.assign({}, opts))).format(d);
+    }
+    function dayKey(d) { return dtf('en-CA', withTz({ year: 'numeric', month: '2-digit', day: '2-digit' })).format(d); }
+
     /* ---------------------------------------------------------- cursor extras */
     var preview = {};                 // unsaved "try it" values (locked styles); cursor.js reads window.__ssPreview
     window.__ssPreview = preview;
@@ -334,6 +376,7 @@
         if (label) label.textContent = t === 'light' ? 'LIGHT MODE' : 'DARK MODE';
     }
     function applyAll() {
+        fmtCache = {};
         LIST.forEach(function (it) {
             if (!it.cls) return;
             var v = !!get(it.key);
@@ -425,7 +468,7 @@
 
     /* ------------------------------------------------------------------ boot */
     window.SpecSettings = {
-        CATS: CATS, PRESETS: PRESETS, get: get, view: view, set: set,
+        CATS: CATS, PRESETS: PRESETS, fmtTime: fmtTime, fmtDate: fmtDate, dayKey: dayKey, get: get, view: view, set: set,
         item: function (k) { return ITEMS[k]; }, isLocked: isLocked,
         setPreview: setPreview, clearPreview: clearPreview, previewing: previewing,
         applyPreset: applyPreset, resetCursor: resetCursor, exportCursorCode: exportCursorCode, importCursorCode: importCursorCode, all: snapshot, reset: reset, exportJSON: exportJSON, importJSON: importJSON,

@@ -632,7 +632,9 @@ html { height: 100%; }
 }
 
 .ch-msg.is-grouped { padding-top: 1px; padding-bottom: 1px; }
-.ch-msg:hover { background: color-mix(in srgb, var(--accent-dim) 55%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+    .ch-msg:hover { background: color-mix(in srgb, var(--accent-dim) 55%, transparent); }
+}
 .ch-msg.is-fresh { animation: chPop 0.28s ease; }
 .ch-msg.is-flash { animation: chFlash 1.6s ease; }
 .ch-msg.is-pending .ch-bubble { opacity: 0.55; }
@@ -828,9 +830,11 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ch-msg--own .ch-tools { right: auto; left: 14px; }
 .ch-tools:empty { display: none; }
 
-.ch-msg:hover .ch-tools,
-.ch-msg:focus-within .ch-tools,
-.ch-msg.is-open .ch-tools { opacity: 1; pointer-events: auto; transform: none; }
+/* only a real mouse reveals the buttons. On a phone "hover" sticks after a tap and would put a button under your finger */
+@media (hover: hover) and (pointer: fine) {
+    .ch-msg:hover .ch-tools,
+    .ch-msg:focus-within .ch-tools { opacity: 1; pointer-events: auto; transform: none; }
+}
 
 .ch-tool {
     width: 34px;
@@ -2158,3 +2162,26 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 .ch-emoji-empty { margin: 2px 4px 10px; color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; }
 .ch-emoji-more { color: var(--text-secondary); font-size: 22px; text-decoration: none; border: 1px dashed var(--border-hover); }
 .ch-emoji-more:hover { color: var(--text-primary); border-color: var(--accent); transform: none; }
+
+
+/* ==========================================================================
+   MESSAGE ACTIONS ON TOUCH SCREENS  (long-press sheet, see wireMessageSheet)
+   ========================================================================== */
+@media (hover: none), (pointer: coarse) {
+    .ch-tools { display: none; }                                   /* the sheet replaces the hover buttons */
+    .ch-msg .ch-bubble,
+    .ch-msg .ch-attachment {                                       /* long-press opens the sheet, not the text-select menu */
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+                user-select: none;
+    }
+    .ch-msg { -webkit-tap-highlight-color: transparent; }
+    .ch-msg.is-pressing { background: color-mix(in srgb, var(--accent-dim) 80%, transparent); }
+}
+
+.ch-menu-head--msg { flex-direction: column; align-items: flex-start; gap: 3px; }
+.ch-menu-head--msg strong { max-width: 100%; }
+.ch-menu-preview {
+    display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-secondary); font-size: 13px; font-weight: 400;
+}

@@ -65,6 +65,28 @@
         .sm-stat { flex: 1 1 140px; padding: 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; }
         .sm-stat strong { display: block; font-family: var(--font-mono); font-size: 22px; }
         .sm-stat span { color: var(--text-secondary); font-size: 12px; }
+        .sm-dlg--wide { width: min(920px, calc(100vw - 24px)); }
+        .sm-framefield { display: flex; align-items: center; gap: 26px; padding: 18px 22px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; }
+        .fd { padding: 20px; }
+        .fd h3 { font-size: 18px; margin-bottom: 14px; }
+        .fd select { min-height: 34px; padding: 0 10px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; color: var(--text-primary); font: inherit; font-size: 13px; }
+        .fd-stage { display: flex; align-items: center; justify-content: center; gap: 40px; padding: 26px 16px; margin-bottom: 14px; background: #0b0b0b; border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .fd-stage.is-light { background: #f2f2f2; color: #111; }
+        .fd-stage.is-light .sp-avatar { color: #111; background: #ddd; }
+        .fd-av { padding: 16px; }
+        .fd-bar, .fd-tabs { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        .fd-bar .sm-check { min-height: 34px; margin-left: 4px; }
+        .fd-tabs .is-on { background: var(--accent); color: var(--bg-base); border-color: var(--accent); font-weight: 600; }
+        .fd-sep { flex: 1; }
+        .fd-ctl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 22px; padding: 16px; border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .fd-s label { display: flex; justify-content: space-between; margin-bottom: 4px; color: var(--text-secondary); font-size: 12px; }
+        .fd-s .sm-check { justify-content: flex-start; margin: 0; color: var(--text-primary); font-size: 13px; }
+        .fd-s output { font-family: var(--font-mono); color: var(--text-primary); }
+        .fd-s input[type=range] { width: 100%; accent-color: var(--accent); }
+        .fd-colors { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .fd-colors input[type=color] { width: 40px; height: 34px; padding: 0; background: none; border: 1px solid var(--border-hover); border-radius: 8px; cursor: pointer; }
+        .fd-x { width: 22px; height: 22px; margin-left: -4px; padding: 0; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 50%; color: var(--text-secondary); line-height: 1; cursor: pointer; }
+        .fd-wide { grid-column: 1 / -1; }
         .sm-pv { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px; margin-bottom: 14px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 12px; }
         .sm-pv[hidden] { display: none; }
         .sm-pv-note { font-size: 12px; color: var(--text-secondary); }
@@ -91,6 +113,7 @@
     </div>
 
     <dialog class="sm-dlg" id="dlg"><form id="dlgForm" novalidate></form></dialog>
+    <dialog class="sm-dlg sm-dlg--wide" id="dlgFrame" aria-label="Frame designer"><div id="frameBody"></div></dialog>
     <div class="sm-toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
@@ -136,6 +159,15 @@
                 var v = opt.values && opt.values[f.key], input;
                 if (f.type === 'textarea') input = el('textarea', { rows: '3', maxlength: f.max || null });
                 else if (f.type === 'select') input = el('select', null, f.options.map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+                else if (f.type === 'frame') {
+                    input = el('div', { class: 'sm-framefield' });
+                    input._frame = v || null;
+                    var fpv = el('span', { class: 'sp-avatar', style: '--sp-size:56px', text: 'A' });
+                    var paintF = function () { if (window.SpecFrames) window.SpecFrames.apply(fpv, input._frame); };
+                    input.appendChild(fpv);
+                    input.appendChild(el('button', { type: 'button', class: 'sm-btn', text: 'Open frame designer', onclick: function () { openDesigner(input._frame, function (fr) { input._frame = fr; paintF(); }); } }));
+                    paintF();
+                }
                 else if (f.type === 'multi') input = el('div', { class: 'sm-multi' }, f.options.length ? f.options.map(function (o) {
                     var cb = el('input', { type: 'checkbox', value: o[0] });
                     if ((v || []).indexOf(o[0]) >= 0) cb.checked = true;
@@ -145,7 +177,7 @@
                 else input = el('input', { type: f.type === 'datetime' ? 'datetime-local' : (f.type || 'text'), min: f.type === 'number' ? '0' : null, placeholder: f.placeholder || null, autocomplete: 'off' });
                 if (f.type === 'checkbox') input.checked = !!v;
                 else if (f.type === 'datetime') input.value = toLocalInput(v);
-                else if (f.type !== 'multi') input.value = v == null ? '' : v;
+                else if (f.type !== 'multi' && f.type !== 'frame') input.value = v == null ? '' : v;
                 inputs[f.key] = input;
                 var box = el('div', { class: 'sm-field' + (f.wide ? ' sm-wide' : '') });
                 if (f.type === 'checkbox') box.appendChild(el('label', { class: 'sm-check' }, input, f.label));
@@ -169,7 +201,8 @@
                 var out = {};
                 for (var i = 0; i < opt.fields.length; i++) {
                     var f = opt.fields[i], inp = inputs[f.key], val;
-                    if (f.type === 'multi') val = Array.from(inp.querySelectorAll('input:checked')).map(function (x) { return x.value; });
+                    if (f.type === 'frame') val = inp._frame;
+                    else if (f.type === 'multi') val = Array.from(inp.querySelectorAll('input:checked')).map(function (x) { return x.value; });
                     else if (f.type === 'checkbox') val = inp.checked;
                     else if (f.type === 'number') val = f.nullable ? numOrNull(inp.value) : (inp.value === '' ? null : Number(inp.value));
                     else if (f.type === 'datetime') val = inp.value ? new Date(inp.value).toISOString() : null;
@@ -211,10 +244,7 @@
             { key: 'description', label: 'Description', type: 'textarea', wide: true, max: 240, nullable: true },
             { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS ring)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['badge', 'Badge'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
             { key: 'emote_name', label: 'Emote code (Emote category only)', nullable: true, placeholder: 'pepe_happy', hint: 'Letters, numbers and _ + -. Members use it as :pepe_happy:. Needs an Image URL. Do not reuse a built-in emoji name.' },
-            { key: 'frame_style', label: 'Frame style (Frame category only)', type: 'select', options: [['spin', 'Spinning ring'], ['rainbow', 'Rainbow ring'], ['pulse', 'Pulse glow'], ['orbit', 'Dashed orbit'], ['neon', 'Neon'], ['fire', 'Fire'], ['dots', 'Dotted rings'], ['aurora', 'Aurora'], ['twin', 'Twin rings']] },
-            { key: 'frame_speed', label: 'Frame speed (seconds per turn)', type: 'number', hint: 'Lower is faster. 0.5 to 20.' },
-            { key: 'frame_c1', label: 'Frame color 1', type: 'color' },
-            { key: 'frame_c2', label: 'Frame color 2', type: 'color' },
+            { key: 'frame_design', label: 'Frame design (Frame category only)', type: 'frame', wide: true, hint: 'Opens the designer: up to 4 layers, shapes, colors and motion, with a live preview.' },
             { key: 'bundle_items', label: 'Bundle contents (Bundle category only). Pick 2 or more', type: 'multi', wide: true, options: [] },
             { key: 'rarity', label: 'Rarity', type: 'select', options: [['common', 'Common'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary']] },
             { key: 'price', label: 'Price (APEX Credits)', type: 'number', required: true },
@@ -233,9 +263,8 @@
             if (isEmote) o.per_user_limit = 1;
             var isFrame = o.category === 'frame', isBundle = o.category === 'bundle', frame = null;
             if (isFrame) {
-                var hex = /^#[0-9a-fA-F]{6}$/;
-                if (!hex.test(o.frame_c1 || '') || !hex.test(o.frame_c2 || '')) throw new Error('Pick two frame colors.');
-                frame = { style: o.frame_style, c1: o.frame_c1, c2: o.frame_c2, speed: Math.min(20, Math.max(0.5, Number(o.frame_speed) || 3)) };
+                frame = window.SpecFrames ? window.SpecFrames.clean(o.frame_design) : null;
+                if (!frame) throw new Error('Design the frame first: press Open frame designer.');
                 o.per_user_limit = 1;
             }
             if (isBundle) {
@@ -258,22 +287,13 @@
             if (!ids.length) return;
             var n = await sb.from('store_bundle_items').insert(ids.map(function (x) { return { bundle_id: id, item_id: x }; })); if (n.error) throw itemErr(n.error);
         }
-        function framePreview(inputs) {
-            var av = el('span', { class: 'sp-avatar', style: '--sp-size:72px', text: 'A' });
-            var node = el('div', { class: 'sm-pv' }, el('span', { class: 'sm-pv-note', text: 'Frame preview' }), el('div', { class: 'sm-pv-stage' }, av));
-            return { node: node, update: function () {
-                var show = inputs.category.value === 'frame';
-                node.hidden = !show;
-                if (show && window.SpecFrames) window.SpecFrames.apply(av, { style: inputs.frame_style.value, c1: inputs.frame_c1.value, c2: inputs.frame_c2.value, speed: Number(inputs.frame_speed.value) || 3 });
-            } };
-        }
         function editItem(it) {
             var isNew = !it, fd = (it && it.frame_data) || {};
             var fields = ITEM_FIELDS.map(function (f) {
                 return f.key !== 'bundle_items' ? f : Object.assign({}, f, { options: S.items.filter(function (i) { return i.category !== 'bundle' && (!it || i.id !== it.id); }).map(function (i) { return [i.id, i.name + ' (' + fmt(i.price) + ')']; }) });
             });
-            var base = { frame_style: fd.style || 'spin', frame_c1: fd.c1 || '#7F77DD', frame_c2: fd.c2 || '#D4537E', frame_speed: fd.speed || 3, bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
-            openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: fields, preview: framePreview,
+            var base = { frame_design: it ? it.frame_data : (window.SpecFrames ? window.SpecFrames.TEMPLATES[0].frame : null), bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
+            openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: fields,
                 values: Object.assign({}, it || { category: 'badge', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' }, base),
                 onSave: async function (o) {
                     var row = itemPayload(o);
@@ -510,6 +530,135 @@
             S.sales.forEach(function (x) { list.appendChild(el('div', { class: 'sm-row' }, el('div', { class: 'sm-thumb', text: '🧾' }), el('div', { class: 'sm-main' }, el('strong', { text: x.item_name }), el('div', { class: 'sm-meta', text: (S.names[x.user_id] || x.user_id.slice(0, 8)) + ' · ' + fmt(x.price_paid) + ' credits · ' + when(x.created_at) })), el('div'))); });
             root.appendChild(list);
         }
+
+        /* FRAME DESIGNER START */
+        var LT = [['ring', 'Solid ring'], ['gradient', 'Gradient ring'], ['dashed', 'Dashed ring'], ['dotted', 'Dotted ring'], ['glow', 'Soft glow'], ['dots', 'Orbiting dots'], ['sparkles', 'Sparkles'], ['ripple', 'Ripple waves']];
+        var MAXC = { ring: 1, dashed: 1, dotted: 1, ripple: 1, glow: 2, gradient: 5, dots: 5, sparkles: 5 };
+        var SPIN = ['width', 'gap', 'opacity', 'speed', 'dir', 'pulse', 'pulseSpeed', 'flicker', 'delay'];
+        var SHOW = {
+            ring: ['width', 'gap', 'opacity', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
+            gradient: ['width', 'gap', 'arc', 'opacity', 'speed', 'dir', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
+            dashed: SPIN, dotted: SPIN,
+            glow: ['width', 'blur', 'gap', 'opacity', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
+            dots: ['size', 'count', 'gap', 'opacity', 'speed', 'dir', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
+            sparkles: ['size', 'count', 'gap', 'opacity', 'speed', 'dir', 'pulseSpeed', 'flicker', 'delay'],
+            ripple: ['width', 'gap', 'opacity', 'speed', 'size', 'count', 'delay']
+        };
+        var CTL = { width: ['Thickness', 0.5], gap: ['Gap from avatar', 0.5], opacity: ['Opacity', 1], speed: ['Seconds per turn (0 = still)', 0.5], pulse: ['Pulse strength', 1], pulseSpeed: ['Pulse seconds', 0.1], flicker: ['Flicker', 1], count: ['Count', 1], size: ['Size', 0.5], arc: ['Gradient length (%)', 1], blur: ['Glow size', 1], delay: ['Start delay (seconds)', 0.1] };
+        var LBL = { glow: { width: 'Glow spread' }, sparkles: { pulseSpeed: 'Twinkle seconds' }, ripple: { speed: 'Seconds per wave', size: 'Spread', count: 'Waves (1 to 3)' } };
+
+        function hsl(h, s, l) {
+            s /= 100; l /= 100;
+            var k = function (n) { return (n + h / 30) % 12; }, a = s * Math.min(l, 1 - l);
+            var f = function (n) { return Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); };
+            return '#' + f(0) + f(8) + f(4);
+        }
+        function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+        function rnd(a, b, step) { var v = a + Math.random() * (b - a); return step ? Math.round(v / step) * step : v; }
+        function randomFrame() {
+            var h = Math.floor(Math.random() * 360), n = 1 + Math.floor(Math.random() * 3), layers = [];
+            var pal = [hsl(h, 85, 60), hsl((h + 40 + Math.random() * 60) % 360, 85, 62), hsl((h + 180) % 360, 80, 65)];
+            var shape = Math.random() < 0.7 ? 'circle' : pick(['squircle', 'rounded', 'petal', 'blob']);
+            for (var i = 0; i < n; i++) {
+                var type = i === 0 ? pick(['gradient', 'gradient', 'ring', 'dashed', 'dotted']) : pick(['gradient', 'glow', 'dots', 'sparkles', 'ripple', 'ring', 'dotted']);
+                var cols = type === 'glow' ? pal.slice(0, 2) : (type === 'gradient' || type === 'dots' || type === 'sparkles') ? pal.slice(0, 2 + Math.floor(Math.random() * 2)) : [pal[i % 3]];
+                layers.push({ type: type, colors: cols, width: rnd(2, 7, 0.5), gap: rnd(0, 8, 0.5) + i * 1.5, opacity: rnd(60, 100, 5), speed: rnd(2, 12, 0.5), dir: Math.random() < 0.5 ? 1 : -1,
+                    pulse: Math.random() < 0.3 ? rnd(10, 40, 5) : 0, pulseSpeed: rnd(1.2, 3.5, 0.1), flicker: Math.random() < 0.2 ? rnd(20, 60, 5) : 0, count: Math.round(rnd(4, 10)), size: rnd(3, 8, 0.5), arc: pick([40, 55, 70, 100]), blur: rnd(6, 18, 1), delay: 0 });
+            }
+            return window.SpecFrames.clean({ v: 2, shape: shape, avatarShape: shape !== 'circle' && Math.random() < 0.5, layers: layers });
+        }
+        function newLayer() { return window.SpecFrames.clean({ v: 2, layers: [{ type: 'ring', colors: ['#38bdf8'] }] }).layers[0]; }
+        function typeName(t) { return (LT.filter(function (x) { return x[0] === t; })[0] || [0, t])[1]; }
+
+        function openDesigner(initial, done) {
+            var SF = window.SpecFrames, dlg = $('dlgFrame'), body = $('frameBody');
+            if (!SF) { toast('avatar-frames.js is missing from this page.', true); return; }
+            var D = { f: JSON.parse(JSON.stringify(SF.toV2(initial) || SF.TEMPLATES[0].frame)), sel: 0, light: false };
+            var avs = [];
+            function paint() { avs.forEach(function (a) { SF.apply(a, D.f); }); }
+
+            function render() {
+                body.textContent = '';
+                avs = [];
+                if (D.sel >= D.f.layers.length) D.sel = D.f.layers.length - 1;
+                var l = D.f.layers[D.sel], wrap = el('div', { class: 'fd' });
+                wrap.appendChild(el('h3', { text: 'Frame designer' }));
+
+                var stage = el('div', { class: 'fd-stage' + (D.light ? ' is-light' : '') });
+                [36, 64, 120].forEach(function (sz) {
+                    var a = el('span', { class: 'sp-avatar', style: '--sp-size:' + sz + 'px', text: 'A' });
+                    avs.push(a); stage.appendChild(el('div', { class: 'fd-av' }, a));
+                });
+                wrap.appendChild(stage);
+
+                var tpl = el('select', { 'aria-label': 'Template' }, el('option', { value: '', text: 'Start from a template' }), SF.TEMPLATES.map(function (t, i) { return el('option', { value: String(i), text: t.name }); }));
+                tpl.onchange = function () { if (tpl.value === '') return; D.f = JSON.parse(JSON.stringify(SF.TEMPLATES[Number(tpl.value)].frame)); D.sel = 0; render(); };
+                var shape = el('select', { 'aria-label': 'Frame shape' }, SF.SHAPES.map(function (s) { return el('option', { value: s, text: 'Shape: ' + s }); }));
+                shape.value = D.f.shape; shape.onchange = function () { D.f.shape = shape.value; paint(); };
+                var follow = el('input', { type: 'checkbox' }); follow.checked = !!D.f.avatarShape; follow.onchange = function () { D.f.avatarShape = follow.checked; paint(); };
+                wrap.appendChild(el('div', { class: 'fd-bar' }, tpl, shape,
+                    el('label', { class: 'sm-check' }, follow, 'Avatar follows shape'),
+                    el('span', { class: 'fd-sep' }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Randomize', onclick: function () { D.f = randomFrame() || D.f; D.sel = 0; render(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.light ? 'Dark preview' : 'Light preview', onclick: function () { D.light = !D.light; render(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Copy JSON', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(JSON.stringify(SF.clean(D.f))); toast('Frame JSON copied'); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Paste JSON', onclick: function () {
+                        var t = window.prompt('Paste a frame JSON'); if (!t) return;
+                        try { var f = SF.toV2(JSON.parse(t)); if (!f) throw new Error('bad'); D.f = f; D.sel = 0; render(); } catch (e) { toast('That is not a valid frame.', true); }
+                    } })));
+
+                var tabs = el('div', { class: 'fd-tabs' });
+                D.f.layers.forEach(function (ly, i) { tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm' + (i === D.sel ? ' is-on' : ''), text: (i + 1) + '. ' + typeName(ly.type), onclick: function () { D.sel = i; render(); } })); });
+                if (D.f.layers.length < 4) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Add layer', onclick: function () { D.f.layers.push(newLayer()); D.sel = D.f.layers.length - 1; render(); } }));
+                tabs.appendChild(el('span', { class: 'fd-sep' }));
+                if (D.f.layers.length < 4) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Duplicate', onclick: function () { D.f.layers.splice(D.sel + 1, 0, JSON.parse(JSON.stringify(l))); D.sel++; render(); } }));
+                tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Up', disabled: D.sel === 0, onclick: function () { var a = D.f.layers; a.splice(D.sel - 1, 0, a.splice(D.sel, 1)[0]); D.sel--; render(); } }));
+                tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Down', disabled: D.sel === D.f.layers.length - 1, onclick: function () { var a = D.f.layers; a.splice(D.sel + 1, 0, a.splice(D.sel, 1)[0]); D.sel++; render(); } }));
+                tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete layer', disabled: D.f.layers.length < 2, onclick: function () { D.f.layers.splice(D.sel, 1); render(); } }));
+                wrap.appendChild(tabs);
+
+                var ctl = el('div', { class: 'fd-ctl' });
+                var type = el('select', { 'aria-label': 'Layer type' }, LT.map(function (t) { return el('option', { value: t[0], text: t[1] }); }));
+                type.value = l.type;
+                type.onchange = function () { l.type = type.value; l.colors = l.colors.slice(0, MAXC[l.type]); render(); };
+                ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Layer type'), type));
+
+                var cr = el('div', { class: 'fd-colors' });
+                l.colors.forEach(function (col, i) {
+                    var inp = el('input', { type: 'color', value: col, 'aria-label': 'Color ' + (i + 1) });
+                    inp.oninput = function () { l.colors[i] = inp.value; paint(); };
+                    cr.appendChild(inp);
+                    if (l.colors.length > 1) cr.appendChild(el('button', { type: 'button', class: 'fd-x', 'aria-label': 'Remove color ' + (i + 1), text: '\u00d7', onclick: function () { l.colors.splice(i, 1); render(); } }));
+                });
+                if (l.colors.length < MAXC[l.type]) cr.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Color', onclick: function () { l.colors.push(l.colors[l.colors.length - 1]); render(); } }));
+                ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Colors (' + l.colors.length + ' of ' + MAXC[l.type] + ')'), cr));
+
+                SHOW[l.type].forEach(function (k) {
+                    if (k === 'dir') {
+                        var rev = el('input', { type: 'checkbox' }); rev.checked = l.dir < 0; rev.onchange = function () { l.dir = rev.checked ? -1 : 1; paint(); };
+                        ctl.appendChild(el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, rev, 'Spin the other way')));
+                        return;
+                    }
+                    var lim = SF.LIMITS[k], out = el('output', { text: String(l[k]) });
+                    var rng = el('input', { type: 'range', min: String(lim[0]), max: String(lim[1]), step: String(CTL[k][1]), value: String(l[k]), 'aria-label': (LBL[l.type] && LBL[l.type][k]) || CTL[k][0] });
+                    rng.oninput = function () { l[k] = Number(rng.value); out.textContent = rng.value; paint(); };
+                    ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, (LBL[l.type] && LBL[l.type][k]) || CTL[k][0], out), rng));
+                });
+                wrap.appendChild(ctl);
+
+                wrap.appendChild(el('div', { class: 'sm-dlg-foot' },
+                    el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { dlg.close(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--primary', text: 'Use this frame', onclick: function () {
+                        var f = SF.clean(D.f); if (!f) { toast('This frame is not valid.', true); return; }
+                        dlg.close(); done(f);
+                    } })));
+                body.appendChild(wrap);
+                paint();
+            }
+            render();
+            if (!dlg.open) dlg.showModal();
+        }
+        /* FRAME DESIGNER END */
 
         /* ---------- shell ---------- */
         function render() {

@@ -352,3 +352,10 @@ label.sx-row:hover { background: var(--accent-dim); }
 @media (prefers-reduced-motion: reduce) {
     .sx-swatch, .sx-preset { transition: none; }
 }
+
+/* live time/date preview (Settings > General) */
+.sx-readout {
+    display: block; padding: 12px 14px; box-sizing: border-box;
+    border: 1px dashed var(--border-hover); border-radius: 10px;
+    font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); overflow-wrap: anywhere;
+}
