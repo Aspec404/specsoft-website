@@ -20,7 +20,7 @@
         // YOUR LIVE ADDRESS, e.g. 'https://yoursite.netlify.app' (no slash at the end, https only).
         // When you test from 127.0.0.1 / localhost / your home network, email links (confirm, reset password)
         // point here instead, so they open on any device. Leave '' to keep links on the page you are on.
-        LIVE_SITE: ''
+        LIVE_SITE: 'https://specsoftdev.netlify.app'
     }, window.SPECSOFT_CONFIG || {});
 
     const card = document.getElementById('auCard');
@@ -57,8 +57,10 @@
         ? LIVE_SITE + '/'
         : location.origin + location.pathname.replace(/[^/]*$/, '');
     // the SPECSOFT "activation successful" page, and the login page that shows the new-password form
-    const verifiedUrl = () => emailBase() + 'verified.html';
-    const recoveryUrl = () => emailBase() + 'login.html';
+    // (each one also prints where the email link will return to, so a wrong destination is easy to spot in the console)
+    const verifiedUrl = () => { const u = emailBase() + 'verified.html'; console.info('[auth] confirmation email link will return to:', u); return u; };
+    const recoveryUrl = () => { const u = emailBase() + 'login.html'; console.info('[auth] reset email link will return to:', u); return u; };
+    console.info('[auth] page address:', location.origin, '| LIVE_SITE:', LIVE_SITE || '(empty)', '| local address:', onLocalAddress());
     const canOAuth = () => /^https?:$/.test(location.protocol);
 
     // Only allow redirects to a local .html page (blocks open-redirect tricks)
