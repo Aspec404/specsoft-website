@@ -16,7 +16,11 @@
         SUPABASE_URL: 'https://mcpjjmbvuzclzrniunkq.supabase.co',
         SUPABASE_ANON_KEY: 'sb_publishable_uuybm3j2xZ0wdrbIhxANCQ_QApPdkv7',
         DEFAULT_NEXT: 'community.html',
-        MIN_PASSWORD: 8
+        MIN_PASSWORD: 8,
+        // YOUR LIVE ADDRESS, e.g. 'https://yoursite.netlify.app' (no slash at the end, https only).
+        // When you test from 127.0.0.1 / localhost / your home network, email links (confirm, reset password)
+        // point here instead, so they open on any device. Leave '' to keep links on the page you are on.
+        LIVE_SITE: ''
     }, window.SPECSOFT_CONFIG || {});
 
     const card = document.getElementById('auCard');
@@ -41,8 +45,20 @@
     if (!sb) $('auConfig').hidden = false;
 
     const baseUrl = () => location.origin + location.pathname;
-    // where the confirmation email sends people: the SPECSOFT "activation successful" page (same folder as login.html)
-    const verifiedUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'verified.html';
+    // ----- where links in EMAILS lead -----
+    // Emails get opened on other devices (your phone), where 127.0.0.1 / localhost means "this phone" and fails.
+    // So on a local or home-network address, email links use LIVE_SITE instead. On the real site nothing changes.
+    // (Discord login is not an email link: it returns to the same device, so it keeps using baseUrl().)
+    const LIVE_SITE = /^https:\/\/[A-Za-z0-9.-]+(:\d+)?$/.test(String(CONFIG.LIVE_SITE || '').trim().replace(/\/+$/, ''))
+        ? String(CONFIG.LIVE_SITE).trim().replace(/\/+$/, '') : '';
+    const onLocalAddress = () => location.protocol === 'file:' ||
+        /^(localhost|127\.|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+    const emailBase = () => (LIVE_SITE && onLocalAddress())
+        ? LIVE_SITE + '/'
+        : location.origin + location.pathname.replace(/[^/]*$/, '');
+    // the SPECSOFT "activation successful" page, and the login page that shows the new-password form
+    const verifiedUrl = () => emailBase() + 'verified.html';
+    const recoveryUrl = () => emailBase() + 'login.html';
     const canOAuth = () => /^https?:$/.test(location.protocol);
 
     // Only allow redirects to a local .html page (blocks open-redirect tricks)
@@ -448,7 +464,7 @@
             termLog('sending reset link...');
             if (!sb) needBackend();
             const captchaToken = await captcha.token(fForgot);
-            const { error } = await sb.auth.resetPasswordForEmail(email.value.trim(), { redirectTo: baseUrl(), captchaToken });
+            const { error } = await sb.auth.resetPasswordForEmail(email.value.trim(), { redirectTo: recoveryUrl(), captchaToken });
             if (error) throw error;
             pendingEmail = email.value.trim();
             resendKind = 'recovery';
@@ -525,7 +541,7 @@
             const checkPanel = document.querySelector('[data-panel="check"]');
             const captchaToken = await captcha.token(checkPanel);
             const { error } = resendKind === 'recovery'
-                ? await sb.auth.resetPasswordForEmail(pendingEmail, { redirectTo: baseUrl(), captchaToken })
+                ? await sb.auth.resetPasswordForEmail(pendingEmail, { redirectTo: recoveryUrl(), captchaToken })
                 : await sb.auth.resend({ type: 'signup', email: pendingEmail, options: { emailRedirectTo: verifiedUrl(), captchaToken } });
             if (error) throw error;
             msg.className = 'au-msg is-ok';
