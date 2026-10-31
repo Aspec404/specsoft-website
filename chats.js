@@ -177,7 +177,7 @@
     function previewText(body) {
         if (gifMediaUrl(body)) return 'GIF';
         if (String(body || '').slice(0, 6) === '[[bug:') { const b = parseBug(body); return '\uD83D\uDC1B Bug' + (b ? ': ' + b.t : ' report'); }
-        return String(body || '').replace(/```[\s\S]*?```/g, '[code]').replace(/\s+/g, ' ').trim().slice(0, 90);
+        return String(body || '').replace(/```[\s\S]*?```/g, '[code]').replace(/:([a-z0-9_+-]{1,32}):/gi, flShortcodeToChar).replace(/\s+/g, ' ').trim().slice(0, 90);
     }
 
     function mentionsUser(text, username) {
@@ -934,8 +934,12 @@
         const cards = [];
         parseMessage(text).forEach(function (blk) {
             if (blk.t === 'block') { frag.appendChild(buildCodeBlock(blk.v, blk.lang)); return; }
-            const inlineText = blk.v.replace(/:([a-z0-9_+-]{1,32}):/gi, function (match, name) {
-                return CUSTOM_EMOJI[name.toLowerCase()] ? '\u0000' + name.toLowerCase() + '\u0000' : match;
+            const inlineText = blk.v.replace(/:([a-z0-9_+-]{1,32}):/gi, function (match, name, offset, whole) {
+                const k = name.toLowerCase();
+                if (CUSTOM_EMOJI[k]) return '\u0000' + k + '\u0000';
+                // standard emoji (:sob:, :loudly_crying_face:...). not when glued to a word, like 12:100:5
+                if (FL.byCode[k] && !(offset > 0 && /[A-Za-z0-9]/.test(whole.charAt(offset - 1)))) return '\u0000' + k + '\u0000';
+                return match;
             }).replace(/https:\/\/cdn\d+\.emoji\.gg\/[\w./%+-]+\.(?:png|gif|webp|jpe?g)(?:[?#][^\s]*)?/gi, function (url) {
                 return isCustomEmojiUrl(url) ? '\u0000url:' + url + '\u0000' : url;
             });
@@ -944,22 +948,22 @@
                     tok.v.split(/(\u0000(?:[a-z0-9_+-]{1,32}|url:https:\/\/[^\u0000]+)\u0000)/i).forEach(function (piece) {
                         const match = /^\u0000([a-z0-9_+-]{1,32}|url:https:\/\/[^\u0000]+)\u0000$/i.exec(piece);
                         if (match && match[1].indexOf('url:') === 0) frag.appendChild(makeCustomEmoji(match[1].slice(4), 'Custom emoji', jumboEmoji));
-                        else if (match) frag.appendChild(makeCustomEmoji(CUSTOM_EMOJI[match[1].toLowerCase()], ':' + match[1] + ':', jumboEmoji));
-                        else if (piece) frag.appendChild(document.createTextNode(piece));
+                        else if (match) {
+                            const k = match[1].toLowerCase();
+                            if (CUSTOM_EMOJI[k]) frag.appendChild(makeCustomEmoji(CUSTOM_EMOJI[k], ':' + match[1] + ':', jumboEmoji));
+                            else if (FL.byCode[k]) frag.appendChild(makeFluentEmoji(FL.byCode[k], jumboEmoji));
+                            else frag.appendChild(document.createTextNode(':' + k + ':'));
+                        }
+                        else if (piece) appendTextWithEmoji(frag, piece, jumboEmoji);
                     });
                     return;
                 }
-                if (tok.t === 'text' && jumboEmoji && /\p{Extended_Pictographic}/u.test(tok.v)) {
-                    const emojiOnly = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?)*(?:\p{Emoji_Modifier})?|\p{Regional_Indicator}{2})+$/u;
-                    if (emojiOnly.test(tok.v)) frag.appendChild(el('span', { class: 'ch-jumbo-native', text: tok.v }));
-                    else frag.appendChild(document.createTextNode(tok.v));
-                }
-                else if (tok.t === 'text') frag.appendChild(document.createTextNode(tok.v));
-                else if (tok.t === 'b') frag.appendChild(el('strong', { text: tok.v }));
-                else if (tok.t === 'i') frag.appendChild(el('em', { text: tok.v }));
-                else if (tok.t === 's') frag.appendChild(el('s', { text: tok.v }));
-                else if (tok.t === 'code') frag.appendChild(el('code', { class: 'ch-code', text: tok.v }));
-                else if (tok.t === 'spoiler') frag.appendChild(el('span', { class: 'ch-spoiler', role: 'button', tabindex: '0', title: 'Reveal', onclick: function (e) { e.stopPropagation(); e.currentTarget.classList.toggle('is-open'); } }, tok.v));
+                if (tok.t === 'text') appendTextWithEmoji(frag, tok.v, jumboEmoji);
+                else if (tok.t === 'b') frag.appendChild(el('strong', { text: unmark(tok.v) }));
+                else if (tok.t === 'i') frag.appendChild(el('em', { text: unmark(tok.v) }));
+                else if (tok.t === 's') frag.appendChild(el('s', { text: unmark(tok.v) }));
+                else if (tok.t === 'code') frag.appendChild(el('code', { class: 'ch-code', text: unmark(tok.v) }));
+                else if (tok.t === 'spoiler') frag.appendChild(el('span', { class: 'ch-spoiler', role: 'button', tabindex: '0', title: 'Reveal', onclick: function (e) { e.stopPropagation(); e.currentTarget.classList.toggle('is-open'); } }, unmark(tok.v)));
                 else if (tok.t === 'link') {
                     const u = safeHttps(tok.v);
                     if (u && isCustomEmojiUrl(u)) frag.appendChild(makeCustomEmoji(u, tok.label || 'Custom emoji', jumboEmoji));
@@ -1074,9 +1078,10 @@
         const reactions = el('div', { class: 'ch-reactions' });
         groupReactions(m).forEach(function (g) {
             const customReaction = /^:([a-z0-9_+-]{1,32}):$/i.exec(g.emoji);
+            const flReaction = customReaction ? null : flByChar(g.emoji);
             const reactionContent = customReaction && CUSTOM_EMOJI[customReaction[1].toLowerCase()]
                 ? el('img', { class: 'ch-reaction-emoji', src: CUSTOM_EMOJI[customReaction[1].toLowerCase()], alt: g.emoji, title: g.emoji })
-                : el('span', { text: g.emoji });
+                : (flReaction ? makeFluentImg(flReaction, 'ch-reaction-emoji') : el('span', { text: g.emoji }));
             reactions.appendChild(el('button', { type: 'button', class: 'ch-react' + (g.mine ? ' is-mine' : ''), 'aria-pressed': String(g.mine), 'aria-label': g.emoji + ' ' + g.n, onclick: function (e) { e.stopPropagation(); toggleReaction(m, g.emoji); } },
                 reactionContent, el('b', { text: String(g.n) })));
         });
@@ -1089,6 +1094,10 @@
             if (!bug && canPinHere(S.current)) tools.appendChild(el('button', { type: 'button', class: 'ch-tool', title: S.pinIds.has(m.id) ? 'Unpin message' : 'Pin message', 'aria-label': S.pinIds.has(m.id) ? 'Unpin message' : 'Pin message', onclick: function (e) { e.stopPropagation(); togglePinMessage(m); } }, icon('pin')));
             if (!mine && !bug) tools.appendChild(el('button', { type: 'button', class: 'ch-tool ch-tool--danger', title: 'Report', 'aria-label': 'Report message', onclick: function (e) { e.stopPropagation(); openReport(m); } }, icon('flag')));
         }
+        // phones: the hover toolbar is hidden there, so this always-visible button opens the same sheet (React, Reply, Edit...)
+        const moreBtn = (!deleted && !m.pending)
+            ? el('button', { type: 'button', class: 'ch-msg-more', title: 'Message actions', 'aria-label': 'Message actions', onclick: function (e) { e.stopPropagation(); openMsgSheet(m, e.currentTarget.closest('.ch-msg')); } }, icon('more'))
+            : null;
         const canDelete = !deleted && !m.pending && (mine || (S.current && (S.current.role === 'owner' || S.current.role === 'admin')));
         if (canDelete) tools.appendChild(el('button', { type: 'button', class: 'ch-tool ch-tool--danger', title: 'Delete', 'aria-label': 'Delete', onclick: function (e) { e.stopPropagation(); deleteMessage(m); } }, icon('trash')));
 
@@ -1103,16 +1112,10 @@
         },
             grouped ? el('span', { class: 'ch-msg-gap', 'aria-hidden': 'true' }) : el('span', { class: 'ch-msg-av' }, avatar(sender, 36)),
             el('div', { class: 'ch-msg-body' }, head, m.reply_to && !deleted ? replyQuote(m) : null, bubble, imageAttachmentView, reactions.children.length ? reactions : null),
-            tools);
+            tools,
+            moreBtn);
 
-        // tap a message on a phone to show its actions
-        bubble.addEventListener('click', function (e) {
-            if (e.target.closest && e.target.closest('a, button, .ch-spoiler')) return;
-            const feed = $('chFeed');
-            const open = node.classList.contains('is-open');
-            feed.querySelectorAll('.ch-msg.is-open').forEach(function (n) { n.classList.remove('is-open'); });
-            if (!open) node.classList.add('is-open');
-        });
+        // phones: a plain tap does nothing. Hold the message to get the action sheet (see wireMessageSheet)
         return node;
     }
 
@@ -1275,6 +1278,7 @@
 
         leaveRoomChannel();
         closeMention();
+        closeEmojiSuggest();
         S.current = room;
         S.pinIds = new Set();
         loadPinIds(room);
@@ -1475,7 +1479,9 @@
     }
 
     function makeComposerEmoji(code, url) {
-        return el('img', { class: 'ch-input-emoji', src: url, alt: code, 'data-code': code, draggable: 'false', contenteditable: 'false' });
+        const img = el('img', { class: 'ch-input-emoji', src: url, alt: code, 'data-code': code, draggable: 'false', contenteditable: 'false' });
+        img.addEventListener('error', function () { img.replaceWith(document.createTextNode(code)); });     // picture missing: back to plain text
+        return img;
     }
 
     // plain text -> DOM nodes (:name: becomes an image, \n becomes <br>)
@@ -1483,17 +1489,36 @@
         const nodes = [];
         const re = /:([a-z0-9_+-]{1,32}):/gi;
         let last = 0, m;
+        // keyboard / picker emoji inside a piece of text become Windows 11 pictures too
+        const pushLine = function (line) {
+            const er = new RegExp(RE_EMOJI_SRC, 'gu');
+            let from = 0, em;
+            while (FL.ready && (em = er.exec(line))) {
+                const item = flByChar(em[0]);
+                if (!item) continue;
+                if (em.index > from) nodes.push(document.createTextNode(line.slice(from, em.index)));
+                nodes.push(makeComposerEmoji(em[0], item.url));
+                from = em.index + em[0].length;
+            }
+            if (from < line.length) nodes.push(document.createTextNode(line.slice(from)));
+        };
         const pushText = function (t) {
             t.split('\n').forEach(function (line, i) {
                 if (i) nodes.push(document.createElement('br'));
-                if (line) nodes.push(document.createTextNode(line));
+                if (line) pushLine(line);
             });
         };
         while ((m = re.exec(text))) {
+            let node = null;
             const url = composerEmojiUrl(m[1]);
-            if (!url) { re.lastIndex = m.index + 1; continue; }    // not one of ours: leave as text, keep scanning
+            if (url) node = makeComposerEmoji(m[0], url);
+            else {
+                const item = flByCode(m[1]);
+                if (item && !(m.index > 0 && /[A-Za-z0-9]/.test(text.charAt(m.index - 1)))) node = makeComposerEmoji(m[0], item.url);
+            }
+            if (!node) { re.lastIndex = m.index + 1; continue; }    // not an emoji: leave as text, keep scanning
             if (m.index > last) pushText(text.slice(last, m.index));
-            nodes.push(makeComposerEmoji(m[0], url));
+            nodes.push(node);
             last = re.lastIndex;
         }
         if (last < text.length) pushText(text.slice(last));
@@ -1508,6 +1533,7 @@
         root.classList.toggle('is-empty', !text);
         composerRange = null;
         if (typeof closeMention === 'function') closeMention();
+        if (typeof closeEmojiSuggest === 'function') closeEmojiSuggest();
     }
 
     // keeps  $('chInput').value / .placeholder / .disabled working like on a textarea
@@ -1572,11 +1598,17 @@
         const upto = node.nodeValue.slice(0, sel.anchorOffset);
         const m = /:([a-z0-9_+-]{1,32}):$/i.exec(upto);
         if (!m) return;
+        let img = null;
         const url = composerEmojiUrl(m[1]);
-        if (!url) return;
+        if (url) img = makeComposerEmoji(m[0], url);
+        else {
+            const item = flByCode(m[1]);                                   // :sob: typed by hand -> Windows 11 picture
+            const before = m.index > 0 ? upto.charAt(m.index - 1) : '';
+            if (item && !/[A-Za-z0-9]/.test(before)) img = makeComposerEmoji(m[0], item.url);
+        }
+        if (!img) return;
         const after = node.nodeValue.slice(sel.anchorOffset);
         const parent = node.parentNode;
-        const img = makeComposerEmoji(m[0], url);
         node.nodeValue = node.nodeValue.slice(0, m.index);
         parent.insertBefore(img, node.nextSibling);
         let tail = null;
@@ -2417,131 +2449,386 @@
     /* ----------------------------------------------------------------------
        9. EMOJI PICKER + QUICK REACTIONS
        ---------------------------------------------------------------------- */
-    // Add categories here. Unicode strings are standard emoji; image entries use { name: 'pepe', image: 'https://example.com/pepe.png' }.
+    // The emoji picker lists (Emoticons, People, Things, Symbols, Meme Emojis...) and the quick reactions now live in chat-emoji.js.
     const CUSTOM_EMOJI = Object.create(null);
-    const EMOJI = {
-        'Emoticons': [
-         { name: 'grinning', image: 'https://cdn3.emoji.gg/emojis/6199-win11emoji-grinning.png' },
-         { name: 'grinning_with_big_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/grinning-face-with-big-eyes_1f603.png' },
-         { name: 'grinning_with_smiling_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/grinning-face-with-smiling-eyes_1f604.png' },
-         { name: 'beaming_with_smiling_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/beaming-face-with-smiling-eyes_1f601.png' },
-         { name: 'grinning_squinting_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/grinning-squinting-face_1f606.png' },
-         { name: 'grinning_face_with_sweat', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/grinning-face-with-sweat_1f605.png' },
-         { name: 'rolling_on_the_floor_laughing', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/rolling-on-the-floor-laughing_1f923.png' },
-         { name: 'face_with_tears_of_joy', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-tears-of-joy_1f602.png' },
-         { name: 'slightly_smiling_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/slightly-smiling-face_1f642.png' },
-         { name: 'upside_down_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/upside-down-face_1f643.png' },
-         { name: 'melting_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/melting-face_1fae0.png' },
-         { name: 'winking_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/winking-face_1f609.png' },
-         { name: 'smiling_face_with_smiling_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/smiling-face-with-smiling-eyes_1f60a.png' },
-         { name: 'smiling_face_with_halo', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/smiling-face-with-halo_1f607.png' },
-         { name: 'smiling_face_with_hearts', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/smiling-face-with-hearts_1f970.png' },
-         { name: 'smiling_face_with_heart-eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/smiling-face-with-heart-eyes_1f60d.png' },
-         { name: 'star-struck', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/star-struck_1f929.png' },
-         { name: 'face_blowing_a_kiss', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-blowing-a-kiss_1f618.png' },
-         { name: 'kissing_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/kissing-face_1f617.png' },
-         { name: 'smiling_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/smiling-face_263a-fe0f.png' },
-         { name: 'kissing_face_with_closed_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/kissing-face-with-closed-eyes_1f61a.png' },
-         { name: 'kissing_face_with_smiling_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/kissing-face-with-smiling-eyes_1f619.png' },
-         { name: 'smiling_face_with_tear', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/smiling-face-with-tear_1f972.png' },
-         { name: 'face_savoring_food', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-savoring-food_1f60b.png' },
-         { name: 'face_with_tongue', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-tongue_1f61b.png' },
-         { name: 'winking_face_with_tongue', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/winking-face-with-tongue_1f61c.png' },
-         { name: 'zany_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/zany-face_1f92a.png' },
-         { name: 'squinting_face_with_tongue', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/squinting-face-with-tongue_1f61d.png' },
-         { name: 'money-mouth_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/money-mouth-face_1f911.png' },
-         { name: 'hugging_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/hugging-face_1f917.png' },
-         { name: 'face_with_hand_over_mouth', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-hand-over-mouth_1f92d.png' },
-         { name: 'face_open_eyes_hand_over_mouth', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-open-eyes-and-hand-over-mouth_1fae2.png' },
-         { name: 'face_with_peeking_eye', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-peeking-eye_1fae3.png' },
-         { name: 'shushing_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/shushing-face_1f92b.png' },
-         { name: 'thinking_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/thinking-face_1f914.png' },
-         { name: 'saluting_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/saluting-face_1fae1.png' },
-         { name: 'zipper-mouth_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/zipper-mouth-face_1f910.png' },
-         { name: 'face_with_raised_eyebrow', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-raised-eyebrow_1f928.png' },
-         { name: 'neutral_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/neutral-face_1f610.png' },
-         { name: 'expressionless_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/expressionless-face_1f611.png' },
-         { name: 'face_without_mouth', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-without-mouth_1f636.png' },
-         { name: 'dotted_line_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/dotted-line-face_1fae5.png' },
-         { name: 'face_in_clouds', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-in-clouds_1f636-200d-1f32b-fe0f.png' },
-         { name: 'smirking_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/smirking-face_1f60f.png' },
-         { name: 'unamused_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/unamused-face_1f612.png' },
-         { name: 'rolling_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-rolling-eyes_1f644.png' },
-         { name: 'grimacing_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/grimacing-face_1f62c.png' },
-         { name: 'lying_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/lying-face_1f925.png' },
-         { name: 'shaking_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/shaking-face_1fae8.png' },
-         { name: 'head_shaking_horizontally', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/head-shaking-horizontally_1f642-200d-2194-fe0f.png '},
-         { name: 'head_shaking_vertically', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/head-shaking-horizontally_1f642-200d-2194-fe0f.png '},
-         { name: 'relieved_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/relieved-face_1f60c.png' },
-         { name: 'pensive_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/pensive-face_1f614.png' },
-         { name: 'sleepy_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/sleepy-face_1f62a.png' },
-         { name: 'drooling_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/drooling-face_1f924.png' },
-         { name: 'sleeping_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/sleeping-face_1f634.png' },
-         { name: 'face_bags_under_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-bags-under-eyes_1fae9.png '},
-         { name: 'face_with_medical_mask', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-medical-mask_1f637.png' },
-         { name: 'face_with_thermometer', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-thermometer_1f912.png' },
-         { name: 'face_with_head-bandage', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-head-bandage_1f915.png' },
-         { name: 'nauseated_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/nauseated-face_1f922.png' },
-         { name: 'face_vommiting', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-vomiting_1f92e.png' },
-         { name: 'sneezing_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/sneezing-face_1f927.png' },
-         { name: 'hot_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/hot-face_1f975.png' },
-         { name: 'cold_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/cold-face_1f976.png' },
-         { name: 'woozy_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/woozy-face_1f974.png' },
-         { name: 'dizzy_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/dizzy-face_1f635.png' },
-         { name: 'face_with_spiral_eyes', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-spiral-eyes_1f635-200d-1f4ab.png' },
-         { name: 'exploding_head', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/exploding-head_1f92f.png' },
-         { name: 'cowboy_hat_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/cowboy-hat-face_1f920.png' },
-         { name: 'partying_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/partying-face_1f973.png' },
-         { name: 'disguised_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/disguised-face_1f978.png' },
-         { name: 'face_with_sunglasses', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/smiling-face-with-sunglasses_1f60e.png' },
-         { name: 'nerd_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/nerd-face_1f913.png' },
-         { name: 'face_with_monocole', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-monocle_1f9d0.png' },
-         { name: 'confused_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/confused-face_1f615.png' },
-         { name: 'face_with_diagonal_mouth', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-diagonal-mouth_1fae4.png' },
-         { name: 'worried_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/worried-face_1f61f.png' },
-         { name: 'slightly_frowning_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/slightly-frowning-face_1f641.png' },
-         { name: 'frowning_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/frowning-face_2639-fe0f.png' },
-         { name: 'face_with_open_mouth', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-with-open-mouth_1f62e.png' },
-         { name: 'hushed_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/hushed-face_1f62f.png' },
-         { name: 'astonished_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/astonished-face_1f632.png' },
-         { name: 'flushed_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/flushed-face_1f633.png' },
-         { name: 'distorted_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/distorted-face_1faea.png' },
-         { name: 'pleading_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/pleading-face_1f97a.png' },
-         { name: 'face_holding_back_tears', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-holding-back-tears_1f979.png' },
-         { name: 'frowning_with_open_mouth', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/frowning-face-with-open-mouth_1f626.png' },
-         { name: 'anguished_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/anguished-face_1f627.png' },
-         { name: 'fearful_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/fearful-face_1f628.png' },
-         { name: 'anxious_face-with_sweat', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/anxious-face-with-sweat_1f630.png' },
-         { name: 'sad_but_relieved_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/sad-but-relieved-face_1f625.png' },
-         { name: 'crying_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/crying-face_1f622.png' },
-         { name: 'loudly_crying_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/loudly-crying-face_1f62d.png' },
-         { name: 'screaming_in_fear', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/face-screaming-in-fear_1f631.png' },
-         { name: 'confounded_face', image: 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/confounded-face_1f616.png' },
-        ],
-        'People': ['👍','👎','👏','🙌','🙏','💪','👀','🤝','✌️','🤞','👋','🫶','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','🔥','✨','⭐','💯','🎉','🎊'],
-        'Things': ['🎮','🕹️','💻','⌨️','🖥️','🧠','🛠️','⚙️','🚀','🛰️','🔒','🔑','📦','📁','📌','🧩','🎨','🎧','🎵','📸','💡','🔔','☕','🍕','🍔','🏆','🥇'],
-        'Symbols': ['✅','❌','⚠️','❓','❗','➕','➖','➡️','⬆️','⬇️','🔴','🟢','🟡','🔵','⚪','⚫','🟣','💬','💭','🔗','📣'],
-        'Meme Emojis': [
-         { name: 'osaka', image: 'https://cdn3.emoji.gg/emojis/896127-osaka.gif' },
-         { name: 'speedpray', image: 'https://cdn3.emoji.gg/emojis/583890-speedpray.gif' },
-         { name: 'trollface', image: 'https://cdn3.emoji.gg/emojis/890856-troll.png' },
-         { name: 'sonnn', image: 'https://cdn3.emoji.gg/emojis/896534-sonnnnnn.png' },
-         { name: 'ohmygodbruh', image: 'https://cdn3.emoji.gg/emojis/56486-ohmygodbruh.gif' },
-         { name: 'sus', image: 'https://cdn3.emoji.gg/emojis/761721-sus.png' },
-         { name: 'monkeythink', image: 'https://cdn3.emoji.gg/emojis/801254-monkeythinking.png' },
-         { name: 'soncrine', image: 'https://cdn3.emoji.gg/emojis/888036-soncrine.png' },
-         { name: 'terified', image: 'https://cdn3.emoji.gg/emojis/126907-terrified.png' },
-         { name: 'absolutecinema', image: 'https://cdn3.emoji.gg/emojis/74929-absolutecinema.png' }
-        ]
-    };
-    Object.keys(EMOJI).forEach(function (category) {
-        EMOJI[category].forEach(function (entry) {
+    const EMOJI = {};
+    // the quick bar that pops up when you react to a message. These are only the fallback: chat-emoji.js (SPEC_CHAT_QUICK) replaces them.
+    const QUICK = ['👍', '❤️', '😂', '🔥', '😭', '🎉', '💀'];
+    // Windows 11 pictures live here. In chat-emoji.js you can write just the file name, like 'loudly-crying-face_1f62d.png'
+    const FLUENT_BASE = 'https://em-content.zobj.net/source/microsoft-3D-fluent/473/';
+    function registerCustomEmoji() {
+        const one = function (entry) {
+            if (entry && typeof entry === 'object' && typeof entry.image === 'string') {
+                entry.image = entry.image.trim();
+                if (!/^https?:/i.test(entry.image)) entry.image = FLUENT_BASE + entry.image.replace(/^\/+/, '');
+            }
             if (entry && typeof entry === 'object' && /^[a-z0-9_+-]{1,32}$/i.test(entry.name || '') && isCustomEmojiUrl(entry.image)) {
                 CUSTOM_EMOJI[entry.name.toLowerCase()] = entry.image;
             }
+        };
+        Object.keys(EMOJI).forEach(function (category) { EMOJI[category].forEach(one); });
+        QUICK.forEach(one);                                   // quick reactions can bring their own { name, image } too
+    }
+
+    // chat-emoji.js (next to chats.js) adds more emoji categories. Loaded in the background at start-up.
+    let customEmojiLoading = null;
+    function loadCustomEmoji() {
+        if (customEmojiLoading) return customEmojiLoading;
+        customEmojiLoading = (async function () {
+            try {
+                if (!window.SPEC_CHAT_EMOJI) await loadScript('chat-emoji.js?v=1');
+                const extra = window.SPEC_CHAT_EMOJI || {};
+                Object.keys(extra).forEach(function (cat) {
+                    if (Array.isArray(extra[cat])) EMOJI[cat] = (EMOJI[cat] || []).concat(extra[cat]);
+                });
+                if (Array.isArray(window.SPEC_CHAT_QUICK) && window.SPEC_CHAT_QUICK.length) {
+                    QUICK.length = 0;
+                    window.SPEC_CHAT_QUICK.forEach(function (q) { QUICK.push(q); });
+                }
+                registerCustomEmoji();
+            } catch (e) {
+                console.warn('[SPECSOFT chats] chat-emoji.js was not found next to chats.js, your own emoticons are not shown:', e);
+            }
+        })();
+        return customEmojiLoading;
+    }
+    registerCustomEmoji();
+
+    /* ----------------------------------------------------------------------
+       WINDOWS 11 EMOJI  (needs emoji-data.js, it is loaded automatically)
+       1. a search box in the emoji picker
+       2. :shortcode: suggestions while typing  (just ":" or ":so")
+       3. :sob: / :loudly_crying_face: / a keyboard emoji like the crying face, sent from
+          anywhere, are SHOWN as the Windows 11 (Fluent 3D) picture.
+       The message text is never changed. The picture is only drawn when it is displayed.
+       ---------------------------------------------------------------------- */
+    /* EMOJI-FLUENT START */
+    const FL = { ready: false, items: [], byCode: Object.create(null), byChar: new Map(), loading: null };
+    // one emoji = a picture-style emoji, a keycap, or a ZWJ combo. Plain text symbols like (c) are left alone.
+    const RE_EMOJI_SRC = '(?:[#*0-9]\\uFE0F?\\u20E3)|(?:(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic}\\uFE0F)\\p{Emoji_Modifier}?(?:\\u200D(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic}\\uFE0F?)\\p{Emoji_Modifier}?)*\\uFE0F?)';
+    // shown when you type just ":" (edit freely, use shortcodes)
+    const POPULAR = ['joy', 'sob', 'heart', 'fire', 'skull', '+1', 'pleading_face', 'smile', '100', 'eyes', 'thinking', 'tada'];
+
+    function stripVS(s) { return String(s).replace(/\uFE0F/g, ''); }
+
+    // "loudly crying face" -> "loudly-crying-face" (how the picture files are named)
+    function flSlug(name) {
+        return String(name).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+            .replace(/[\u2019'.,:()!"]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    function flByCode(k) { return FL.ready ? (FL.byCode[String(k).toLowerCase()] || null) : null; }
+    function flByChar(ch) { return FL.ready ? (FL.byChar.get(stripVS(ch)) || null) : null; }
+
+    function flIndex(data) {
+        if (!data || !Array.isArray(data.list)) return false;
+        FL.items = []; FL.byCode = Object.create(null); FL.byChar = new Map();
+        data.list.forEach(function (r) {
+            const cps = String(r[0]).split('-');
+            let c;
+            try { c = String.fromCodePoint.apply(null, cps.map(function (h) { return parseInt(h, 16); })); } catch (e) { return; }
+            const codes = r[2] ? String(r[2]).split(' ') : [];
+            const tail = (r[4] || flSlug(r[1])) + '_' + cps.map(function (h) { return h.replace(/^0+(?=.)/, ''); }).join('-') + '.png';
+            const it = {
+                c: c, n: r[1], codes: codes, key: codes[0] || '', url: data.base + tail,
+                hay: (r[1] + ' ' + codes.join(' ').replace(/[_+-]+/g, ' ') + ' ' + (r[3] || '')).toLowerCase()
+            };
+            FL.items.push(it);
+            codes.forEach(function (k) { if (!FL.byCode[k]) FL.byCode[k] = it; });
+            FL.byChar.set(stripVS(c), it);
         });
-    });
-    const QUICK = ['👍', '❤️', '😂', '🔥', '😭', '🎉', '💀'];
+        FL.ready = FL.items.length > 0;
+        return FL.ready;
+    }
+
+    function loadEmojiData() {
+        if (FL.loading) return FL.loading;
+        FL.loading = (async function () {
+            try {
+                if (!window.SPEC_EMOJI) await loadScript('emoji-data.js?v=1');
+                flIndex(window.SPEC_EMOJI);
+            } catch (e) {
+                console.warn('[SPECSOFT chats] emoji-data.js was not found next to chats.js, Windows 11 emoji search and shortcodes are off:', e);
+            }
+            return FL.ready;
+        })();
+        return FL.loading;
+    }
+
+    // data arrived: redraw the picker, the open chat and the chat list so :sob: becomes a picture
+    function onEmojiData(ready) {
+        if (!ready) return;
+        try { buildPicker(); } catch (e) { /* picker not ready yet */ }
+        try { if (S.current) renderFeed({ keepScroll: true }); renderList(); } catch (e) { /* not logged in yet */ }
+    }
+
+    // a Windows 11 emoji picture. If the file is missing it turns back into the normal emoji.
+    function makeFluentImg(item, cls) {
+        const img = el('img', { class: cls, src: item.url, alt: item.c, title: ':' + item.key + ':', loading: 'lazy', draggable: 'false' });
+        img.addEventListener('error', function () { img.replaceWith(document.createTextNode(item.c)); });
+        return img;
+    }
+
+    function makeFluentEmoji(item, jumbo) {
+        return makeFluentImg(item, 'ch-inline-emoji ch-inline-emoji--fluent' + (jumbo ? ' ch-inline-emoji--jumbo' : ''));
+    }
+
+    // text with keyboard emoji in it -> text + Windows 11 pictures
+    function appendTextWithEmoji(frag, text, jumbo) {
+        text = String(text == null ? '' : text);
+        const re = new RegExp(RE_EMOJI_SRC, 'gu');
+        let last = 0, m;
+        while ((m = re.exec(text))) {
+            if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+            const item = flByChar(m[0]);
+            if (item) frag.appendChild(makeFluentEmoji(item, jumbo));
+            else frag.appendChild(jumbo ? el('span', { class: 'ch-jumbo-native', text: m[0] }) : document.createTextNode(m[0]));
+            last = m.index + m[0].length;
+        }
+        if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    }
+
+    // :sob: marks that were swapped for a hidden placeholder, put back as plain text (inside bold, code, spoilers...)
+    function unmark(s) {
+        return String(s).replace(/\u0000url:([^\u0000]+)\u0000/g, '$1').replace(/\u0000([a-z0-9_+-]{1,32})\u0000/gi, ':$1:');
+    }
+
+    // used by the chat list preview: ":sob:" -> the emoji character
+    function flShortcodeToChar(match, k) {
+        const it = flByCode(k);
+        return it ? it.c : match;
+    }
+
+    // a picker / reaction button: the Windows 11 picture when we have one, the plain emoji otherwise
+    function fillEmojiBtn(button, ch) {
+        const it = flByChar(ch);
+        if (!it) { button.textContent = ch; return; }
+        button.textContent = '';
+        button.appendChild(makeFluentImg(it, 'ch-fl-img'));
+    }
+
+    // ----- search (used by the picker box and by the typing suggestions) -----
+    function stdResult(it, code) { return { custom: false, code: code || it.key, label: it.n, url: it.url, ch: it.c }; }
+
+    function popularEmoji() {
+        const out = [];
+        POPULAR.forEach(function (k) { const it = flByCode(k); if (it && out.length < 8) out.push(stdResult(it, k)); });
+        return out;
+    }
+
+    function searchEmoji(query, limit) {
+        const q = String(query || '').toLowerCase().trim().replace(/^:+|:+$/g, '');
+        if (!q) return [];
+        const words = q.replace(/[_\s]+/g, ' ').split(' ').filter(Boolean);
+        const scored = [];
+        const mine = Object.create(null);
+
+        // 0 exact shortcode, 1 shortcode starts with it, 2 every word starts a word of the name, 3 every word is somewhere in it
+        const rate = function (codes, hay) {
+            let i;
+            for (i = 0; i < codes.length; i++) if (codes[i] === q) return { s: 0, best: codes[i] };
+            for (i = 0; i < codes.length; i++) if (codes[i].indexOf(q) === 0) return { s: 1, best: codes[i] };
+            const hw = hay.split(' ');
+            if (words.every(function (w) { return hw.some(function (x) { return x.indexOf(w) === 0; }); })) return { s: 2, best: codes[0] };
+            if (words.every(function (w) { return hay.indexOf(w) >= 0; })) return { s: 3, best: codes[0] };
+            return null;
+        };
+
+        // your own emoticons / meme emojis / store emotes first
+        Object.keys(CUSTOM_EMOJI).forEach(function (k) {
+            const url = composerEmojiUrl(k);
+            if (!url) return;
+            // same Windows 11 picture as a standard emoji? let the standard one show up instead (it knows :sob: style nicknames too)
+            if (FL.ready && flByCode(k) && /^https:\/\/em-content\.zobj\.net\//.test(url)) return;
+            mine[k] = true;
+            const r = rate([k], k.replace(/[_+-]+/g, ' '));
+            if (r) scored.push({ s: r.s, o: 0, len: k.length, res: { custom: true, code: k, label: k.replace(/_/g, ' '), url: url, ch: null } });
+        });
+        if (FL.ready) {
+            FL.items.forEach(function (it) {
+                if (it.codes.some(function (k) { return mine[k]; })) return;      // you already have this one as a custom emoji
+                const r = rate(it.codes, it.hay);
+                if (r) scored.push({ s: r.s, o: 1, len: (r.best || '').length, res: stdResult(it, r.best) });
+            });
+        }
+        scored.sort(function (a, b) { return a.s - b.s || a.len - b.len || a.o - b.o; });      // better match, then shorter shortcode, then your own custom emoji
+        return scored.slice(0, limit || 60).map(function (x) { return x.res; });
+    }
+
+    // ----- search box inside the picker -----
+    let pickSearch = null, pickResults = null, pickMain = null, pickTimer = null;
+
+    function ensurePickSearch() {
+        if (pickSearch) return pickSearch;
+        pickSearch = el('input', { class: 'ch-field ch-emoji-q', type: 'search', id: 'chEmojiSearch', placeholder: 'Search emoji (try sob, fire, heart)', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Search emoji' });
+        pickSearch.addEventListener('input', function () { clearTimeout(pickTimer); pickTimer = setTimeout(runPickerSearch, 60); });
+        pickSearch.addEventListener('keydown', function (e) {
+            if (e.isComposing) return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const first = pickResults && pickResults.querySelector('.ch-emoji-btn:not([disabled])');
+                if (first) first.click();
+            } else if (e.key === 'Escape') {
+                e.preventDefault(); e.stopPropagation();
+                if (pickSearch.value) { pickSearch.value = ''; runPickerSearch(); }
+                else { $('chEmoji').hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); $('chInput').focus(); }
+            }
+        });
+        return pickSearch;
+    }
+
+    function searchBtn(r) {
+        const value = r.custom ? ':' + r.code + ':' : r.ch;
+        const btn = el('button', { type: 'button', class: 'ch-emoji-btn is-custom', 'aria-label': r.label, title: ':' + r.code + ':', onclick: function () { pickEmoji(value); } });
+        const img = el('img', { src: r.url, alt: r.label, loading: 'lazy' });
+        img.addEventListener('error', function () { if (r.ch) btn.textContent = r.ch; else btn.disabled = true; });
+        btn.appendChild(img);
+        return btn;
+    }
+
+    function runPickerSearch() {
+        if (!pickSearch || !pickResults || !pickMain) return;
+        const q = pickSearch.value.trim();
+        pickMain.hidden = !!q;
+        pickResults.hidden = !q;
+        pickResults.textContent = '';
+        if (!q) return;
+        const res = searchEmoji(q, 150);
+        if (!res.length) {
+            pickResults.appendChild(el('p', { class: 'ch-emoji-empty', text: FL.ready ? 'No emoji found. Try another word.' : 'Loading emoji...' }));
+            return;
+        }
+        pickResults.appendChild(el('div', { class: 'ch-emoji-cat', text: 'RESULTS' }));
+        const grid = el('div', { class: 'ch-emoji-grid' });
+        res.forEach(function (r) { grid.appendChild(searchBtn(r)); });
+        pickResults.appendChild(grid);
+    }
+
+    // ----- suggestions while typing  ":"  or  ":so" -----
+    const EMS = { open: false, items: [], index: 0, nav: false, q: '' };
+
+    // is the caret right after ":something" (and not in the middle of a word or a time like 10:30)?
+    function emojiContext() {
+        const root = $('chInput');
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+        const node = sel.anchorNode;
+        if (!node || node.nodeType !== 3 || !root.contains(node)) return null;
+        const upto = node.nodeValue.slice(0, sel.anchorOffset);
+        const m = /(^|[\s(\[{>])(:)([a-z0-9_+-]{0,32})$/i.exec(upto);
+        if (!m) return null;
+        return { node: node, start: m.index + m[1].length, end: sel.anchorOffset, query: m[3] };
+    }
+
+    function closeEmojiSuggest() {
+        EMS.open = false;
+        const pop = $('chEmojiSug');
+        if (pop) pop.hidden = true;
+    }
+
+    function paintEmojiSuggest() {
+        let pop = $('chEmojiSug');
+        if (!pop) {
+            pop = el('div', { class: 'ch-mention-pop ch-emsug', id: 'chEmojiSug', role: 'listbox', 'aria-label': 'Emoji suggestions', hidden: true });
+            pop.addEventListener('mousedown', function (e) { e.preventDefault(); });      // keep the caret in the message box
+            document.querySelector('.ch-composer').appendChild(pop);
+        }
+        pop.textContent = '';
+        pop.appendChild(el('div', { class: 'ch-mention-head', text: EMS.q ? 'EMOJI MATCHING :' + EMS.q.toUpperCase() : 'POPULAR EMOJI' }));
+        EMS.items.forEach(function (it, i) {
+            const img = el('img', { class: 'ch-emsug-img', src: it.url, alt: it.ch || ':' + it.code + ':', loading: 'lazy' });
+            img.addEventListener('error', function () { img.style.visibility = 'hidden'; });
+            pop.appendChild(el('button', {
+                type: 'button', id: 'chEms' + i, role: 'option', 'aria-selected': String(i === EMS.index),
+                class: 'ch-mention-item' + (i === EMS.index ? ' is-active' : ''),
+                onclick: function () { pickEmojiSuggest(it); }
+            }, img, el('span', { class: 'ch-mention-name' }, el('strong', { text: ':' + it.code + ':' }), el('small', { text: it.label }))));
+        });
+        pop.hidden = false;
+        EMS.open = true;
+        const active = $('chEms' + EMS.index);
+        if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+    }
+
+    function updateEmojiSuggest() {
+        const root = $('chInput');
+        const ctx = root.disabled ? null : emojiContext();
+        if (!ctx || (ctx.query && !/^(?:[a-z0-9+]|-1)/i.test(ctx.query))) { closeEmojiSuggest(); return; }     // ":-)" is a smiley, not a search
+        const items = ctx.query ? searchEmoji(ctx.query, 8) : popularEmoji();
+        if (!items.length) { closeEmojiSuggest(); return; }
+        const same = EMS.open && EMS.q === ctx.query;
+        EMS.items = items;
+        EMS.q = ctx.query;
+        if (!same) { EMS.index = 0; EMS.nav = false; }
+        paintEmojiSuggest();
+    }
+
+    function pickEmojiSuggest(it) {
+        const ctx = emojiContext();
+        if (!ctx || !it) { closeEmojiSuggest(); return; }
+        const code = it.custom ? ':' + it.code + ':' : it.ch;
+        const url = it.custom ? composerEmojiUrl(it.code) : it.url;
+        if (!url) { closeEmojiSuggest(); return; }
+        const img = makeComposerEmoji(code, url);
+        const v = ctx.node.nodeValue, parent = ctx.node.parentNode;
+        let after = v.slice(ctx.end);
+        const addSpace = !/^\s/.test(after);
+        if (addSpace) after = ' ' + after;
+        ctx.node.nodeValue = v.slice(0, ctx.start);
+        parent.insertBefore(img, ctx.node.nextSibling);
+        const tail = document.createTextNode(after);
+        parent.insertBefore(tail, img.nextSibling);
+        const r = document.createRange();
+        r.setStart(tail, addSpace ? 1 : 0);
+        r.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+        composerRange = r.cloneRange();
+        closeEmojiSuggest();
+        autosize();
+        $('chInput').focus();
+    }
+
+    // arrows / Tab / Enter / Escape while the list is open. returns true when it used the key
+    function handleEmojiKey(e) {
+        if (!EMS.open) return false;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            EMS.nav = true;
+            EMS.index = (EMS.index + (e.key === 'ArrowDown' ? 1 : -1) + EMS.items.length) % EMS.items.length;
+            paintEmojiSuggest();
+            return true;
+        }
+        if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+            if (e.isComposing) return false;
+            if (e.key === 'Enter' && !EMS.nav && EMS.q.length < 2) return false;      // ":D" + Enter still just sends ":D"
+            e.preventDefault();
+            pickEmojiSuggest(EMS.items[EMS.index]);
+            return true;
+        }
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeEmojiSuggest(); return true; }
+        return false;
+    }
+
+    // the few styles this feature needs (kept here so you only have to replace two files)
+    function injectEmojiStyles() {
+        if ($('chEmojiStyle')) return;
+        const css = [
+            '.ch-emoji-search { position: sticky; top: 0; z-index: 2; margin: -10px -12px 6px; padding: 10px 12px 6px; background: var(--bg-card); }',
+            '.ch-emoji-search .ch-field { margin: 0; min-height: 38px; padding: 8px 12px; font-size: 14px; border-radius: 10px; }',
+            '.ch-emoji-results[hidden], .ch-emoji-main[hidden] { display: none !important; }',
+            '.ch-fl-img { display: block; width: 28px; height: 28px; object-fit: contain; pointer-events: none; }',
+            '.ch-quick-btn .ch-fl-img { width: 24px; height: 24px; }',
+            '.ch-emsug-img { width: 28px; height: 28px; object-fit: contain; flex: 0 0 auto; }',
+            '.ch-bubble .ch-inline-emoji--fluent { border-radius: 0; }'
+        ].join('\n');
+        const s = document.createElement('style');
+        s.id = 'chEmojiStyle';
+        s.textContent = css;
+        document.head.appendChild(s);
+    }
+    /* EMOJI-FLUENT END */
 
     /* ----------------------------------------------------------------------
        MY EMOTES: custom emoji bought in the Store (supabase-store-emotes.sql)
@@ -2608,7 +2895,9 @@
         box.appendChild(el('div', { class: 'ch-emoji-cat', text: s.name.toUpperCase() + ' ' + s.emoji }));
         const grid = el('div', { class: 'ch-emoji-grid' });
         s.emojis.forEach(function (ch) {
-            grid.appendChild(el('button', { type: 'button', class: 'ch-emoji-btn', 'aria-label': ch, title: ch, text: ch, onclick: function () { pickEmoji(ch); } }));
+            const sb_ = el('button', { type: 'button', class: 'ch-emoji-btn', 'aria-label': ch, title: ch, onclick: function () { pickEmoji(ch); } });
+            fillEmojiBtn(sb_, ch);
+            grid.appendChild(sb_);
         });
         box.appendChild(grid);
     }
@@ -2616,11 +2905,18 @@
 
     function buildPicker() {
         const box = $('chEmoji');
+        const search = ensurePickSearch();
+        const hadFocus = document.activeElement === search;
         box.textContent = '';
-        appendMyEmotes(box);
-        appendSeasonal(box);
+        box.appendChild(el('div', { class: 'ch-emoji-search' }, search));
+        pickResults = el('div', { class: 'ch-emoji-results', hidden: true });
+        pickMain = el('div', { class: 'ch-emoji-main' });
+        box.appendChild(pickResults);
+        box.appendChild(pickMain);
+        appendMyEmotes(pickMain);
+        appendSeasonal(pickMain);
         Object.keys(EMOJI).forEach(function (cat) {
-            box.appendChild(el('div', { class: 'ch-emoji-cat', text: cat.toUpperCase() }));
+            pickMain.appendChild(el('div', { class: 'ch-emoji-cat', text: cat.toUpperCase() }));
             const grid = el('div', { class: 'ch-emoji-grid' });
             EMOJI[cat].forEach(function (entry) {
                 const custom = typeof entry === 'object' && entry !== null;
@@ -2631,11 +2927,13 @@
                     const img = el('img', { src: entry.image, alt: label, loading: 'lazy' });
                     img.onerror = function () { button.disabled = true; button.title = label + ' (image unavailable)'; };
                     button.appendChild(img);
-                } else { button.textContent = entry; }
+                } else { fillEmojiBtn(button, entry); }
                 grid.appendChild(button);
             });
-            box.appendChild(grid);
+            pickMain.appendChild(grid);
         });
+        if (search.value.trim()) runPickerSearch();
+        if (hadFocus) search.focus();
     }
 
     function pickEmoji(e) {
@@ -2657,7 +2955,10 @@
         S.pickerFor = forMsg ? forMsg.id : null;
         box.hidden = open;
         $('chEmojiBtn').setAttribute('aria-expanded', String(!box.hidden));
-        if (!box.hidden) refreshEmotes(false);               // pick up emotes just bought in the store
+        if (!box.hidden) {
+            refreshEmotes(false);                            // pick up emotes just bought in the store
+            if (pickSearch && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) pickSearch.focus();
+        }
     }
 
     /* ----------------------------------------------------------------------
@@ -2804,14 +3105,41 @@
     let quickEl = null;
     function closeQuick() { if (quickEl) quickEl.hidden = true; }
 
+    // one quick-reaction entry -> what to show and what to send.
+    //   '😭'                          normal emoji (shown as the Windows 11 picture)
+    //   ':sob:'                        any shortcode: your own emoji from chat-emoji.js, or one of the 1,600+ standard ones
+    //   { name: 'x', image: '...' }    a brand new emoji with your own picture / link
+    function resolveQuick(entry) {
+        if (entry && typeof entry === 'object') {
+            const k = String(entry.name || '').toLowerCase();
+            return CUSTOM_EMOJI[k] ? { value: ':' + k + ':', label: k, url: CUSTOM_EMOJI[k], ch: null } : null;
+        }
+        const str = String(entry == null ? '' : entry).trim();
+        if (!str) return null;
+        const m = /^:([a-z0-9_+-]{1,32}):$/i.exec(str);
+        if (!m) return { value: str, label: str, url: null, ch: str };
+        const k = m[1].toLowerCase();
+        if (CUSTOM_EMOJI[k]) return { value: ':' + k + ':', label: k, url: CUSTOM_EMOJI[k], ch: null };
+        const it = flByCode(k);
+        return it ? { value: it.c, label: it.n, url: it.url, ch: it.c } : null;      // a standard emoji is sent as the real emoji
+    }
+
     function openQuick(m, btn) {
         if (!quickEl) {
             quickEl = el('div', { class: 'ch-quick', role: 'menu', hidden: true });
             document.body.appendChild(quickEl);
         }
         quickEl.textContent = '';
-        QUICK.forEach(function (e) {
-            quickEl.appendChild(el('button', { type: 'button', class: 'ch-quick-btn', role: 'menuitem', 'aria-label': 'React ' + e, text: e, onclick: function () { closeQuick(); toggleReaction(m, e); } }));
+        QUICK.forEach(function (entry) {
+            const q = resolveQuick(entry);
+            if (!q) return;                                   // unknown :name: -> skipped, never a broken button
+            const qb = el('button', { type: 'button', class: 'ch-quick-btn', role: 'menuitem', 'aria-label': 'React ' + q.label, title: q.label, onclick: function () { closeQuick(); toggleReaction(m, q.value); } });
+            if (q.url) {
+                const img = el('img', { class: 'ch-fl-img', src: q.url, alt: q.label, draggable: 'false' });
+                img.addEventListener('error', function () { img.replaceWith(document.createTextNode(q.ch || ':' + q.label + ':')); });
+                qb.appendChild(img);
+            } else fillEmojiBtn(qb, q.ch);
+            quickEl.appendChild(qb);
         });
         quickEl.appendChild(el('button', { type: 'button', class: 'ch-quick-btn ch-quick-more', 'aria-label': 'More emoji', onclick: function () { closeQuick(); toggleEmoji(m); } }, icon('plus')));
         quickEl.hidden = false;
@@ -2946,7 +3274,7 @@
         ch.on('broadcast', { event: 'typing' }, function (msg) {
             const p = msg && msg.payload;
             if (!p || p.uid === S.me.id) return;
-            setTyping(roomId, p.uid, p.name);
+            setTyping(roomId, p.uid, p.name, p.txt);
         });
         ch.subscribe(function (status) {
             if (status === 'SUBSCRIBED' && ch.track) ch.track({ uid: S.me.id, name: nameOf(S.profile) });
@@ -2961,12 +3289,21 @@
     }
 
     // ----- typing: per room, shown in the chat, the header and the chat list -----
-    function setTyping(roomId, uid, name) {
+    // custom typing text (Settings > Chats). It comes from another person's device, so it is cleaned again here
+    function cleanTyping(t) {
+        if (typeof t !== 'string') return '';
+        return t.replace(/[\u0000-\u001f\u007f\u200b-\u200f\u2028\u2029\ufeff]/g, '').trim().slice(0, 50);
+    }
+    function myTypingText() {
+        try { return cleanTyping(String((window.SpecSettings && window.SpecSettings.get('typingText')) || '')); } catch (e) { return ''; }
+    }
+
+    function setTyping(roomId, uid, name, txt) {
         const room = S.roomMap.get(roomId);
         if (!room || room.blocked_by_me) return;
         let m = S.tl.get(roomId);
         if (!m) { m = new Map(); S.tl.set(roomId, m); }
-        m.set(uid, { name: name || 'Someone', until: Date.now() + 3500 });
+        m.set(uid, { name: name || 'Someone', txt: cleanTyping(txt), until: Date.now() + 3500 });
         tickTyping();
     }
 
@@ -2976,13 +3313,17 @@
         tickTyping();
     }
 
-    function activeTyping(roomId) {
+    function typersOf(roomId) {
         const m = S.tl.get(roomId);
         if (!m) return [];
         const now = Date.now(), out = [];
-        m.forEach(function (v, k) { if (v.until < now) m.delete(k); else out.push(v.name); });
+        m.forEach(function (v, k) { if (v.until < now) m.delete(k); else out.push(v); });
         if (!m.size) S.tl.delete(roomId);
         return out;
+    }
+
+    function activeTyping(roomId) {
+        return typersOf(roomId).map(function (v) { return v.name; });
     }
 
     function paintTyping() {
@@ -2990,10 +3331,15 @@
         box.textContent = '';
         const r = S.current;
         if (!r) return;
-        const names = activeTyping(r.room_id);
+        const typers = typersOf(r.room_id);
+        const names = typers.map(function (v) { return v.name; });
         paintSub();
         if (!names.length) return;
-        const text = r.kind === 'dm' ? roomTitle(r) + ' is typing' : names.length === 1 ? names[0] + ' is typing' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing' : 'Several people are typing';
+        let text = r.kind === 'dm' ? roomTitle(r) + ' is typing' : names.length === 1 ? names[0] + ' is typing' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing' : 'Several people are typing';
+        // one person typing with a custom indicator: show theirs (hidden by the sensitive filter like any other text)
+        if (typers.length === 1 && typers[0].txt && !(S.filterOn && isSensitive(typers[0].txt))) {
+            text = typers[0].txt.replace(/<@username>/gi, r.kind === 'dm' ? roomTitle(r) : typers[0].name).slice(0, 120);
+        }
         box.appendChild(el('span', { class: 'ch-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i')));
         box.appendChild(document.createTextNode(text));
     }
@@ -3029,10 +3375,10 @@
                 const c = outChannel(room.other_id);
                 if (c.state !== 'joined') return;
                 lastTypingSent = now;
-                c.send({ type: 'broadcast', event: 'typing', payload: { room: room.room_id, uid: S.me.id, name: nameOf(S.profile) } });
+                c.send({ type: 'broadcast', event: 'typing', payload: { room: room.room_id, uid: S.me.id, name: nameOf(S.profile), txt: myTypingText() } });
             } else if (S.roomCh) {
                 lastTypingSent = now;
-                S.roomCh.send({ type: 'broadcast', event: 'typing', payload: { uid: S.me.id, name: nameOf(S.profile) } });
+                S.roomCh.send({ type: 'broadcast', event: 'typing', payload: { uid: S.me.id, name: nameOf(S.profile), txt: myTypingText() } });
             }
         } catch (e) { /* ignore */ }
     }
@@ -3046,7 +3392,7 @@
                     if (!p || !p.room || !p.uid || p.uid === S.me.id) return;
                     const room = S.roomMap.get(p.room);
                     if (!room || room.kind !== 'dm' || room.other_id !== p.uid) return;
-                    setTyping(p.room, p.uid, p.name);
+                    setTyping(p.room, p.uid, p.name, p.txt);
                 })
                 .subscribe();
         } catch (e) { /* typing in the list is a bonus */ }
@@ -3887,6 +4233,160 @@
         } catch (err) { toast(friendly(err)); }
     }
 
+    /* ----------------------------------------------------------------------
+       MESSAGE SHEET (touch screens)
+            hold a message to get: quick reactions + Reply, Edit, Copy, Pin, Report, Delete.
+            Mouse users keep the hover toolbar. Phones never show those little buttons,
+            so nobody taps Reply or Report by accident while scrolling or tapping the chat.
+       ---------------------------------------------------------------------- */
+    function closeMsgSheet() {
+        const s = S.msgSheet;
+        if (!s) return;
+        S.msgSheet = null;
+        s.nodes.forEach(function (n) { n.remove(); });
+        if (s.node) s.node.classList.remove('is-pressing');
+    }
+
+    function messageSheetItems(m) {
+        const mine = !!(S.me && m.sender_id === S.me.id);
+        const bug = !!parseBug(m.body);
+        const list = [];
+
+        list.push({ ico: 'reply', label: 'Reply', run: function () { startReply(m); } });
+        if (mine && !bug) list.push({ ico: 'edit', label: 'Edit', run: function () { startEdit(m); } });
+        if (!bug && String(m.body || '').trim()) list.push({ ico: 'copy', label: 'Copy text', run: function () { copyText(m.body, 'Message copied'); } });
+        if (!bug && canPinHere(S.current)) {
+            const pinned = S.pinIds.has(m.id);
+            list.push({ ico: 'pin', label: pinned ? 'Unpin message' : 'Pin message', run: function () { togglePinMessage(m); } });
+        }
+
+        const canDelete = mine || !!(S.current && (S.current.role === 'owner' || S.current.role === 'admin'));
+        const canReport = !mine && !bug;
+        if (canReport || canDelete) list.push('sep');
+        if (canReport) list.push({ ico: 'flag', label: 'Report message', danger: true, run: function () { openReport(m); } });
+        if (canDelete) list.push({ ico: 'trash', label: 'Delete message', danger: true, run: function () { deleteMessage(m); } });
+        return list;
+    }
+
+    function openMsgSheet(m, node) {
+        closeMsgSheet();
+        closeQuick();
+        if (!m || m.deleted_at || m.pending) return;
+
+        const sheet = el('div', { class: 'ch-menu is-sheet ch-menu--msg', role: 'menu', 'aria-label': 'Message actions' });
+
+        sheet.appendChild(el('div', { class: 'ch-menu-head ch-menu-head--msg' },
+            el('strong', { text: nameOf(senderOf(m)) }),
+            el('span', { class: 'ch-menu-preview', text: safePreview(m.body, m.sender_id) })));
+
+        // quick reactions (same list as the hover bar: Windows 11 + your own emoji from chat-emoji.js)
+        const mineSet = new Set();
+        groupReactions(m).forEach(function (g) { if (g.mine) mineSet.add(g.emoji); });
+        const row = el('div', { class: 'ch-sheet-react', role: 'group', 'aria-label': 'Quick reactions' });
+        QUICK.forEach(function (entry) {
+            const q = resolveQuick(entry);
+            if (!q) return;                                   // unknown :name: -> skipped, never a broken button
+            const qb = el('button', {
+                type: 'button', class: 'ch-quick-btn' + (mineSet.has(q.value) ? ' is-mine' : ''),
+                'aria-label': 'React ' + q.label, title: q.label,
+                onclick: function () { closeMsgSheet(); toggleReaction(m, q.value); }
+            });
+            if (q.url) {
+                const img = el('img', { class: 'ch-fl-img', src: q.url, alt: q.label, draggable: 'false' });
+                img.addEventListener('error', function () { img.replaceWith(document.createTextNode(q.ch || ':' + q.label + ':')); });
+                qb.appendChild(img);
+            } else fillEmojiBtn(qb, q.ch);
+            row.appendChild(qb);
+        });
+        row.appendChild(el('button', {
+            type: 'button', class: 'ch-quick-btn ch-quick-more', 'aria-label': 'More emoji',
+            onclick: function () { closeMsgSheet(); toggleEmoji(m); }
+        }, icon('plus')));
+        sheet.appendChild(row);
+
+        messageSheetItems(m).forEach(function (it) {
+            if (it === 'sep') { sheet.appendChild(el('div', { class: 'ch-menu-sep', role: 'separator' })); return; }
+            sheet.appendChild(el('button', {
+                type: 'button', role: 'menuitem',
+                class: 'ch-menu-item' + (it.danger ? ' is-danger' : ''),
+                onclick: function () { closeMsgSheet(); it.run(); }
+            }, icon(it.ico), el('span', { text: it.label })));
+        });
+
+        const scrim = el('div', { class: 'ch-menu-scrim' });
+        scrim.addEventListener('click', closeMsgSheet);
+        document.body.appendChild(scrim);
+        document.body.appendChild(sheet);
+
+        if (node) node.classList.add('is-pressing');
+        S.msgSheet = { nodes: [scrim, sheet], el: sheet, node: node || null, at: Date.now() };
+    }
+
+    function wireMessageSheet() {
+        const feed = $('chFeed');
+        if (!feed) return;
+        const touchy = function () { return !!(window.matchMedia && window.matchMedia('(hover: none), (pointer: coarse)').matches); };
+        let holdTimer = null, pressTimer = null, start = null, node = null, firedAt = 0;
+
+        const cancel = function () {
+            clearTimeout(holdTimer); clearTimeout(pressTimer);
+            holdTimer = pressTimer = null;
+            if (node && !(S.msgSheet && S.msgSheet.node === node)) node.classList.remove('is-pressing');
+            node = null; start = null;
+        };
+
+        feed.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'mouse') return;                       // desktop keeps the hover toolbar
+            if (e.target.closest && e.target.closest('input, textarea, select')) return;
+            const n = e.target.closest && e.target.closest('.ch-msg');
+            if (!n || n.classList.contains('is-pending')) return;
+            const m = S.messages.find(function (x) { return String(x.id) === n.dataset.id; });
+            if (!m || m.deleted_at) return;
+
+            cancel();
+            node = n;
+            start = { x: e.clientX, y: e.clientY };
+            pressTimer = setTimeout(function () { if (node) node.classList.add('is-pressing'); }, 140);
+            holdTimer = setTimeout(function () {
+                holdTimer = null;
+                const target = node;
+                firedAt = Date.now();
+                try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* ignore */ }
+                start = null;
+                openMsgSheet(m, target);
+            }, 420);
+        });
+
+        feed.addEventListener('pointermove', function (e) {
+            if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel();
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (t) { feed.addEventListener(t, cancel); });
+        feed.addEventListener('scroll', cancel, { passive: true });
+
+        // Android fires its own "context menu" on a long press: swallow it so only our sheet shows
+        // (and if the system's long press arrives before ours finishes, it opens the sheet itself)
+        feed.addEventListener('contextmenu', function (e) {
+            if (!touchy()) return;
+            const n = e.target.closest && e.target.closest('.ch-msg');
+            if (!n) return;
+            e.preventDefault();
+            if (S.msgSheet || Date.now() - firedAt < 800 || n.classList.contains('is-pending')) return;
+            const m = S.messages.find(function (x) { return String(x.id) === n.dataset.id; });
+            if (!m || m.deleted_at) return;
+            cancel();
+            firedAt = Date.now();
+            openMsgSheet(m, n);
+        });
+
+        // the click that ends a long press must never hit a link, a reaction or a sheet button underneath the finger
+        document.addEventListener('click', function (e) {
+            const recent = Date.now() - firedAt < 600 || (S.msgSheet && Date.now() - S.msgSheet.at < 600);
+            if (recent && (S.msgSheet || (feed.contains(e.target)))) { e.preventDefault(); e.stopPropagation(); }
+        }, true);
+
+        window.addEventListener('resize', closeMsgSheet);
+    }
+
     function wireMenu() {
         const body = $('chListBody');
 
@@ -4095,6 +4595,7 @@
 
         $('chSearch').addEventListener('input', function (e) { S.query = e.target.value; renderList(); });
         wireMenu();
+        wireMessageSheet();
 
         // composer
         const input = $('chInput');
@@ -4102,11 +4603,12 @@
             if (e.inputType === 'insertText' && e.data === ':' && !e.isComposing) convertTypedEmoji();
             autosize();
             updateMention();
+            updateEmojiSuggest();
             if (input.value.trim()) sendTyping();
         });
-        input.addEventListener('click', updateMention);
-        input.addEventListener('keyup', function (e) { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') updateMention(); });
-        input.addEventListener('blur', function () { setTimeout(closeMention, 150); });
+        input.addEventListener('click', function () { updateMention(); updateEmojiSuggest(); });
+        input.addEventListener('keyup', function (e) { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') { updateMention(); updateEmojiSuggest(); } });
+        input.addEventListener('blur', function () { setTimeout(function () { closeMention(); closeEmojiSuggest(); }, 150); });
         input.addEventListener('beforeinput', function (e) {            // 2000 character limit, like the old maxlength
             if (e.inputType && e.inputType.indexOf('insert') === 0 && e.inputType !== 'insertCompositionText') {
                 const sel = window.getSelection();
@@ -4128,6 +4630,7 @@
         });
         input.addEventListener('keydown', function (e) {
             if (handleMentionKey(e)) return;
+            if (handleEmojiKey(e)) return;
             if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
                 // Settings > Chats > "Sending messages": Enter sends, or Ctrl/Cmd+Enter sends
@@ -4186,7 +4689,7 @@
             if (!box.hidden && !box.contains(e.target) && !$('chEmojiBtn').contains(e.target) && !(quickEl && quickEl.contains(e.target))) { box.hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); }
         });
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') { if (S.menu) { closeMenu(); return; } closeQuick(); if (!$('chMembers').hidden) closeMembers(); closeDrawer(); }
+            if (e.key === 'Escape') { if (S.msgSheet) { closeMsgSheet(); return; } if (S.menu) { closeMenu(); return; } closeQuick(); if (!$('chMembers').hidden) closeMembers(); closeDrawer(); }
         });
 
         document.addEventListener('visibilitychange', function () {
@@ -4244,7 +4747,9 @@
         installComposer();
         initFilter();
         fitViewport();
+        injectEmojiStyles();
         wire();
+        Promise.all([loadCustomEmoji(), loadEmojiData()]).then(function () { onEmojiData(true); });      // chat-emoji.js + emoji-data.js, load in the background
         gate('loading');
 
         if (!sb) { gate('setup'); return; }

@@ -1,7 +1,7 @@
 /* ==========================================================================
    SPECSOFT® settings.js  -  draws settings.html from SpecSettings.CATS
    Add a setting in site-settings.js and it shows up here by itself.
-   Control types: toggle, select, range, palette, presets, pad, code, action.
+   Control types: toggle, select, range, palette, text, presets, pad, code, action.
    ========================================================================== */
 (function () {
     'use strict';
@@ -165,6 +165,32 @@
         return block(it, [grid]);
     }
 
+    /* a text box (the custom typing indicator): saves by itself shortly after you stop typing */
+    function typingPreview(v) {
+        v = String(v || '').trim();
+        return v ? v.replace(/<@username>/gi, 'YourName') : 'YourName is typing';
+    }
+    function textBlock(it) {
+        var max = it.max || 50;
+        var inp = h('input', { type: 'text', class: 'sx-code', 'data-key': it.key, maxlength: String(max), placeholder: it.placeholder || '', spellcheck: 'false', autocomplete: 'off', 'aria-label': it.label });
+        inp.value = S.view(it.key);
+        var count = h('div', { class: 'sx-row-desc', text: inp.value.length + '/' + max });
+        var prev = h('output', { class: 'sx-readout', 'data-typing-preview': it.key, text: typingPreview(inp.value) });
+        var timer = null;
+        inp.addEventListener('input', function () {
+            count.textContent = inp.value.length + '/' + max;
+            prev.textContent = typingPreview(inp.value);
+            clearTimeout(timer);
+            timer = setTimeout(function () { S.set(it.key, inp.value); flash('Saved'); }, 450);
+        });
+        inp.addEventListener('blur', function () { clearTimeout(timer); if (inp.value !== S.get(it.key)) S.set(it.key, inp.value); });
+        var clear = h('button', { type: 'button', class: 'sx-btn', text: 'Clear', onclick: function () {
+            inp.value = ''; count.textContent = '0/' + max; prev.textContent = typingPreview('');
+            S.set(it.key, ''); flash('Back to the normal indicator');
+        } });
+        return block(it, [h('div', { class: 'sx-code-row' }, [inp, clear]), count, h('div', { class: 'sx-row-desc', text: 'Preview' }), prev]);
+    }
+
     function readoutText() {
         var d = new Date();
         return S.fmtTime(d) + '   \u00b7   ' + S.fmtDate(d, { weekday: 'long', month: 'short', day: 'numeric' });
@@ -246,7 +272,7 @@
             var lastGroup = '';
             items.forEach(function (it) {
                 if (it.group && it.group !== lastGroup) { lastGroup = it.group; panel.appendChild(h('h3', { class: 'sx-sub', text: it.group })); }
-                var node = it.type === 'pad' ? padBlock(it) : it.type === 'presets' ? presetsBlock(it) : it.type === 'code' ? codeBlock(it) : it.type === 'readout' ? readoutBlock(it) : row(it);
+                var node = it.type === 'pad' ? padBlock(it) : it.type === 'presets' ? presetsBlock(it) : it.type === 'code' ? codeBlock(it) : it.type === 'readout' ? readoutBlock(it) : it.type === 'text' ? textBlock(it) : row(it);
                 panel.appendChild(node);
                 shown++;
             });
@@ -270,11 +296,16 @@
     function refreshValues() {
         panel.querySelectorAll('[data-key]').forEach(function (el) {
             var v = S.view(el.getAttribute('data-key'));
+            if (el.type === 'text' && document.activeElement === el) return;      // never rewrite a box while you type in it
             if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
             if (el.type === 'range') {
                 var out = panel.querySelector('[data-out="' + el.getAttribute('data-key') + '"]');
                 if (out) out.textContent = fmt(S.item(el.getAttribute('data-key')), v);
             }
+        });
+        panel.querySelectorAll('[data-typing-preview]').forEach(function (o) {
+            var a = document.activeElement;
+            if (!a || a.getAttribute('data-key') !== o.getAttribute('data-typing-preview')) o.textContent = typingPreview(S.view(o.getAttribute('data-typing-preview')));
         });
         panel.querySelectorAll('[data-pal]').forEach(paintPalette);
         panel.querySelectorAll('[data-readout]').forEach(function (o) { o.textContent = readoutText(); });

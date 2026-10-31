@@ -40,6 +40,7 @@
     function tg(key, label, desc, def, x) { return Object.assign({ key: key, type: 'toggle', label: label, desc: desc, def: def }, x || {}); }
     function sl(key, label, desc, def, options, x) { return Object.assign({ key: key, type: 'select', label: label, desc: desc, def: def, options: options }, x || {}); }
     function rg(key, label, desc, def, min, max, step, unit, x) { return Object.assign({ key: key, type: 'range', label: label, desc: desc, def: def, min: min, max: max, step: step, unit: unit || '' }, x || {}); }
+    function tx(key, label, desc, def, max, placeholder, x) { return Object.assign({ key: key, type: 'text', label: label, desc: desc, def: def, max: max, placeholder: placeholder || '' }, x || {}); }
     function pal(key, label, desc, def, options, x) { return Object.assign({ key: key, type: 'palette', label: label, desc: desc, def: def, options: options }, x || {}); }
     // select / palette options are [value, label, premium?, hex?]. premium ones are locked until
     // window.SpecShop.owns('<settingKey>:<value>') returns true (the shop plugs in here later).
@@ -83,7 +84,8 @@
             sl('theme', 'Theme', 'Dark, light, or follow your device.', 'dark', [['dark', 'Dark'], ['light', 'Light'], ['system', 'Match my device']], { read: themeMode, write: themeWrite }),
             sl('accent', 'Accent color', 'Tints highlights, borders and buttons. The default keeps the black and white look.', 'default',
                [['default', 'White / black (default)'], ['blue', 'Blue'], ['green', 'Green'], ['purple', 'Purple'], ['red', 'Red'], ['amber', 'Amber']]),
-            tg('reduceMotion', 'Reduce motion', 'Calms animations and turns off the motion-heavy effects. Your device setting is respected too.', false, { cls: 'ss-reduce-motion', clsOn: true, reload: true })
+            tg('reduceMotion', 'Reduce motion', 'Calms animations and turns off the motion-heavy effects. Your device setting is respected too. This one is per device.', false, { cls: 'ss-reduce-motion', clsOn: true, reload: true, local: true }),
+            tg('autoReduceMotion', 'Auto reduce motion when lag', 'If your page drops to 10 FPS or below, low detail mode switches on by itself so the site stays usable.', true)
           ] },
         { id: 'effects', title: 'Effects', blurb: 'The HUD and motion layers. Turn off anything that feels heavy.',
           icon: '<polygon points="12 2 15 9 22 9.5 16.5 14 18 21 12 17.5 6 21 7.5 14 2 9.5 9 9"/>',
@@ -141,6 +143,7 @@
         { id: 'chats', title: 'Chats', blurb: 'How chats behave for you.',
           icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
           items: [
+            tx('typingText', 'Custom typing indicator', 'What other people see while you type. Up to 50 characters. Type <@username> where your name should go. Leave it empty for the normal "is typing".', '', 50, '<@username> is cooking...'),
             sl('chatEnter', 'Sending messages', 'Choose which key sends a message on desktop. Phones always use the send button.', 'enter', [['enter', 'Enter sends (Shift+Enter for a new line)'], ['ctrl', 'Ctrl+Enter sends (Enter for a new line)']]),
             tg('chatSound', 'Chat sounds', 'A soft ping for new messages.', true, { ls: { key: 'specsoft.chat.sound', on: 'on', off: 'off' } }),
             tg('chatFilter', 'Hide sensitive messages', 'Covers harsh messages with a notice. Only you see the cover.', true, { ls: { key: 'specsoft.chat.filter', on: 'on', off: 'off' } }),
@@ -179,6 +182,10 @@
             var o = optionOf(it, v);
             if (!o || (!ignoreLock && isLocked(it, o[0]))) return undefined;
             return o[0];
+        }
+        if (it.type === 'text') {
+            if (typeof v !== 'string') return undefined;
+            return v.replace(/[\u0000-\u001f\u007f\u200b-\u200f\u2028\u2029\ufeff]/g, '').slice(0, it.max || 50);
         }
         if (it.type === 'range') {
             var n = Number(v);
@@ -461,10 +468,86 @@
     }
     function reset() {
         LIST.forEach(function (it) { if (it.type !== 'action' && !it.local) set(it.key, it.def, { noPush: true, noStamp: true }); });
+        set('reduceMotion', false, { noPush: true, noStamp: true });      // per device, so it is not in the loop above
         lsSet(AT, String(Date.now()));
         queuePush();
         emit('__reset');
     }
+
+
+    /* ------------------------------------------------------------- lag watchdog
+       If the page stays at 10 FPS or below for about 3 seconds in a row, Reduce motion
+       switches on by itself (this device only) and a notice explains why.
+       Turn it off with  Settings > Appearance > Auto reduce motion when lag.
+       Hidden tabs are ignored (browsers pause them) and the first 4 seconds after a
+       page opens are skipped, so loading hiccups never trigger it.                   */
+    var LAG_FPS = 10, LAG_WINDOWS = 3, LAG_GRACE = 4000, lagRunning = false;
+    function ssGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+    function ssPut(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+    function lagEligible() { return get('autoReduceMotion') === true && get('reduceMotion') !== true && ssGet('ss.lagcool') !== '1'; }
+
+    function lagBanner() {
+        if (!document.body || document.getElementById('ssLagBanner')) return;
+        if (!document.getElementById('ssLagStyle')) {
+            var st = document.createElement('style');
+            st.id = 'ssLagStyle';
+            st.textContent = '#ssLagBanner{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:2147483000;max-width:560px;margin:0 auto;padding:12px 14px;border-radius:12px;background:var(--bg-card,#111);color:var(--text-primary,#fff);border:1px solid var(--border-hover,#666);box-shadow:0 12px 36px rgba(0,0,0,.45);font:13px/1.5 "Space Grotesk",system-ui,sans-serif}'
+                + '#ssLagBanner p{margin:0 0 10px}#ssLagBanner div{display:flex;flex-wrap:wrap;gap:8px}'
+                + '#ssLagBanner button,#ssLagBanner a{font:inherit;font-size:12px;padding:7px 12px;border-radius:9px;border:1px solid var(--border-hover,#666);background:transparent;color:inherit;cursor:pointer;text-decoration:none}'
+                + '#ssLagBanner button:hover,#ssLagBanner a:hover{background:var(--accent-dim,rgba(255,255,255,.12))}';
+            document.head.appendChild(st);
+        }
+        var b = document.createElement('div');
+        b.id = 'ssLagBanner'; b.setAttribute('role', 'status');
+        var p = document.createElement('p');
+        p.textContent = 'Reduce motion (low detail mode) enabled. Your page dropped to 10fps or below. To add details again, turn off the "auto reduce motion when lag" or turn off the reduce motion setting itself.';
+        var row = document.createElement('div');
+        var link = document.createElement('a'); link.href = 'settings.html#appearance'; link.textContent = 'Open settings';
+        var reload = document.createElement('button'); reload.type = 'button'; reload.textContent = 'Reload page';
+        reload.addEventListener('click', function () { location.reload(); });
+        var close = document.createElement('button'); close.type = 'button'; close.textContent = 'Dismiss';
+        close.addEventListener('click', function () { b.remove(); });
+        row.appendChild(link); row.appendChild(reload); row.appendChild(close);
+        b.appendChild(p); b.appendChild(row);
+        document.body.appendChild(b);
+    }
+
+    function lagTrigger() {
+        lagRunning = false;
+        if (!lagEligible()) return;
+        set('reduceMotion', true, { noPush: true, noStamp: true });
+        lagBanner();
+    }
+
+    function lagKick() {
+        if (lagRunning || !window.requestAnimationFrame || !lagEligible()) return;
+        lagRunning = true;
+        var t0 = performance.now(), winStart = 0, frames = 0, low = 0;
+        function resetWin() { winStart = 0; frames = 0; low = 0; }
+        function tick(now) {
+            if (!lagRunning) return;
+            if (!lagEligible()) { lagRunning = false; return; }
+            if (document.hidden || now - t0 < LAG_GRACE) { resetWin(); requestAnimationFrame(tick); return; }
+            if (!winStart) { winStart = now; frames = 0; }
+            frames++;
+            var span = now - winStart;
+            if (span >= 1000) {
+                low = (frames * 1000 / span) <= LAG_FPS ? low + 1 : 0;
+                winStart = now; frames = 0;
+                if (low >= LAG_WINDOWS) { lagTrigger(); return; }
+            }
+            requestAnimationFrame(tick);
+        }
+        document.addEventListener('visibilitychange', function () { if (document.hidden) resetWin(); });
+        requestAnimationFrame(tick);
+    }
+
+    listeners.push(function (key, val) {
+        // turning Reduce motion off by hand stops the watchdog from turning it back on until the tab is closed
+        if (key === 'reduceMotion' && val === false && lagRunning === false) ssPut('ss.lagcool', '1');
+        if (key === 'autoReduceMotion' && val === true) { try { sessionStorage.removeItem('ss.lagcool'); } catch (e) { /* ignore */ } }
+        lagKick();
+    });
 
     /* ------------------------------------------------------------------ boot */
     window.SpecSettings = {
@@ -478,7 +561,7 @@
     };
 
     applyAll();
-    function ready() { applyAll(); sync(); }
+    function ready() { applyAll(); sync(); lagKick(); }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
 
     if (window.matchMedia) {
