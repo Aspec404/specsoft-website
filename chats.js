@@ -5214,6 +5214,15 @@
         setInterval(function () { if (!document.hidden) resync({ light: true }); }, 45000);
     }
 
+    // chat-notify.js (the notifications on every other page) asks "is Chats open?" before it dings, so you never get two dings
+    function answerNotifyPing() {
+        if (!('BroadcastChannel' in window)) return;
+        try {
+            const bc = new BroadcastChannel('specsoft-chat-notify');
+            bc.onmessage = function (e) { if (e.data && e.data.t === 'ask') bc.postMessage({ t: 'here' }); };
+        } catch (e) { /* optional */ }
+    }
+
     function handleDeepLink() {
         const q = new URLSearchParams(location.search);
         const snip = q.get('snippet');
@@ -5269,6 +5278,7 @@
         subscribeUser();
         subscribePresence();
         initNotif();
+        answerNotifyPing();
         renderList();
         handleDeepLink();
     }

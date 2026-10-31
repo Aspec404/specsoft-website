@@ -10,7 +10,7 @@
    Pause = no new step starts (steps already running finish). Stop = cancels everything for good. */
 (function () {
     'use strict';
-    var STEP = 300, MAX_RUNS = 20, MAX_DEPTH = 5, MAX_EXEC = 500, MAX_SPAWN = 25, MAX_OUT = 100000, CANCEL = { cancelled: true };
+    var STEP = 300, MAX_RUNS = 20, MAX_DEPTH = 5, MAX_EXEC = 500, MAX_SPAWN = 25, MAX_OUT = 100000, MAX_ROWS = 1000, CANCEL = { cancelled: true };
     var G = window.StudioGraph, runs = [], cur = null, seq = 0;
     function $(id) { return document.getElementById(id); }
     function noop() {}
@@ -38,16 +38,92 @@
         g.kids.forEach(killGroup);
     }
     function dead(run, g) { return run.cancelled || g.dead; }
-    function gate(run, g) {
-        if (dead(run, g)) return Promise.reject(CANCEL);
-        if (!run.paused) return Promise.resolve();
-        return new Promise(function (res) { run.waiters.push(res); }).then(function () { if (dead(run, g)) throw CANCEL; });
+    function gate(run, g, ctl) {
+        if (dead(run, g) || (ctl && ctl.dead)) return Promise.reject(CANCEL);
+        if (!run.paused && !(ctl && ctl.paused)) return Promise.resolve();
+        return new Promise(function (res) { (run.paused ? run.waiters : ctl.waiters).push(res); }).then(function () { return gate(run, g, ctl); });
     }
-    function sleep(g, ms) {
+    function sleep(g, ms, ctl) {
         return new Promise(function (res, rej) {
-            if (g.dead) return rej(CANCEL);
-            var s = { rej: rej }; s.t = setTimeout(function () { g.sleepers.delete(s); res(); }, ms); g.sleepers.add(s);
+            if (g.dead || (ctl && ctl.dead)) return rej(CANCEL);
+            var s = { rej: rej };
+            s.t = setTimeout(function () { g.sleepers.delete(s); if (ctl) ctl.sleepers.delete(s); res(); }, ms);
+            g.sleepers.add(s); if (ctl) ctl.sleepers.add(s);
         });
+    }
+    function killCtl(c) {                                // stops ONE node's execution (used by timeline stop markers)
+        c.dead = true;
+        c.sleepers.forEach(function (s) { clearTimeout(s.t); s.rej(CANCEL); }); c.sleepers.clear();
+        c.killers.forEach(function (k) { k(); }); c.killers.clear();
+        c.waiters.splice(0).forEach(function (w) { w(); });
+    }
+
+    /* ---- Phase 5: timeline clock, scheduled markers, events ---- */
+    function clockNow(run) { return run.clockAcc + (run.paused ? 0 : Date.now() - run.clockStart); }
+    function schedAdd(run, it) { run.sched.push(it); run.sched.sort(function (a, b) { return a.t - b.t; }); }
+    function waitClock(run, grp, t) {
+        return new Promise(function (res, rej) {
+            var it = { t: t, fn: function () { grp.killers.delete(k); res(); } };
+            function k() { var i = run.sched.indexOf(it); if (i > -1) run.sched.splice(i, 1); rej(CANCEL); }
+            grp.killers.add(k); schedAdd(run, it);
+        });
+    }
+    function waitEvent(run, grp, name) {
+        return new Promise(function (res, rej) {
+            if (run.fired[name]) return res();
+            var w = function () { grp.killers.delete(k); res(); };
+            function k() { var l = run.evWait[name] || [], i = l.indexOf(w); if (i > -1) l.splice(i, 1); rej(CANCEL); }
+            (run.evWait[name] = run.evWait[name] || []).push(w); grp.killers.add(k);
+        });
+    }
+    function emit(run, name) { run.fired[name] = true; ev(run, 'info', 'event "' + name + '" fired'); (run.evWait[name] || []).splice(0).forEach(function (w) { w(); }); }
+    function fire(run, id, m) {
+        var n = run.nodes[id], ctl = run.active[id]; if (!n) return;
+        if (m.a === 'stop') { run.blocked[id] = true; ev(run, 'warn', 'timeline: stop', n); if (ctl) killCtl(ctl); }
+        else if (m.a === 'pause') { if (ctl) { ctl.paused = true; ev(run, 'warn', 'timeline: paused', n); } else ev(run, 'warn', 'timeline: pause ignored (not running)', n); }
+        else if (m.a === 'resume') { if (ctl && ctl.paused) { ctl.paused = false; ctl.waiters.splice(0).forEach(function (w) { w(); }); ev(run, 'ok', 'timeline: resumed', n); } }
+        else if (m.a === 'wait') {
+            if (!ctl) return ev(run, 'warn', 'timeline: wait ignored (not running)', n);
+            ctl.paused = true; ev(run, 'warn', 'timeline: holding for ' + m.d + ' ms', n);
+            schedAdd(run, { t: clockNow(run) + m.d, fn: function () { if (ctl.paused) { ctl.paused = false; ctl.waiters.splice(0).forEach(function (w) { w(); }); } } });
+        }
+        else if (m.a === 'toggle') { n.enabled = !n.enabled; ev(run, 'info', 'timeline: ' + (n.enabled ? 'enabled' : 'disabled'), n); }
+        else if (m.a === 'spawn') {
+            if (n.type !== 'branch' || !run.ctxs[id]) return ev(run, 'warn', 'timeline: spawn needs a branch node', n);
+            if (++run.spawns > MAX_SPAWN) return ev(run, 'error', 'timeline: spawn limit reached', n);
+            ev(run, 'info', 'timeline: spawn', n); branchBg(run.ctxs[id], n);
+        }
+        else if (m.a === 'custom') emit(run, m.name || 'event');
+    }
+    function setupTimeline(run, g) {
+        run.db = JSON.parse(JSON.stringify(g.db || { tables: {} })); run.tl = g.timeline || { tracks: [] };
+        (function walk(list) { list.forEach(function (n) { run.nodes[n.id] = n; if (n.config && n.config.sub) walk(n.config.sub.nodes); }); })(g.nodes);
+        (run.tl.tracks || []).forEach(function (tr) {
+            if (tr.type !== 'node' || !run.nodes[tr.nodeId]) return;
+            tr.markers.forEach(function (m) {
+                if (m.a === 'start') run.startAt[tr.nodeId] = Math.min(m.t, run.startAt[tr.nodeId] === undefined ? Infinity : run.startAt[tr.nodeId]);
+                else schedAdd(run, { t: m.t, fn: function () { fire(run, tr.nodeId, m); } });
+            });
+        });
+        run.tickId = setInterval(function () { tick(run); }, 25);
+    }
+    function tick(run) {
+        if (run.ended || run.paused) return;
+        var now = clockNow(run);
+        while (run.sched.length && run.sched[0].t <= now) { var it = run.sched.shift(); try { it.fn(); } catch (e) { run.hadError = true; ev(run, 'error', 'timeline failed: ' + msg(e)); } }
+        if (window.StudioTimeline) StudioTimeline.setPlayhead(now);
+    }
+    function finishExtras(run, status) {
+        clearInterval(run.tickId); run.sched.length = 0;
+        if (run.dbChanged) {
+            if (status === 'done' && window.StudioData) StudioData.commit(run.db, run.id);
+            else ev(run, 'warn', 'Database changes were discarded because the run ended as ' + status);
+        }
+        if (window.StudioTimeline) StudioTimeline.setPlayhead(clockNow(run));
+    }
+    function runSql(run, n) {
+        var r = StudioSQL.exec(run.db, n.config.sql || '', []); if (r.changed) run.dbChanged = true;
+        return r.isSelect ? r.rows.slice(0, MAX_ROWS) : { changes: r.changes };
     }
     function cancelRun(run) { run.cancelled = true; killGroup(run.root); run.waiters.splice(0).forEach(function (w) { w(); }); }
 
@@ -71,7 +147,11 @@
             disableNode: function (l) { return call('disableNode', [String(l)]); },
             spawnBranch: function (l) { return call('spawnBranch', [String(l)]); },
             stopGroup: function (l) { return call('stopGroup', [String(l)]); },
-            result: function (l) { return call('result', [String(l)]); }
+            result: function (l) { return call('result', [String(l)]); },
+            emit: function (n) { return call('emit', [String(n)]); },
+            value: function (n) { return call('value', [String(n)]); },
+            time: function () { return call('time', []); },
+            sql: function (q, p) { return call('sql', [String(q), Array.isArray(p) ? p : []]); }
         };
         console.log = console.info = studio.log;
         console.warn = function () { studio.log.apply(null, ['[warn]'].concat([].slice.call(arguments))); };
@@ -131,13 +211,26 @@
         if (fn === 'spawnBranch') {
             t = target(args[0]); if (t.type !== 'branch') throw new Error(t.label + ' is not a branch');
             if (++run.spawns > MAX_SPAWN) throw new Error('Spawn limit reached (' + MAX_SPAWN + ' per run)');
-            branchBg(ctx, t); return null;
+            var c2 = Object.create(ctx); c2.ctl = null; branchBg(c2, t); return null;
         }
         if (fn === 'stopGroup') {
             var name = String(args[0]), hit = 0;
             grp.kids.forEach(function (k) { if (k.name === name && !k.dead && !k.done) { killGroup(k); hit++; } });
             if (!hit) throw new Error('No running group named ' + name);
             ev(run, 'warn', 'stopped group ' + name, n); return null;
+        }
+        if (fn === 'emit') { var en = String(args[0]); if (!/^[A-Za-z0-9_-]{1,20}$/.test(en)) throw new Error('Invalid event name'); emit(run, en); return null; }
+        if (fn === 'time') return clockNow(run);
+        if (fn === 'value') {
+            var vn = String(args[0]); if (!/^[A-Za-z0-9_ -]{1,20}$/.test(vn)) throw new Error('Invalid value name');
+            return window.StudioTimeline ? StudioTimeline.valueAt(run.tl, vn, clockNow(run)) : null;
+        }
+        if (fn === 'sql') {
+            var q = args[0], ps = args[1] === undefined ? [] : args[1];
+            if (typeof q !== 'string') throw new Error('studio.sql needs a SQL string');
+            if (!Array.isArray(ps) || ps.length > 20 || ps.some(function (x) { return x !== null && ['string', 'number', 'boolean'].indexOf(typeof x) < 0; })) throw new Error('Parameters must be up to 20 text, number, boolean or null values');
+            var r = StudioSQL.exec(run.db, q, ps); if (r.changed) run.dbChanged = true;
+            return { rows: r.rows.slice(0, MAX_ROWS), changes: r.changes, lastId: r.lastId };
         }
         throw new Error('Unknown studio function');
     }
@@ -151,7 +244,7 @@
             var token = newToken(), ms = c.timeout || 5000, finished = false, timer;
             var frame = document.createElement('iframe');
             frame.setAttribute('sandbox', 'allow-scripts'); frame.setAttribute('aria-hidden', 'true'); frame.style.display = 'none';
-            function finish(fn, v) { if (finished) return; finished = true; clearTimeout(timer); window.removeEventListener('message', onMsg); grp.killers.delete(kill); frame.remove(); fn(v); }
+            function finish(fn, v) { if (finished) return; finished = true; clearTimeout(timer); window.removeEventListener('message', onMsg); grp.killers.delete(kill); if (ctx.ctl) ctx.ctl.killers.delete(kill); frame.remove(); fn(v); }
             function kill() { finish(reject, CANCEL); }
             function reply(r) { if (finished) return; r.k = token; try { frame.contentWindow.postMessage(r, '*'); } catch (e) {} }
             function onMsg(e) {
@@ -166,7 +259,7 @@
                 else if (m.t === 'done') { try { finish(resolve, cleanOut(m.value)); } catch (err) { finish(reject, err); } }
                 else if (m.t === 'err') finish(reject, new Error(String(m.name || 'Error').slice(0, 40) + ': ' + String(m.message || '').slice(0, 300) + (m.line ? ' (line ' + (m.line | 0) + ', approximate)' : '')));
             }
-            grp.killers.add(kill);
+            grp.killers.add(kill); if (ctx.ctl) ctx.ctl.killers.add(kill);
             timer = setTimeout(function () { finish(reject, new Error('Script timed out after ' + ms + ' ms and was stopped')); }, ms);
             window.addEventListener('message', onMsg);
             frame.srcdoc = srcdoc(token); document.body.appendChild(frame);
@@ -178,6 +271,7 @@
         var run = ctx.run, sub = (n.config && n.config.sub) || { nodes: [], connections: [] };
         if (ctx.depth >= MAX_DEPTH) return Promise.reject(new Error('Branch nesting limit reached (' + MAX_DEPTH + ')'));
         var grp = mkGroup(run, n.label, ctx.grp);
+        if (ctx.ctl) ctx.ctl.killers.add(function () { killGroup(grp); });
         if (!sub.nodes.length) { ev(run, 'warn', 'branch is empty', n); grp.done = true; return Promise.resolve(grp); }
         ev(run, 'info', 'branch started (' + sub.nodes.length + ' nodes)', n);
         return execGraph(run, grp, sub, ctx.depth + 1).then(function () { grp.done = true; ev(run, 'ok', 'branch completed', n); return grp; }, function (e) {
@@ -196,25 +290,38 @@
     async function perform(ctx, n) {
         var run = ctx.run, grp = ctx.grp, c = n.config || {}, out, stopped = false;
         if (++run.execs > MAX_EXEC) throw new Error('Run limit reached (' + MAX_EXEC + ' node executions)');
-        run.stack.push(n.id);
+        var ctl = { dead: false, paused: false, sleepers: new Set(), killers: new Set(), waiters: [] }, cx = Object.create(ctx);
+        cx.ctl = ctl; run.active[n.id] = ctl; run.stack.push(n.id);
         try {
-            if (c.aDelay) { ev(run, 'info', 'activation delay ' + c.aDelay + ' ms', n); await sleep(grp, c.aDelay); await gate(run, grp); }
+            if (c.aDelay) { ev(run, 'info', 'activation delay ' + c.aDelay + ' ms', n); await sleep(grp, c.aDelay, ctl); await gate(run, grp, ctl); }
             setS(run, n, 'running'); ev(run, 'info', 'started', n);
-            if (c.eDelay) { ev(run, 'info', 'execution delay ' + c.eDelay + ' ms', n); await sleep(grp, c.eDelay); await gate(run, grp); }
-            if (n.type === 'script') out = await runScript(ctx, n);
-            else if (n.type === 'branch') { if (c.mode === 'independent') { branchBg(ctx, n); ev(run, 'info', 'branch runs independently', n); } else { var bg = await branchRun(ctx, n); out = bg.results; stopped = !!bg.stopped; } }
-            else await sleep(grp, STEP);
-            await gate(run, grp);
-            if (c.oDelay) { ev(run, 'info', 'holding output ' + c.oDelay + ' ms', n); await sleep(grp, c.oDelay); await gate(run, grp); }
+            if (c.eDelay) { ev(run, 'info', 'execution delay ' + c.eDelay + ' ms', n); await sleep(grp, c.eDelay, ctl); await gate(run, grp, ctl); }
+            if (n.type === 'script') out = (c.lang === 'html' || c.lang === 'css') ? cleanOut({ lang: c.lang, content: String(c.code || '') }) : await runScript(cx, n);
+            else if (n.type === 'database') out = runSql(run, n);
+            else if (n.type === 'branch') {
+                if (c.mode === 'independent') { branchBg(ctx, n); ev(run, 'info', 'branch runs independently', n); }
+                else { var bg = await branchRun(cx, n); out = bg.results; stopped = !!bg.stopped; }
+            }
+            else await sleep(grp, STEP, ctl);
+            await gate(run, grp, ctl);
+            if (c.oDelay) { ev(run, 'info', 'holding output ' + c.oDelay + ' ms', n); await sleep(grp, c.oDelay, ctl); await gate(run, grp, ctl); }
             if (out !== undefined) grp.results[n.label] = out;
             setS(run, n, stopped ? 'stopped' : 'done');
             ev(run, 'ok', 'finished' + (out !== undefined ? ' with output ' + JSON.stringify(out).slice(0, 80) : ''), n);
-        } finally { run.stack.splice(run.stack.lastIndexOf(n.id), 1); }
+        } catch (e) {
+            if (e === CANCEL && ctl.dead && !grp.dead && !run.cancelled) { setS(run, n, 'stopped'); ev(run, 'warn', 'stopped by the timeline', n); return; }
+            throw e;
+        } finally { delete run.active[n.id]; var si = run.stack.lastIndexOf(n.id); if (si > -1) run.stack.splice(si, 1); }
     }
     async function runNode(ctx, n, ups) {
-        var run = ctx.run;
+        var run = ctx.run, grp = ctx.grp;
         try {
-            await Promise.all(ups); await gate(run, ctx.grp);
+            await Promise.all(ups); await gate(run, grp);
+            var t0 = run.startAt[n.id];
+            if (t0 > 0 && clockNow(run) < t0) { ev(run, 'info', 'waiting for its timeline start (' + t0 + ' ms)', n); await waitClock(run, grp, t0); await gate(run, grp); }
+            var wev = n.config && n.config.waitEvent;
+            if (wev && !run.fired[wev]) { ev(run, 'info', 'waiting for event "' + wev + '"', n); await waitEvent(run, grp, wev); await gate(run, grp); }
+            if (run.blocked[n.id]) { setS(run, n, 'stopped'); ev(run, 'warn', 'stopped by the timeline before it started', n); return; }
             if (!n.enabled) { setS(run, n, 'skipped'); ev(run, 'warn', 'skipped (disabled)', n); return; }
             await perform(ctx, n);
         } catch (e) {
@@ -228,7 +335,7 @@
         var order = topo(graph);
         if (!order) return Promise.reject(new Error('A branch contains a loop'));
         var ctx = { run: run, grp: grp, depth: depth, byId: {}, byLabel: {}, ups: {} }, P = {};
-        graph.nodes.forEach(function (n) { ctx.byId[n.id] = n; if (!(n.label in ctx.byLabel)) ctx.byLabel[n.label] = n; if (n.enabled) setS(run, n, 'waiting'); });
+        graph.nodes.forEach(function (n) { ctx.byId[n.id] = n; run.ctxs[n.id] = ctx; if (!(n.label in ctx.byLabel)) ctx.byLabel[n.label] = n; if (n.enabled) setS(run, n, 'waiting'); });
         graph.connections.forEach(function (c) { (ctx.ups[c.to] = ctx.ups[c.to] || []).push(c.from); });
         order.forEach(function (id) { P[id] = runNode(ctx, ctx.byId[id], (ctx.ups[id] || []).map(function (f) { return P[f]; })); P[id].catch(noop); });
         return Promise.all(order.map(function (id) { return P[id]; }));
@@ -238,7 +345,7 @@
     function finalize(run, status) {
         if (run.ended) return;
         if (status === 'done' && run.hadError) status = 'error';
-        run.ended = true; run.status = status; run.endedAt = Date.now();
+        run.ended = true; run.status = status; run.endedAt = Date.now(); finishExtras(run, status);
         Object.keys(run.st).forEach(function (id) {
             if (run.st[id] === 'running') G.setStatus(id, 'stopped'); else if (run.st[id] === 'waiting') G.setStatus(id, 'idle');
         });
@@ -257,8 +364,9 @@
         if (!topo(g)) return G.log('error', 'run', 'This graph contains a loop, so it cannot run.');
         G.resetStatus();
         var run = cur = { id: ++seq, status: 'running', startedAt: Date.now(), endedAt: 0, events: [], paused: false, cancelled: false, ended: false, hadError: false,
-            st: {}, waiters: [], gseq: 0, execs: 0, spawns: 0, bg: [], stack: [], root: null };
-        run.root = mkGroup(run, 'root', null);
+            st: {}, waiters: [], gseq: 0, execs: 0, spawns: 0, bg: [], stack: [], root: null,
+            startAt: {}, blocked: {}, fired: {}, evWait: {}, sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
+        run.root = mkGroup(run, 'root', null); setupTimeline(run, g);
         ev(run, 'info', 'Run ' + run.id + ' started (' + g.nodes.length + ' nodes)');
         execGraph(run, run.root, g, 0).then(function () { return drain(run); }).then(
             function () { finalize(run, 'done'); },
@@ -267,14 +375,15 @@
     };
     E.pause = function () {
         if (!active() || cur.status !== 'running') return;
-        cur.paused = true; cur.status = 'paused'; ev(cur, 'warn', 'Run ' + cur.id + ' paused (running steps finish, no new steps start)'); refresh();
+        cur.clockAcc = clockNow(cur); cur.paused = true; cur.status = 'paused'; ev(cur, 'warn', 'Run ' + cur.id + ' paused (running steps finish, no new steps start)'); refresh();
     };
     E.resume = function () {
         if (!active() || cur.status !== 'paused') return;
-        cur.paused = false; cur.status = 'running'; cur.waiters.splice(0).forEach(function (w) { w(); }); ev(cur, 'ok', 'Run ' + cur.id + ' resumed'); refresh();
+        cur.clockStart = Date.now(); cur.paused = false; cur.status = 'running'; cur.waiters.splice(0).forEach(function (w) { w(); }); ev(cur, 'ok', 'Run ' + cur.id + ' resumed'); refresh();
     };
     E.stop = function () { if (!active()) return; var r = cur; cancelRun(r); finalize(r, 'stopped'); };
     E.restart = function () { if (active()) E.stop(); E.start(); };
+    E.isActive = active;
 
     /* ---- UI ---- */
     function refresh() {
@@ -283,16 +392,41 @@
         $('stRunStop').disabled = !a; $('stRunRestart').disabled = !open;
         $('stRunState').textContent = a ? 'Run ' + cur.id + ' ' + st : 'Idle';
     }
+    function nodeTimes(r) {
+        var m = {}; r.events.forEach(function (x) { if (!x.node) return; var o = m[x.node] = m[x.node] || {}; if (/^finished/.test(x.msg)) o.f = x.t; else if (/^(skipped|stopped)/.test(x.msg)) o.f = o.f === undefined ? x.msg.split(' ')[0] : o.f; });
+        return m;
+    }
+    function cmpBox() {                                  // execution history comparison: finish time of every node in two runs
+        var wrap = document.createElement('div'); wrap.className = 'st-cmp';
+        var a = document.createElement('select'), b = document.createElement('select'), out = document.createElement('div');
+        a.setAttribute('aria-label', 'First run'); b.setAttribute('aria-label', 'Second run');
+        runs.forEach(function (r, i) { [a, b].forEach(function (s) { var o = document.createElement('option'); o.value = i; o.textContent = 'Run ' + r.id + ' (' + r.status + ')'; s.appendChild(o); }); });
+        a.value = 1; b.value = 0;
+        function fmt(v) { return v === undefined ? '-' : typeof v === 'number' ? (v / 1000).toFixed(2) + 's' : v; }
+        function draw() {
+            out.textContent = ''; var A = nodeTimes(runs[a.value]), B = nodeTimes(runs[b.value]), t = document.createElement('table'); t.className = 'dt';
+            var h = document.createElement('tr'); ['Node', 'Run ' + runs[a.value].id, 'Run ' + runs[b.value].id, 'Difference'].forEach(function (x) { var th = document.createElement('th'); th.textContent = x; h.appendChild(th); }); t.appendChild(h);
+            Object.keys(Object.assign({}, A, B)).sort().forEach(function (k) {
+                var x = A[k] && A[k].f, y = B[k] && B[k].f, d = (typeof x === 'number' && typeof y === 'number') ? ((y - x) / 1000).toFixed(2) + 's' : '-';
+                var tr = document.createElement('tr'); [k, fmt(x), fmt(y), d].forEach(function (v) { var td = document.createElement('td'); td.textContent = v; tr.appendChild(td); }); t.appendChild(tr);
+            });
+            out.appendChild(t);
+        }
+        a.addEventListener('change', draw); b.addEventListener('change', draw);
+        var l = document.createElement('span'); l.textContent = 'Compare '; wrap.appendChild(l); wrap.appendChild(a); var w = document.createElement('span'); w.textContent = ' with '; wrap.appendChild(w); wrap.appendChild(b); wrap.appendChild(out); draw();
+        return wrap;
+    }
     function renderHist() {
         var box = $('stHist'); box.textContent = '';
         if (!runs.length) { var p = document.createElement('p'); p.className = 'st-hint'; p.textContent = 'No runs yet. Press Start to run the graph.'; box.appendChild(p); return; }
+        if (runs.length >= 2) box.appendChild(cmpBox());
         runs.forEach(function (r) {
             var d = document.createElement('details'), s = document.createElement('summary');
             s.textContent = 'Run ' + r.id + ', ' + r.status + ', ' + ((r.endedAt - r.startedAt) / 1000).toFixed(1) + 's, ' + r.events.length + ' events';
             d.appendChild(s);
-            r.events.forEach(function (e) {
-                var row = document.createElement('div'); row.className = e.sev;
-                [(e.t / 1000).toFixed(2) + 's', e.sev, e.node || 'run', e.msg].forEach(function (t) { var c = document.createElement('span'); c.textContent = t; row.appendChild(c); });
+            r.events.forEach(function (x) {
+                var row = document.createElement('div'); row.className = x.sev;
+                [(x.t / 1000).toFixed(2) + 's', x.sev, x.node || 'run', x.msg].forEach(function (t) { var c = document.createElement('span'); c.textContent = t; row.appendChild(c); });
                 d.appendChild(row);
             });
             box.appendChild(d);

@@ -92,23 +92,28 @@
         $('stClear').addEventListener('click', function () { $('stLog').textContent = ''; });
         $('stFilter').addEventListener('change', function () { $('stLog').dataset.f = this.value; });
         $('stLog').addEventListener('click', function (e) { var r = e.target.closest('div[data-node]'); if (r) StudioGraph.select(r.dataset.node); });
+        var PANELS = { log: 'stLog', hist: 'stHist', time: 'stTime', data: 'stData' };
         Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
             b.addEventListener('click', function () {
-                var h = b.dataset.tab === 'hist'; $('stLog').hidden = h; $('stHist').hidden = !h; $('stFilter').hidden = h; $('stClear').hidden = h;
+                Object.keys(PANELS).forEach(function (k) { $(PANELS[k]).hidden = k !== b.dataset.tab; });
+                $('stFilter').hidden = $('stClear').hidden = b.dataset.tab !== 'log';
                 Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+                if (window.StudioTimeline && b.dataset.tab === 'time') StudioTimeline.render();
             });
         });
+        $('stRailToggle').addEventListener('click', function () { var c = $('stApp').classList.toggle('collapsed'); this.setAttribute('aria-expanded', String(!c)); });
         if (!sb) { log('error', 'studio', 'Supabase is not configured'); return; }
         var sess = (await sb.auth.getSession()).data.session;
         if (!sess) {
             var m = $('stListMsg'); m.textContent = 'Sign in to use Studio. ';
             var a = document.createElement('a'); a.href = 'login.html'; a.textContent = 'Go to login'; m.appendChild(a);
             $('stNew').disabled = true; $('stNewName').disabled = true;
-            log('warn', 'auth', 'Not signed in'); return;
+            log('warn', 'auth', 'Not signed in'); if (window.StudioShell) StudioShell.setUser(null); return;
         }
         S.me = sess.user;
         StudioGraph.log = log;
-        StudioGraph.onChange = function () { if (S.cur) $('stState').textContent = 'Unsaved changes'; }; log('ok', 'studio', 'Studio ready (Phase 4)');
+        StudioGraph.onChange = function () { if (S.cur) $('stState').textContent = 'Unsaved changes'; if (window.StudioShell) StudioShell.refresh(); };
+        if (window.StudioShell) StudioShell.setUser(sess.user, sb); log('ok', 'studio', 'Studio ready (Phase 5)');
         $('stNew').addEventListener('click', create);
         $('stNewName').addEventListener('keydown', function (e) { if (e.key === 'Enter') create(); });
         $('stSave').addEventListener('click', save);

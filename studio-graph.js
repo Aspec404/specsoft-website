@@ -3,7 +3,7 @@
 (function () {
     'use strict';
     var W = 148, H = 52, MAX_NODES = 200, NS = 'http://www.w3.org/2000/svg';
-    var api = window.StudioGraph = { log: function () {}, onChange: function () {}, onReset: function () {} };
+    var api = window.StudioGraph = { log: function () {}, onChange: function () {}, onReset: function () {}, openCode: function () {}, ext: {} };
     var G = { nodes: [], connections: [] }, ROOT = G, path = [], V = { x: 40, y: 40, k: 1 };
     var tool = 'select', sel = null, pend = null, open = false, drag = null, space = false;
     function $(id) { return document.getElementById(id); }
@@ -107,7 +107,7 @@
             var i = document.createElement('i'); i.className = 'st-port in';
             var o = document.createElement('i'); o.className = 'st-port out';
             var s = document.createElement('strong'); s.textContent = n.label;
-            var t = document.createElement('small'); t.textContent = (n.type === 'branch' ? 'branch, ' + n.config.sub.nodes.length + ' nodes' : n.type) + (n.enabled ? '' : ' (disabled)');
+            var t = document.createElement('small'); t.textContent = (n.type === 'branch' ? 'branch, ' + n.config.sub.nodes.length + ' nodes' : n.type === 'script' ? 'script, ' + ({ javascript: 'js' }[n.config.lang] || n.config.lang) : n.type) + (n.enabled ? '' : ' (disabled)');
             d.appendChild(i); d.appendChild(s); d.appendChild(t); d.appendChild(o); nodesEl.appendChild(d);
         });
         drawWires(); applyView(); hint.hidden = !(open && G.nodes.length === 0); drawCrumbs(); renderProps();
@@ -181,12 +181,14 @@
     document.addEventListener('keyup', function (e) { if (e.key === ' ') space = false; });
 
     /* ---- Phase 4: node config, branches, script editor ---- */
-    var MAX_DEPTH = 5, TYPES = ['basic', 'script', 'branch'];
+    var MAX_DEPTH = 5, TYPES = ['basic', 'script', 'branch', 'database'], LANGS = ['javascript', 'html', 'css'];
     var TEMPLATE = "// input = results of the nodes connected into this one\nstudio.log('Hello from a script node');\nawait studio.delay(500);\nreturn { ok: true };";
+    var TEMPLATES = { javascript: TEMPLATE, html: '<!-- HTML for your project -->\n<h1>Hello from SPECSOFT Studio</h1>', css: '/* CSS for your project */\nbody { font-family: sans-serif; }' };
+    var SQL_TEMPLATE = "-- Runs against this project's database\nCREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, text TEXT);\nINSERT INTO notes (text) VALUES ('hello');\nSELECT * FROM notes;";
     var crumbs = document.createElement('nav'); crumbs.className = 'st-crumbs'; crumbs.setAttribute('aria-label', 'Branch path'); crumbs.hidden = true; canvas.appendChild(crumbs);
     function clamp(v, lo, hi, d) { v = +v; return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
     function defaults(type) {
-        var c = { aDelay: 0, eDelay: 0, oDelay: 0, unit: 'ms', timeout: 5000, mode: 'inline', code: type === 'script' ? TEMPLATE : '' };
+        var c = { aDelay: 0, eDelay: 0, oDelay: 0, unit: 'ms', timeout: 5000, mode: 'inline', code: type === 'script' ? TEMPLATE : '', lang: 'javascript', sql: type === 'database' ? SQL_TEMPLATE : '', waitEvent: '' };
         if (type === 'branch') c.sub = { nodes: [], connections: [] }; return c;
     }
     function cleanGraph(g, depth) {                      // rebuilds a graph from saved/untrusted data: only known fields survive
@@ -194,7 +196,8 @@
         var nodes = (Array.isArray(g.nodes) ? g.nodes : []).slice(0, MAX_NODES).map(function (n) {
             n = n || {}; var type = TYPES.indexOf(n.type) > -1 ? n.type : 'basic', c = n.config || {}; ids[n.id] = 1;
             var cfg = { aDelay: clamp(c.aDelay, 0, 600000, 0), eDelay: clamp(c.eDelay, 0, 600000, 0), oDelay: clamp(c.oDelay, 0, 600000, 0), unit: c.unit === 's' ? 's' : 'ms',
-                timeout: clamp(c.timeout, 100, 30000, 5000), mode: c.mode === 'independent' ? 'independent' : 'inline', code: type === 'script' ? String(c.code || '').slice(0, 20000) : '' };
+                timeout: clamp(c.timeout, 100, 30000, 5000), mode: c.mode === 'independent' ? 'independent' : 'inline', code: type === 'script' ? String(c.code || '').slice(0, 20000) : '', lang: LANGS.indexOf(c.lang) > -1 ? c.lang : 'javascript',
+                sql: type === 'database' ? String(c.sql || '').slice(0, 20000) : '', waitEvent: /^[A-Za-z0-9_-]{1,20}$/.test(c.waitEvent || '') ? c.waitEvent : '' };
             if (type === 'branch') cfg.sub = depth < MAX_DEPTH ? cleanGraph(c.sub, depth + 1) : { nodes: [], connections: [] };
             return { id: String(n.id), label: String(n.label || 'N').slice(0, 20), type: type, x: num(n.x), y: num(n.y), enabled: n.enabled !== false, status: 'idle', config: cfg };
         });
@@ -228,13 +231,14 @@
 
     function typeSelect(n) {
         var s = document.createElement('select'); s.setAttribute('aria-label', 'Node type');
-        TYPES.forEach(function (t) { var o = document.createElement('option'); o.value = t; o.textContent = t === 'script' ? 'script (JavaScript)' : t; if (t === n.type) o.selected = true; s.appendChild(o); });
+        TYPES.forEach(function (t) { var o = document.createElement('option'); o.value = t; o.textContent = t === 'script' ? 'script (JS, HTML, CSS)' : t; if (t === n.type) o.selected = true; s.appendChild(o); });
         s.addEventListener('change', function () {
             var t = s.value;
             if (n.type === 'branch' && n.config.sub.nodes.length && t !== 'branch') { api.log('warn', 'graph', 'Empty ' + n.label + ' before changing its type'); s.value = n.type; return; }
             n.type = t;
             if (t === 'branch') n.config.sub = n.config.sub || { nodes: [], connections: [] }; else delete n.config.sub;
-            if (t === 'script' && !n.config.code) n.config.code = TEMPLATE;
+            if (t === 'script' && !n.config.code) n.config.code = TEMPLATES[n.config.lang] || TEMPLATE;
+            if (t === 'database' && !n.config.sql) n.config.sql = SQL_TEMPLATE;
             changed();
         });
         return s;
@@ -245,18 +249,34 @@
         i.addEventListener('input', function () { var v = parseFloat(i.value); if (!isFinite(v)) return; n.config[key] = Math.round(Math.min(hi, Math.max(lo, v * u))); api.onChange(); });
         row(dl, label, i);
     }
-    function highlight(src) {
+    function highlightJs(src) {
         function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
         var re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b(const|let|var|function|return|if|else|for|while|await|async|new|try|catch|throw|true|false|null|undefined|of|in|break|continue)\b|(\b\d+(?:\.\d+)?\b)|\b(studio|input)\b/g;
         var out = '', last = 0, m;
         while ((m = re.exec(src))) { out += esc(src.slice(last, m.index)) + '<span class="h-' + (m[1] ? 'c' : m[2] ? 's' : m[3] ? 'k' : m[4] ? 'n' : 'a') + '">' + esc(m[0]) + '</span>'; last = re.lastIndex; }
         return out + esc(src.slice(last)) + '\n';
     }
-    function editor(n) {
+    function paintRe(src, re, cls) {
+        function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+        var out = '', last = 0, m; re.lastIndex = 0;
+        while ((m = re.exec(src))) {
+            if (m[0] === '') { re.lastIndex++; continue; }
+            var g = 1; while (g < m.length && m[g] === undefined) g++;
+            out += esc(src.slice(last, m.index)) + '<span class="h-' + cls[g - 1] + '">' + esc(m[0]) + '</span>'; last = re.lastIndex;
+        }
+        return out + esc(src.slice(last)) + '\n';
+    }
+    function highlight(src, lang) {
+        if (lang === 'html') return paintRe(src, /(<!--[\s\S]*?-->)|("[^"\n]*"|'[^'\n]*')|(<\/?[A-Za-z][\w-]*|\/?>)|(\b[\w-]+(?==))/g, ['c', 's', 'k', 'a']);
+        if (lang === 'css') return paintRe(src, /(\/\*[\s\S]*?\*\/)|("[^"\n]*"|'[^'\n]*')|(@[\w-]+)|(#[0-9a-fA-F]{3,8}\b|\b\d+(?:\.\d+)?(?:px|em|rem|%|vh|vw|s|ms|deg)?\b)|([\w-]+(?=\s*:))/g, ['c', 's', 'k', 'n', 'a']);
+        if (lang === 'sql') return paintRe(src, /(--[^\n]*)|('(?:[^']|'')*')|\b(select|from|where|and|or|not|insert|into|values|update|set|delete|create|table|drop|if|exists|order|by|asc|desc|limit|offset|like|in|is|null|primary|key|default|as|count|sum|avg|min|max|integer|int|text|real|varchar)\b|(\b\d+(?:\.\d+)?\b)/gi, ['c', 's', 'k', 'n']);
+        return highlightJs(src);
+    }
+    function editor(n, key, lang) {                       // used by the Code Editor view (the Properties panel only links to it)
         var wrap = document.createElement('div'), pre = document.createElement('pre'), ta = document.createElement('textarea');
-        wrap.className = 'st-code'; pre.setAttribute('aria-hidden', 'true'); ta.spellcheck = false; ta.maxLength = 20000; ta.value = n.config.code; ta.setAttribute('aria-label', 'Script code');
-        function paint() { pre.innerHTML = highlight(ta.value); }          // highlight() escapes everything it prints
-        ta.addEventListener('input', function () { n.config.code = ta.value; paint(); api.onChange(); });
+        wrap.className = 'st-code'; pre.setAttribute('aria-hidden', 'true'); ta.spellcheck = false; ta.maxLength = 20000; ta.value = n.config[key]; ta.setAttribute('aria-label', 'Code');
+        function paint() { pre.innerHTML = highlight(ta.value, lang); }          // every highlighter escapes what it prints
+        ta.addEventListener('input', function () { n.config[key] = ta.value; paint(); api.onChange(); });
         ta.addEventListener('scroll', function () { pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft; });
         ta.addEventListener('keydown', function (e) {
             if (e.key === 'Tab') { e.preventDefault(); var a = ta.selectionStart; ta.value = ta.value.slice(0, a) + '  ' + ta.value.slice(ta.selectionEnd); ta.selectionStart = ta.selectionEnd = a + 2; ta.dispatchEvent(new Event('input')); }
@@ -269,7 +289,19 @@
         u.addEventListener('change', function () { n.config.unit = u.value; api.onChange(); renderProps(); });
         row(dl, 'Time unit', u);
         numRow(dl, 'Activation delay', n, 'aDelay', 0, 600000); numRow(dl, 'Execution delay', n, 'eDelay', 0, 600000); numRow(dl, 'Output delay', n, 'oDelay', 0, 600000);
-        if (n.type === 'script') { numRow(dl, 'Time limit', n, 'timeout', 100, 30000); row(dl, 'JavaScript', editor(n)); }
+        var wi = document.createElement('input'); wi.type = 'text'; wi.maxLength = 20; wi.value = n.config.waitEvent || ''; wi.placeholder = 'none'; wi.setAttribute('aria-label', 'Wait for event');
+        wi.addEventListener('change', function () { n.config.waitEvent = /^[A-Za-z0-9_-]{1,20}$/.test(wi.value) ? wi.value : ''; wi.value = n.config.waitEvent; api.onChange(); });
+        row(dl, 'Wait for event', wi);
+        if (n.type === 'script') {
+            var lg = document.createElement('select'); lg.setAttribute('aria-label', 'Language');
+            LANGS.forEach(function (x) { var o = document.createElement('option'); o.value = x; o.textContent = x; if (n.config.lang === x) o.selected = true; lg.appendChild(o); });
+            lg.addEventListener('change', function () { api.setLang(n.id, lg.value); }); row(dl, 'Language', lg);
+            if (n.config.lang === 'javascript') numRow(dl, 'Time limit', n, 'timeout', 100, 30000);
+        }
+        if (n.type === 'script' || n.type === 'database') {
+            var ob = document.createElement('button'); ob.type = 'button'; ob.className = 'st-btn'; ob.textContent = 'Open in Code Editor'; ob.addEventListener('click', function () { api.openCode(n.id); });
+            row(dl, 'Code', ob);
+        }
         if (n.type === 'branch') {
             var m = document.createElement('select'); m.setAttribute('aria-label', 'Branch mode');
             [['inline', 'Part of the parent flow'], ['independent', 'Independent (parent does not wait)']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (n.config.mode === x[0]) o.selected = true; m.appendChild(o); });
@@ -283,11 +315,41 @@
     function num(v) { return isFinite(v) ? Math.round(+v) : 0; }
     api.load = function (g) {
         G = ROOT = cleanGraph(g, 0); path = [];
+        Object.keys(api.ext).forEach(function (k) { api.ext[k].load(g && g[k]); });
         open = true; sel = null; pend = null; V = { x: 40, y: 40, k: 1 }; setTool('select'); api.onReset();
     };
-    api.clear = function () { open = false; G = ROOT = { nodes: [], connections: [] }; path = []; sel = null; pend = null; render(); api.onReset(); };
-    api.get = function () { var c = cleanGraph(ROOT, 0); return { version: 2, nodes: c.nodes, connections: c.connections }; };   // statuses are never saved
+    api.clear = function () { open = false; G = ROOT = { nodes: [], connections: [] }; path = []; Object.keys(api.ext).forEach(function (k) { api.ext[k].load(undefined); }); sel = null; pend = null; render(); api.onReset(); };
+    api.get = function () { var c = cleanGraph(ROOT, 0); var out = { version: 3, nodes: c.nodes, connections: c.connections }; Object.keys(api.ext).forEach(function (k) { if (api.ext[k].save) out[k] = api.ext[k].save(); }); return out; };   // statuses are never saved
     api.isOpen = function () { return open; };
+    function walk(g, labels, fn) { g.nodes.forEach(function (n) { fn(n, labels); if (n.config && n.config.sub) walk(n.config.sub, labels.concat(n.label), fn); }); }
+    api.listNodes = function () { var out = []; walk(ROOT, [], function (n, pl) { out.push({ id: n.id, label: pl.concat(n.label).join(' / '), type: n.type }); }); return out; };
+    api.hasNode = function (id) { return !!findAny(id); };
+    api.node = function (id) { return findAny(id); };
+    api.codeNodes = function () {
+        var out = []; walk(ROOT, [], function (n, pl) { if (n.type === 'script' || n.type === 'database') out.push({ id: n.id, label: n.label, path: pl.join(' / '), type: n.type, lang: n.type === 'database' ? 'sql' : n.config.lang }); }); return out;
+    };
+    api.tree = function () {
+        function conv(g) { return g.nodes.map(function (n) { return { id: n.id, label: n.label, type: n.type, lang: n.config.lang, children: n.config.sub ? conv(n.config.sub) : null }; }); }
+        return conv(ROOT);
+    };
+    api.reveal = function (id) {                         // show the container that holds a node and select it
+        var found = null;
+        (function look(g, trail) { g.nodes.forEach(function (n) { if (found) return; if (n.id === id) found = { g: g, trail: trail }; else if (n.config && n.config.sub) look(n.config.sub, trail.concat(n)); }); })(ROOT, []);
+        if (!found) return false; path = found.trail; G = found.g; sel = id; pend = null; V = { x: 40, y: 40, k: 1 }; render(); return true;
+    };
+    api.createCode = function (kind) {                   // kind: js | html | css | sql
+        if (!open || G.nodes.length >= MAX_NODES) return null;
+        var i = G.nodes.length, type = kind === 'sql' ? 'database' : 'script', lang = kind === 'html' ? 'html' : kind === 'css' ? 'css' : 'javascript';
+        var n = { id: uid(), label: nextLabel('N'), type: type, x: 40 + (i % 5) * 180, y: 40 + Math.floor(i / 5) * 90, enabled: true, status: 'idle', config: defaults(type) };
+        n.config.lang = lang; if (type === 'script') n.config.code = TEMPLATES[lang];
+        G.nodes.push(n); sel = n.id; api.log('ok', 'graph', 'Created ' + n.label + ' (' + kind + ')'); changed(); return n.id;
+    };
+    api.setLang = function (id, lang) {
+        var n = findAny(id); if (!n || n.type !== 'script' || LANGS.indexOf(lang) < 0) return;
+        var c = n.config.code, isTpl = !c.trim() || Object.keys(TEMPLATES).some(function (k) { return TEMPLATES[k] === c; });
+        n.config.lang = lang; if (isTpl) n.config.code = TEMPLATES[lang]; changed();
+    };
+    api.editorFor = function (n, key, lang) { return editor(n, key, lang); };
     api.select = function (id) { if (byId(id)) { sel = id; render(); } };
     api.setStatus = function (id, s) {
         var n = findAny(id); if (!n) return; n.status = s;

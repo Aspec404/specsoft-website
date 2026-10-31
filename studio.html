@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Studio | SPECSOFT®</title>
-    <meta name="description" content="SPECSOFT® Studio: build projects with a visual node graph.">
+    <meta name="description" content="SPECSOFT® Studio: build projects with a visual node graph, code, a database and a timeline.">
     <script src="gate.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,30 +18,50 @@
     <div class="grid-bg"></div>
     <div class="vignette"></div>
 
+    <!-- The site's default sidebar is kept in the page (main.js expects it) but hidden by studio.css: Studio has its own sidebar below. -->
     <div class="mobile-header"></div>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main-content st-main">
-        <div class="st-app" id="stApp">
+        <div class="st-app" id="stApp" data-mode="graph">
 
-            <!-- Projects rail -->
-            <aside class="st-rail" aria-label="Your studio projects">
-                <h1 class="st-h1">Studio</h1>
-                <div class="st-new">
-                    <input id="stNewName" type="text" maxlength="60" placeholder="New project name" aria-label="New project name">
-                    <button type="button" class="st-btn" id="stNew">Create</button>
+            <!-- STUDIO SIDEBAR -->
+            <aside class="st-rail" aria-label="Studio sidebar">
+                <a class="st-brand" href="studio.html" aria-label="SPECSOFT Studio">
+                    <img src="logo.png" alt="" class="logo-light" onerror="this.style.display='none';">
+                    <img src="logo-dark.png" alt="" class="logo-dark" onerror="this.style.display='none';">
+                    <span>Studio</span>
+                </a>
+                <div class="st-nav" id="stNav"></div>
+
+                <div class="st-explorer" id="stExplorer">
+                    <h3 class="st-sub">Projects</h3>
+                    <div class="st-new">
+                        <input id="stNewName" type="text" maxlength="60" placeholder="New project name" aria-label="New project name">
+                        <button type="button" class="st-btn" id="stNew">Create</button>
+                    </div>
+                    <ul class="st-list" id="stList"></ul>
+                    <p class="st-hint" id="stListMsg"></p>
+                    <div id="stTree"></div>
                 </div>
-                <ul class="st-list" id="stList"></ul>
-                <p class="st-hint" id="stListMsg"></p>
+
+                <div class="st-site">
+                    <a href="index.html">Back to SPECSOFT</a>
+                    <a href="projects.html">Projects hub</a>
+                </div>
+                <div class="st-user" id="stUser"></div>
             </aside>
 
-            <!-- Tools -->
+            <!-- Canvas tools (Node Graphs view) -->
             <nav class="st-tools" id="stTools" aria-label="Canvas tools"></nav>
 
-            <!-- Workspace -->
-            <section class="st-work" aria-label="Workspace">
+            <!-- WORKSPACE -->
+            <section class="st-work" id="stWork" aria-label="Workspace">
                 <header class="st-bar">
+                    <button type="button" class="st-btn" id="stRailToggle" aria-label="Toggle sidebar" aria-expanded="true" title="Toggle sidebar">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    </button>
                     <input id="stTitle" type="text" maxlength="60" aria-label="Project title" disabled>
                     <span class="st-state" id="stState">No project open</span>
                     <div class="st-run" role="group" aria-label="Run controls">
@@ -55,26 +75,33 @@
                     <button type="button" class="st-btn" id="stSave" disabled>Save</button>
                     <button type="button" class="st-btn st-danger" id="stDelete" disabled>Delete</button>
                 </header>
+
                 <div class="st-canvas" id="stCanvas">
-                    <p class="st-empty" id="stEmpty">Create or open a project to start.<br></p>
+                    <p class="st-empty" id="stEmpty">Create or open a project to start.</p>
                 </div>
-                <div class="st-bottom">
+                <div class="st-codeview" id="stCode" hidden></div>
+                <div class="st-page" id="stPage" hidden></div>
+
+                <div class="st-bottom" id="stDock">
                     <div class="st-tabs" role="tablist">
                         <button type="button" role="tab" aria-selected="true" data-tab="log">Console</button>
-                        <button type="button" role="tab" aria-selected="false" data-tab="hist">History</button>
-                        <button type="button" role="tab" aria-disabled="true" title="Phase 5">Timeline</button>
+                        <button type="button" role="tab" aria-selected="false" data-tab="hist">Debugger</button>
+                        <button type="button" role="tab" aria-selected="false" data-tab="time">Timeline</button>
+                        <button type="button" role="tab" aria-selected="false" data-tab="data">Database</button>
                         <select id="stFilter" class="st-filter" aria-label="Filter console"><option value="">All messages</option><option value="ok">Success</option><option value="info">Info</option><option value="warn">Warnings</option><option value="error">Errors</option></select>
                         <button type="button" class="st-link" id="stClear">Clear</button>
                     </div>
-                    <div class="st-log" id="stLog" role="log" aria-live="polite"></div>
-                    <div class="st-log st-hist" id="stHist" hidden></div>
+                    <div class="st-log st-panel" id="stLog" role="log" aria-live="polite"></div>
+                    <div class="st-log st-panel st-hist" id="stHist" hidden></div>
+                    <div class="st-panel st-time" id="stTime" hidden></div>
+                    <div class="st-panel st-data" id="stData" hidden></div>
                 </div>
             </section>
 
-            <!-- Properties -->
+            <!-- Properties (Node Graphs view) -->
             <aside class="st-props" aria-label="Properties">
                 <h2>Properties</h2>
-                <dl id="stProps"><dt>Nothing selected</dt><dd>Node settings appear here in Phase 2.</dd></dl>
+                <dl id="stProps"><dt>Nothing selected</dt><dd>Node settings appear here.</dd></dl>
             </aside>
         </div>
     </main>
@@ -85,7 +112,11 @@
     <script src="ban.js"></script>
     <script src="main.js?v=2"></script>
     <script src="studio-graph.js"></script>
+    <script src="studio-sql.js"></script>
+    <script src="studio-data.js"></script>
+    <script src="studio-timeline.js"></script>
     <script src="studio-engine.js"></script>
+    <script src="studio-shell.js"></script>
     <script src="studio.js"></script>
     <script src="cursor.js" defer></script>
 </body>
