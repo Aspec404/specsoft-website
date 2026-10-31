@@ -243,6 +243,33 @@
                         </form>
                     </section>
 
+                    <!-- ===== PICK A USERNAME (first time with Discord, or a missing profile) ===== -->
+                    <section class="au-panel" data-panel="username" hidden>
+                        <form id="auFormUsername" novalidate>
+                            <div class="au-msg" role="alert"></div>
+
+                            <div class="au-field">
+                                <input class="au-input" type="text" id="unName" name="username" placeholder=" " autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" enterkeyhint="go" required>
+                                <label class="au-label" for="unName">USERNAME</label>
+                                <p class="au-hint" id="unNameHint"></p>
+                            </div>
+
+                            <label class="au-check">
+                                <input type="checkbox" id="unTerms">
+                                <span class="au-box" aria-hidden="true"></span>
+                                <span class="au-check-text">I'm 13 or older and I agree to the <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</span>
+                            </label>
+                            <p class="au-hint" id="unTermsHint"></p>
+
+                            <button type="submit" class="au-btn">
+                                <span class="au-btn-label">CONTINUE</span><span class="au-spin" aria-hidden="true"></span>
+                            </button>
+                            <div class="au-row au-row--center">
+                                <button type="button" class="au-link" id="unCancel">Use a different account</button>
+                            </div>
+                        </form>
+                    </section>
+
                     <!-- ===== CHECK YOUR EMAIL ===== -->
                     <section class="au-panel au-center" data-panel="check" hidden>
                         <div class="au-icon-wrap">
@@ -304,6 +331,8 @@
     <script src="ban.js"></script>
     <!-- Supabase client (pinned version) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <!-- one shared Supabase client for the whole page (main.js, ban.js and auth.js use the same one) -->
+    <script src="supabase-config.js"></script>
     <!-- main.js builds the sidebar. auth.js goes AFTER it. -->
     <script src="main.js?v=2"></script>
     <!-- Cloudflare Turnstile (bot check). Only used once TURNSTILE_SITE_KEY is set in auth.js -->

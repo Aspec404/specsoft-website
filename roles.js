@@ -285,7 +285,10 @@
     function showStanding() {
         var sb = client();
         if (!sb) return;
-        Promise.resolve(sb.rpc('my_standing')).then(function (res) {
+        // logged-out visitors have no standing, and the database only lets signed-in members ask
+        Promise.resolve(sb.auth ? sb.auth.getSession() : null).then(function (s) {
+            return (s && s.data && s.data.session) ? sb.rpc('my_standing') : null;
+        }).then(function (res) {
             var d = res && res.data;
             if (!d) return;
             var sanctions = d.sanctions || [], notices = d.notices || [];

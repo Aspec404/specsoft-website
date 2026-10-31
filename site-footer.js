@@ -17,7 +17,7 @@
     'use strict';
     if (window.SpecFooter) return;
 
-    var SKIP = /(^|\/)(chats|intro|ban|admin|gate)(\.html)?$/i;   // app screens and full-screen pages
+    var SKIP = /(^|\/)(chats|intro|ban|admin|gate|login)(\.html)?$/i;   // app screens, the sign-in page and full-screen pages
 
     var TAGLINE = 'Build with purpose. Create without limits.';
     var EST = 2025;

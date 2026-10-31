@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Email verified | SPECSOFT®</title>
+    <meta name="robots" content="noindex">
+    <link rel="icon" type="image/png" href="logo.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="auth.css">
+    <link rel="stylesheet" href="cursor.css">
+    <style>
+        .vf-wrap { max-width: 520px; margin: 0 auto; }
+        .vf-card { text-align: center; }
+        .vf-card .au-head { margin-bottom: 8px; }
+        .vf-card .au-btn { margin-top: 18px; text-decoration: none; }
+        .vf-lead { margin: 0 auto; max-width: 38ch; }
+        .vf-spin { display: block; width: 34px; height: 34px; margin: 24px auto; border-radius: 50%; border: 2px solid var(--border-subtle); border-top-color: var(--text-primary); animation: vfSpin 0.8s linear infinite; }
+        @keyframes vfSpin { to { transform: rotate(360deg); } }
+        .vf-bad { color: #ef4444; }
+        .ss-reduce-motion .vf-spin { animation: none; }
+    </style>
+</head>
+<body>
+    <script>try{var s=JSON.parse(localStorage.getItem('specsoft.settings.v1')||'{}')||{};var t=localStorage.getItem('specsoft-theme');if(s.theme==='system'){t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';localStorage.setItem('specsoft-theme',t)}if(t==='light')document.body.classList.add('light-mode')}catch(e){}</script>
+
+    <div class="grid-bg"></div>
+    <div class="grid-glow" id="gridGlow"></div>
+    <div class="scanner-line"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-2"></div>
+    <div class="geo-shape geo-ring"></div>
+    <div class="geo-shape geo-ring-2"></div>
+    <div class="geo-shape geo-triangle"></div>
+    <div class="geo-shape geo-square"></div>
+    <div class="geo-dot-grid"></div>
+    <div class="crosshair tl"></div>
+    <div class="crosshair tr"></div>
+    <div class="crosshair bl"></div>
+    <div class="crosshair br"></div>
+
+    <div class="mobile-header"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <div class="hud-bar">
+            <div class="hud-left">
+                <div class="hud-item"><span class="hud-dot"></span> SYSTEM.ACTIVE</div>
+                <div class="hud-item">AUTH.VERIFY</div>
+            </div>
+            <div class="hud-right">
+                <div class="hud-item">STATUS: <span id="vfHud">CHECKING</span></div>
+            </div>
+        </div>
+
+        <section class="au-page">
+            <div class="vf-wrap">
+                <div class="au-card vf-card" id="vfCard" aria-live="polite">
+
+                    <!-- checking the link -->
+                    <div id="vfWait">
+                        <header class="au-head"><h1 class="au-title">Checking your link</h1></header>
+                        <span class="vf-spin" aria-hidden="true"></span>
+                    </div>
+
+                    <!-- success -->
+                    <div id="vfOk" hidden>
+                        <svg class="au-check-ring" viewBox="0 0 80 80" aria-hidden="true">
+                            <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" stroke-width="2.5"/>
+                            <polyline points="25 41 36 52 56 29" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <header class="au-head"><h1 class="au-title">EMAIL VERIFIED!</h1></header>
+                        <p class="au-lead vf-lead" id="vfOkText">Activation successful. Your account is ready, and you can log in now.</p>
+                        <a class="au-btn" id="vfOkBtn" href="login.html"><span class="au-btn-label">LOG IN</span></a>
+                    </div>
+
+                    <!-- problem with the link -->
+                    <div id="vfBad" hidden>
+                        <div class="au-icon-wrap vf-bad">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        </div>
+                        <header class="au-head"><h1 class="au-title">LINK PROBLEM</h1></header>
+                        <p class="au-lead vf-lead" id="vfBadText">That link expired or was already used. If you already verified your email, just log in.</p>
+                        <a class="au-btn" href="login.html"><span class="au-btn-label">GO TO LOG IN</span></a>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <script src="supabase-config.js"></script>
+    <script src="main.js?v=3"></script>
+    <script>
+    (function () {
+        'use strict';
+        var $ = function (id) { return document.getElementById(id); };
+        function show(which, hud) {
+            ['vfWait', 'vfOk', 'vfBad'].forEach(function (id) { $(id).hidden = id !== which; });
+            $('vfHud').textContent = hud;
+        }
+
+        // Supabase puts a problem in the address when a link is expired, used twice or cancelled
+        var h = new URLSearchParams(location.hash.replace(/^#/, ''));
+        var q = new URLSearchParams(location.search);
+        var failed = h.get('error') || q.get('error');
+        var code = h.get('error_code') || q.get('error_code') || '';
+
+        if (failed) {
+            if (code !== 'otp_expired') $('vfBadText').textContent = 'That link is not valid anymore. Log in to request a new one.';
+            show('vfBad', 'LINK ERROR');
+            try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+            return;
+        }
+
+        // the link worked. If this browser also got signed in, offer to continue instead.
+        var sb = window.getSupabaseClient ? window.getSupabaseClient() : null;
+        show('vfOk', 'VERIFIED');
+        if (!sb) return;
+        sb.auth.getSession().then(function (r) {
+            var session = r && r.data && r.data.session;
+            if (session) {
+                $('vfOkText').textContent = 'Activation successful. Your account is ready and you are signed in on this device.';
+                $('vfOkBtn').querySelector('.au-btn-label').textContent = 'CONTINUE';
+            }
+            try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+        }).catch(function () { /* the page already says it worked */ });
+    })();
+    </script>
+    <script src="cursor.js" defer></script>
+    <script src="seasons.js"></script>
+</body>
+</html>

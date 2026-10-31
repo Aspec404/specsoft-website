@@ -11,12 +11,13 @@
 (function () {
     'use strict';
 
-    const CONFIG = window.SPECSOFT_CONFIG || {
+    // supabase-config.js (loaded first on login.html) only knows the URL and key, so merge it over the defaults
+    const CONFIG = Object.assign({
         SUPABASE_URL: 'https://mcpjjmbvuzclzrniunkq.supabase.co',
         SUPABASE_ANON_KEY: 'sb_publishable_uuybm3j2xZ0wdrbIhxANCQ_QApPdkv7',
         DEFAULT_NEXT: 'community.html',
         MIN_PASSWORD: 8
-    };
+    }, window.SPECSOFT_CONFIG || {});
 
     const card = document.getElementById('auCard');
     if (!card) return;
@@ -40,6 +41,8 @@
     if (!sb) $('auConfig').hidden = false;
 
     const baseUrl = () => location.origin + location.pathname;
+    // where the confirmation email sends people: the SPECSOFT "activation successful" page (same folder as login.html)
+    const verifiedUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'verified.html';
     const canOAuth = () => /^https?:$/.test(location.protocol);
 
     // Only allow redirects to a local .html page (blocks open-redirect tricks)
@@ -81,6 +84,7 @@
         forgot:  { title: 'Reset password',  sub: 'Enter your email and we will send you a reset link.', h1: ['LOST YOUR', 'KEY?'] },
         reset:   { title: 'New password',    sub: 'Choose a new password for your account.',          h1: ['NEW', 'KEY.'] },
         check:   { title: 'Check your email', sub: '',                                                h1: ['CHECK YOUR', 'INBOX.'] },
+        username:{ title: 'Pick a username', sub: 'This is how people will see you on SPECSOFT\u00ae.', h1: ['PICK YOUR', 'NAME.'] },
         success: { title: 'You are in',      sub: '',                                                h1: ['ACCESS', 'GRANTED.'] },
         account: { title: 'Your account',    sub: '',                                                h1: ['YOU ARE', 'IN.'] }
     };
@@ -248,6 +252,7 @@
         try {
             await task();
         } catch (err) {
+            console.error('[auth]', err);
             const text = friendly(err);
             if (form) showMsg(form, text, 'error');
             termLog('access denied', 'bad');
@@ -264,7 +269,8 @@
         const msg  = (err && err.message || '').toLowerCase();
         const status = err && err.status;
 
-        if (err && err.isNotConnected) return err.message;
+        if (err && (err.isNotConnected || err.isFriendly)) return err.message;
+        if (msg.includes('provider is not enabled') || msg.includes('unsupported provider')) return 'Discord login is not switched on yet. Please use email for now.';
         if (msg.includes('captcha')) return 'Please finish the security check and try again.';
         if (code === 'invalid_credentials' || msg.includes('invalid login')) return 'Wrong email or password.';
         if (code === 'email_not_confirmed' || msg.includes('not confirmed')) return 'Please confirm your email first. Check your inbox (and spam).';
@@ -275,7 +281,9 @@
         if (status === 429 || code.includes('rate_limit') || msg.includes('rate limit') || msg.includes('too many')) return 'Too many tries. Wait a minute and try again.';
         if (msg.includes('failed to fetch') || msg.includes('network')) return 'Cannot reach the server. Check your connection.';
         if (code === 'same_password') return 'Choose a password different from your old one.';
-        return 'Something went wrong. Please try again.';
+        if (msg.includes('error sending') || code === 'smtp_failed') return 'We could not send the email right now. Please try again in a few minutes, or ask us on Discord.';
+        // unknown problem: show Supabase's short code so it can be found in the Auth logs
+        return 'Something went wrong. Please try again.' + ((code || status) ? ' (' + (code || status) + ')' : '');
     }
 
     function needBackend() {
@@ -377,7 +385,7 @@
             if (error) throw error;
             pass.value = '';
             termLog('access granted', 'ok');
-            granted(data.user);
+            await afterLogin(data.user);
         });
     });
 
@@ -411,14 +419,14 @@
             const { data, error } = await sb.auth.signUp({
                 email: email.value.trim(),
                 password: pass.value,
-                options: { data: { username: user.value.trim() }, emailRedirectTo: baseUrl(), captchaToken }
+                options: { data: { username: user.value.trim() }, emailRedirectTo: verifiedUrl(), captchaToken }
             });
             if (error) throw error;
             pass.value = ''; conf.value = '';
 
             if (data.session) {                // email confirmation is switched off in Supabase
                 termLog('account created', 'ok');
-                granted(data.user);
+                await afterLogin(data.user);
             } else {                           // normal case: confirmation email was sent
                 pendingEmail = email.value.trim();
                 termLog('confirmation email sent', 'ok');
@@ -518,13 +526,14 @@
             const captchaToken = await captcha.token(checkPanel);
             const { error } = resendKind === 'recovery'
                 ? await sb.auth.resetPasswordForEmail(pendingEmail, { redirectTo: baseUrl(), captchaToken })
-                : await sb.auth.resend({ type: 'signup', email: pendingEmail, options: { emailRedirectTo: baseUrl(), captchaToken } });
+                : await sb.auth.resend({ type: 'signup', email: pendingEmail, options: { emailRedirectTo: verifiedUrl(), captchaToken } });
             if (error) throw error;
             msg.className = 'au-msg is-ok';
             msg.textContent = 'Sent again. Check your inbox and spam folder.';
             startCooldown(30);
         } catch (err) {
             msg.className = 'au-msg is-error';
+            console.error('[auth]', err);
             msg.textContent = friendly(err);
         } finally {
             captcha.reset(document.querySelector('[data-panel="check"]'));
@@ -537,6 +546,17 @@
     /* ----------------------------------------------------------------------
        9. DISCORD LOGIN
        ---------------------------------------------------------------------- */
+    // Supabase publishes which login providers are switched on. If Discord is off, say so here
+    // instead of sending people to a plain error page on supabase.co.
+    async function discordEnabled() {
+        try {
+            const r = await fetch(CONFIG.SUPABASE_URL + '/auth/v1/settings', { headers: { apikey: CONFIG.SUPABASE_ANON_KEY } });
+            if (!r.ok) return true;
+            const j = await r.json();
+            return !(j && j.external && j.external.discord === false);
+        } catch (e) { return true; }
+    }
+
     $('auDiscord').addEventListener('click', () => {
         const btn = $('auDiscord');
         const form = current === 'signup' ? fSignup : fLogin;
@@ -547,12 +567,103 @@
             if (!canOAuth()) {
                 throw Object.assign(new Error('Discord login needs the site to run on http(s), not as a local file.'), { isNotConnected: true });
             }
+            if (!(await discordEnabled())) throw Object.assign(new Error('Discord login is not switched on yet. Please use email for now.'), { isFriendly: true });
             try { sessionStorage.setItem('au_next', safeNext()); sessionStorage.setItem('au_oauth', '1'); } catch (e) { /* ignore */ }
             const { error } = await sb.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo: baseUrl() } });
             if (error) throw error;
             // the browser now leaves for Discord, keep the button spinning
             await new Promise(() => {});
         });
+    });
+
+    /* ----------------------------------------------------------------------
+       9b. PROFILE CHECK + USERNAME STEP
+       Discord members arrive without the username we ask for at sign up, and a profile row
+       needs one. After any login we make sure the profile exists, and ask for a username if not.
+       If the profiles table can't be read for any reason, we skip this and log in as before.
+       ---------------------------------------------------------------------- */
+    let pendingUser = null;
+
+    async function profileMissing(user) {
+        try {
+            const { data, error } = await sb.from('profiles').select('id').eq('id', user.id).maybeSingle();
+            if (error) return false;
+            return !data;
+        } catch (e) { return false; }
+    }
+
+    function suggestUsername(user) {
+        const m = user.user_metadata || {};
+        let s = String(m.username || m.user_name || m.name || m.full_name || (user.email || 'member').split('@')[0])
+            .replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+        if (s.length < 3) s = (s + '_member').slice(0, 20);
+        return s.slice(0, 20);
+    }
+
+    async function createProfile(user, username) {
+        const m = user.user_metadata || {};
+        const row = { id: user.id, username: username };
+        const dn = String(m.full_name || m.name || '').trim().slice(0, 40);
+        if (dn) row.display_name = dn;
+        const av = m.avatar_url || m.picture;
+        if (av && /^https:\/\//i.test(av)) row.avatar_url = av;
+        return sb.from('profiles').insert(row);
+    }
+
+    function askUsername(user, note) {
+        pendingUser = user;
+        const input = $('unName');
+        if (!input.value) input.value = suggestUsername(user);
+        clearAllMessages();
+        showPanel('username', { focus: true });
+        if (note) showMsg($('auFormUsername'), note, 'error');
+        termLog('choose a username');
+    }
+
+    async function afterLogin(user, message) {
+        if (sb && user && await profileMissing(user)) {
+            const meta = (user.user_metadata || {}).username;
+            const viaEmail = ((user.app_metadata || {}).provider || 'email') === 'email';
+            if (viaEmail && meta && RE_USER.test(meta)) {
+                const { error } = await createProfile(user, meta);        // the username they picked at sign up
+                if (error && error.code === '23505') { askUsername(user, 'That username was taken. Pick another one.'); return; }
+            } else {
+                askUsername(user); return;
+            }
+        }
+        granted(user, message);
+    }
+
+    const fUsername = $('auFormUsername');
+    wire($('unName'), vUser);
+    $('unTerms').addEventListener('change', () => setError($('unTerms'), ''));
+
+    fUsername.addEventListener('submit', e => {
+        e.preventDefault();
+        const name = $('unName'), terms = $('unTerms');
+        let ok = vUser(name);
+        if (!terms.checked) { setError(terms, 'You need to agree to continue.'); ok = false; } else { setError(terms, ''); }
+        if (!ok || !pendingUser) { shake(); return; }
+
+        run(fUsername, fUsername.querySelector('.au-btn'), async () => {
+            termLog('saving username...');
+            const { error } = await createProfile(pendingUser, name.value.trim());
+            if (error) {
+                if (error.code === '23505') throw Object.assign(new Error('That username is already taken. Try another one.'), { isFriendly: true });
+                if (error.code === '23514') throw Object.assign(new Error('3 to 20 characters: letters, numbers and underscores only.'), { isFriendly: true });
+                throw error;
+            }
+            termLog('profile created', 'ok');
+            granted(pendingUser);
+        });
+    });
+
+    $('unCancel').addEventListener('click', async () => {
+        try { if (sb) await sb.auth.signOut(); } catch (e) { /* ignore */ }
+        pendingUser = null;
+        syncNav(null);
+        clearAllMessages();
+        showPanel('login', { focus: false });
     });
 
     /* ----------------------------------------------------------------------
@@ -685,7 +796,9 @@
             } else {
                 let fromRedirect = false;
                 try { fromRedirect = sessionStorage.getItem('au_oauth') === '1'; } catch (e) { /* ignore */ }
-                if (fromRedirect || /access_token=|type=signup|type=magiclink/.test(location.hash)) {
+                if (await profileMissing(session.user)) {
+                    askUsername(session.user);
+                } else if (fromRedirect || /access_token=|type=signup|type=magiclink/.test(location.hash)) {
                     termLog('access granted', 'ok');
                     granted(session.user);
                 } else {
