@@ -1,3 +1,16 @@
+/* SPECSOFT® email-link rescue. If Supabase ever sends an email link back to the wrong page (for example the home page,
+   because the page it was asked for was not in its allowed list), hand the visitor over to the right page with the link's
+   tokens, so password resets and confirmations still work. Runs before anything else and only acts on those links. */
+(function () {
+    try {
+        var h = location.hash || '';
+        if (!h || /(^|\/)(login|verified)(\.html)?$/i.test(location.pathname)) return;
+        if (/[#&]access_token=/.test(h) && /[#&]type=recovery(&|$)/.test(h)) { location.replace('login.html' + h); return; }
+        if (/[#&]access_token=/.test(h) && /[#&]type=(signup|invite|email_change)(&|$)/.test(h)) { location.replace('verified.html' + h); return; }
+        if (/[#&]error_code=/.test(h) && /[#&]error=/.test(h)) { location.replace('verified.html' + h); }
+    } catch (e) { /* ignore */ }
+})();
+
 /* ==========================================================================
       Combines:
      • Global layout (sidebar, theme, mobile menu, dropdowns, favicon)
