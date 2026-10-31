@@ -44,20 +44,30 @@
                 <header class="st-bar">
                     <input id="stTitle" type="text" maxlength="60" aria-label="Project title" disabled>
                     <span class="st-state" id="stState">No project open</span>
+                    <div class="st-run" role="group" aria-label="Run controls">
+                        <button type="button" class="st-btn" id="stRunStart" title="Start a run">Start</button>
+                        <button type="button" class="st-btn" id="stRunPause" title="Pause: running steps finish, no new steps start">Pause</button>
+                        <button type="button" class="st-btn" id="stRunResume" title="Resume a paused run">Resume</button>
+                        <button type="button" class="st-btn" id="stRunStop" title="Stop: cancels the run for good">Stop</button>
+                        <button type="button" class="st-btn" id="stRunRestart" title="Stop and start again">Restart</button>
+                        <span class="st-state" id="stRunState">Idle</span>
+                    </div>
                     <button type="button" class="st-btn" id="stSave" disabled>Save</button>
                     <button type="button" class="st-btn st-danger" id="stDelete" disabled>Delete</button>
                 </header>
                 <div class="st-canvas" id="stCanvas">
-                    <p class="st-empty" id="stEmpty">Create or open a project to start.<br>The node canvas arrives in Phase 2.</p>
+                    <p class="st-empty" id="stEmpty">Create or open a project to start.<br></p>
                 </div>
                 <div class="st-bottom">
                     <div class="st-tabs" role="tablist">
-                        <button type="button" role="tab" aria-selected="true">Console</button>
-                        <button type="button" role="tab" aria-disabled="true" title="Phase 3">History</button>
+                        <button type="button" role="tab" aria-selected="true" data-tab="log">Console</button>
+                        <button type="button" role="tab" aria-selected="false" data-tab="hist">History</button>
                         <button type="button" role="tab" aria-disabled="true" title="Phase 5">Timeline</button>
+                        <select id="stFilter" class="st-filter" aria-label="Filter console"><option value="">All messages</option><option value="ok">Success</option><option value="info">Info</option><option value="warn">Warnings</option><option value="error">Errors</option></select>
                         <button type="button" class="st-link" id="stClear">Clear</button>
                     </div>
                     <div class="st-log" id="stLog" role="log" aria-live="polite"></div>
+                    <div class="st-log st-hist" id="stHist" hidden></div>
                 </div>
             </section>
 
@@ -74,6 +84,8 @@
     <script src="roles.js"></script>
     <script src="ban.js"></script>
     <script src="main.js?v=2"></script>
+    <script src="studio-graph.js"></script>
+    <script src="studio-engine.js"></script>
     <script src="studio.js"></script>
     <script src="cursor.js" defer></script>
 </body>

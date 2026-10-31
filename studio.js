@@ -11,35 +11,17 @@
     function $(id) { return document.getElementById(id); }
 
     /* Console: every entry has time, severity, source and message */
-    function log(sev, src, msg) {
+    function log(sev, src, msg, nodeId) {
         var row = document.createElement('div');
-        row.className = sev;
+        row.className = sev; if (nodeId) row.dataset.node = nodeId;
         [new Date().toLocaleTimeString(), sev, src, msg].forEach(function (t) {
             var s = document.createElement('span'); s.textContent = t; row.appendChild(s);
         });
         var box = $('stLog'); box.appendChild(row); box.scrollTop = box.scrollHeight;
     }
 
-    /* Tool registry: the real tools arrive in Phase 2 */
-    var TOOLS = [
-        ['Select', '<path d="M5 3l14 8-6 2-2 6z"/>'],
-        ['Move', '<path d="M12 2v20M2 12h20"/>'],
-        ['Connect', '<circle cx="5" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 12h10"/>'],
-        ['Cut', '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20"/>'],
-        ['Delete', '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'],
-        ['Create node', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8M8 12h8"/>'],
-        ['Create category', '<path d="M3 7h6l2 2h10v10H3z"/>'],
-        ['Create branch', '<path d="M6 3v12a4 4 0 0 0 4 4h8M6 9a4 4 0 0 0 4 4h8"/>']
-    ];
-    TOOLS.forEach(function (t) {
-        var b = document.createElement('button');
-        b.type = 'button'; b.title = t[0] + ' (Phase 2)'; b.setAttribute('aria-label', t[0] + ', available in Phase 2');
-        b.setAttribute('aria-disabled', 'true');
-        b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + t[1] + '</svg>';
-        $('stTools').appendChild(b);
-    });
-
     function setOpen(on) {
+        if (!on) StudioGraph.clear();
         ['stTitle', 'stSave', 'stDelete'].forEach(function (id) { $(id).disabled = !on; });
         $('stEmpty').hidden = on;
         $('stState').textContent = on ? 'Saved' : 'No project open';
@@ -77,6 +59,7 @@
         if (r.error) { fail('open', r.error); return; }
         S.cur = r.data; $('stTitle').value = r.data.title; setOpen(true); renderList();
         var g = r.data.graph || {};
+        StudioGraph.load(g);
         log('ok', 'studio', 'Opened "' + r.data.title + '" (' + ((g.nodes || []).length) + ' nodes)');
     }
 
@@ -91,7 +74,9 @@
     async function save() {
         var title = $('stTitle').value.trim();
         if (!title) { log('warn', 'save', 'Title cannot be empty'); return; }
-        var r = await sb.from('studio_projects').update({ title: title, graph: S.cur.graph || { nodes: [], connections: [] } }).eq('id', S.cur.id);
+        var graph = StudioGraph.get();
+        if (JSON.stringify(graph).length > 450000) { log('error', 'save', 'This project is too large to save (450 KB max). Remove some nodes or code.'); return; }
+        var r = await sb.from('studio_projects').update({ title: title, graph: S.cur.graph = graph }).eq('id', S.cur.id);
         if (r.error) { fail('save', r.error); return; }
         S.cur.title = title; $('stState').textContent = 'Saved'; log('ok', 'save', 'Saved "' + title + '"'); load();
     }
@@ -105,6 +90,14 @@
 
     async function init() {
         $('stClear').addEventListener('click', function () { $('stLog').textContent = ''; });
+        $('stFilter').addEventListener('change', function () { $('stLog').dataset.f = this.value; });
+        $('stLog').addEventListener('click', function (e) { var r = e.target.closest('div[data-node]'); if (r) StudioGraph.select(r.dataset.node); });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
+            b.addEventListener('click', function () {
+                var h = b.dataset.tab === 'hist'; $('stLog').hidden = h; $('stHist').hidden = !h; $('stFilter').hidden = h; $('stClear').hidden = h;
+                Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+            });
+        });
         if (!sb) { log('error', 'studio', 'Supabase is not configured'); return; }
         var sess = (await sb.auth.getSession()).data.session;
         if (!sess) {
@@ -113,7 +106,9 @@
             $('stNew').disabled = true; $('stNewName').disabled = true;
             log('warn', 'auth', 'Not signed in'); return;
         }
-        S.me = sess.user; log('ok', 'studio', 'Studio ready (Phase 1)');
+        S.me = sess.user;
+        StudioGraph.log = log;
+        StudioGraph.onChange = function () { if (S.cur) $('stState').textContent = 'Unsaved changes'; }; log('ok', 'studio', 'Studio ready (Phase 4)');
         $('stNew').addEventListener('click', create);
         $('stNewName').addEventListener('keydown', function (e) { if (e.key === 'Enter') create(); });
         $('stSave').addEventListener('click', save);

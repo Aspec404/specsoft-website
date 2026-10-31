@@ -176,6 +176,7 @@
 
     function previewText(body) {
         if (gifMediaUrl(body)) return 'GIF';
+        if (/^Attachment:\s*voice-\S+\.(webm|m4a|mp4|ogg)$/i.test(String(body || '').trim())) return '\uD83C\uDFA4 Voice message';
         if (String(body || '').slice(0, 6) === '[[bug:') { const b = parseBug(body); return '\uD83D\uDC1B Bug' + (b ? ': ' + b.t : ' report'); }
         return String(body || '').replace(/```[\s\S]*?```/g, '[code]').replace(/:([a-z0-9_+-]{1,32}):/gi, flShortcodeToChar).replace(/\s+/g, ' ').trim().slice(0, 90);
     }
@@ -342,6 +343,10 @@
         flag:    svg('<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>'),
         shield:  svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
         shieldoff: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="3" y1="3" x2="21" y2="21"/>'),
+        mic:     svg('<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>'),
+        play:    svg('<polygon points="7 4 20 12 7 20 7 4" fill="currentColor"/>'),
+        pause:   svg('<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>'),
+        checks:  svg('<path d="M1.5 13l4 4L13 8"/><path d="M9.5 16.5l1 1L22 6"/>'),
         info:    svg('<circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'),
         ban:     svg('<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/>'),
         xcircle: svg('<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>'),
@@ -982,10 +987,10 @@
     }
 
     function makeCustomEmoji(url, label, jumboEmoji) {
-        const img = el('img', { class: 'ch-inline-emoji' + (jumboEmoji ? ' ch-inline-emoji--jumbo' : ''), src: url, alt: label, title: label, loading: 'lazy' });
-        const link = el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link ch-emoji-link', 'aria-label': 'Open custom emoji image' }, img);
-        img.onerror = function () { link.replaceWith(el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: label })); };
-        return link;
+        // a plain picture: no link, nothing to click, nothing to drag
+        const img = el('img', { class: 'ch-inline-emoji' + (jumboEmoji ? ' ch-inline-emoji--jumbo' : ''), src: url, alt: label, title: label, loading: 'lazy', draggable: 'false' });
+        img.onerror = function () { img.replaceWith(document.createTextNode(label)); };
+        return img;
     }
 
     // image hosts we trust for emoji pictures (emoji.gg memes + Microsoft 3D Fluent emoji from Emojipedia's CDN)
@@ -1033,6 +1038,8 @@
         bubble.appendChild(card);
         signedFileUrl(m.attachment_path).then(function (url) {
             if (!card.isConnected) return;
+            if (/^video\//i.test(String(m.attachment_type || ''))) { renderVideoCard(card, m, url); return; }
+            if (/^audio\//i.test(String(m.attachment_type || ''))) { renderAudioCard(card, m, url); return; }
             const link = el('a', { class: 'ch-attachment-link', href: url, target: '_blank', rel: 'noopener noreferrer', download: m.attachment_name || 'attachment' });
             if (String(m.attachment_type || '').indexOf('image/') === 0) {
                 link.classList.add('ch-attachment-link--image');
@@ -1067,7 +1074,7 @@
         const jumboEmoji = !deleted && !bug && !m.attachment_path && !m.reply_to && !m.edited_at && !m.deleted_at && getJumboEmojiCount(m.body) > 0 && getJumboEmojiCount(m.body) <= 6;
         const hideKind = hideKindFor(m, mine, deleted, bug);
         const hidden = !!hideKind && !S.revealed.has(m.id);
-        const imageAttachment = !deleted && !hidden && !!m.attachment_path && /^image\//i.test(m.attachment_type || '');
+        const imageAttachment = !deleted && !hidden && !!m.attachment_path && /^(image|video|audio)\//i.test(m.attachment_type || '');      // images AND videos sit under the bubble as their own card
         const imageOnlyAttachment = imageAttachment && (!String(m.body || '').trim() || /^Attachment:\s*/i.test(m.body));
         const gifUrl = (!deleted && !bug && !m.attachment_path) ? gifMediaUrl(m.body) : null;
         const bubble = el('div', { class: 'ch-bubble' + (gifUrl && !hidden ? ' ch-bubble--image-only ch-bubble--gif' : '') + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (imageOnlyAttachment ? ' ch-bubble--image-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? buildBugCard(m, bug) : (imageOnlyAttachment ? null : (gifUrl ? makeGifView(gifUrl) : renderRich(m.body, mine, jumboEmoji))))));
@@ -1333,6 +1340,8 @@
         S.opening = false;
         markRead(room.room_id);
         joinRoomChannel(room.room_id);
+        loadSeen(room.room_id);
+        vmCancel(true);
         if (window.matchMedia && !window.matchMedia('(pointer: coarse)').matches) $('chInput').focus();
     }
 
@@ -1376,7 +1385,7 @@
         const input = $('chInput');
         input.disabled = lock;
         input.placeholder = lockedMine ? 'You blocked this user. Unblock them to chat again.' : lockedThem ? 'You can no longer message this user.' : 'Message...';
-        ['chAttachBtn', 'chEmojiBtn', 'chGifBtn', 'chDevBtn'].forEach(function (id) { $(id).disabled = lock; });
+        ['chAttachBtn', 'chEmojiBtn', 'chGifBtn', 'chDevBtn', 'chMicBtn'].forEach(function (id) { $(id).disabled = lock; });
         $('chSend').disabled = lock || (!input.value.trim() && !S.pendingFile);
     }
 
@@ -1414,6 +1423,7 @@
     }
 
     async function markRead(roomId) {
+        sendSeen(roomId);
         const room = S.roomMap.get(roomId);
         if (room) room.unread = 0;
         updateBadges();
@@ -1632,12 +1642,32 @@
         const file = S.pendingFile;
         $('chFilePreview').hidden = !file;
         $('chFileName').textContent = file ? file.name + ' · ' + formatBytes(file.size) : '';
+        // a video gets a little picture next to its name
+        const oldThumb = $('chFileThumb');
+        if (oldThumb) oldThumb.remove();
+        if (S.pendingThumb) { try { URL.revokeObjectURL(S.pendingThumb); } catch (e) { /* ignore */ } S.pendingThumb = null; }
+        if (file && (isVideoFile(file) || /^image\//i.test(fileMime(file)))) {
+            try {
+                S.pendingThumb = URL.createObjectURL(file);
+                let thumb;
+                if (isVideoFile(file)) {
+                    thumb = el('video', { id: 'chFileThumb', class: 'ch-file-thumb', playsinline: true, preload: 'metadata', 'aria-hidden': 'true' });
+                    thumb.muted = true;
+                    thumb.src = S.pendingThumb + '#t=0.1';
+                } else {
+                    thumb = el('img', { id: 'chFileThumb', class: 'ch-file-thumb', alt: '', draggable: 'false', 'aria-hidden': 'true' });
+                    thumb.src = S.pendingThumb;
+                }
+                $('chFilePreview').insertBefore(thumb, $('chFileName'));
+            } catch (e) { /* the name alone is fine */ }
+        }
         autosize();
     }
 
     function chooseFile(file) {
         if (!file) return;
-        if (file.size > 10 * 1024 * 1024) { toast('Files must be 10 MB or smaller.'); $('chFileInput').value = ''; return; }
+        const video = isVideoFile(file);
+        if (file.size > (video ? MAX_VIDEO_BYTES : MAX_FILE_BYTES)) { toast(video ? 'Videos must be 50 MB or smaller.' : 'Files must be 10 MB or smaller.'); $('chFileInput').value = ''; return; }
         S.pendingFile = file;
         $('chFileInput').value = '';
         paintPendingFile();
@@ -1712,15 +1742,16 @@
                     ? window.crypto.randomUUID()
                     : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
                 uploadedPath = room.room_id + '/' + S.me.id + '/' + uniqueId + '-' + safeName;
+                if (isVideoFile(file)) toast('Uploading video… keep this tab open.');
                 const uploaded = await sb.storage.from('chat-attachments').upload(uploadedPath, file, {
-                    cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream'
+                    cacheControl: '3600', upsert: false, contentType: fileMime(file)
                 });
                 if (uploaded.error) throw uploaded.error;
             }
 
             temp = { id: 'tmp-' + (++S.tmp), room_id: room.room_id, sender_id: S.me.id, body: body, reply_to: reply ? reply.id : null,
                 created_at: new Date().toISOString(), sender: S.profile, reactions: [], pending: true,
-                attachment_path: uploadedPath, attachment_name: file && file.name, attachment_type: file && file.type, attachment_size: file && file.size };
+                attachment_path: uploadedPath, attachment_name: file && file.name, attachment_type: file && fileMime(file), attachment_size: file && file.size };
         addToState(temp);
         appendMessage(temp);
         cancelCompose();
@@ -1733,7 +1764,7 @@
             if (file) {
                 const attached = await sb.rpc('chat_attach', {
                     p_msg: real.id, p_path: uploadedPath, p_name: file.name,
-                    p_type: file.type || 'application/octet-stream', p_size: file.size
+                    p_type: fileMime(file), p_size: file.size
                 });
                 if (attached.error) throw attached.error;
                 const a = attached.data || {};
@@ -2183,7 +2214,7 @@
                 }).catch(function () { a.textContent = '?'; });
             } else {
                 const row = el('a', { class: 'ch-media-file', target: '_blank', rel: 'noopener noreferrer', download: x.attachment_name || 'file' },
-                    el('span', { class: 'ch-attachment-file-icon', text: '↧' }),
+                    el('span', { class: 'ch-attachment-file-icon', text: /^video\//i.test(x.attachment_type || '') ? '▶' : (/^audio\//i.test(x.attachment_type || '') ? '♪' : '↧') }),
                     el('span', { class: 'ch-media-file-name' }, el('strong', { text: x.attachment_name || 'File' }), el('small', { text: memberName(x.sender_id) + ' · ' + fmtDay(x.created_at) + ' · ' + formatBytes(Number(x.attachment_size) || 0) })));
                 wrap.appendChild(row);
                 signedFileUrl(x.attachment_path).then(function (url) { row.href = url; }).catch(function () { /* stays inert */ });
@@ -3276,14 +3307,24 @@
             if (!p || p.uid === S.me.id) return;
             setTyping(roomId, p.uid, p.name, p.txt);
         });
+        ch.on('broadcast', { event: 'seen' }, function (msg) {
+            const p = msg && msg.payload;
+            if (!p || p.uid === S.me.id || p.room !== roomId || !receiptsOn()) return;
+            noteSeen(p.uid, Number(p.upto));
+        });
         ch.subscribe(function (status) {
-            if (status === 'SUBSCRIBED' && ch.track) ch.track({ uid: S.me.id, name: nameOf(S.profile) });
+            if (status === 'SUBSCRIBED') {
+                if (ch.track) ch.track({ uid: S.me.id, name: nameOf(S.profile) });
+                S.roomChReady = roomId;
+                broadcastSeen(roomId);                       // tell the others how far I have read
+            }
         });
     }
 
     function leaveRoomChannel() {
         if (S.roomCh) { try { sb.removeChannel(S.roomCh); } catch (e) { /* ignore */ } }
         S.roomCh = null;
+        S.roomChReady = null;
         S.online = new Set();
         paintTyping();
     }
@@ -4337,7 +4378,7 @@
 
         feed.addEventListener('pointerdown', function (e) {
             if (e.pointerType === 'mouse') return;                       // desktop keeps the hover toolbar
-            if (e.target.closest && e.target.closest('input, textarea, select')) return;
+            if (e.target.closest && e.target.closest('input, textarea, select, video')) return;
             const n = e.target.closest && e.target.closest('.ch-msg');
             if (!n || n.classList.contains('is-pending')) return;
             const m = S.messages.find(function (x) { return String(x.id) === n.dataset.id; });
@@ -4369,6 +4410,7 @@
             if (!touchy()) return;
             const n = e.target.closest && e.target.closest('.ch-msg');
             if (!n) return;
+            if (e.target.closest && e.target.closest('video')) return;
             e.preventDefault();
             if (S.msgSheet || Date.now() - firedAt < 800 || n.classList.contains('is-pending')) return;
             const m = S.messages.find(function (x) { return String(x.id) === n.dataset.id; });
@@ -4385,6 +4427,425 @@
         }, true);
 
         window.addEventListener('resize', closeMsgSheet);
+    }
+
+    /* ----------------------------------------------------------------------
+       VIDEO MESSAGES
+            Videos go through the same private "chat-attachments" bucket as every file.
+            They play right inside the chat (renderVideoCard) instead of being a download link.
+       ---------------------------------------------------------------------- */
+    const MAX_FILE_BYTES = 10 * 1024 * 1024;
+    const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+    const VIDEO_EXT = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', ogv: 'video/ogg', m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac', oga: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac' };
+
+    // some phones / browsers send a video with an empty type: fall back to the file ending
+    function fileMime(file) {
+        if (!file) return 'application/octet-stream';
+        if (file.type) return file.type;
+        const ext = String(file.name || '').split('.').pop().toLowerCase();
+        return VIDEO_EXT[ext] || 'application/octet-stream';
+    }
+    function isVideoFile(file) { return /^video\//i.test(fileMime(file)); }
+
+    function renderVideoCard(card, m, url) {
+        const name = m.attachment_name || 'Video';
+        const box = el('div', { class: 'ch-video' });
+        const v = el('video', { class: 'ch-video-player', controls: true, playsinline: true, preload: 'metadata', 'aria-label': name });
+        v.addEventListener('error', function () {
+            // the browser can't play this format (for example an iPhone .mov in some browsers): offer the download instead
+            card.textContent = '';
+            card.appendChild(el('a', { class: 'ch-attachment-link', href: url, target: '_blank', rel: 'noopener noreferrer', download: name },
+                el('span', { class: 'ch-attachment-file-icon', text: '▶' }),
+                el('span', { class: 'ch-attachment-file-name', text: name + ' (tap to download)' }),
+                el('small', { text: formatBytes(m.attachment_size || 0) })));
+        }, { once: true });
+        v.addEventListener('play', function () {                     // one video at a time
+            document.querySelectorAll('.ch-video-player').forEach(function (o) { if (o !== v) o.pause(); });
+            if (nowPlayingAudio) nowPlayingAudio.pause();
+        });
+        v.src = url + '#t=0.1';                                      // shows the first frame as the cover
+        box.appendChild(v);
+        box.appendChild(el('div', { class: 'ch-video-cap' },
+            el('span', { text: name }),
+            el('small', { text: formatBytes(m.attachment_size || 0) }),
+            el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', download: name, title: 'Download', 'aria-label': 'Download video', text: '↧' })));
+        card.classList.remove('ch-attachment--loading');
+        card.textContent = '';
+        card.appendChild(box);
+    }
+
+    /* ----------------------------------------------------------------------
+       READ RECEIPTS: "Sent" / "Seen"
+            Shown under YOUR newest message. Seen = the other person opened the chat and
+            reached that message. If you turn read receipts off (SpecSettings 'readReceipts'),
+            you stop sending them AND stop seeing other people's.
+            Live: broadcast on the room channel. Remembered: table chat_reads (see the .sql file).
+       ---------------------------------------------------------------------- */
+    S.seen = new Map();                // user id -> time (ms) of the newest message they have seen in the open chat
+    S.seenSent = new Map();            // room id -> newest time (ms) I already reported
+    S.receiptsOK = true;               // becomes false when the SQL has not been run yet (then nothing is shown)
+    S.roomChReady = null;
+
+    function receiptsOn() {
+        try { return !(window.SpecSettings && typeof window.SpecSettings.get === 'function' && window.SpecSettings.get('readReceipts') === false); }
+        catch (e) { return true; }
+    }
+
+    function newestRealMessage() {
+        for (let i = S.messages.length - 1; i >= 0; i--) {
+            const x = S.messages[i];
+            if (!x.pending && !String(x.id).startsWith('tmp-')) return x;
+        }
+        return null;
+    }
+
+    function sendSeen(roomId) {
+        if (!receiptsOn() || !S.receiptsOK || !S.current || S.current.room_id !== roomId) return;
+        const last = newestRealMessage();
+        if (!last) return;
+        const ms = Date.parse(last.created_at);
+        if (!isFinite(ms) || (S.seenSent.get(roomId) || 0) >= ms) return;
+        S.seenSent.set(roomId, ms);
+        broadcastSeen(roomId);
+        sb.rpc('chat_seen', { p_room: roomId, p_upto: last.created_at }).then(function (res) {
+            if (res && res.error && (res.error.code === 'PGRST202' || res.error.code === '42883' || /could not find the function|chat_seen/i.test(res.error.message || ''))) {
+                S.receiptsOK = false; paintReceipt();
+            }
+        }, function () { /* receipts are a bonus */ });
+    }
+
+    function broadcastSeen(roomId) {
+        const ms = S.seenSent.get(roomId);
+        if (!ms || !S.roomCh || S.roomChReady !== roomId || !receiptsOn()) return;
+        try { S.roomCh.send({ type: 'broadcast', event: 'seen', payload: { room: roomId, uid: S.me.id, upto: ms } }); } catch (e) { /* ignore */ }
+    }
+
+    function noteSeen(uid, ms) {
+        if (!uid || !isFinite(ms) || (S.seen.get(uid) || 0) >= ms) return;
+        S.seen.set(uid, ms);
+        schedulePaintReceipt();
+    }
+
+    async function loadSeen(roomId) {
+        S.seen = new Map();
+        schedulePaintReceipt();
+        if (!S.receiptsOK) return;
+        try {
+            const res = await sb.from('chat_reads').select('user_id,seen_upto').eq('room_id', roomId);
+            if (!S.current || S.current.room_id !== roomId) return;
+            if (res.error) {
+                if (res.error.code === '42P01' || res.error.code === 'PGRST205' || /chat_reads|schema cache|does not exist/i.test(res.error.message || '')) S.receiptsOK = false;
+                schedulePaintReceipt();
+                return;
+            }
+            (res.data || []).forEach(function (r) { if (r.user_id !== S.me.id) noteSeen(r.user_id, Date.parse(r.seen_upto)); });
+        } catch (e) { /* ignore */ }
+    }
+
+    let receiptRaf = 0;
+    function schedulePaintReceipt() {
+        if (receiptRaf) return;
+        receiptRaf = requestAnimationFrame(function () { receiptRaf = 0; paintReceipt(); });
+    }
+
+    function paintReceipt() {
+        const feed = $('chFeed');
+        if (!feed) return;
+        feed.querySelectorAll('.ch-receipt').forEach(function (n) { n.remove(); });
+        if (!S.current || !S.receiptsOK || !receiptsOn()) return;
+        let last = null;
+        for (let i = S.messages.length - 1; i >= 0; i--) {
+            const x = S.messages[i];
+            if (S.me && x.sender_id === S.me.id && !x.deleted_at) { last = x; break; }
+        }
+        if (!last) return;
+        const node = feed.querySelector('[data-id="' + last.id + '"]');
+        const host = node && node.querySelector('.ch-msg-body');
+        if (!host) return;
+
+        let cls = 'ch-receipt', ico = 'check', text = 'Sent';
+        if (last.pending) { cls += ' is-pending'; ico = null; text = 'Sending…'; }
+        else {
+            const t = Date.parse(last.created_at);
+            const stillIn = S.membersRoom === S.current.room_id && S.members.length
+                ? function (uid) { return S.members.some(function (mm) { return mm.user_id === uid; }); }
+                : function () { return true; };
+            const names = [];
+            S.seen.forEach(function (upto, uid) { if (uid !== S.me.id && upto >= t && stillIn(uid)) names.push(memberName(uid)); });
+            if (names.length) {
+                cls += ' is-seen'; ico = 'checks';
+                text = S.current.kind === 'dm' ? 'Seen' : (names.length <= 2 ? 'Seen by ' + names.join(', ') : 'Seen by ' + names.length);
+            }
+        }
+        host.appendChild(el('div', { class: cls }, ico ? icon(ico) : null, el('span', { text: text })));
+    }
+
+    function wireReceipts() {
+        const feed = $('chFeed');
+        if (!feed || !window.MutationObserver) return;
+        // the feed is rebuilt in many places: whenever its messages change, put the receipt back under the newest one
+        new MutationObserver(schedulePaintReceipt).observe(feed, { childList: true });
+    }
+
+    /* ----------------------------------------------------------------------
+       VOICE MESSAGES (record in the message box, play in the chat)
+            Mic button -> recording bar (timer + live bars) -> send. The recording is sent like any
+            other attachment (private "chat-attachments" bucket). The length in seconds is written into
+            the file name ("voice-202610310412-37s.webm") so the player can show it before it loads.
+            Also plays normal audio files (mp3, m4a, wav...) that people attach.
+       ---------------------------------------------------------------------- */
+    const VM_MAX_SECS = 300;           // 5 minutes
+    const VM_MIN_SECS = 1;
+    const VM = { rec: null, stream: null, chunks: [], t0: 0, timer: 0, ctx: null, an: null, buf: null, hist: [], bars: [], room: null, mime: '', sendOnStop: false, busy: false };
+
+    function vmClock(s) { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+
+    function vmPickMime() {
+        if (!window.MediaRecorder || typeof MediaRecorder.isTypeSupported !== 'function') return '';
+        const list = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+        for (let i = 0; i < list.length; i++) { if (MediaRecorder.isTypeSupported(list[i])) return list[i]; }
+        return '';
+    }
+    function vmExt(base) { return /mp4|aac/.test(base) ? 'm4a' : /ogg/.test(base) ? 'ogg' : 'webm'; }
+
+    function vmCleanup() {
+        if (VM.timer) { clearInterval(VM.timer); VM.timer = 0; }
+        if (VM.stream) { VM.stream.getTracks().forEach(function (t) { t.stop(); }); }
+        if (VM.ctx) { try { VM.ctx.close(); } catch (e) { /* ignore */ } }
+        VM.rec = null; VM.stream = null; VM.ctx = null; VM.an = null; VM.buf = null; VM.chunks = []; VM.hist = []; VM.busy = false;
+        const box = $('chRec');
+        if (box) box.hidden = true;
+        const comp = document.querySelector('.ch-composer');
+        if (comp) comp.classList.remove('is-recording');
+    }
+
+    function vmTick() {
+        if (!VM.rec) return;
+        const secs = (Date.now() - VM.t0) / 1000;
+        $('chRecTime').textContent = vmClock(secs);
+        if (VM.an) {
+            VM.an.getByteTimeDomainData(VM.buf);
+            let peak = 0;
+            for (let i = 0; i < VM.buf.length; i++) { const v = Math.abs(VM.buf[i] - 128); if (v > peak) peak = v; }
+            VM.hist.push(Math.min(1, peak / 70));
+            if (VM.hist.length > VM.bars.length) VM.hist.shift();
+            const off = VM.bars.length - VM.hist.length;
+            VM.bars.forEach(function (b, i) { const v = i < off ? 0.08 : Math.max(0.08, VM.hist[i - off]); b.style.height = Math.round(v * 100) + '%'; });
+        }
+        if (secs >= VM_MAX_SECS) { toast('5 minute limit reached. Sending.'); vmStop(true); }
+    }
+
+    async function vmStart() {
+        if (VM.rec || VM.busy || !S.current) return;
+        const room = S.current;
+        if (room.kind === 'dm' && (room.blocked_by_me || room.blocked_me)) { toast(ERR.blocked); return; }
+        if (S.editing) { toast('Finish editing first.'); return; }
+        if (S.pendingFile) { toast('Remove the attached file first, then record.'); return; }
+        if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.isSecureContext) {
+            toast('Voice messages need a modern browser and an https:// page.');
+            return;
+        }
+        VM.busy = true;
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        } catch (err) {
+            VM.busy = false;
+            const n = err && err.name;
+            toast(n === 'NotAllowedError' || n === 'SecurityError' ? 'The microphone is blocked. Allow it for this site, then try again.'
+                : n === 'NotFoundError' ? 'No microphone found.' : 'Could not open the microphone.');
+            return;
+        }
+        let rec;
+        const mime = vmPickMime();
+        try { rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); }
+        catch (err) { stream.getTracks().forEach(function (t) { t.stop(); }); VM.busy = false; toast('This browser cannot record audio.'); return; }
+
+        VM.stream = stream; VM.rec = rec; VM.chunks = []; VM.room = room.room_id; VM.sendOnStop = false;
+        VM.mime = rec.mimeType || mime || 'audio/webm';
+        rec.ondataavailable = function (e) { if (e.data && e.data.size) VM.chunks.push(e.data); };
+        rec.onstop = vmFinish;
+
+        // live bars
+        const wave = $('chRecWave');
+        if (!wave.children.length) { for (let i = 0; i < 28; i++) wave.appendChild(document.createElement('i')); }
+        VM.bars = Array.prototype.slice.call(wave.children);
+        VM.hist = [];
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) {
+                VM.ctx = new AC();
+                if (VM.ctx.state === 'suspended') VM.ctx.resume();
+                VM.an = VM.ctx.createAnalyser();
+                VM.an.fftSize = 512;
+                VM.ctx.createMediaStreamSource(stream).connect(VM.an);
+                VM.buf = new Uint8Array(VM.an.fftSize);
+            }
+        } catch (e) { VM.an = null; }
+
+        VM.t0 = Date.now();
+        rec.start(1000);
+        $('chRecTime').textContent = '0:00';
+        document.querySelector('.ch-composer').classList.add('is-recording');
+        $('chRec').hidden = false;
+        VM.timer = setInterval(vmTick, 90);
+        VM.busy = false;
+    }
+
+    function vmStop(send) {
+        if (!VM.rec) return;
+        VM.sendOnStop = !!send;
+        VM.secs = Math.round((Date.now() - VM.t0) / 1000);
+        if (VM.timer) { clearInterval(VM.timer); VM.timer = 0; }
+        try { VM.rec.stop(); } catch (e) { vmCleanup(); }
+    }
+
+    function vmCancel(silent) {
+        if (!VM.rec) return;
+        const rec = VM.rec;
+        rec.onstop = null; rec.ondataavailable = null;
+        try { if (rec.state !== 'inactive') rec.stop(); } catch (e) { /* ignore */ }
+        vmCleanup();
+        if (!silent) toast('Voice message discarded');
+    }
+
+    async function vmFinish() {
+        const send = VM.sendOnStop, chunks = VM.chunks.slice(), mime = VM.mime, room = VM.room, secs = VM.secs || 0;
+        vmCleanup();
+        if (!send || !chunks.length) return;
+        if (secs < VM_MIN_SECS) { toast('Too short. Hold on a little longer.'); return; }
+        if (!S.current || S.current.room_id !== room) { toast('Voice message cancelled because you left that chat.'); return; }
+        const base = (mime.split(';')[0] || 'audio/webm').toLowerCase();
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+        const file = new File([new Blob(chunks, { type: base })], 'voice-' + stamp + '-' + secs + 's.' + vmExt(base), { type: base });
+        if (file.size > MAX_FILE_BYTES) { toast('That voice message is too big.'); return; }
+        S.pendingFile = file;
+        paintPendingFile();
+        await sendMessage();         // normal send: reply, receipts and failure messages all work; if it fails the file stays attached so you can press send again
+    }
+
+    // ---- the player inside the chat ----
+    let nowPlayingAudio = null;
+
+    function renderAudioCard(card, m, url) {
+        const name = m.attachment_name || 'Audio';
+        const voice = /^voice-/i.test(name);
+        const hint = /-(\d{1,4})s\.[a-z0-9]+$/i.exec(name);
+        const hinted = hint ? Number(hint[1]) : 0;
+
+        const audio = el('audio', { preload: 'metadata' });
+        const play = el('button', { type: 'button', class: 'ch-aud-play', 'aria-label': 'Play' }, icon('play'));
+        const seek = el('input', { type: 'range', class: 'ch-aud-seek', min: '0', max: '1000', value: '0', step: '1', 'aria-label': 'Seek' });
+        const time = el('span', { class: 'ch-aud-time', text: vmClock(hinted) });
+        const speed = el('button', { type: 'button', class: 'ch-aud-speed', title: 'Playback speed', 'aria-label': 'Playback speed', text: '1x' });
+        const meta = el('div', { class: 'ch-aud-meta' }, time, voice ? null : el('span', { class: 'ch-aud-name', text: name }));
+        const box = el('div', { class: 'ch-aud' + (voice ? ' is-voice' : '') }, play, el('div', { class: 'ch-aud-mid' }, seek, meta), speed);
+        if (!voice) box.appendChild(el('a', { class: 'ch-aud-dl', href: url, target: '_blank', rel: 'noopener noreferrer', download: name, title: 'Download', 'aria-label': 'Download audio', text: '↧' }));
+
+        const dur = function () { return isFinite(audio.duration) && audio.duration > 0 ? audio.duration : hinted; };
+        const paint = function () {
+            const d = dur(), t = audio.currentTime || 0;
+            const p = d ? Math.min(1000, Math.round(t / d * 1000)) : 0;
+            seek.value = String(p);
+            seek.style.setProperty('--p', (p / 10) + '%');
+            time.textContent = vmClock(audio.paused && t === 0 ? d : t);
+        };
+        const setIconTo = function (n) { play.textContent = ''; play.appendChild(icon(n)); play.setAttribute('aria-label', n === 'pause' ? 'Pause' : 'Play'); };
+
+        play.addEventListener('click', function () {
+            if (!audio.paused) { audio.pause(); return; }
+            if (nowPlayingAudio && nowPlayingAudio !== audio) nowPlayingAudio.pause();
+            document.querySelectorAll('.ch-video-player').forEach(function (v) { v.pause(); });
+            nowPlayingAudio = audio;
+            const started = audio.play();
+            if (started && started.catch) started.catch(function () { toast('Could not play this audio here.'); });
+        });
+        audio.addEventListener('play', function () { setIconTo('pause'); });
+        audio.addEventListener('pause', function () { setIconTo('play'); paint(); });
+        audio.addEventListener('ended', function () { audio.currentTime = 0; setIconTo('play'); paint(); });
+        audio.addEventListener('timeupdate', paint);
+        audio.addEventListener('durationchange', paint);
+        audio.addEventListener('loadedmetadata', function () {
+            if (audio.duration === Infinity) {                       // recordings made in the browser have no length inside: this makes the browser work it out
+                const back = function () { audio.removeEventListener('timeupdate', back); audio.currentTime = 0; paint(); };
+                audio.addEventListener('timeupdate', back);
+                audio.currentTime = 1e101;
+            }
+            paint();
+        });
+        audio.addEventListener('error', function () {
+            card.textContent = '';
+            card.appendChild(el('a', { class: 'ch-attachment-link', href: url, target: '_blank', rel: 'noopener noreferrer', download: name },
+                el('span', { class: 'ch-attachment-file-icon', text: '♪' }),
+                el('span', { class: 'ch-attachment-file-name', text: (voice ? 'Voice message' : name) + ' (tap to download)' }),
+                el('small', { text: formatBytes(m.attachment_size || 0) })));
+        }, { once: true });
+        seek.addEventListener('input', function () { const d = dur(); if (d) { audio.currentTime = (Number(seek.value) / 1000) * d; paint(); } });
+        speed.addEventListener('click', function () {
+            const next = audio.playbackRate >= 2 ? 1 : (audio.playbackRate >= 1.5 ? 2 : 1.5);
+            audio.playbackRate = next;
+            speed.textContent = (next === 1.5 ? '1.5' : String(next)) + 'x';
+        });
+
+        audio.src = url;
+        card.classList.remove('ch-attachment--loading');
+        card.textContent = '';
+        card.appendChild(box);
+    }
+
+    function wireVoiceMessages() {
+        setIcon('chMicBtn', 'mic');
+        setIcon('chRecCancel', 'trash');
+        setIcon('chRecSend', 'send');
+        $('chMicBtn').addEventListener('click', vmStart);
+        $('chRecCancel').addEventListener('click', function () { vmCancel(); });
+        $('chRecSend').addEventListener('click', function () { vmStop(true); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && VM.rec) { e.preventDefault(); vmCancel(); } });
+        window.addEventListener('pagehide', function () { vmCancel(true); });
+    }
+
+    /* ----------------------------------------------------------------------
+       PASTE + DROP FILES
+            Ctrl+V (or long-press > Paste on a phone) with a screenshot / copied picture / copied file
+            attaches it, exactly like the paperclip. Press send to post it (add a caption first if you like).
+       ---------------------------------------------------------------------- */
+    function clipboardFiles(dt) {
+        const out = [];
+        if (!dt) return out;
+        if (dt.files && dt.files.length) {
+            for (let i = 0; i < dt.files.length; i++) out.push(dt.files[i]);
+        } else if (dt.items) {
+            for (let i = 0; i < dt.items.length; i++) {
+                if (dt.items[i].kind === 'file') { const f = dt.items[i].getAsFile(); if (f) out.push(f); }
+            }
+        }
+        return out;
+    }
+
+    // screenshots arrive called "image.png": give them a real name
+    function pastedFileName(file) {
+        const type = String(file.type || '').toLowerCase();
+        if (!/^image\//.test(type) || (file.name && !/^image\.[a-z0-9]+$/i.test(file.name))) return file;
+        const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/bmp': 'bmp' }[type] || 'png';
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
+        try { return new File([file], 'screenshot-' + stamp + '.' + ext, { type: file.type, lastModified: Date.now() }); }
+        catch (e) { return file; }
+    }
+
+    function stagePastedFiles(files) {
+        const file = files && files[0];
+        if (!file || !S.current) return false;
+        const room = S.current;
+        if (room.kind === 'dm' && (room.blocked_by_me || room.blocked_me)) { toast(ERR.blocked); return true; }
+        if (S.editing) { toast('Finish editing first, then add the file.'); return true; }
+        if (typeof VM !== 'undefined' && VM.rec) return true;                 // busy recording a voice message
+        chooseFile(pastedFileName(file));
+        if (S.pendingFile) {
+            const isImg = /^image\//i.test(fileMime(S.pendingFile));
+            toast(files.length > 1 ? 'Added the first file. Press send.' : (isImg ? 'Picture ready. Press send.' : 'File ready. Press send.'));
+            if (!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)) { try { $('chInput').focus(); } catch (e) { /* ignore */ } }
+        }
+        return true;
     }
 
     function wireMenu() {
@@ -4596,6 +5057,8 @@
         $('chSearch').addEventListener('input', function (e) { S.query = e.target.value; renderList(); });
         wireMenu();
         wireMessageSheet();
+        wireVoiceMessages();
+        wireReceipts();
 
         // composer
         const input = $('chInput');
@@ -4617,6 +5080,8 @@
         });
         input.addEventListener('paste', function (e) {                  // always paste as plain text (:emoji: codes still become images)
             e.preventDefault();
+            const pastedFiles = clipboardFiles(e.clipboardData);
+            if (pastedFiles.length) { stagePastedFiles(pastedFiles); return; }       // a screenshot / picture / file: attach it
             const text = ((e.clipboardData || window.clipboardData).getData('text/plain') || '').replace(/\r\n?/g, '\n');
             if (!text) return;
             insertIntoComposer(text.slice(0, Math.max(0, 2000 - serializeComposer(input).length)));
@@ -4624,6 +5089,29 @@
             sendTyping();
         });
         input.addEventListener('drop', function (e) { e.preventDefault(); });
+        input.addEventListener('beforeinput', function (e) {            // some phone keyboards paste pictures this way instead
+            if (e.inputType === 'insertFromPaste' && e.dataTransfer) {
+                const f = clipboardFiles(e.dataTransfer);
+                if (f.length) { e.preventDefault(); stagePastedFiles(f); }
+            }
+        });
+        document.addEventListener('paste', function (e) {               // Ctrl+V works even when the message box is not focused
+            if (e.defaultPrevented || !S.current || document.querySelector('dialog[open]')) return;
+            const t = e.target;
+            if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+            const f = clipboardFiles(e.clipboardData);
+            if (f.length) { e.preventDefault(); stagePastedFiles(f); }
+        });
+        const convoBox = $('chConvo');
+        if (convoBox) {                                                  // drag a file onto the chat
+            convoBox.addEventListener('dragover', function (e) {
+                if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') !== -1) e.preventDefault();
+            });
+            convoBox.addEventListener('drop', function (e) {
+                const f = clipboardFiles(e.dataTransfer);
+                if (f.length) { e.preventDefault(); stagePastedFiles(f); }
+            });
+        }
         document.addEventListener('selectionchange', function () {      // remember the caret so the emoji picker inserts in the right place
             const sel = window.getSelection();
             if (sel && sel.rangeCount && input.contains(sel.anchorNode)) composerRange = sel.getRangeAt(0).cloneRange();
