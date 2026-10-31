@@ -2024,6 +2024,21 @@
 
 
 /* ======================================================================
+   SPECSOFT® chat-notify.js loader: chat notifications on EVERY page. A banner swipes in at the
+   top right showing who chatted you, the COMMUNITY sidebar row pings, and the tab title counts
+   unread chats. (It needs the Supabase script to be on the page; if it is not, it does nothing.
+   It stays silent on chats.html, which has its own notifications.)
+   ====================================================================== */
+(function () {
+    if (window.SpecChatNotify || document.querySelector('script[src$="chat-notify.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'chat-notify.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();
+
+
+/* ======================================================================
    SPECSOFT® site-fx loader: the generic "LIVE TERMINAL OS" layer (radar
    glow, 3D tilt, cursor reticle, scroll reveal, magnetic buttons,
    data-pulse) on every page that uses main.js. See site-fx.js/site-fx.css —

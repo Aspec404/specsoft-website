@@ -2,12 +2,9 @@
    SPECSOFT® — chat-notify.js
    Chat notifications on EVERY page (not only chats.html).
 
-   Add these lines to the END of every page (after your other scripts). If the page
-   already loads supabase-js and supabase-config.js, you only need the last line:
-
-       <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
-       <script src="supabase-config.js"></script>
-       <script src="chat-notify.js" defer></script>
+   main.js loads this file on every page by itself (like roles.js and notifications.js), so there
+   is nothing to add per page. It needs the Supabase script on the page; if a page has none, it
+   quietly does nothing.
 
    What it does (the same rules as the Chats page):
      * a banner slides in, with the sender, the chat name and a preview. Click it to open that chat
@@ -15,7 +12,8 @@
        (Chats > bell button turns desktop notifications on)
      * muted chats stay quiet unless somebody @mentions you; blocked people never notify
      * the sensitive-word filter hides bad words in previews, like in the Chats page
-     * (N) in the tab title, and a red number on any link to chats.html
+     * a pinging number on the COMMUNITY row of the sidebar (and on the Chats row inside it, and on
+       the phone menu button), plus (N) in the tab title
      * new chat invites notify too
    It stays silent on chats.html itself (that page has its own notifications).
 
@@ -43,6 +41,7 @@
     function notifSupported() { return typeof window.Notification !== 'undefined'; }
     function deskOn() { return notifSupported() && Notification.permission === 'granted' && ls('specsoft.chat.notif') !== 'off'; }
     function safeHttps(v) { return typeof v === 'string' && /^https:\/\/[^\s]+$/i.test(v) ? v : null; }
+    function setText(node, txt) { if (node.textContent !== txt) node.textContent = txt; }
     function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 
     /* ---------- the sensitive-word filter: an exact copy of the one in chats.js ---------- */
@@ -171,7 +170,7 @@
     function chatLinks() {
         const out = [];
         document.querySelectorAll('a[href]').forEach(function (a) {
-            if (a.closest('.cn-host, .ch-app')) return;
+            if (a.closest('.cn-host, .ch-app, #sidebar, .nav-dropdown')) return;
             try {
                 const u = new URL(a.getAttribute('href'), location.href);
                 if (u.origin === location.origin && /(^|\/)chats(\.html)?\/?$/i.test(u.pathname) && !a.querySelector('[data-chat-badge]')) out.push(a);
@@ -180,20 +179,60 @@
         return out;
     }
 
+    // the ping in the site sidebar: COMMUNITY row (so it shows even when the dropdown is closed),
+    // the Chats row inside the dropdown, and the menu button on phones
+    function paintSidebar(n, label) {
+        const tog = document.getElementById('communityToggle');
+        if (tog) {
+            let b = tog.querySelector(':scope > .cn-ping');
+            if (n <= 0) { if (b) b.remove(); tog.removeAttribute('data-cn-unread'); }
+            else {
+                if (!b) {
+                    b = el('span', 'cn-ping'); b.setAttribute('aria-hidden', 'true');
+                    const t = tog.querySelector(':scope > .nav-text');
+                    if (t) t.after(b); else tog.appendChild(b);
+                }
+                setText(b, label);
+                tog.setAttribute('data-cn-unread', label);
+            }
+        }
+        document.querySelectorAll('#communityDropdown a[href]').forEach(function (a) {
+            let isChats = false;
+            try { isChats = /(^|\/)chats(\.html)?\/?$/i.test(new URL(a.getAttribute('href'), location.href).pathname); } catch (e) { /* ignore */ }
+            if (!isChats) return;
+            let p = a.querySelector(':scope > .cn-pill');
+            if (n <= 0) { if (p) p.remove(); a.classList.remove('cn-has-pill'); return; }
+            if (!p) { p = el('span', 'cn-pill'); p.setAttribute('aria-hidden', 'true'); a.classList.add('cn-has-pill'); a.appendChild(p); }
+            setText(p, label);
+        });
+        const hb = document.getElementById('hamburgerBtn');
+        if (hb) {
+            let d = hb.querySelector(':scope > .cn-hbdot');
+            if (n <= 0) { if (d) d.remove(); }
+            else if (!d) {
+                d = el('span', 'cn-hbdot'); d.setAttribute('aria-hidden', 'true');
+                try { if (getComputedStyle(hb).position === 'static') hb.style.position = 'relative'; } catch (e) { /* ignore */ }
+                hb.appendChild(d);
+            }
+        }
+    }
+
     function paintBadge() {
         const n = totalUnread();
         const label = n > 99 ? '99+' : String(n);
-        document.querySelectorAll('[data-chat-badge]').forEach(function (b) { b.textContent = label; b.hidden = n <= 0; });
+        document.querySelectorAll('[data-chat-badge]').forEach(function (b) { setText(b, label); if (b.hidden !== (n <= 0)) b.hidden = n <= 0; });
         if (CFG.autoBadge) {
             chatLinks().forEach(function (a) {
                 let b = a.querySelector(':scope > .cn-badge');
                 if (n <= 0) { if (b) b.remove(); return; }
                 if (!b) { b = el('span', 'cn-badge'); b.setAttribute('aria-hidden', 'true'); a.classList.add('cn-has-badge'); a.appendChild(b); }
-                b.textContent = label;
+                setText(b, label);
             });
         }
+        paintSidebar(n, label);
         const base = document.title.replace(/^\(\d+\+?\)\s*/, '');
-        document.title = (n > 0 ? '(' + label + ') ' : '') + base;
+        const nextTitle = (n > 0 ? '(' + label + ') ' : '') + base;
+        if (document.title !== nextTitle) document.title = nextTitle;
     }
 
     /* ---------- how you get told ---------- */
@@ -279,7 +318,7 @@
         text.appendChild(el('strong', null, o.title));
         text.appendChild(el('span', null, o.text));
         main.appendChild(text);
-        main.addEventListener('click', function () { removeBanner(rec); open(o); });
+        main.addEventListener('click', function () { if (moved) return; removeBanner(rec); open(o); });
 
         const x = el('button', 'cn-x', '\u00D7');
         x.type = 'button'; x.setAttribute('aria-label', 'Dismiss');
@@ -290,6 +329,34 @@
         rec.node.appendChild(main); rec.node.appendChild(x);
         rec.node.addEventListener('mouseenter', function () { clearTimeout(rec.timer); });
         rec.node.addEventListener('mouseleave', arm);
+
+        // swipe it to the right to dismiss (finger or mouse)
+        let startX = 0, dx = 0, drag = false, moved = false, pid = null;
+        rec.node.addEventListener('pointerdown', function (e) {
+            if ((e.button !== undefined && e.button !== 0) || (e.target.closest && e.target.closest('.cn-x'))) return;
+            drag = true; moved = false; startX = e.clientX; dx = 0; pid = e.pointerId;
+            clearTimeout(rec.timer);
+        });
+        rec.node.addEventListener('pointermove', function (e) {
+            if (!drag || e.pointerId !== pid) return;
+            dx = e.clientX - startX;
+            if (!moved && Math.abs(dx) > 6) { moved = true; rec.node.classList.add('is-drag'); try { rec.node.setPointerCapture(pid); } catch (x) { /* ignore */ } }
+            if (moved) {
+                rec.node.style.transform = 'translateX(' + (dx > 0 ? dx : dx * 0.15) + 'px)';
+                rec.node.style.opacity = String(Math.max(0.25, 1 - Math.max(0, dx) / 260));
+            }
+        });
+        const endDrag = function (e) {
+            if (!drag || (e && e.pointerId !== pid)) return;
+            drag = false;
+            rec.node.classList.remove('is-drag');
+            const gone = moved && dx > 70;
+            rec.node.style.transform = ''; rec.node.style.opacity = '';
+            if (gone) removeBanner(rec); else arm();
+            setTimeout(function () { moved = false; }, 0);
+        };
+        rec.node.addEventListener('pointerup', endDrag);
+        rec.node.addEventListener('pointercancel', endDrag);
 
         h.appendChild(rec.node);
         N.banners.set(o.key, rec);
@@ -341,8 +408,8 @@
         const preview = previewOf(m.body) || 'Sent a message';
         deliver({
             id: m.id, key: room.room_id, roomId: room.room_id,
-            title: dm ? who : roomTitle(room),
-            text: mention ? who + ' mentioned you: ' + preview : (dm ? preview : who + ': ' + preview),
+            title: dm ? who : nameOf(sender) + ' \u00B7 ' + roomTitle(room),       // WHO chatted you comes first
+            text: mention ? 'mentioned you: ' + preview : preview,
             avatar: dm ? room.other_avatar : (sender && sender.avatar_url),
             icon: room.icon
         });
@@ -390,7 +457,7 @@
         subscribe();
         N.timer = setInterval(function () { if (!document.hidden) refreshRooms().catch(function () {}); }, 45000);
         document.addEventListener('visibilitychange', onVisible);
-        if (CFG.autoBadge && window.MutationObserver) {
+        if (window.MutationObserver) {
             new MutationObserver(function () { clearTimeout(N.badgeTimer); N.badgeTimer = setTimeout(paintBadge, 400); })
                 .observe(document.body, { childList: true, subtree: true });
         }
@@ -411,9 +478,10 @@
         s.id = 'cnStyle';
         s.textContent = [
             '.cn-host{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:2147483000;display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100vw - 28px));pointer-events:none}',
-            '.cn-card{position:relative;display:flex;align-items:stretch;overflow:hidden;background:var(--bg-card,#16181d);color:var(--text-primary,#f2f3f5);border:1px solid var(--border-hover,rgba(255,255,255,.18));border-radius:16px;box-shadow:0 16px 44px rgba(0,0,0,.45);opacity:0;transform:translateX(26px);transition:opacity .22s ease,transform .22s ease;pointer-events:auto}',
+            '.cn-card{position:relative;display:flex;align-items:stretch;overflow:hidden;background:var(--bg-card,#16181d);color:var(--text-primary,#f2f3f5);border:1px solid var(--border-hover,rgba(255,255,255,.18));border-radius:16px;box-shadow:0 16px 44px rgba(0,0,0,.45);opacity:0;transform:translateX(calc(100% + 32px));transition:opacity .25s ease,transform .42s cubic-bezier(.2,.9,.25,1.08);touch-action:pan-y;user-select:none;-webkit-user-select:none;pointer-events:auto}',
             '.cn-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--text-primary,#f2f3f5)}',
             '.cn-card.is-in{opacity:1;transform:none}',
+            '.cn-card.is-drag{transition:none}',
             '.cn-main{display:flex;align-items:center;gap:12px;flex:1 1 auto;min-width:0;padding:12px 6px 12px 16px;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}',
             '.cn-av{display:grid;place-items:center;flex:0 0 auto;width:40px;height:40px;border-radius:50%;overflow:hidden;background:var(--accent-dim,rgba(255,255,255,.1));font-size:20px}',
             '.cn-av img{width:100%;height:100%;object-fit:cover}',
@@ -424,7 +492,14 @@
             '.cn-x:hover{color:var(--text-primary,#f2f3f5)}',
             '.cn-has-badge{position:relative}',
             '.cn-badge{position:absolute;top:-6px;right:-8px;box-sizing:border-box;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ff4d4f;color:#fff;font:700 11px/18px system-ui,sans-serif;text-align:center;pointer-events:none}',
-            '@media (prefers-reduced-motion:reduce){.cn-card{transition:none}}'
+            '.cn-ping,.cn-pill{position:relative;display:inline-grid;place-items:center;flex:0 0 auto;box-sizing:border-box;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ff4d4f;color:#fff;font:700 11px/1 system-ui,sans-serif;letter-spacing:0;text-transform:none}',
+            '.cn-ping{margin-left:8px;vertical-align:middle}',
+            '.cn-pill{margin-left:auto}',
+            '.cn-has-pill{display:flex;align-items:center}',
+            '.cn-ping::after,.cn-pill::after,.cn-hbdot::after{content:"";position:absolute;inset:-2px;border-radius:inherit;border:2px solid #ff4d4f;animation:cnPing 1.7s ease-out infinite;pointer-events:none}',
+            '.cn-hbdot{position:absolute;top:5px;right:5px;width:10px;height:10px;border-radius:50%;background:#ff4d4f;box-shadow:0 0 0 2px var(--bg-card,#111);pointer-events:none}',
+            '@keyframes cnPing{0%{transform:scale(1);opacity:.85}100%{transform:scale(2.2);opacity:0}}',
+            '@media (prefers-reduced-motion:reduce){.cn-card{transition:none}.cn-ping::after,.cn-pill::after,.cn-hbdot::after{animation:none}}'
         ].join('\n');
         document.head.appendChild(s);
     }
@@ -436,7 +511,7 @@
         (function wait() {
             N.sb = window.getSupabaseClient ? window.getSupabaseClient() : null;
             if (!N.sb) {
-                if (++tries > 40) { console.warn('[chat-notify] Supabase is not loaded on this page. Add supabase-js and supabase-config.js before chat-notify.js.'); return; }
+                if (++tries > 40) return;                                   // this page has no Supabase: nothing to do
                 setTimeout(wait, 250);
                 return;
             }
