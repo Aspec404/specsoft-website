@@ -1,0 +1,44 @@
+/* SPECSOFT® Studio (Phase 1). Uses the same tokens as style.css. */
+.st-main{padding:0;max-width:none}
+.st-app{display:grid;grid-template-columns:240px 52px 1fr 260px;height:100vh;min-height:520px;border-left:1px solid var(--border-subtle,#2a2a2a)}
+.st-rail,.st-props{padding:20px 16px;overflow:auto;background:var(--bg-card,#101010)}
+.st-rail{border-right:1px solid var(--border-subtle,#2a2a2a)}
+.st-props{border-left:1px solid var(--border-subtle,#2a2a2a)}
+.st-h1{font:700 1.6rem var(--font-sans,'Space Grotesk',sans-serif);margin:0 0 16px;color:var(--text-primary)}
+.st-props h2{font:600 .95rem var(--font-sans,sans-serif);margin:0 0 12px;color:var(--text-primary)}
+.st-props dt{color:var(--text-primary);font-size:.85rem}
+.st-props dd{margin:4px 0 0;color:var(--text-secondary);font-size:.8rem;line-height:1.5}
+.st-new{display:flex;gap:6px;margin-bottom:14px}
+.st-new input,.st-bar input{flex:1;min-width:0;background:var(--bg-base,#000);color:var(--text-primary);border:1px solid var(--border-subtle,#333);padding:8px 10px;font:400 .85rem var(--font-mono,monospace)}
+.st-bar input{font-weight:600;border-color:transparent;background:transparent;font-size:1rem}
+.st-bar input:not(:disabled):hover,.st-bar input:focus{border-color:var(--border-hover,#666)}
+.st-btn{background:transparent;color:var(--text-primary);border:1px solid var(--border-hover,#666);padding:7px 12px;font:500 .8rem var(--font-mono,monospace);cursor:pointer}
+.st-btn:hover:not(:disabled){background:var(--text-primary);color:var(--bg-base,#000)}
+.st-btn:disabled{opacity:.35;cursor:not-allowed}
+.st-danger:hover:not(:disabled){background:#c0392b;border-color:#c0392b;color:#fff}
+.st-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.st-list button{width:100%;text-align:left;background:none;border:1px solid transparent;color:var(--text-secondary);padding:9px 10px;cursor:pointer;font:400 .85rem var(--font-sans,sans-serif)}
+.st-list button:hover{border-color:var(--border-subtle,#333);color:var(--text-primary)}
+.st-list button[aria-current="true"]{border-color:var(--border-hover,#666);color:var(--text-primary)}
+.st-list small{display:block;color:var(--text-secondary);opacity:.7;font:300 .7rem var(--font-mono,monospace)}
+.st-hint{color:var(--text-secondary);font-size:.8rem;line-height:1.5}
+.st-hint a{color:var(--text-primary)}
+.st-tools{display:flex;flex-direction:column;gap:6px;padding:12px 6px;border-right:1px solid var(--border-subtle,#2a2a2a);background:var(--bg-card,#101010)}
+.st-tools button{height:40px;background:none;border:1px solid transparent;color:var(--text-secondary);cursor:not-allowed;opacity:.45}
+.st-tools svg{width:18px;height:18px}
+.st-work{display:grid;grid-template-rows:auto 1fr 190px;min-width:0}
+.st-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border-subtle,#2a2a2a)}
+.st-state{color:var(--text-secondary);font:300 .75rem var(--font-mono,monospace);white-space:nowrap}
+.st-canvas{position:relative;display:grid;place-items:center;background-image:radial-gradient(var(--border-subtle,#333) 1px,transparent 1px);background-size:24px 24px}
+.st-empty{text-align:center;color:var(--text-secondary);line-height:1.7;font-size:.9rem}
+.st-bottom{display:grid;grid-template-rows:auto 1fr;border-top:1px solid var(--border-subtle,#2a2a2a);min-height:0}
+.st-tabs{display:flex;gap:2px;padding:0 8px;border-bottom:1px solid var(--border-subtle,#2a2a2a)}
+.st-tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--text-secondary);padding:8px 12px;font:500 .78rem var(--font-mono,monospace);cursor:pointer}
+.st-tabs [aria-selected="true"]{color:var(--text-primary);border-bottom-color:var(--text-primary)}
+.st-tabs [aria-disabled="true"]{opacity:.4;cursor:not-allowed}
+.st-tabs .st-link{margin-left:auto}
+.st-log{overflow:auto;padding:8px 12px;font:400 .76rem/1.7 var(--font-mono,monospace)}
+.st-log div{display:grid;grid-template-columns:70px 48px 70px 1fr;gap:8px;color:var(--text-secondary)}
+.st-log .warn{color:#e0a800}.st-log .error{color:#e5484d}.st-log .ok{color:var(--text-primary)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--text-primary);outline-offset:2px}
+@media (max-width:900px){.st-app{grid-template-columns:1fr;height:auto}.st-tools{flex-direction:row;overflow:auto}.st-work{grid-template-rows:auto 320px 190px}.st-props{display:none}}

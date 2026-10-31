@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio | SPECSOFT®</title>
+    <meta name="description" content="SPECSOFT® Studio: build projects with a visual node graph.">
+    <script src="gate.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- studio.css MUST come after style.css -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="studio.css">
+    <link rel="stylesheet" href="cursor.css">
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="vignette"></div>
+
+    <div class="mobile-header"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content st-main">
+        <div class="st-app" id="stApp">
+
+            <!-- Projects rail -->
+            <aside class="st-rail" aria-label="Your studio projects">
+                <h1 class="st-h1">Studio</h1>
+                <div class="st-new">
+                    <input id="stNewName" type="text" maxlength="60" placeholder="New project name" aria-label="New project name">
+                    <button type="button" class="st-btn" id="stNew">Create</button>
+                </div>
+                <ul class="st-list" id="stList"></ul>
+                <p class="st-hint" id="stListMsg"></p>
+            </aside>
+
+            <!-- Tools -->
+            <nav class="st-tools" id="stTools" aria-label="Canvas tools"></nav>
+
+            <!-- Workspace -->
+            <section class="st-work" aria-label="Workspace">
+                <header class="st-bar">
+                    <input id="stTitle" type="text" maxlength="60" aria-label="Project title" disabled>
+                    <span class="st-state" id="stState">No project open</span>
+                    <button type="button" class="st-btn" id="stSave" disabled>Save</button>
+                    <button type="button" class="st-btn st-danger" id="stDelete" disabled>Delete</button>
+                </header>
+                <div class="st-canvas" id="stCanvas">
+                    <p class="st-empty" id="stEmpty">Create or open a project to start.<br>The node canvas arrives in Phase 2.</p>
+                </div>
+                <div class="st-bottom">
+                    <div class="st-tabs" role="tablist">
+                        <button type="button" role="tab" aria-selected="true">Console</button>
+                        <button type="button" role="tab" aria-disabled="true" title="Phase 3">History</button>
+                        <button type="button" role="tab" aria-disabled="true" title="Phase 5">Timeline</button>
+                        <button type="button" class="st-link" id="stClear">Clear</button>
+                    </div>
+                    <div class="st-log" id="stLog" role="log" aria-live="polite"></div>
+                </div>
+            </section>
+
+            <!-- Properties -->
+            <aside class="st-props" aria-label="Properties">
+                <h2>Properties</h2>
+                <dl id="stProps"><dt>Nothing selected</dt><dd>Node settings appear here in Phase 2.</dd></dl>
+            </aside>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <script src="supabase-config.js"></script>
+    <script src="roles.js"></script>
+    <script src="ban.js"></script>
+    <script src="main.js?v=2"></script>
+    <script src="studio.js"></script>
+    <script src="cursor.js" defer></script>
+</body>
+</html>

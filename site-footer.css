@@ -1,0 +1,96 @@
+/* ==========================================================================
+   SPECSOFT® site-footer.css  -  shared footer (black / white HUD look)
+   Colors come from the site's own variables, so dark and light mode just work.
+   ========================================================================== */
+.sf {
+    position: relative;
+    margin: 72px 0 0;
+    padding: 0 clamp(14px, 3vw, 40px) calc(32px + env(safe-area-inset-bottom, 0px));
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    color: var(--text-secondary, #a1a1a1);
+}
+
+.sf-card {
+    position: relative;
+    padding: clamp(24px, 4vw, 40px) clamp(18px, 3vw, 38px) 16px;
+    border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.25));
+    border-radius: 14px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card, transparent) 85%, transparent), transparent 92%);
+}
+
+/* HUD corner brackets */
+.sf-corner { position: absolute; width: 14px; height: 14px; border: 0 solid var(--text-primary, #fff); opacity: 0.7; pointer-events: none; }
+.sf-tl { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; border-top-left-radius: 14px; }
+.sf-tr { top: -1px; right: -1px; border-top-width: 2px; border-right-width: 2px; border-top-right-radius: 14px; }
+.sf-bl { bottom: -1px; left: -1px; border-bottom-width: 2px; border-left-width: 2px; border-bottom-left-radius: 14px; }
+.sf-br { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; border-bottom-right-radius: 14px; }
+
+.sf-top { display: grid; grid-template-columns: minmax(220px, 1fr) 2.4fr; gap: clamp(28px, 4vw, 56px); }
+
+/* brand block */
+.sf-logo { display: inline-flex; align-items: center; gap: 10px; color: var(--text-primary, #fff); text-decoration: none; font-weight: 700; letter-spacing: 0.04em; font-size: 17px; }
+.sf-logo .logo-img { width: 30px; height: 30px; object-fit: contain; }
+.sf-tag { margin: 14px 0 18px; max-width: 30ch; font-size: 13.5px; line-height: 1.6; }
+.sf-socials { display: flex; gap: 8px; }
+.sf-soc {
+    display: grid; place-items: center; width: 38px; height: 38px;
+    color: var(--text-secondary, #a1a1a1); border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.25)); border-radius: 10px;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.sf-soc svg { width: 17px; height: 17px; }
+.sf-soc:hover, .sf-soc:focus-visible { color: var(--bg-base, #000); background: var(--text-primary, #fff); border-color: var(--text-primary, #fff); }
+
+/* link columns */
+.sf-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 28px 24px; }
+.sf-col ul, .sf-built ul { list-style: none; margin: 0; padding: 0; }
+.sf-col li { margin: 0 0 9px; }
+.sf-h {
+    margin: 0 0 14px;
+    font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-primary, #fff);
+}
+.sf-h::before { content: '// '; color: var(--text-secondary, #a1a1a1); }
+.sf-link { display: inline-block; font-size: 13.5px; color: var(--text-secondary, #a1a1a1); text-decoration: none; transition: color 0.15s ease, transform 0.15s ease; }
+.sf-link:hover, .sf-link:focus-visible { color: var(--text-primary, #fff); transform: translateX(3px); }
+.sf-link--muted { font: 400 11.5px/1.4 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.04em; opacity: 0.85; }
+.sf-note { margin-top: 14px !important; }
+
+/* built with */
+.sf-built { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 30px; padding-top: 20px; border-top: 1px dashed var(--border-subtle, rgba(128, 128, 128, 0.25)); }
+.sf-h--inline { margin: 0; }
+.sf-built ul { display: flex; flex-wrap: wrap; gap: 8px; }
+.sf-chip {
+    display: inline-block; padding: 5px 10px; border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.25)); border-radius: 999px;
+    font: 400 11px/1.2 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.04em;
+    color: var(--text-secondary, #a1a1a1); text-decoration: none; transition: color 0.15s ease, border-color 0.15s ease;
+}
+.sf-chip:hover, .sf-chip:focus-visible { color: var(--text-primary, #fff); border-color: var(--border-hover, var(--text-primary, #fff)); }
+
+/* bottom bar */
+.sf-bar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin-top: 20px; padding-top: 14px;
+    border-top: 1px dashed var(--border-subtle, rgba(128, 128, 128, 0.25));
+    font: 400 11px/1.4 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.06em;
+}
+.sf-est { color: var(--text-primary, #fff); letter-spacing: 0.16em; }
+.sf-top-btn {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px;
+    font: inherit; letter-spacing: 0.14em; color: var(--text-secondary, #a1a1a1); background: none;
+    border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.25)); border-radius: 9px; cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+.sf-top-btn:hover, .sf-top-btn:focus-visible { color: var(--text-primary, #fff); border-color: var(--text-primary, #fff); }
+
+.sf a:focus-visible, .sf button:focus-visible { outline: 2px solid var(--text-primary, #fff); outline-offset: 3px; }
+
+@media (max-width: 760px) {
+    .sf { margin-top: 48px; }
+    .sf-top { grid-template-columns: 1fr; gap: 28px; }
+    .sf-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sf-link, .sf-chip { padding-top: 2px; padding-bottom: 2px; }
+    .sf-top-btn { margin-left: 0; }
+}
+
+.ss-reduce-motion .sf *, .ss-reduce-motion .sf { transition: none !important; }
+.ss-reduce-motion .sf-link:hover, .ss-reduce-motion .sf-link:focus-visible { transform: none; }
+@media print { .sf { display: none; } }
