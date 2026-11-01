@@ -3,7 +3,8 @@
    "not built yet" page instead of fake features. */
 (function () {
     'use strict';
-    var G = window.StudioGraph, S = window.StudioShell = {}, view = 'graph', codeSel = null, ui = {};
+    if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
+    var G = window.StudioGraph, S = window.StudioShell = {}, view = 'graph', codeSel = null, split = false, ui = {};
     function $(id) { return document.getElementById(id); }
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
@@ -18,11 +19,11 @@
     };
     var NAV = [
         ['Workspace', [['explorer', 'Explorer'], ['graph', 'Node Graphs'], ['code', 'Code Editor'], ['database', 'Database'], ['assets', 'Assets', 'soon']]],
-        ['Development', [['preview', 'Preview', 'P6'], ['timeline', 'Timeline'], ['console', 'Console'], ['debugger', 'Debugger']]],
-        ['Project', [['versions', 'Version Control', 'P7'], ['deps', 'Dependencies', 'P6'], ['publish', 'Publish', 'P7']]],
+        ['Development', [['preview', 'Preview'], ['timeline', 'Timeline'], ['console', 'Console'], ['debugger', 'Debugger']]],
+        ['Project', [['versions', 'Version Control', 'P7'], ['deps', 'Dependencies', 'soon'], ['publish', 'Publish', 'P7']]],
         [null, [['settings', 'Project Settings'], ['docs', 'Documentation']]]
     ];
-    var MODE = { graph: 'graph', code: 'code', database: 'dock', timeline: 'dock', console: 'dock', debugger: 'dock' };
+    var MODE = { graph: 'graph', code: 'code', preview: 'preview', database: 'dock', timeline: 'dock', console: 'dock', debugger: 'dock' };
     var TAB = { database: 'data', timeline: 'time', console: 'log', debugger: 'hist' }, TAB2VIEW = { data: 'database', time: 'timeline', log: 'console', hist: 'debugger' };
 
     function buildNav() {
@@ -43,9 +44,10 @@
     }
     S.setView = function (v) {
         view = v; var mode = MODE[v] || 'page';
-        $('stApp').dataset.mode = mode; $('stCanvas').hidden = mode !== 'graph'; $('stCode').hidden = mode !== 'code'; $('stPage').hidden = mode !== 'page'; $('stDock').hidden = mode === 'page';
+        $('stApp').dataset.mode = mode; $('stCanvas').hidden = mode !== 'graph'; $('stCode').hidden = mode !== 'code'; $('stPage').hidden = mode !== 'page'; $('stPreview').hidden = mode !== 'preview'; $('stDock').hidden = mode === 'page';
+        if (mode === 'preview') StudioPreview.mount($('stPreview'));
         if (mode === 'dock') document.querySelector('[data-tab="' + TAB[v] + '"]').click();
-        if (mode === 'code') { renderCodeList(); renderEditor(); }
+        if (mode === 'code') { renderCodeList(); renderEditor(); if (split) StudioPreview.mount($('cvPv')); }
         if (mode === 'page') renderPage(v);
         Array.prototype.forEach.call(document.querySelectorAll('.st-nav-i[data-view]'), function (b) { if (b.dataset.view === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     };
@@ -54,7 +56,7 @@
     });
 
     /* ---- Explorer tree: branches and nodes of the open project ---- */
-    function ext(n) { return n.type === 'database' ? '.sql' : n.type === 'script' ? (n.lang === 'html' ? '.html' : n.lang === 'css' ? '.css' : '.js') : ''; }
+    function ext(n) { return n.type === 'database' ? '.sql' : n.type === 'script' ? (n.lang === 'html' ? '.html' : n.lang === 'css' ? '.css' : n.lang === 'pagejs' ? '.page.js' : '.js') : ''; }
     function treeList(list) {
         var ul = el('ul', 'tr');
         list.forEach(function (n) {
@@ -71,12 +73,12 @@
         if (!G.isOpen()) return;
         var t = G.tree(); box.appendChild(el('h3', 'st-sub', 'Structure')); box.appendChild(t.length ? treeList(t) : el('p', 'st-hint', 'No nodes yet.'));
     }
-    S.refresh = function () { renderTree(); if (view === 'code') renderCodeList(); };
+    S.refresh = function () { renderTree(); if (view === 'code') renderCodeList(); if (window.StudioPreview) StudioPreview.onChange(); };
     G.ext.shell = { load: function () { codeSel = null; S.refresh(); if (view === 'code') renderEditor(); } };      // no save(): nothing here is stored in the project
     G.openCode = function (id) { codeSel = id; S.setView('code'); };
 
     /* ---- Code Editor view ---- */
-    function codeExt(c) { return c.type === 'database' ? '.sql' : c.lang === 'html' ? '.html' : c.lang === 'css' ? '.css' : '.js'; }
+    function codeExt(c) { return c.type === 'database' ? '.sql' : c.lang === 'html' ? '.html' : c.lang === 'css' ? '.css' : c.lang === 'pagejs' ? '.page.js' : '.js'; }
     function buildCode() {
         var root = $('stCode'); ui.list = el('div', 'cv-files'); ui.edit = el('div', 'cv-edit');
         var head = el('div', 'cv-new'); head.appendChild(el('span', '', 'New'));
@@ -86,6 +88,7 @@
             head.appendChild(b);
         });
         var side = el('div', 'cv-side'); side.appendChild(head); side.appendChild(ui.list); root.appendChild(side); root.appendChild(ui.edit);
+        var pv = el('div', 'cv-pv'); pv.id = 'cvPv'; pv.hidden = true; root.appendChild(pv);
     }
     function renderCodeList() {
         if (!ui.list) return; ui.list.textContent = ''; var files = G.codeNodes();
@@ -104,7 +107,7 @@
         var db = n.type === 'database', lang = db ? 'sql' : n.config.lang, bar = el('div', 'cv-bar');
         bar.appendChild(el('strong', '', n.label + codeExt({ type: n.type, lang: n.config.lang })));
         if (!db) {
-            var sel = el('select'); sel.setAttribute('aria-label', 'Language'); ['javascript', 'html', 'css'].forEach(function (x) { var o = el('option', '', x); o.value = x; if (x === lang) o.selected = true; sel.appendChild(o); });
+            var sel = el('select'); sel.setAttribute('aria-label', 'Language'); ['javascript', 'html', 'css', 'pagejs'].forEach(function (x) { var o = el('option', '', x === 'pagejs' ? 'javascript (page)' : x); o.value = x; if (x === lang) o.selected = true; sel.appendChild(o); });
             sel.addEventListener('change', function () { G.setLang(n.id, sel.value); renderCodeList(); renderEditor(); }); bar.appendChild(sel);
         }
         if (lang === 'javascript') {
@@ -112,9 +115,13 @@
             tl.addEventListener('change', function () { var v = +tl.value; n.config.timeout = isFinite(v) ? Math.min(30000, Math.max(100, Math.round(v))) : 5000; tl.value = n.config.timeout; G.onChange(); });
             var l = el('label', 'cv-lim'); l.appendChild(el('span', '', 'Time limit (ms)')); l.appendChild(tl); bar.appendChild(l);
         }
+        var sp = el('button', 'st-btn', split ? 'Hide live preview' : 'Live preview'); sp.type = 'button'; sp.title = 'Show the Preview next to the editor (turn on Auto-refresh to see changes as you type)';
+        sp.addEventListener('click', function () { split = !split; $('stCode').classList.toggle('split', split); $('cvPv').hidden = !split; sp.textContent = split ? 'Hide live preview' : 'Live preview'; if (split) StudioPreview.mount($('cvPv')); else StudioPreview.stop(true); });
+        bar.appendChild(sp);
         var go = el('button', 'st-btn', 'Show in graph'); go.type = 'button'; go.addEventListener('click', function () { G.reveal(n.id); S.setView('graph'); }); bar.appendChild(go);
         ui.edit.appendChild(bar);
         var note = db ? 'Runs against the project database. Changes are kept only when the run finishes successfully.'
+            : lang === 'pagejs' ? 'Runs INSIDE the Preview page, not in the graph. Use console.log and normal browser code. No network access.'
             : lang === 'javascript' ? 'Runs in a sandbox. Use await, return a value, and studio.log, studio.sql, studio.value, studio.emit and more (see Documentation).'
             : 'HTML and CSS files output their content when a run reaches them. The Preview (Phase 6) will assemble them into a page.';
         ui.edit.appendChild(el('p', 'cv-note', note));
@@ -124,15 +131,15 @@
     /* ---- info pages ---- */
     var PH = {
         assets: ['Assets', 'Not built yet', 'Images, fonts and other files for your projects.', ['Needs file storage (Supabase Storage) and the Preview to be useful.', 'Planned alongside the Preview in Phase 6.']],
-        preview: ['Preview', 'Phase 6', 'A live, sandboxed preview of your unpublished project.', ['HTML, CSS and JavaScript nodes will be assembled into a page and shown in an isolated frame.', 'Strict Content Security Policy and message validation, with no access to your session.', 'Right now HTML and CSS nodes only output their content to the run.']],
         versions: ['Version Control', 'Phase 7', 'Release history and rollback for published projects.', ['Version numbers, release notes and rollback arrive with Publishing.', 'Until then, use Save to keep the current state of a project.']],
-        deps: ['Dependencies', 'Phase 6', 'External libraries your project can use in the Preview.', ['Will use pinned, reviewed script URLs only.', 'Not built yet, so nothing here changes your project.']],
+        deps: ['Dependencies', 'Not built yet', 'External libraries for your project.', ['The Preview blocks ALL external scripts on purpose (no network), so libraries will need a vetted list that gets inlined into the page.', 'Until then, paste library code into a JavaScript (page) file.']],
         publish: ['Publish', 'Phase 7', 'Publish a finished project and get an Open Project link.', ['Static websites, HTML games and source-code projects first.', 'Preview and publishing stay separate operations.', 'Not built yet.']]
     };
     var DOCS = [
-        ['Node types', ['Basic: runs a short step. Use it for structure and timing.', 'Script (JavaScript): runs in a sandbox with a time limit. Script (HTML / CSS): outputs its content to the run.', 'Branch: a nested graph. Open it with a double-click. Inline branches finish before the parent continues, independent ones do not wait.', 'Database: runs SQL against the project database.']],
+        ['Node types', ['Basic: runs a short step. Use it for structure and timing.', 'Script (JavaScript): graph logic, runs in a sandbox with a time limit. Script (HTML / CSS / JavaScript (page)): the files that make up your Preview page.', 'Branch: a nested graph. Open it with a double-click. Inline branches finish before the parent continues, independent ones do not wait.', 'Database: runs SQL against the project database.']],
         ['Studio API (JavaScript)', ['studio.log(...), await studio.delay(ms)', 'await studio.runNode("N2"), studio.result("N2"), studio.enableNode("N2"), studio.disableNode("N2")', 'await studio.spawnBranch("B1"), await studio.stopGroup("B1")', 'await studio.sql("SELECT * FROM t WHERE id = ?", [1]) returns { rows, changes, lastId }', 'await studio.value("speed") reads an animated value, await studio.time() reads the timeline clock, await studio.emit("name") fires an event', 'input holds the results of the nodes connected into this one. return a value to pass it on.']],
         ['SQL', ['CREATE TABLE, DROP TABLE, INSERT, SELECT, UPDATE, DELETE.', 'WHERE with = != < <= > >= LIKE IN IS NULL AND OR NOT, plus COUNT / SUM / AVG / MIN / MAX, ORDER BY and LIMIT.', 'No JOIN, GROUP BY or subqueries. It is a small built-in engine, not SQLite or Postgres.', 'Database changes from a run are kept only if the run finishes. Press Save to store them.']],
+        ['Preview', ['Run preview builds one page from your enabled HTML (body), CSS and JavaScript (page) files, in Explorer order, and shows it in a locked-down sandbox.', 'No network: remote images, scripts, fonts, frames and form posts are blocked. Use data: images and inline code.', 'console.log and errors appear in the Console. Errors from page JS link back to the file and line.', 'Source can be the current draft or the last saved version. Auto-refresh reloads shortly after you edit. Live preview in the Code Editor shows it next to your code.', 'A page that stops responding is removed after 5 seconds. Preview never publishes anything.']],
         ['Timeline', ['Node track markers: start (earliest start), stop, pause, resume, wait, toggle, spawn, custom event.', 'Value tracks hold keyframes. Values are interpolated linearly.', 'A node can wait for an event (Properties) and scripts can fire one with studio.emit.', 'Scrub the playhead on the ruler when no run is active.']],
         ['Shortcuts', ['V select, H move canvas, C connect, X cut, D delete, N create node, B create branch', 'Mouse wheel zooms, Space + drag pans, Esc returns to Select, Ctrl+S saves, Ctrl+Enter runs SQL.']],
         ['Limits', ['200 nodes per graph, 5 branch levels, 500 node runs per run, 25 spawns per run.', 'Scripts: 20,000 characters, 30 s max, 100 KB output. Database: 10 tables, 2,000 rows per table, 200 KB. Project: 450 KB.']]

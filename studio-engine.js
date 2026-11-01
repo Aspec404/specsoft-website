@@ -10,6 +10,7 @@
    Pause = no new step starts (steps already running finish). Stop = cancels everything for good. */
 (function () {
     'use strict';
+    if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
     var STEP = 300, MAX_RUNS = 20, MAX_DEPTH = 5, MAX_EXEC = 500, MAX_SPAWN = 25, MAX_OUT = 100000, MAX_ROWS = 1000, CANCEL = { cancelled: true };
     var G = window.StudioGraph, runs = [], cur = null, seq = 0;
     function $(id) { return document.getElementById(id); }
@@ -296,7 +297,7 @@
             if (c.aDelay) { ev(run, 'info', 'activation delay ' + c.aDelay + ' ms', n); await sleep(grp, c.aDelay, ctl); await gate(run, grp, ctl); }
             setS(run, n, 'running'); ev(run, 'info', 'started', n);
             if (c.eDelay) { ev(run, 'info', 'execution delay ' + c.eDelay + ' ms', n); await sleep(grp, c.eDelay, ctl); await gate(run, grp, ctl); }
-            if (n.type === 'script') out = (c.lang === 'html' || c.lang === 'css') ? cleanOut({ lang: c.lang, content: String(c.code || '') }) : await runScript(cx, n);
+            if (n.type === 'script') out = (c.lang === 'html' || c.lang === 'css' || c.lang === 'pagejs') ? cleanOut({ lang: c.lang, content: String(c.code || '') }) : await runScript(cx, n);
             else if (n.type === 'database') out = runSql(run, n);
             else if (n.type === 'branch') {
                 if (c.mode === 'independent') { branchBg(ctx, n); ev(run, 'info', 'branch runs independently', n); }

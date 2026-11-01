@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>SPECSOFT Studio preview host</title>
+<style>html,body{margin:0;height:100%;background:#fff}iframe{border:0;width:100%;height:100%;display:block}</style></head>
+<body>
+<!--
+  OPTIONAL but recommended. Put this ONE file on a DIFFERENT SITE than Studio (a different domain, not just a subdomain),
+  for example a free static host. Then, in studio.html before studio-preview.js, add:
+      <script>window.STUDIO_PREVIEW_HOST = 'https://your-other-site.example/studio-preview-host.html';</script>
+  Browsers run a different site in its own process, so a preview page stuck in an endless loop can no longer freeze Studio:
+  the watchdog just removes it. Set ALLOWED below to your Studio origin so nobody else can use your host.
+  The host must be allowed to be framed (no X-Frame-Options: DENY). It holds no secrets and stores nothing.
+-->
+<script>
+(function () {
+    'use strict';
+    var ALLOWED = [];                                    // e.g. ['https://specsoft.example']; empty = accept the ?parent= value (less safe)
+    var parentOrigin = new URLSearchParams(location.search).get('parent') || '', inner = null;
+    if (window.parent === window || !/^https?:\/\/[^\/]+$/.test(parentOrigin) || (ALLOWED.length && ALLOWED.indexOf(parentOrigin) < 0)) return;
+    addEventListener('message', function (e) {
+        var m = e.data;
+        if (e.source === parent && e.origin === parentOrigin) {                        // the Studio page sends ONE document
+            if (!m || m.t !== 'doc' || typeof m.doc !== 'string' || m.doc.length > 400000 || inner) return;
+            inner = document.createElement('iframe'); inner.setAttribute('sandbox', 'allow-scripts'); inner.setAttribute('allow', ''); inner.referrerPolicy = 'no-referrer';
+            inner.srcdoc = m.doc; document.body.appendChild(inner);
+        } else if (inner && e.source === inner.contentWindow && m && typeof m === 'object') {
+            parent.postMessage(m, parentOrigin);                                          // relay logs, errors and heartbeat to Studio
+        }
+    });
+    parent.postMessage({ t: 'hostready' }, parentOrigin);
+})();
+</script></body></html>

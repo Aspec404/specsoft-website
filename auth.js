@@ -288,7 +288,7 @@
         const status = err && err.status;
 
         if (err && (err.isNotConnected || err.isFriendly)) return err.message;
-        if (msg.includes('provider is not enabled') || msg.includes('unsupported provider')) return 'Discord login is not switched on yet. Please use email for now.';
+        if (msg.includes('provider is not enabled') || msg.includes('unsupported provider')) return 'That login method is not switched on yet. Please use email for now.';
         if (msg.includes('captcha')) return 'Please finish the security check and try again.';
         if (code === 'invalid_credentials' || msg.includes('invalid login')) return 'Wrong email or password.';
         if (code === 'email_not_confirmed' || msg.includes('not confirmed')) return 'Please confirm your email first. Check your inbox (and spam).';
@@ -562,41 +562,47 @@
     });
 
     /* ----------------------------------------------------------------------
-       9. DISCORD LOGIN
+       9. SOCIAL LOGIN (Google now, Discord kept ready)
        ---------------------------------------------------------------------- */
-    // Supabase publishes which login providers are switched on. If Discord is off, say so here
+    // Supabase publishes which login providers are switched on. If one is off, say so here
     // instead of sending people to a plain error page on supabase.co.
-    async function discordEnabled() {
+    async function providerEnabled(name) {
         try {
             const r = await fetch(CONFIG.SUPABASE_URL + '/auth/v1/settings', { headers: { apikey: CONFIG.SUPABASE_ANON_KEY } });
             if (!r.ok) return true;
             const j = await r.json();
-            return !(j && j.external && j.external.discord === false);
+            return !(j && j.external && j.external[name] === false);
         } catch (e) { return true; }
     }
 
-    $('auDiscord').addEventListener('click', () => {
-        const btn = $('auDiscord');
-        const form = current === 'signup' ? fSignup : fLogin;
+    function wireOAuth(buttonId, provider, label) {
+        const btn = $(buttonId);
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            const form = current === 'signup' ? fSignup : fLogin;
 
-        run(form, btn, async () => {
-            termLog('opening discord...');
-            if (!sb) needBackend();
-            if (!canOAuth()) {
-                throw Object.assign(new Error('Discord login needs the site to run on http(s), not as a local file.'), { isNotConnected: true });
-            }
-            if (!(await discordEnabled())) throw Object.assign(new Error('Discord login is not switched on yet. Please use email for now.'), { isFriendly: true });
-            try { sessionStorage.setItem('au_next', safeNext()); sessionStorage.setItem('au_oauth', '1'); } catch (e) { /* ignore */ }
-            const { error } = await sb.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo: baseUrl() } });
-            if (error) throw error;
-            // the browser now leaves for Discord, keep the button spinning
-            await new Promise(() => {});
+            run(form, btn, async () => {
+                termLog('opening ' + label.toLowerCase() + '...');
+                if (!sb) needBackend();
+                if (!canOAuth()) {
+                    throw Object.assign(new Error(label + ' login needs the site to run on http(s), not as a local file.'), { isNotConnected: true });
+                }
+                if (!(await providerEnabled(provider))) throw Object.assign(new Error(label + ' login is not switched on yet. Please use email for now.'), { isFriendly: true });
+                try { sessionStorage.setItem('au_next', safeNext()); sessionStorage.setItem('au_oauth', '1'); } catch (e) { /* ignore */ }
+                const { error } = await sb.auth.signInWithOAuth({ provider: provider, options: { redirectTo: baseUrl() } });
+                if (error) throw error;
+                // the browser now leaves for the provider, keep the button spinning
+                await new Promise(() => {});
+            });
         });
-    });
+    }
+
+    wireOAuth('auGoogle', 'google', 'Google');
+    wireOAuth('auDiscord', 'discord', 'Discord');     // button is hidden in login.html for now
 
     /* ----------------------------------------------------------------------
        9b. PROFILE CHECK + USERNAME STEP
-       Discord members arrive without the username we ask for at sign up, and a profile row
+       Google and Discord members arrive without the username we ask for at sign up, and a profile row
        needs one. After any login we make sure the profile exists, and ask for a username if not.
        If the profiles table can't be read for any reason, we skip this and log in as before.
        ---------------------------------------------------------------------- */

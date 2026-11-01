@@ -3,6 +3,7 @@
    a run; the copy is kept only when the run finishes successfully. The SQL box below changes it directly. */
 (function () {
     'use strict';
+    if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
     var G = window.StudioGraph, SQL = window.StudioSQL, db = { tables: {} }, shown = null, ui = {};
     function $(id) { return document.getElementById(id); }
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }

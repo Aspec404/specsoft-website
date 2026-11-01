@@ -6,6 +6,7 @@
    The engine owns the clock while a run is active; when idle you can scrub the playhead to preview values. */
 (function () {
     'use strict';
+    if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
     var G = window.StudioGraph, PX = 80, SNAP = 50, NAME = /^[A-Za-z0-9_ -]{1,20}$/, EVT = /^[A-Za-z0-9_-]{1,20}$/;
     var ACTS = ['start', 'stop', 'pause', 'resume', 'wait', 'toggle', 'spawn', 'custom'];
     var LETTER = { start: 'S', stop: 'X', pause: 'P', resume: 'R', wait: 'W', toggle: 'T', spawn: 'B', custom: 'E' };

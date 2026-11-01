@@ -20,12 +20,13 @@
     var text = disguised
         ? 'Desktop mode does not fool us. Studio is a full development environment that needs a keyboard, a mouse and a big screen, so go open it on a computer.'
         : 'SPECSOFT Studio is a full development environment that needs a keyboard, a mouse and a big screen. It is not supported on phones or tablets. Please open it on a PC.';
-    var html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + title + ' | SPECSOFT\u00ae Studio</title><style>' +
-        'html,body{height:100%;margin:0}body{display:grid;place-items:center;background:#0a0a0a;color:#f2f2f2;font-family:"Space Grotesk",system-ui,sans-serif;padding:24px;box-sizing:border-box}' +
-        '.b{max-width:460px;text-align:center}.t{font:500 .72rem "JetBrains Mono",monospace;letter-spacing:.16em;text-transform:uppercase;color:#8a8a8a;margin:0 0 18px}' +
-        'h1{font-size:2.2rem;line-height:1.1;margin:0 0 14px}p{color:#b5b5b5;line-height:1.6;margin:0 0 26px}' +
-        '.a{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}a{color:#f2f2f2;border:1px solid #666;padding:10px 16px;text-decoration:none;font:500 .85rem "JetBrains Mono",monospace}a:active{background:#f2f2f2;color:#0a0a0a}' +
-        '</style></head><body><main class="b"><p class="t">SPECSOFT\u00ae Studio</p><h1>' + title + '</h1><p>' + text + '</p>' +
-        '<div class="a"><a href="index.html">Back to SPECSOFT</a><a href="projects.html">Projects hub</a></div></main></body></html>';
-    document.open(); document.write(html); document.close();          // replaces the page; the scripts after this one never run
+    var css = 'html,body{height:100%;margin:0;background:#0a0a0a}body{display:grid!important;place-items:center;color:#f2f2f2;font-family:"Space Grotesk",system-ui,sans-serif;padding:24px;box-sizing:border-box;overflow:hidden}' +
+        'body>*:not(.sg){display:none!important}.sg{max-width:460px;text-align:center}.sg .t{font:500 .72rem "JetBrains Mono",monospace;letter-spacing:.16em;text-transform:uppercase;color:#8a8a8a;margin:0 0 18px}' +
+        '.sg h1{font-size:2.2rem;line-height:1.1;margin:0 0 14px}.sg p{color:#b5b5b5;line-height:1.6;margin:0 0 26px}.sg .t{margin:0 0 18px}' +
+        '.sg .a{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.sg a{color:#f2f2f2;border:1px solid #666;padding:10px 16px;text-decoration:none;font:500 .85rem "JetBrains Mono",monospace}.sg a:active{background:#f2f2f2;color:#0a0a0a}';
+    // The page is still being parsed, so document.open() would do nothing. Instead: write the block screen into the stream,
+    // hide everything else with CSS, and every Studio script checks __STUDIO_BLOCKED and does nothing.
+    document.write('<style>' + css + '</style><main class="sg"><p class="t">SPECSOFT\u00ae Studio</p><h1>' + title + '</h1><p>' + text + '</p>' +
+        '<div class="a"><a href="index.html">Back to SPECSOFT</a><a href="projects.html">Projects hub</a></div></main>');
+    document.title = title + ' | SPECSOFT\u00ae Studio';
 })();

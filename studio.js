@@ -3,6 +3,7 @@
    Needs supabase-studio.sql installed. */
 (function () {
     'use strict';
+    if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
     var CFG = window.SPECSOFT_CONFIG || {};
     var sb = window.getSupabaseClient ? window.getSupabaseClient() : (
         (window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY)
@@ -60,6 +61,13 @@
         S.cur = r.data; $('stTitle').value = r.data.title; setOpen(true); renderList();
         var g = r.data.graph || {};
         StudioGraph.load(g);
+        try {                                            // a recovery copy exists when the tab froze or closed during a preview
+            var rk = 'studio-recovery:' + id, rec = JSON.parse(localStorage.getItem(rk) || 'null');
+            if (rec && rec.graph && JSON.stringify(rec.graph) !== JSON.stringify(StudioGraph.get())) {
+                if (window.confirm('Studio kept an unsaved copy of "' + String(rec.title).slice(0, 60) + '" from ' + new Date(rec.t).toLocaleString() + ' (the tab may have frozen or closed). Restore it?')) { StudioGraph.load(rec.graph); $('stState').textContent = 'Unsaved changes'; log('ok', 'studio', 'Recovered your unsaved copy'); }
+            }
+            localStorage.removeItem(rk);
+        } catch (e) {}
         log('ok', 'studio', 'Opened "' + r.data.title + '" (' + ((g.nodes || []).length) + ' nodes)');
     }
 
@@ -78,7 +86,7 @@
         if (JSON.stringify(graph).length > 450000) { log('error', 'save', 'This project is too large to save (450 KB max). Remove some nodes or code.'); return; }
         var r = await sb.from('studio_projects').update({ title: title, graph: S.cur.graph = graph }).eq('id', S.cur.id);
         if (r.error) { fail('save', r.error); return; }
-        S.cur.title = title; $('stState').textContent = 'Saved'; log('ok', 'save', 'Saved "' + title + '"'); load();
+        S.cur.title = title; $('stState').textContent = 'Saved'; try { localStorage.removeItem('studio-recovery:' + S.cur.id); } catch (e) {} log('ok', 'save', 'Saved "' + title + '"'); load();
     }
 
     async function del() {
@@ -112,6 +120,10 @@
         }
         S.me = sess.user;
         StudioGraph.log = log;
+        if (window.StudioPreview) {
+            StudioPreview.getSaved = function () { return S.cur ? S.cur.graph : null; };
+            StudioPreview.beforeRun = function () { if (S.cur) try { localStorage.setItem('studio-recovery:' + S.cur.id, JSON.stringify({ t: Date.now(), title: S.cur.title, graph: StudioGraph.get() })); } catch (e) {} };
+        }
         StudioGraph.onChange = function () { if (S.cur) $('stState').textContent = 'Unsaved changes'; if (window.StudioShell) StudioShell.refresh(); };
         if (window.StudioShell) StudioShell.setUser(sess.user, sb); log('ok', 'studio', 'Studio ready (Phase 5)');
         $('stNew').addEventListener('click', create);
