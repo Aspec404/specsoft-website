@@ -422,6 +422,14 @@
         user_not_found: 'No member has that username.',
         not_member: 'You are not in this chat.',
         not_allowed: 'You are not allowed to do that.',
+        announce_only: 'Only owners and admins can post in announcements.',
+        channel_not_found: 'That channel is no longer available.',
+        channel_type_unsupported: 'This channel type is not ready yet.',
+        bad_channel_name: 'Channel names use letters, numbers, - and _ (up to 32).',
+        name_taken: 'A channel with that name already exists.',
+        channel_limit: 'A community can have up to 50 channels.',
+        section_limit: 'A community can have up to 20 sections.',
+        default_channel: 'The default channel cannot be made private or deleted.',
         already_member: 'They are already in this chat.',
         invite_not_found: 'That invite is no longer available.',
         empty_message: 'Write something first.',
@@ -573,7 +581,7 @@
     }
 
     function updateTitle() {
-        const n = S.rooms.reduce(function (a, r) { return a + (r.muted ? 0 : (r.unread || 0)); }, 0);
+        const n = S.rooms.reduce(function (a, r) { return a + ((r.muted || (window.SPCH && SPCH.isNone(r))) ? 0 : (r.unread || 0)); }, 0);
         document.title = (n > 0 ? '(' + (n > 99 ? '99+' : n) + ') ' : '') + 'Chats | SPECSOFT®';
     }
 
@@ -585,7 +593,7 @@
     }
 
     function updateBadges() {
-        paintBadge('chBadgeChats', S.rooms.reduce(function (a, r) { return a + (r.muted ? 0 : (r.unread || 0)); }, 0));
+        paintBadge('chBadgeChats', S.rooms.reduce(function (a, r) { return a + ((r.muted || (window.SPCH && SPCH.isNone(r))) ? 0 : (r.unread || 0)); }, 0));
         paintBadge('chBadgeInvites', S.invites.length);
         paintBadge('chBadgeInbox', S.inbox.filter(function (i) { return !i.read_at; }).length);
         updateTitle();
@@ -642,6 +650,7 @@
         S.rooms = res.data || [];
         indexRooms();
         updateBadges();
+        if (window.SPCH) SPCH.loadLevels();
     }
 
     async function loadInvites() {
@@ -735,6 +744,7 @@
 
     function renderList() {
         renderNav();
+        if (window.SPCH && SPCH.renderList()) return;       // a community is open: show its channels instead of My chats
         renderListHead();
         const body = $('chListBody');
         body.textContent = '';
@@ -832,6 +842,7 @@
     }
 
     async function setNav(name) {
+        if (window.SPCH) SPCH.leave();
         S.nav = name;
         S.query = '';
         $('chSearch').value = '';
@@ -893,6 +904,7 @@
         let q = sb.from('chat_messages').select(MSG_SELECT).eq('room_id', roomId);
         const rm = S.roomMap.get(roomId);
         if (rm && rm.cleared_at) q = q.gt('created_at', rm.cleared_at);     // "Delete chat" hides older history for you
+        if (window.SPCH) q = SPCH.scope(q, roomId);                             // community: only the open channel
         if (before) q = q.lt('created_at', before);
         const res = await q.order('created_at', { ascending: false }).limit(PAGE);
         if (res.error) throw res.error;
@@ -1283,17 +1295,21 @@
         if (!room) { try { await loadRooms(); room = S.roomMap.get(roomId); } catch (e) { /* ignore */ } }
         if (!room) { toast('That chat was not found.'); return; }
 
-        leaveRoomChannel();
+        if (!opts.keepRoomCh) leaveRoomChannel();
         closeMention();
         closeEmojiSuggest();
         S.current = room;
+        if (window.SPCH) {                                  // community: pick the channel BEFORE the first fetch
+            try { await SPCH.beforeOpen(room, opts); } catch (e) { console.error(e); }
+            if (!sameRoom(room)) return;
+        }
         S.pinIds = new Set();
         loadPinIds(room);
         S.pendingFile = null;
         paintPendingFile();
         S.messages = []; S.byId = new Map(); S.extra = new Map();
         S.replyTo = null; S.editing = null; S.noMore = false; S.newFromId = null; S.newCount = 0; S.atBottom = true;
-        S.online = new Set();
+        if (!opts.keepRoomCh) S.online = new Set();
         cancelCompose(true);
         closeMembers();
         $('chEmoji').hidden = true;
@@ -1339,7 +1355,8 @@
 
         S.opening = false;
         markRead(room.room_id);
-        joinRoomChannel(room.room_id);
+        if (window.SPCH) SPCH.afterOpen();
+        if (!opts.keepRoomCh || !S.roomCh) joinRoomChannel(room.room_id);
         loadSeen(room.room_id);
         holdHint();
         vmCancel(true);
@@ -1348,6 +1365,7 @@
 
     function closeRoom() {
         leaveRoomChannel();
+        if (window.SPCH) SPCH.close();
         S.current = null;
         S.opening = false;
         $('chConvo').hidden = true;
@@ -1366,7 +1384,7 @@
             sub = typing ? 'typing…' : (r.blocked_by_me ? 'Blocked' : (S.onlineAll.has(r.other_id) ? 'Online' : 'Direct message'));
             if (r.nickname) full = realName(r) + (r.other_username ? ' (@' + r.other_username + ')' : '');
         } else {
-            sub = r.member_count + ' member' + (r.member_count === 1 ? '' : 's') + (r.description ? ' · ' + r.description : '');
+            sub = (window.SPCH && SPCH.sub(r)) || (r.member_count + ' member' + (r.member_count === 1 ? '' : 's') + (r.description ? ' · ' + r.description : ''));
             full = r.description || '';
         }
         const p = $('chRoomSub');
@@ -1388,6 +1406,7 @@
         input.placeholder = lockedMine ? 'You blocked this user. Unblock them to chat again.' : lockedThem ? 'You can no longer message this user.' : 'Message...';
         ['chAttachBtn', 'chEmojiBtn', 'chGifBtn', 'chDevBtn', 'chMicBtn'].forEach(function (id) { $(id).disabled = lock; });
         $('chSend').disabled = lock || (!input.value.trim() && !S.pendingFile);
+        if (window.SPCH) SPCH.lockComposer();               // announcements / coming-soon channels
     }
 
     function paintHeader() {
@@ -1406,6 +1425,7 @@
         paintOnline();
         paintComposerLock();
         paintAbout();
+        if (window.SPCH) SPCH.paintHeader();                // community: "# channel-name" in the header
     }
 
     // full (wrapped) description lives in the members drawer, the header only shows one line
@@ -1758,7 +1778,7 @@
         cancelCompose();
         scrollToBottom();
 
-            const res = await sb.rpc('chat_send', { p_room: room.room_id, p_body: body, p_reply: reply ? reply.id : null });
+            const res = await (window.SPCH ? SPCH.send(room, body, reply ? reply.id : null) : sb.rpc('chat_send', { p_room: room.room_id, p_body: body, p_reply: reply ? reply.id : null }));
             if (res.error) throw res.error;
             let real = Object.assign({}, res.data, { sender: S.profile, reactions: [] });
             createdMessageId = real.id;
@@ -3246,6 +3266,7 @@
             return;
         }
 
+        if (window.SPCH && SPCH.onMessage(room, m, mine)) return;     // community: other channel / silenced
         room.last_body = m.body; room.last_at = m.created_at; room.last_sender = m.sender_id;
         const here = !!(S.current && S.current.room_id === m.room_id);
         clearTyping(m.room_id, m.sender_id);
@@ -3491,8 +3512,9 @@
         const real = S.messages.filter(function (m) { return !m.pending; });
         if (!real.length) return;
         const last = real[real.length - 1].created_at;
-        const res = await sb.from('chat_messages').select(MSG_SELECT).eq('room_id', room.room_id)
-            .gt('created_at', last).order('created_at', { ascending: true }).limit(100);
+        let nq = sb.from('chat_messages').select(MSG_SELECT).eq('room_id', room.room_id);
+        if (window.SPCH) nq = SPCH.scope(nq, room.room_id);
+        const res = await nq.gt('created_at', last).order('created_at', { ascending: true }).limit(100);
         if (res.error || !sameRoom(room)) return;
         const rows = (res.data || []).filter(function (m) { return !S.byId.has(m.id); });
         if (!rows.length) return;
@@ -5016,6 +5038,7 @@
         if (room.blocked_by_me) return;
         const mention = mentionsUser(m.body, S.profile && S.profile.username);
         if (room.muted && !mention) return;                                   // muted chats stay quiet, unless it is an @mention
+        if (window.SPCH && SPCH.quiet(room, mention)) return;                  // community notification level
         const watching = S.current && S.current.room_id === room.room_id && !document.hidden && document.hasFocus();
         if (watching) return;
 
@@ -5253,6 +5276,12 @@
     }
 
     async function boot() {
+        if (window.SPCH) SPCH.attach({
+            S: S, sb: sb, $: $, el: el, toast: toast, friendly: friendly, setLoading: setLoading,
+            openRoom: openRoom, closeRoom: closeRoom, setNav: setNav, renderList: renderList, bumpRoom: bumpRoom,
+            updateBadges: updateBadges, cacheProfiles: cacheProfiles, pushNotice: pushNotice, mentionsUser: mentionsUser,
+            nameOf: nameOf, safePreview: safePreview, paintHeader: paintHeader
+        });
         initTheme();
         initSound();
         installComposer();
@@ -5287,6 +5316,7 @@
         sb.auth.onAuthStateChange(function (event) { if (event === 'SIGNED_OUT') location.reload(); });
 
         hideGate();
+        if (window.SPCH) SPCH.start();
         subscribeGlobal();
         subscribeBugs();
         subscribeUser();

@@ -141,6 +141,11 @@
         });
         N.rooms = next;
         paintBadge();
+        // community notification level (all | mentions | none): only rooms that are not "all" come back
+        try {
+            const lv = await N.sb.rpc('chat_notif_levels');
+            N.levels = new Map(((lv && lv.data) || []).map(function (x) { return [x.room_id, x.level]; }));
+        } catch (e) { N.levels = N.levels || new Map(); }
     }
     function refreshRoomsSoon() { clearTimeout(N.roomsTimer); N.roomsTimer = setTimeout(function () { refreshRooms().catch(function () {}); }, 500); }
 
@@ -396,10 +401,14 @@
         }
         if (room.blocked_by_me || N.blocked.has(m.sender_id)) return;
 
+        const level = (room.kind === 'community' && N.levels && N.levels.get(room.room_id)) || 'all';
+        if (level === 'none') return;                                  // community set to "None": no badge, no banner
+
         room.unread = (room.unread || 0) + 1;
         paintBadge();
 
         const mention = mentions(m.body);
+        if (level === 'mentions' && !mention) return;                  // community set to "@Mentions"
         if (room.muted && !mention) return;                            // muted chats stay quiet, unless it is an @mention
 
         const sender = await getProfile(m.sender_id);
