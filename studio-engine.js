@@ -357,10 +357,10 @@
 
     /* ---- public controls ---- */
     var E = window.StudioEngine = {};
-    E.start = function () {
+    E.start = function (opts) {                          // opts.graph (STools): run this stand-alone graph instead of the whole project
         if (!G.isOpen()) return;
         if (active()) return G.log('warn', 'run', 'A run is already active. Stop it or use Restart.');
-        var g = G.get();
+        var g = (opts && opts.graph && Array.isArray(opts.graph.nodes)) ? opts.graph : G.get();
         if (!g.nodes.length) return G.log('warn', 'run', 'Nothing to run. Add some nodes first.');
         if (!topo(g)) return G.log('error', 'run', 'This graph contains a loop, so it cannot run.');
         G.resetStatus();
@@ -385,6 +385,18 @@
     E.stop = function () { if (!active()) return; var r = cur; cancelRun(r); finalize(r, 'stopped'); };
     E.restart = function () { if (active()) E.stop(); E.start(); };
     E.isActive = active;
+    /* PHASE 7a (STools): the two live operations behind the Spawn and Toggle tools */
+    E.spawn = function (id) {                            // start another copy of a branch node of the running graph
+        if (!active()) return false;
+        var n = cur.nodes[id];
+        if (!n || n.type !== 'branch' || !cur.ctxs[id]) { ev(cur, 'warn', 'spawn needs a branch node of the running graph', n); return false; }
+        if (++cur.spawns > MAX_SPAWN) { ev(cur, 'error', 'spawn limit reached (' + MAX_SPAWN + ' per run)', n); return false; }
+        ev(cur, 'info', 'spawned (STools)', n); branchBg(cur.ctxs[id], n); return true;
+    };
+    E.setEnabled = function (id, on) {                   // live enable/disable: nodes that have not started yet are skipped
+        if (!active() || !cur.nodes[id]) return false;
+        cur.nodes[id].enabled = !!on; ev(cur, 'info', (on ? 'enabled' : 'disabled') + ' during the run (STools)', cur.nodes[id]); return true;
+    };
 
     /* ---- UI ---- */
     function refresh() {

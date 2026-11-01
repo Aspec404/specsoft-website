@@ -1341,6 +1341,7 @@
         markRead(room.room_id);
         joinRoomChannel(room.room_id);
         loadSeen(room.room_id);
+        holdHint();
         vmCancel(true);
         if (window.matchMedia && !window.matchMedia('(pointer: coarse)').matches) $('chInput').focus();
     }
@@ -4339,11 +4340,14 @@
             } else fillEmojiBtn(qb, q.ch);
             row.appendChild(qb);
         });
-        row.appendChild(el('button', {
-            type: 'button', class: 'ch-quick-btn ch-quick-more', 'aria-label': 'More emoji',
+        // the emoji can scroll sideways, but the + stays pinned on the right so it can always be tapped
+        const rowWrap = el('div', { class: 'ch-sheet-react-wrap' });
+        rowWrap.appendChild(row);
+        rowWrap.appendChild(el('button', {
+            type: 'button', class: 'ch-quick-btn ch-quick-more', 'aria-label': 'More emoji', title: 'More emoji',
             onclick: function () { closeMsgSheet(); toggleEmoji(m); }
         }, icon('plus')));
-        sheet.appendChild(row);
+        sheet.appendChild(rowWrap);
 
         messageSheetItems(m).forEach(function (it) {
             if (it === 'sep') { sheet.appendChild(el('div', { class: 'ch-menu-sep', role: 'separator' })); return; }
@@ -4363,6 +4367,16 @@
         S.msgSheet = { nodes: [scrim, sheet], el: sheet, node: node || null, at: Date.now() };
     }
 
+    // the dots button is off by default now, so tell people once that holding a message opens the menu
+    function holdHint() {
+        try {
+            if (!(window.matchMedia && window.matchMedia('(hover: none), (pointer: coarse)').matches)) return;
+            if (localStorage.getItem('specsoft.chat.holdhint')) return;
+            localStorage.setItem('specsoft.chat.holdhint', '1');
+            setTimeout(function () { toast('Tip: hold a message to react, reply or more'); }, 1200);
+        } catch (e) { /* ignore */ }
+    }
+
     function wireMessageSheet() {
         const feed = $('chFeed');
         if (!feed) return;
@@ -4378,7 +4392,7 @@
 
         feed.addEventListener('pointerdown', function (e) {
             if (e.pointerType === 'mouse') return;                       // desktop keeps the hover toolbar
-            if (e.target.closest && e.target.closest('input, textarea, select, video')) return;
+            if (e.target.closest && e.target.closest('input, textarea, select, video, audio')) return;
             const n = e.target.closest && e.target.closest('.ch-msg');
             if (!n || n.classList.contains('is-pending')) return;
             const m = S.messages.find(function (x) { return String(x.id) === n.dataset.id; });
@@ -4395,7 +4409,7 @@
                 try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* ignore */ }
                 start = null;
                 openMsgSheet(m, target);
-            }, 420);
+            }, 380);
         });
 
         feed.addEventListener('pointermove', function (e) {

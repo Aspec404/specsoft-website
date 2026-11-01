@@ -144,6 +144,7 @@
           icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
           items: [
             tx('typingText', 'Custom typing indicator', 'What other people see while you type. Up to 50 characters. Type <@username> where your name should go. Leave it empty for the normal "is typing".', '', 50, '<@username> is cooking...'),
+            tg('chatMoreBtn', 'Show dots button on messages', 'Phones and tablets: adds a small \u22ee button on every message. It opens the same menu as holding the message.', false, { cls: 'ss-chat-more', clsOn: true }),
             sl('chatEnter', 'Sending messages', 'Choose which key sends a message on desktop. Phones always use the send button.', 'enter', [['enter', 'Enter sends (Shift+Enter for a new line)'], ['ctrl', 'Ctrl+Enter sends (Enter for a new line)']]),
             tg('chatSound', 'Chat sounds', 'A soft ping for new messages.', true, { ls: { key: 'specsoft.chat.sound', on: 'on', off: 'off' } }),
             tg('chatFilter', 'Hide sensitive messages', 'Covers harsh messages with a notice. Only you see the cover.', true, { ls: { key: 'specsoft.chat.filter', on: 'on', off: 'off' } }),

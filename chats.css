@@ -2209,11 +2209,12 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 .ch-menu--msg .ch-menu-head { padding-bottom: 10px; }
 
 /* ==========================================================================
-   PHONES: always-visible message actions button (opens the long-press sheet)
+   MESSAGE ACTIONS ON PHONES: hold a message to open the menu.
+   The small dots button is optional: Settings > Chats > "Show dots button on messages".
    ========================================================================== */
 .ch-msg-more { display: none; }
 @media (hover: none), (pointer: coarse) {
-    .ch-msg-more {
+    .ss-chat-more .ch-msg-more {
         display: grid;
         place-items: center;
         position: absolute;
@@ -2230,12 +2231,34 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
         z-index: 2;
         -webkit-tap-highlight-color: transparent;
     }
-    .ch-msg--own .ch-msg-more { right: auto; left: 4px; }
-    .ch-msg-more svg { width: 18px; height: 18px; fill: currentColor; }
-    .ch-msg-more:active { background: var(--accent-dim); color: var(--text-primary); opacity: 1; }
+    .ss-chat-more .ch-msg--own .ch-msg-more { right: auto; left: 4px; }
+    .ss-chat-more .ch-msg-more svg { width: 18px; height: 18px; fill: currentColor; }
+    .ss-chat-more .ch-msg-more:active { background: var(--accent-dim); color: var(--text-primary); opacity: 1; }
     /* keep a lane for the button so it never sits on top of a bubble */
-    .ch-msg .ch-msg-body { max-width: calc(100% - 46px - 38px); }
+    .ss-chat-more .ch-msg .ch-msg-body { max-width: calc(100% - 46px - 38px); }
 }
+
+/* the reaction row in the hold menu: the emoji scroll sideways, the + stays pinned and always tappable */
+.ch-sheet-react-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 2px 10px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.ch-sheet-react-wrap > .ch-sheet-react { flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; border-bottom: 0; }
+.ch-sheet-react-wrap > .ch-sheet-react .ch-quick-btn { min-width: 34px; }
+.ch-sheet-react-wrap > .ch-quick-more {
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: var(--accent-dim);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.ch-sheet-react-wrap > .ch-quick-more svg { width: 20px; height: 20px; }
 
 /* ==========================================================================
    VIDEO MESSAGES, VOICE MESSAGES, SEEN / SENT, EMOJI
