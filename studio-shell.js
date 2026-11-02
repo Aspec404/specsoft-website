@@ -20,7 +20,7 @@
     var NAV = [
         ['Workspace', [['explorer', 'Explorer'], ['graph', 'Node Graphs'], ['code', 'Code Editor'], ['database', 'Database'], ['assets', 'Assets', 'soon']]],
         ['Development', [['preview', 'Preview'], ['timeline', 'Timeline'], ['console', 'Console'], ['debugger', 'Debugger']]],
-        ['Project', [['versions', 'Version Control', 'P7'], ['deps', 'Dependencies', 'soon'], ['publish', 'Publish', 'P7']]],
+        ['Project', [['versions', 'Version Control'], ['deps', 'Dependencies', 'soon'], ['publish', 'Publish']]],
         [null, [['settings', 'Project Settings'], ['docs', 'Documentation']]]
     ];
     var MODE = { graph: 'graph', code: 'code', preview: 'preview', database: 'dock', timeline: 'dock', console: 'dock', debugger: 'dock' };
@@ -80,6 +80,11 @@
 
     /* ---- Code Editor view ---- */
     function codeExt(c) { return c.type === 'database' ? '.sql' : c.lang === 'html' ? '.html' : c.lang === 'css' ? '.css' : c.lang === 'pagejs' ? '.page.js' : '.js'; }
+    function runCode(id) {                                // Run (or Ctrl+Enter) in the Code Editor: JavaScript and SQL run alone and print to the Console; page files open the Preview
+        var n = G.node(id); if (!n) return;
+        if (n.type === 'database' || (n.type === 'script' && n.config.lang === 'javascript')) { if (window.StudioSTools && StudioSTools.runFile) StudioSTools.runFile(id); else G.log('warn', 'run', 'Run needs studio-stools.js'); }
+        else { S.setView('preview'); if (window.StudioPreview) StudioPreview.run(); }
+    }
     function buildCode() {
         var root = $('stCode'); ui.list = el('div', 'cv-files'); ui.edit = el('div', 'cv-edit');
         var head = el('div', 'cv-new'); head.appendChild(el('span', '', 'New'));
@@ -88,6 +93,7 @@
             b.addEventListener('click', function () { var id = G.createCode(k[0]); if (!id) { G.log('warn', 'studio', 'Open a project first (or the node limit was reached)'); return; } codeSel = id; renderCodeList(); renderEditor(); });
             head.appendChild(b);
         });
+        ui.edit.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && codeSel) { e.preventDefault(); runCode(codeSel); } });
         var side = el('div', 'cv-side'); side.appendChild(head); side.appendChild(ui.list); root.appendChild(side); root.appendChild(ui.edit);
         var pv = el('div', 'cv-pv'); pv.id = 'cvPv'; pv.hidden = true; root.appendChild(pv);
     }
@@ -116,6 +122,8 @@
             tl.addEventListener('change', function () { var v = +tl.value; n.config.timeout = isFinite(v) ? Math.min(30000, Math.max(100, Math.round(v))) : 5000; tl.value = n.config.timeout; G.onChange(); });
             var l = el('label', 'cv-lim'); l.appendChild(el('span', '', 'Time limit (ms)')); l.appendChild(tl); bar.appendChild(l);
         }
+        var runB = el('button', 'st-btn', lang === 'javascript' || db ? 'Run' : 'Run in Preview'); runB.type = 'button'; runB.title = (lang === 'javascript' || db ? 'Run this file alone and list its output in the Console' : 'Open the Preview and run it') + ' (Ctrl+Enter)';
+        runB.addEventListener('click', function () { runCode(n.id); }); bar.appendChild(runB);
         var sp = el('button', 'st-btn', split ? 'Hide live preview' : 'Live preview'); sp.type = 'button'; sp.title = 'Show the Preview next to the editor (turn on Auto-refresh to see changes as you type)';
         sp.addEventListener('click', function () { split = !split; $('stCode').classList.toggle('split', split); $('cvPv').hidden = !split; sp.textContent = split ? 'Hide live preview' : 'Live preview'; if (split) StudioPreview.mount($('cvPv')); else StudioPreview.stop(true); });
         bar.appendChild(sp);
@@ -144,11 +152,14 @@
         ['Timeline', ['Node track markers: start (earliest start), stop, pause, resume, wait, toggle, spawn, custom event.', 'Value tracks hold keyframes. Values are interpolated linearly.', 'A node can wait for an event (Properties) and scripts can fire one with studio.emit.', 'Scrub the playhead on the ruler when no run is active.']],
         ['Shortcuts', ['S select, G grab, C cut, D delete, L lasso, F frame, N node, B branch, R reroute, W wait, I inspect, A align, / find, T toggle, P pulse', 'Ctrl+D duplicate, Ctrl+G group, Ctrl+Shift+G ungroup, Ctrl+C connect, Ctrl+A select all', 'V fit view, + and - zoom, 0 reset view', 'Ctrl+Z undo, Ctrl+Y redo, Ctrl+X cut, Ctrl+V paste, Ctrl+Insert copy, F2 rename, Enter open', 'Mouse wheel zooms, Space + drag pans, Esc returns to Select, Ctrl+S saves, Ctrl+Enter runs SQL.']],
         ['STools', ['The tool bar has four sections: Canvas, Graphs, Runtime and Diagnostics. Click a section name to fold it.', 'Step releases the next node of a paused run. Pulse is a dry run that only animates the wires. Spawn starts another copy of the selected branch during a run.', 'Debug: click a node to set a breakpoint (red dot). The run pauses when that node starts. Trace shows run order and time on every node. Monitor shows live counts.', 'Resize panels by dragging the top edge of the bottom panel or the right edge of the workspace (arrow keys work too). Double-click the top edge to fold the bottom panel. Sizes are remembered on this device.', 'The Console has search, Copy and Export, a red badge for new errors, and keeps the last 500 lines. Monitor also reports when the page was busy for over 400 ms.', 'Right-click a node for Open, Copy, Cut, Paste, Rename, Delete and more. Right-click a connection, a frame or the empty canvas for their own menus. Cut moves the nodes when you paste, so nothing is lost if you never paste. You can paste into another branch or even another project.', 'The Explorer shows folders and branches as a tree. Click the arrow to fold, double-click a branch to open it, use the arrow keys to move, and right-click a row for its menu. The box at the top filters by name, type or extension.', 'Undo and Redo cover the graph (nodes, connections, code, delays, frames, folders). They do not cover database rows or the timeline, and they wait while a run is active.', 'Validate checks loops, empty or broken scripts, wrong node names in studio.runNode and friends, unfired events and size limits. Click a result to jump to its node.']],
+        ['Run and output', ['Run (or Ctrl+Enter) in the Code Editor runs one JavaScript or SQL file on its own. Everything it prints with console.log, console.warn, console.error or studio.log appears in the Console, then the value it returned.', 'In the Console, pick "Program output" in the filter to see only what your code printed, and tick "Clear on run" to start each run with a clean Console.', 'Scripts can print up to 1,000 lines per run.']],
+        ['Version Control and Publish', ['Version Control: save named snapshots of your project, compare one with your draft, restore it as a draft, delete it. 15 snapshots per project.', 'Publish: pick a type, title, link name, visibility, cover and version number. A release is built from the last SAVED version and never changes. Roll back by making an older release live. Unpublish hides it without deleting anything.', 'Open Project opens the standalone viewer (studio-view.html?p=link-name). It runs your project in a locked-down sandbox with no network access.']],
         ['Limits', ['200 nodes per graph, 5 branch levels, 500 node runs per run, 25 spawns per run.', 'Scripts: 20,000 characters, 30 s max, 100 KB output. Database: 10 tables, 2,000 rows per table, 200 KB. Project: 450 KB.']]
     ];
     function list(items) { var ul = el('ul', 'pg-list'); items.forEach(function (t) { ul.appendChild(el('li', '', t)); }); return ul; }
     function renderPage(v) {
-        var p = $('stPage'); p.textContent = ''; var w = el('div', 'pg');
+        var p = $('stPage'); p.textContent = ''; if ((v === 'versions' || v === 'publish') && window.StudioPublish) return StudioPublish.render(v, p);       // Phase 7 pages live in studio-publish.js
+        var w = el('div', 'pg');
         if (PH[v]) { var d = PH[v]; w.appendChild(el('h1', '', d[0])); w.appendChild(el('span', 'pg-badge', d[1])); w.appendChild(el('p', 'pg-lead', d[2])); w.appendChild(list(d[3])); }
         else if (v === 'docs') { w.appendChild(el('h1', '', 'Documentation')); DOCS.forEach(function (s) { w.appendChild(el('h2', '', s[0])); w.appendChild(list(s[1])); }); }
         else if (v === 'settings') {

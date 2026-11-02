@@ -80,6 +80,8 @@
         '.st-hist .st-cmp{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.st-hist .st-cmp>div{display:block;flex-basis:100%;overflow:auto}',
         '.sx-ctl{display:inline-flex;align-items:center;gap:2px;margin-left:6px}.sx-ctl[hidden]{display:none}',
         '.st-tabs input.sx-search{width:120px;box-sizing:border-box;background:var(--bg-base,#000);color:var(--text-primary);border:1px solid var(--border-subtle,#333);font:400 .72rem var(--font-mono,monospace);padding:3px 6px}',
+        '#stLog[data-f="out"]>div:not([data-src="output"]){display:none}#stLog>div[data-src="output"]{box-shadow:inset 2px 0 0 var(--text-primary)}#stLog>div[data-src="output"] span:last-child{color:var(--text-primary)}',
+        '.sx-chk{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font:400 .68rem var(--font-mono,monospace);color:var(--text-secondary);white-space:nowrap;cursor:pointer}',
         '.sx-badge{margin-left:6px;background:#e5484d;color:#fff;border-radius:9px;padding:0 6px;font:600 .62rem var(--font-mono,monospace)}.sx-badge[hidden]{display:none}',
         '@media (prefers-reduced-motion:reduce){.st-node.pulse{box-shadow:none}.sx-grip::after{transition:none}}'
     ].join('\n');
@@ -345,7 +347,7 @@
     function start() {
         if (!needEngine()) return;
         if (E.isActive()) return say('warn', 'run', 'A run is already active. Stop it first, or use Restart in the top bar.');
-        var sel = G.selection();
+        var sel = G.selection(); if (typeof maybeClear === 'function') maybeClear();
         if (sel.length && hasE('spawn')) {
             var sub = G.runGraph(sel); say('info', 'run', 'Starting from the selection: ' + sub.nodes.length + ' node(s) (the selected ones and everything after them)'); E.start({ graph: sub });
         } else E.start();
@@ -508,9 +510,9 @@
     } catch (e) {}
 
     /* ---- resizable panels: drag the top edge of the bottom panel, or the right edge of the workspace (Properties). Saved on this device only ---- */
-    var app = $('stApp'), work = $('stWork'), dock = $('stDock'), propsEl = document.querySelector('.st-props'), UI = { dock: 260, props: 260, folded: false }, raf = 0, rafFn = null, rz = 0;
+    var app = $('stApp'), work = $('stWork'), dock = $('stDock'), propsEl = document.querySelector('.st-props'), UI = { dock: 260, props: 260, folded: false, clear: false }, raf = 0, rafFn = null, rz = 0;
     function cl(v, lo, hi, d) { v = +v; return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
-    try { var o = JSON.parse(localStorage.getItem('studio-ui') || '{}'); UI.dock = cl(o.dock, 90, 1200, 260); UI.props = cl(o.props, 200, 520, 260); UI.folded = o.folded === true; } catch (e) {}
+    try { var o = JSON.parse(localStorage.getItem('studio-ui') || '{}'); UI.dock = cl(o.dock, 90, 1200, 260); UI.props = cl(o.props, 200, 520, 260); UI.folded = o.folded === true; UI.clear = o.clear === true; } catch (e) {}
     function saveUI() { try { localStorage.setItem('studio-ui', JSON.stringify(UI)); } catch (e) {} }
     function later(fn) { rafFn = fn; if (!raf) raf = requestAnimationFrame(function () { raf = 0; var f = rafFn; rafFn = null; if (f) f(); }); }   // at most one layout change per frame
     var gh = el('div', 'sx-grip sx-grip-h'), gv = el('div', 'sx-grip sx-grip-v');
@@ -555,6 +557,23 @@
         window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(applyUI, 100); });
     }
 
+    /* ---- Run one file alone and list its output in the Console (Code Editor Run button, Ctrl+Enter, right-click menu) ---- */
+    function maybeClear() { if (UI.clear && clearBtn) clearBtn.click(); }
+    function runFile(id) {
+        var n = G.node(id); if (!n || (n.type !== 'script' && n.type !== 'database')) return say('warn', 'run', 'Pick a JavaScript or SQL file to run it on its own.');
+        if (!hasE('spawn')) return say('warn', 'run', 'Run needs the updated studio-engine.js (Phase 7a).');
+        if (E.isActive()) return say('warn', 'run', 'A run is already active. Stop it first.');
+        if (n.type === 'script' && n.config.lang !== 'javascript') return say('info', 'run', 'HTML, CSS and page JavaScript run in the Preview, not here.');
+        var c = JSON.parse(JSON.stringify(n)); c.status = 'idle'; c.enabled = true; c.group = null; c.folder = null;
+        var g = { version: 3, nodes: [c], connections: [], frames: [], groups: [], folders: [], timeline: { duration: 10000, tracks: [] } };
+        if (G.ext.db && G.ext.db.save) g.db = G.ext.db.save();
+        maybeClear(); showConsole();
+        say('info', 'output', '> Running ' + n.label + (n.type === 'database' ? '.sql' : '.js') + ' on its own', id);
+        E.start({ graph: g });
+    }
+    window.StudioSTools = { runFile: runFile, clearIfWanted: maybeClear };
+    document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#stRunStart,#stRunRestart'); if (b) maybeClear(); }, true);
+
     /* ---- Console: search, copy, export, error badge, and a hard cap on rows (an endless studio.log loop can no longer grow the page until it freezes) ---- */
     var logEl = $('stLog'), tabsEl = dock && dock.querySelector('.st-tabs'), clearBtn = $('stClear'), MAXROWS = 500;
     var query = '', errN = 0, logTab = tabsEl && tabsEl.querySelector('[data-tab="log"]'), badge = el('span', 'sx-badge'), ctl = el('span', 'sx-ctl'), qt = 0;
@@ -587,13 +606,16 @@
         });
         var cb = el('button', 'st-link', 'Copy'), eb = el('button', 'st-link', 'Export'); cb.type = eb.type = 'button';
         cb.title = 'Copy the visible console lines'; eb.title = 'Download the visible console lines as a .txt file'; cb.addEventListener('click', copyLog); eb.addEventListener('click', exportLog);
-        ctl.appendChild(q); ctl.appendChild(cb); ctl.appendChild(eb); tabsEl.insertBefore(ctl, clearBtn);
+        var cr = el('label', 'sx-chk'), crc = el('input'); crc.type = 'checkbox'; crc.checked = UI.clear; cr.title = 'Empty the Console every time a run starts'; cr.appendChild(crc); cr.appendChild(el('span', '', 'Clear on run'));
+        crc.addEventListener('change', function () { UI.clear = crc.checked; saveUI(); });
+        var fo = $('stFilter'); if (fo) { var po = el('option', '', 'Program output'); po.value = 'out'; fo.appendChild(po); }
+        ctl.appendChild(q); ctl.appendChild(cb); ctl.appendChild(eb); ctl.appendChild(cr); tabsEl.insertBefore(ctl, clearBtn);
         Array.prototype.forEach.call(tabsEl.querySelectorAll('[data-tab]'), function (b) { b.addEventListener('click', function () { ctl.hidden = b.dataset.tab !== 'log'; }); });
         if (logTab) { logTab.appendChild(badge); logTab.addEventListener('click', function () { errN = 0; paintBadge(); }); paintBadge(); }
         new MutationObserver(function (muts) {
             muts.forEach(function (m) {
                 Array.prototype.forEach.call(m.addedNodes, function (r) {
-                    if (r.nodeType !== 1) return; if (query) r.hidden = r.textContent.toLowerCase().indexOf(query) < 0;
+                    if (r.nodeType !== 1) return; if (r.children[2]) r.dataset.src = r.children[2].textContent; if (query) r.hidden = r.textContent.toLowerCase().indexOf(query) < 0;
                     if (r.classList.contains('error') && !(logTab && logTab.getAttribute('aria-selected') === 'true' && !dock.hidden)) { errN++; paintBadge(); }
                 });
             });

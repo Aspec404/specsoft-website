@@ -129,7 +129,10 @@
         if (multi) items.push({ label: 'Group', key: 'Ctrl+G', ic: 'group', run: function () { G.group(); } });
         if (n.group) items.push({ label: 'Ungroup', key: 'Ctrl+Shift+G', ic: 'group', run: function () { G.ungroup(); } });
         items.push('-', { label: 'Inspect', ic: 'inspect', run: function () { G.onInspect(id); } }, { label: 'Pulse from here', key: 'P', ic: 'pulse', run: function () { pulseFrom(sel); } });
-        if (E && typeof E.spawn === 'function') items.push({ label: 'Run from here', ic: 'run', disabled: !idle(), run: function () { runFrom(sel); } });
+        if (E && typeof E.spawn === 'function') {
+            if (n.type === 'script' || n.type === 'database') items.push({ label: 'Run only this node', key: 'Ctrl+Enter', ic: 'run', disabled: !idle(), run: function () { if (window.StudioSTools) window.StudioSTools.runFile(id); } });
+            items.push({ label: 'Run from here', ic: 'run', disabled: !idle(), run: function () { runFrom(sel); } });
+        }
         M.show(items, e.clientX, e.clientY);
     }
     function wireMenu(wid, e, at) {

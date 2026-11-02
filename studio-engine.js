@@ -11,7 +11,7 @@
 (function () {
     'use strict';
     if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
-    var STEP = 300, MAX_RUNS = 20, MAX_DEPTH = 5, MAX_EXEC = 500, MAX_SPAWN = 25, MAX_OUT = 100000, MAX_ROWS = 1000, CANCEL = { cancelled: true };
+    var STEP = 300, MAX_RUNS = 20, MAX_DEPTH = 5, MAX_EXEC = 500, MAX_SPAWN = 25, MAX_OUT = 100000, MAX_ROWS = 1000, MAX_LOGS = 1000, CANCEL = { cancelled: true };
     var G = window.StudioGraph, runs = [], cur = null, seq = 0;
     function $(id) { return document.getElementById(id); }
     function noop() {}
@@ -200,7 +200,12 @@
             var t = ctx.byLabel[l]; if (!t) throw new Error('No node named ' + l + ' in this graph'); return t;
         }
         var t;
-        if (fn === 'log') { G.log('info', 'script', args.slice(0, 10).map(function (a) { return String(a).slice(0, 300); }).join(' '), n.id); return null; }
+        if (fn === 'log') {                              // console.log / warn / error from a script = program output (source "output"), capped so a loop cannot flood the page
+            if (++run.logN > MAX_LOGS) { if (run.logN === MAX_LOGS + 1) G.log('warn', 'output', 'Output limit reached (' + MAX_LOGS + ' lines per run). Further lines are dropped.', n.id); return null; }
+            var lv = 'info', parts = args.slice(0, 10).map(function (a) { return String(a).slice(0, 300); });
+            if (parts[0] === '[warn]') { lv = 'warn'; parts.shift(); } else if (parts[0] === '[error]') { lv = 'error'; parts.shift(); }
+            G.log(lv, 'output', parts.join(' '), n.id); return null;
+        }
         if (fn === 'result') { t = target(args[0]); var r0 = grp.results[t.label]; return r0 === undefined ? null : r0; }
         if (fn === 'enableNode' || fn === 'disableNode') { t = target(args[0]); t.enabled = fn === 'enableNode'; ev(run, 'info', (t.enabled ? 'enabled ' : 'disabled ') + t.label + ' (this run only)', n); return null; }
         if (fn === 'runNode') {
@@ -289,7 +294,7 @@
 
     /* ---- one node: activation delay, execution delay, operation, output delay ---- */
     async function perform(ctx, n) {
-        var run = ctx.run, grp = ctx.grp, c = n.config || {}, out, stopped = false;
+        var run = ctx.run, grp = ctx.grp, c = n.config || {}, out, stopped = false, t0 = Date.now();
         if (++run.execs > MAX_EXEC) throw new Error('Run limit reached (' + MAX_EXEC + ' node executions)');
         var ctl = { dead: false, paused: false, sleepers: new Set(), killers: new Set(), waiters: [] }, cx = Object.create(ctx);
         cx.ctl = ctl; run.active[n.id] = ctl; run.stack.push(n.id);
@@ -307,8 +312,11 @@
             await gate(run, grp, ctl);
             if (c.oDelay) { ev(run, 'info', 'holding output ' + c.oDelay + ' ms', n); await sleep(grp, c.oDelay, ctl); await gate(run, grp, ctl); }
             if (out !== undefined) grp.results[n.label] = out;
+            if (out !== undefined && (n.type === 'database' || (n.type === 'script' && c.lang === 'javascript'))) {      // the value a script returns (or the rows a SQL node selects) is part of its output
+                var shown = JSON.stringify(out); G.log('info', 'output', 'returned ' + (Array.isArray(out) ? out.length + ' item(s): ' : '') + (shown.length > 2000 ? shown.slice(0, 2000) + ' ...' : shown), n.id);
+            }
             setS(run, n, stopped ? 'stopped' : 'done');
-            ev(run, 'ok', 'finished' + (out !== undefined ? ' with output ' + JSON.stringify(out).slice(0, 80) : ''), n);
+            ev(run, 'ok', 'finished in ' + (Date.now() - t0) + ' ms' + (out !== undefined ? ' with output ' + JSON.stringify(out).slice(0, 80) : ''), n);
         } catch (e) {
             if (e === CANCEL && ctl.dead && !grp.dead && !run.cancelled) { setS(run, n, 'stopped'); ev(run, 'warn', 'stopped by the timeline', n); return; }
             throw e;
@@ -364,7 +372,7 @@
         if (!g.nodes.length) return G.log('warn', 'run', 'Nothing to run. Add some nodes first.');
         if (!topo(g)) return G.log('error', 'run', 'This graph contains a loop, so it cannot run.');
         G.resetStatus();
-        var run = cur = { id: ++seq, status: 'running', startedAt: Date.now(), endedAt: 0, events: [], paused: false, cancelled: false, ended: false, hadError: false,
+        var run = cur = { id: ++seq, status: 'running', startedAt: Date.now(), endedAt: 0, events: [], logN: 0, paused: false, cancelled: false, ended: false, hadError: false,
             st: {}, waiters: [], gseq: 0, execs: 0, spawns: 0, bg: [], stack: [], root: null,
             startAt: {}, blocked: {}, fired: {}, evWait: {}, sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
         run.root = mkGroup(run, 'root', null); setupTimeline(run, g);

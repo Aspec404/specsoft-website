@@ -96,6 +96,16 @@
         log('warn', 'projects', 'Deleted "' + S.cur.title + '"'); S.cur = null; $('stTitle').value = ''; setOpen(false); load();
     }
 
+    /* PHASE 7: a read-only window for the Version Control and Publish pages (studio-publish.js). It reuses THIS file's
+       Supabase client, signed-in user and open project, so there is no second login or project system. */
+    window.StudioProject = {
+        client: function () { return sb; }, user: function () { return S.me; },
+        current: function () { return S.cur ? { id: S.cur.id, title: S.cur.title } : null; },
+        saved: function () { return S.cur ? S.cur.graph : null; },
+        isDirty: function () { return /Unsaved/.test($('stState').textContent); },
+        markDirty: function () { if (S.cur) $('stState').textContent = 'Unsaved changes'; }
+    };
+
     async function init() {
         $('stClear').addEventListener('click', function () { $('stLog').textContent = ''; });
         $('stFilter').addEventListener('change', function () { $('stLog').dataset.f = this.value; });

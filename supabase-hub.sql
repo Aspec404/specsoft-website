@@ -341,7 +341,7 @@ begin
       ('HUB',    'done',  'Hub Phase 3',                     'Spectra’s Corner, Classified and the admin Manager.', '“Fine. You can write in my diary. Carefully.”', 120),
       ('STUDIO', 'doing', 'Studio Phase 7',                  'STools and resizable panels.', null, 130),
       ('STUDIO', 'todo',  'Studio Phase 8',                  'The final phase of the Studio spec.', null, 140),
-      ('HUB',    'todo',  'Hub Phase 4',                     'Arcade and Toolbox.', null, 150);
+      ('HUB',    'done',  'Hub Phase 4',                     'Arcade, Toolbox and Spectra’s chibi collection.', '“...Tch. Fine. Go play your games.”', 150);
   end if;
 
   if not exists (select 1 from public.hub_posts) then

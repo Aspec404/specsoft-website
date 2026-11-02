@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'">
+    <meta name="referrer" content="no-referrer">
+    <title>Project | SPECSOFT® Studio</title>
+    <!-- The standalone viewer for published Studio projects: studio-view.html?p=your-link-name
+         It only reads the live release through studio_open(slug). If your site puts gate.js on its public pages, add it here too. -->
+    <style>
+        :root{color-scheme:dark light;--bg:#000;--fg:#f2f2f2;--dim:#9a9a9a;--line:#2a2a2a;--card:#0d0d0d}
+        @media (prefers-color-scheme:light){:root{--bg:#fff;--fg:#111;--dim:#666;--line:#ddd;--card:#f6f6f6}}
+        *{box-sizing:border-box}html,body{height:100%;margin:0}
+        body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:400 15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+        .mono{font-family:ui-monospace,"JetBrains Mono",Consolas,monospace}
+        header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+        header h1{margin:0;font-size:1rem;font-weight:600}header .meta{color:var(--dim);font-size:.75rem}header .sp{flex:1}
+        button,a.btn{background:none;color:var(--fg);border:1px solid var(--line);padding:6px 12px;font:500 .78rem ui-monospace,Consolas,monospace;cursor:pointer;text-decoration:none}
+        button:hover,a.btn:hover{border-color:var(--fg)}button:focus-visible,a.btn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+        main{flex:1;min-height:0;display:flex;flex-direction:column}
+        iframe{flex:1;width:100%;border:0;background:#fff;min-height:0}
+        .center{margin:auto;max-width:560px;padding:32px 20px;text-align:center}.center p{color:var(--dim)}
+        .cover{display:block;width:100%;max-width:480px;aspect-ratio:16/9;object-fit:cover;margin:0 auto 18px;border:1px solid var(--line)}
+        .src{flex:1;min-height:0;display:grid;grid-template-columns:minmax(160px,260px) 1fr}
+        .src ul{list-style:none;margin:0;padding:6px;border-right:1px solid var(--line);overflow:auto}
+        .src li button{display:block;width:100%;text-align:left;border:0;padding:7px 8px;overflow-wrap:anywhere}.src li button[aria-current="true"]{background:var(--card);color:var(--fg);box-shadow:inset 2px 0 0 var(--fg)}
+        .src pre{margin:0;padding:14px;overflow:auto;font:400 .8rem/1.55 ui-monospace,Consolas,monospace;tab-size:4}
+        footer{padding:8px 16px;border-top:1px solid var(--line);color:var(--dim);font-size:.7rem}footer a{color:inherit}
+        @media (max-width:700px){.src{grid-template-columns:1fr;grid-template-rows:auto 1fr}.src ul{border-right:0;border-bottom:1px solid var(--line);max-height:30vh}}
+    </style>
+</head>
+<body>
+    <header id="hd" hidden>
+        <h1 id="ttl"></h1><span class="meta mono" id="meta"></span><span class="sp"></span>
+        <button type="button" id="fs" hidden>Fullscreen</button>
+    </header>
+    <main id="main" aria-live="polite"><div class="center"><p>Loading...</p></div></main>
+    <footer>Published with <a href="index.html">SPECSOFT® Studio</a>. Projects run in a locked-down sandbox: no network, no access to your account.</footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <script src="supabase-config.js"></script>
+    <script src="studio-view.js"></script>
+</body>
+</html>

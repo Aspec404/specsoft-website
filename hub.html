@@ -175,7 +175,7 @@
   /* ---------- Phase 3: Corner, Classified, Manager ---------- */
   textarea,select{font:inherit;color:inherit}
   .rwrap{position:relative}
-  .deco{position:absolute;right:0;top:-8px;width:clamp(90px,14vw,170px);height:auto;pointer-events:none;opacity:.95}
+  .deco{position:absolute;right:0;top:-10px;width:clamp(78px,10vw,128px);height:auto;pointer-events:none;opacity:.95}
   .note-box .in{padding:clamp(16px,2.4vw,26px);font-family:var(--font-hand);font-weight:700;font-size:clamp(16px,1.6vw,21px);line-height:1.4}
   .pages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
   .page .in{padding:16px 18px 14px;font-family:var(--font-hand);font-size:clamp(16px,1.5vw,19px);line-height:1.5}
@@ -237,6 +237,50 @@
   .dlg .foot{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
   .dlg .err{font-family:var(--font-hand);font-weight:700;color:#b3261e;min-height:1.2em;margin-bottom:8px}
 
+
+  /* ---------- Phase 4: Arcade + Toolbox ---------- */
+  .game .in{display:grid;grid-template-columns:minmax(150px,230px) minmax(0,1fr);gap:clamp(14px,2.4vw,28px);padding:clamp(14px,2.2vw,24px);align-items:start}
+  .gside{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+  .gside img{width:clamp(110px,15vw,190px);height:auto;max-height:230px;object-fit:contain}
+  .gside img.hop{animation:hop .28s ease}
+  @keyframes hop{0%{transform:translateY(0) scale(1)}40%{transform:translateY(-8px) scale(1.04)}100%{transform:translateY(0) scale(1)}}
+  .gsay{font-family:var(--font-hand);font-weight:700;font-size:clamp(16px,1.5vw,20px);line-height:1.3;min-height:2.6em;background:#fff;border:2px solid var(--ink);border-radius:18px;padding:8px 14px;width:100%}
+  .gstat{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:14px;font-size:13px;letter-spacing:.14em;color:var(--ink-soft)}
+  .gstat b{color:var(--ink);font-size:18px;margin-left:4px}
+  .gstat .mbtn{margin-left:auto}
+  .mem{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .mc{aspect-ratio:3/4;border:2px solid var(--ink);background:#fff;padding:0;display:grid;place-items:center;overflow:hidden;position:relative}
+  .mc:hover{background:#f0f0f6}
+  .mc .back{width:46%;color:var(--ink);opacity:.85;display:block}
+  .mc .back svg{width:100%;height:auto;display:block}
+  .mc img{display:none;width:92%;height:92%;object-fit:contain}
+  .mc.up img,.mc.done img{display:block}
+  .mc.up .back,.mc.done .back{display:none}
+  .mc.done{border-style:dashed;background:#f3f3f8}
+  .wake,.pokebtn{width:100%;min-height:150px;border:2px solid var(--ink);background:#fff;font-weight:700;font-size:clamp(18px,2.2vw,26px);letter-spacing:.08em;padding:20px}
+  .wake.wait{background:#e9e9f1;color:var(--ink-soft)}
+  .wake.go{background:var(--ink);color:#fff}
+  .pokebtn:active{background:#f0f0f6}
+  .game.poke .in{grid-template-columns:minmax(220px,340px) minmax(0,1fr)}
+  .pokeimg{border:2px solid var(--ink);background:#fff;padding:6px;width:100%;cursor:pointer;display:block;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+  .pokeimg:active{background:#f0f0f6}
+  .pokeimg[disabled]{cursor:default;opacity:.92}
+  .gside .pokeimg img{width:100%;max-height:none;height:auto;display:block;pointer-events:none}
+  .pokeimg.tap img{animation:tap .22s ease}
+  @keyframes tap{0%{transform:translate(0,0) scale(1)}30%{transform:translate(calc(var(--amp,2px)*-1),0) scale(.985)}60%{transform:translate(var(--amp,2px),0) scale(.99)}100%{transform:translate(0,0) scale(1)}}
+  .tbox{padding:clamp(14px,2.2vw,24px)}
+  .tbox .trow{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+  .tbox textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+  .tstat{font-family:var(--font-hand);font-weight:700;font-size:16px;min-height:1.3em;margin:0 0 10px}
+  .tstat.bad{color:#b3261e}
+  .orow{display:flex;align-items:center;gap:12px;border:1.5px solid var(--ink);background:#fff;padding:8px 12px;margin-bottom:8px}
+  .orow span{font-size:11px;letter-spacing:.16em;color:var(--ink-soft);width:84px;flex:none}
+  .orow code{flex:1;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;overflow-wrap:anywhere}
+  .swatch{height:64px;border:2px solid var(--ink);margin-bottom:12px}
+  .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px}
+  .tbox input[type=color]{width:100%;height:42px;padding:2px;border:1.5px solid var(--ink);background:#fff}
+  .tbox input[type=number]{border:1.5px solid var(--ink);background:#fff;padding:9px 11px;width:100%;border-radius:0}
+
   .footline{margin-top:34px;display:flex;align-items:center;gap:14px;font-size:12px;letter-spacing:.28em;color:var(--ink-soft)}
   .footline::after{content:"";flex:1;height:1.5px;background:var(--line);opacity:.35}
 
@@ -262,7 +306,13 @@
     .pages,.files{grid-template-columns:1fr}
     .mrow{flex-wrap:wrap}
     .mrow .macts{width:100%;justify-content:flex-start}
-    .deco{width:88px;top:-4px}
+    .deco{width:70px;top:-4px}
+    .quote{padding-right:78px}
+    .game .in,.game.poke .in{grid-template-columns:1fr}
+    .gside .pokeimg{max-width:340px}
+    .cgrid{grid-template-columns:1fr}
+    .orow{flex-wrap:wrap}
+    .orow span{width:100%}
     .tag,.top .rule,.stripes{display:none}
     .top{justify-content:space-between}
   }
@@ -337,7 +387,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
 <script src="supabase-config.js"></script>
-<script src="chat-notify.js"></script>
 <script>
 (function(){
   var KEY='specsoft_hub_key';
@@ -406,8 +455,8 @@
   var ROOMS=[
     {id:'lab',  ic:'laboratory', name:'Laboratory',       desc:'Experiments and works in progress.',   q:'“Experiments live here. Don’t touch the red button.”', ph:2, open:true},
     {id:'arch', ic:'archives',   name:'Archives',         desc:'Everything SPECSOFT has done so far.', q:'“Every win SPECSOFT ever had. Yes, I counted.”',        ph:2, open:true},
-    {id:'arc',  ic:'arcade',     name:'Arcade',           desc:'Tiny games for tiny breaks.',          q:'“Games. Don’t tell the others I play here.”',           ph:4},
-    {id:'tool', ic:'toolbox',    name:'Toolbox',          desc:'Handy tools in one place.',            q:'“Useful stuff. You’re welcome.”',                       ph:4},
+    {id:'arc',  ic:'arcade',     name:'Arcade',           desc:'Tiny games for tiny breaks.',          q:'“Games. Don’t tell the others I play here.”',           ph:4, open:true},
+    {id:'tool', ic:'toolbox',    name:'Toolbox',          desc:'Handy tools in one place.',            q:'“Useful stuff. You’re welcome.”',                       ph:4, open:true},
     {id:'cls',  ic:'classified', name:'Classified',       desc:'██████ ████ ███████.',                 q:'“...You don’t have clearance. Yet.”',                   ph:3, open:true},
     {id:'corn', ic:'corner',     name:'Spectra’s Corner', desc:'Her diary and little stories.',        q:'“This is my corner. Knock first.”',                     ph:3, open:true}
   ];
@@ -416,7 +465,7 @@
     {t:'Secret entrance and Hub shell', d:1},
     {t:'Laboratory and Archives',       d:1},
     {t:'Spectra’s Corner, Classified and Manager', d:1},
-    {t:'Arcade and Toolbox',            d:0}
+    {t:'Arcade and Toolbox',            d:1}
   ];
   var SOFAR=[
     {t:'Chat app with Windows 11 emoji', d:1},
@@ -441,7 +490,7 @@
       {tag:'HUB',   st:'done', t:'Hub Phase 3',                 d:'Spectra’s Corner, Classified and the admin Manager.', say:'“Fine. You can write in my diary. Carefully.”'},
       {tag:'STUDIO',st:'doing',t:'Studio Phase 7',              d:'STools and resizable panels.'},
       {tag:'STUDIO',st:'todo', t:'Studio Phase 8',              d:'The final phase of the Studio spec.'},
-      {tag:'HUB',   st:'todo', t:'Hub Phase 4',                 d:'Arcade and Toolbox.'}
+      {tag:'HUB',   st:'done', t:'Hub Phase 4',                 d:'Arcade, Toolbox and Spectra’s chibi collection.', say:'“...Tch. Fine. Go play your games.”'}
     ],
     posts:[
       {kind:'diary', title:'Day 1: Face down', body:'They made a whole page where I lie face down and say “...Tch.” Rude. Accurate, but rude.\n\nI’m keeping the chibi, though. She’s small and she never has to talk to anyone.'},
@@ -602,6 +651,249 @@
     else { msg.textContent='That file is gone or sealed.'; }
   });
 
+  /* =====================================================================
+     ARCADE + TOOLBOX (Phase 4)
+     ===================================================================== */
+  var SPR_DIR='assets/';
+  function spr(n){ return SPR_DIR+'spectra-'+n+'.png'; }
+  function getBest(){ try{ return JSON.parse(localStorage.getItem('specsoft_hub_best')||'{}')||{}; }catch(e){ return {}; } }
+  function setBest(k,v){ try{ var b=getBest(); b[k]=v; localStorage.setItem('specsoft_hub_best',JSON.stringify(b)); }catch(e){} }
+  var arcTimers=[];
+  function aTimeout(fn,ms){ var t=setTimeout(fn,ms); arcTimers.push(t); return t; }
+  function clearArcade(){ arcTimers.forEach(clearTimeout); arcTimers=[]; }
+  var arcTab='memory';
+  function mood(name,text){
+    var s=document.getElementById('gSprite'), t=document.getElementById('gSay');
+    if(s){ s.src=spr(name); s.classList.remove('hop'); void s.offsetWidth; s.classList.add('hop'); }
+    if(t) t.textContent=text||'';
+  }
+  function renderArcade(){
+    clearArcade();
+    roomBody.innerHTML='<div class="tools" role="group" aria-label="Games">'+
+      [['memory','MEMORY'],['wake','WAKE HER'],['poke','POKE']].map(function(t){ return '<button type="button" class="fchip" data-gt="'+t[0]+'" aria-pressed="'+(arcTab===t[0])+'">'+t[1]+'</button>'; }).join('')+'</div>'+
+      '<div class="cut game"><div class="in"><div class="gside"><img id="gSprite" src="'+spr('hi')+'" alt="" draggable="false"><p class="gsay" id="gSay" aria-live="polite"></p></div><div class="garea" id="gArea"></div></div></div>'+
+      '<p class="meta" style="margin-top:12px">Best scores are saved in this browser only.</p>';
+    ({memory:gMemory,wake:gWake,poke:gPoke})[arcTab]();
+  }
+
+  /* game 1: memory match */
+  var MEM_FACES=['hi','cheer','love','wink','sleep','shock'];
+  function gMemory(){
+    var area=document.getElementById('gArea');
+    var deck=MEM_FACES.concat(MEM_FACES).map(function(f){ return {f:f}; });
+    for(var i=deck.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=deck[i]; deck[i]=deck[j]; deck[j]=t; }
+    var open=[], matched=0, moves=0, lock=false, best=getBest().mem;
+    area.innerHTML='<div class="gstat"><span>MOVES<b id="mMoves">0</b></span><span>BEST<b id="mBest">'+(best||'-')+'</b></span><button type="button" class="mbtn" id="mShuffle">SHUFFLE</button></div>'+
+      '<div class="mem" id="mGrid">'+deck.map(function(c,i){
+        return '<button type="button" class="mc" data-i="'+i+'" aria-label="Card '+(i+1)+', face down"><span class="back"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#logo"/></svg></span><img src="'+spr(c.f)+'" alt="" draggable="false"></button>';
+      }).join('')+'</div>';
+    mood('hi','Find the pairs. ...Don’t be slow.');
+    var grid=document.getElementById('mGrid');
+    function btn(i){ return grid.children[i]; }
+    grid.addEventListener('click',function(e){
+      var b=e.target.closest('.mc'); if(!b||lock) return;
+      var i=+b.getAttribute('data-i');
+      if(b.classList.contains('up')||b.classList.contains('done')) return;
+      b.classList.add('up'); b.setAttribute('aria-label','Card '+(i+1)+', Spectra '+deck[i].f);
+      open.push(i);
+      if(open.length<2) return;
+      moves++; document.getElementById('mMoves').textContent=moves;
+      var a=open[0], c=open[1]; open=[];
+      if(deck[a].f===deck[c].f){
+        [a,c].forEach(function(k){ btn(k).classList.remove('up'); btn(k).classList.add('done'); });
+        matched++;
+        if(matched===MEM_FACES.length){
+          var isBest=!best||moves<best;
+          if(isBest){ best=moves; setBest('mem',moves); document.getElementById('mBest').textContent=moves; }
+          mood('love','...Fine. You win in '+moves+' moves.'+(isBest?' New best!':''));
+        } else { mood('cheer','Match!'); }
+      } else {
+        lock=true; mood('confused','...Huh?');
+        aTimeout(function(){ [a,c].forEach(function(k){ btn(k).classList.remove('up'); btn(k).setAttribute('aria-label','Card '+(k+1)+', face down'); }); lock=false; },800);
+      }
+    });
+    document.getElementById('mShuffle').addEventListener('click',function(){ clearArcade(); gMemory(); });
+  }
+
+  /* game 2: wake her (reaction time) */
+  function gWake(){
+    var area=document.getElementById('gArea'), best=getBest().wake, state='idle', t0=0;
+    area.innerHTML='<div class="gstat"><span>BEST<b id="wBest">'+(best?best+' ms':'-')+'</b></span></div><button type="button" class="wake" id="wBtn">START</button><p class="meta" style="margin-top:12px">Press start, wait for the !!, then tap as fast as you can. Tap too early and she wakes up grumpy.</p>';
+    mood('sleep','Zzz...');
+    var b=document.getElementById('wBtn');
+    b.addEventListener('click',function(){
+      if(state==='idle'||state==='result'){
+        state='wait'; b.textContent='...shh'; b.className='wake wait'; mood('sleep','Zzz... (wait for it)');
+        aTimeout(function(){ state='go'; t0=performance.now(); b.textContent='TAP NOW!'; b.className='wake go'; mood('shock','!!'); },1500+Math.random()*3500);
+      } else if(state==='wait'){
+        clearArcade(); state='result'; b.className='wake'; b.textContent='TOO EARLY. TRY AGAIN'; mood('annoyed','Tch! You woke me up.');
+      } else if(state==='go'){
+        var ms=Math.round(performance.now()-t0); state='result'; b.className='wake'; b.textContent=ms+' ms. AGAIN?';
+        mood(ms<250?'cheer':ms<400?'wink':'pout', ms<250?'...Fast. Annoyingly fast.':ms<400?'Not bad.':'...Did you fall asleep too?');
+        if(!best||ms<best){ best=ms; setBest('wake',ms); document.getElementById('wBest').textContent=ms+' ms'; }
+      }
+    });
+  }
+
+  /* game 3: poke Spectra (tap her picture; the more you poke, the more upset she gets) */
+  var PSTAGES=[[0,1,'...Yes?'],[4,2,'...Why are you poking me?'],[10,3,'Stop that.'],[18,4,'I said STOP.'],[28,5,'Aaah! Stop it, stop it!!'],[40,6,'I’m going to cry, you know!!'],[55,7,'...why are you like this...'],[70,8,'...I’m not talking to you.']];
+  var PEND=85, pokedLoaded=false;
+  function pokedSrc(i){ return 'assets/spectra-poked/poked-'+i+'.png'; }
+  function gPoke(msg){
+    if(!pokedLoaded){ pokedLoaded=true; for(var k=1;k<=8;k++){ (new Image()).src=pokedSrc(k); } }
+    var area=document.getElementById('gArea'), n=0, best=getBest().poke||0;
+    var game=document.querySelector('.game'); game.classList.add('poke');
+    document.querySelector('.gside').innerHTML='<button type="button" class="pokeimg" id="pImg" aria-label="Poke Spectra"><img id="gSprite" src="'+pokedSrc(1)+'" alt="" draggable="false"></button><p class="gsay" id="gSay" aria-live="polite"></p>';
+    area.innerHTML='<div class="gstat"><span>POKES<b id="pN">0</b></span><span>FARTHEST<b id="pBest">'+(best||'-')+'</b></span><button type="button" class="mbtn" id="pReset">RESET</button></div>'+
+      '<div class="gstat" style="margin-bottom:6px"><span>ANNOYANCE</span></div><div class="bar" style="height:16px;margin:0 0 14px"><i id="pBar"></i></div>'+
+      '<p class="meta" id="pHint">Tap Spectra’s picture to poke her. See how long she lasts. (She has opinions.)</p>'+
+      '<div id="pEnd" hidden style="margin-top:14px"><button type="button" class="mbtn solid" id="pSorry">APOLOGIZE</button></div>';
+    var say=document.getElementById('gSay'), img=document.getElementById('gSprite'), pimg=document.getElementById('pImg');
+    say.textContent=msg||PSTAGES[0][2];
+    pimg.addEventListener('click',function(){
+      if(n>=PEND) return;
+      n++;
+      var st=PSTAGES[0]; PSTAGES.forEach(function(p){ if(n>=p[0]) st=p; });
+      img.src=pokedSrc(st[1]); say.textContent=st[2];
+      document.getElementById('pN').textContent=n;
+      document.getElementById('pBar').style.width=Math.min(100,Math.round(n/PEND*100))+'%';
+      pimg.style.setProperty('--amp',(1+st[1]*1.2)+'px');
+      pimg.classList.remove('tap'); void pimg.offsetWidth; pimg.classList.add('tap');
+      if(n>best){ best=n; setBest('poke',n); document.getElementById('pBest').textContent=n; }
+      if(n>=PEND){
+        pimg.disabled=true; say.textContent='...That’s it. I’m done with you.';
+        document.getElementById('pHint').textContent='Spectra has had enough.';
+        document.getElementById('pEnd').hidden=false;
+      }
+    });
+    document.getElementById('pReset').addEventListener('click',function(){ gPoke(); });
+    document.getElementById('pSorry').addEventListener('click',function(){ gPoke('...Hmph. Fine. I forgive you. This time.'); });
+  }
+
+  /* ---- TOOLBOX ---- */
+  var toolTab='json';
+  var TOOLS=[['json','JSON'],['color','COLOR'],['enc','ENCODE'],['ids','IDS'],['time','TIME']];
+  var TOOL_SAY={json:'Paste a mess. Get less of a mess.',color:'Pretty colors. Also contrast, because accessibility.',enc:'Base64 and URL stuff. Unicode safe.',ids:'Random things, made with real randomness.',time:'Unix time, but readable.'};
+  function copyText(text,btn){
+    function done(){ if(!btn) return; var o=btn.getAttribute('data-label')||btn.textContent; btn.setAttribute('data-label',o); btn.textContent='COPIED'; setTimeout(function(){ btn.textContent=o; },1200); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,function(){}); return; }
+    var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(e){} ta.remove();
+  }
+  function renderTools(){
+    roomBody.innerHTML='<div class="tools" role="group" aria-label="Tools">'+TOOLS.map(function(t){ return '<button type="button" class="fchip" data-tt="'+t[0]+'" aria-pressed="'+(toolTab===t[0])+'">'+t[1]+'</button>'; }).join('')+'</div>'+
+      '<p class="quote" style="margin:0 0 12px;font-size:clamp(15px,1.5vw,19px)">“'+esc(TOOL_SAY[toolTab])+'” <span class="meta" style="font-family:var(--font-ui);font-weight:400">Runs in your browser. Nothing is sent anywhere.</span></p>'+
+      '<div class="cut"><div class="in tbox" id="tBox"></div></div>';
+    ({json:tJson,color:tColor,enc:tEnc,ids:tIds,time:tTime})[toolTab]();
+  }
+  function $(id){ return document.getElementById(id); }
+  function orow(label,val){ return '<div class="orow"><span>'+label+'</span><code>'+esc(val)+'</code><button type="button" class="mbtn" data-copy="'+esc(val)+'">COPY</button></div>'; }
+
+  function tJson(){
+    var box=$('tBox');
+    box.innerHTML='<div class="fld"><label for="tin">INPUT</label><textarea id="tin" style="min-height:150px" spellcheck="false" placeholder="{&quot;paste&quot;:&quot;json here&quot;}"></textarea></div>'+
+      '<div class="trow"><button type="button" class="mbtn solid" id="jFmt">FORMAT</button><button type="button" class="mbtn" id="jMin">MINIFY</button><button type="button" class="mbtn" id="jChk">VALIDATE</button><button type="button" class="mbtn" id="jCp">COPY OUTPUT</button></div>'+
+      '<p class="tstat" id="tStat" aria-live="polite"></p><div class="fld"><label for="tout">OUTPUT</label><textarea id="tout" readonly style="min-height:150px"></textarea></div>';
+    function run(mode){
+      var v=$('tin').value.trim(), st=$('tStat');
+      if(!v){ st.className='tstat bad'; st.textContent='Paste some JSON first.'; return; }
+      try{
+        var o=JSON.parse(v), kind=Array.isArray(o)?'array of '+o.length:(o&&typeof o==='object'?'object with '+Object.keys(o).length+' keys':typeof o);
+        $('tout').value=mode==='fmt'?JSON.stringify(o,null,2):mode==='min'?JSON.stringify(o):'';
+        st.className='tstat'; st.textContent='Valid JSON ('+kind+').';
+      }catch(e){ $('tout').value=''; st.className='tstat bad'; st.textContent='Not valid: '+e.message; }
+    }
+    $('jFmt').onclick=function(){ run('fmt'); }; $('jMin').onclick=function(){ run('min'); }; $('jChk').onclick=function(){ run('chk'); };
+    $('jCp').onclick=function(){ if($('tout').value) copyText($('tout').value,$('jCp')); };
+  }
+
+  function hex2rgb(h){ h=String(h).trim().replace(/^#/,''); if(/^[0-9a-f]{3}$/i.test(h)) h=h.split('').map(function(c){return c+c;}).join(''); if(!/^[0-9a-f]{6}$/i.test(h)) return null; return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+  function rgb2hsl(r,g,b){ r/=255;g/=255;b/=255; var mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2, h=0, s=0, d=mx-mn;
+    if(d){ s=l>.5?d/(2-mx-mn):d/(mx+mn); h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4; h*=60; } return [Math.round(h),Math.round(s*100),Math.round(l*100)]; }
+  function lum(c){ var a=c.map(function(v){ v/=255; return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4); }); return .2126*a[0]+.7152*a[1]+.0722*a[2]; }
+  function ratio(c1,c2){ var a=lum(c1), b=lum(c2); return (Math.max(a,b)+.05)/(Math.min(a,b)+.05); }
+  function tColor(){
+    var box=$('tBox');
+    box.innerHTML='<div class="cgrid"><div class="fld"><label for="cHex">HEX</label><input type="text" id="cHex" value="#2a2a30" maxlength="7" spellcheck="false" autocomplete="off"></div><div class="fld"><label for="cPick">PICKER</label><input type="color" id="cPick" value="#2a2a30"></div></div><div class="swatch" id="cSw"></div><p class="tstat" id="tStat" aria-live="polite"></p><div id="cOut"></div>';
+    function show(h){
+      var c=hex2rgb(h), st=$('tStat');
+      if(!c){ st.className='tstat bad'; st.textContent='Use a color like #2a2a30 or #fff.'; $('cOut').innerHTML=''; return; }
+      st.className='tstat'; st.textContent='';
+      var hx='#'+c.map(function(v){return ('0'+v.toString(16)).slice(-2);}).join(''), hsl=rgb2hsl(c[0],c[1],c[2]);
+      $('cSw').style.background=hx; $('cPick').value=hx;
+      var cw=ratio(c,[255,255,255]), cb=ratio(c,[0,0,0]);
+      function lv(r){ return r>=7?'AAA':r>=4.5?'AA':r>=3?'AA large only':'fails'; }
+      $('cOut').innerHTML=orow('HEX',hx)+orow('RGB','rgb('+c.join(', ')+')')+orow('HSL','hsl('+hsl[0]+', '+hsl[1]+'%, '+hsl[2]+'%)')+
+        orow('ON WHITE',cw.toFixed(2)+':1 ('+lv(cw)+')')+orow('ON BLACK',cb.toFixed(2)+':1 ('+lv(cb)+')');
+    }
+    $('cHex').addEventListener('input',function(){ show(this.value); });
+    $('cPick').addEventListener('input',function(){ $('cHex').value=this.value; show(this.value); });
+    show('#2a2a30');
+  }
+
+  function b64enc(s){ var by=new TextEncoder().encode(s), bin=''; for(var i=0;i<by.length;i++) bin+=String.fromCharCode(by[i]); return btoa(bin); }
+  function b64dec(s){ var bin=atob(s.replace(/\s+/g,'').replace(/-/g,'+').replace(/_/g,'/')), by=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) by[i]=bin.charCodeAt(i); return new TextDecoder('utf-8',{fatal:true}).decode(by); }
+  function tEnc(){
+    var box=$('tBox');
+    box.innerHTML='<div class="fld"><label for="tin">INPUT</label><textarea id="tin" style="min-height:130px" spellcheck="false"></textarea></div>'+
+      '<div class="trow"><button type="button" class="mbtn solid" data-e="b64e">BASE64 ENCODE</button><button type="button" class="mbtn" data-e="b64d">BASE64 DECODE</button><button type="button" class="mbtn solid" data-e="urle">URL ENCODE</button><button type="button" class="mbtn" data-e="urld">URL DECODE</button><button type="button" class="mbtn" id="eCp">COPY OUTPUT</button></div>'+
+      '<p class="tstat" id="tStat" aria-live="polite"></p><div class="fld"><label for="tout">OUTPUT</label><textarea id="tout" readonly style="min-height:130px"></textarea></div>';
+    box.querySelectorAll('[data-e]').forEach(function(b){ b.onclick=function(){
+      var v=$('tin').value, st=$('tStat'), m=b.getAttribute('data-e');
+      try{
+        $('tout').value=m==='b64e'?b64enc(v):m==='b64d'?b64dec(v):m==='urle'?encodeURIComponent(v):decodeURIComponent(v);
+        st.className='tstat'; st.textContent='Done.';
+      }catch(e){ $('tout').value=''; st.className='tstat bad'; st.textContent='That input can’t be '+(m.slice(-1)==='d'?'decoded':'encoded')+' that way.'; }
+    }; });
+    $('eCp').onclick=function(){ if($('tout').value) copyText($('tout').value,$('eCp')); };
+  }
+
+  function rnd(n){ var lim=Math.floor(4294967296/n)*n, x; do{ x=crypto.getRandomValues(new Uint32Array(1))[0]; }while(x>=lim); return x%n; }
+  function uuid4(){
+    if(crypto.randomUUID) return crypto.randomUUID();
+    var b=crypto.getRandomValues(new Uint8Array(16)); b[6]=(b[6]&15)|64; b[8]=(b[8]&63)|128;
+    var h=[].map.call(b,function(v){return ('0'+v.toString(16)).slice(-2);}).join('');
+    return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
+  }
+  function tIds(){
+    var box=$('tBox');
+    box.innerHTML='<div class="cgrid"><div class="fld"><label for="iKind">TYPE</label><select id="iKind"><option value="uuid">UUID v4</option><option value="hex">HEX TOKEN</option><option value="pw">PASSWORD</option></select></div>'+
+      '<div class="fld"><label for="iLen">LENGTH (hex and password)</label><input type="number" id="iLen" min="8" max="128" value="24"></div></div>'+
+      '<div class="cgrid"><div class="fld"><label for="iCount">HOW MANY</label><input type="number" id="iCount" min="1" max="20" value="5"></div><div class="fld chk" style="align-self:end"><input type="checkbox" id="iSym" checked><label for="iSym">Include symbols in passwords</label></div></div>'+
+      '<div class="trow"><button type="button" class="mbtn solid" id="iGo">GENERATE</button><button type="button" class="mbtn" id="iCp">COPY ALL</button></div><div class="fld"><label for="tout">OUTPUT</label><textarea id="tout" readonly style="min-height:140px"></textarea></div>';
+    function gen(){
+      var kind=$('iKind').value, len=Math.max(8,Math.min(128,+$('iLen').value||24)), cnt=Math.max(1,Math.min(20,+$('iCount').value||1)), out=[];
+      var letters='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', syms='!@#$%^&*()-_=+[]{};:,.?', set=letters+($('iSym').checked?syms:'');
+      for(var i=0;i<cnt;i++){
+        if(kind==='uuid') out.push(uuid4());
+        else if(kind==='hex'){ var s=''; for(var k=0;k<len;k++) s+=rnd(16).toString(16); out.push(s); }
+        else { var p=''; for(var q=0;q<len;q++) p+=set.charAt(rnd(set.length)); out.push(p); }
+      }
+      $('tout').value=out.join('\n');
+    }
+    $('iGo').onclick=gen; $('iCp').onclick=function(){ if($('tout').value) copyText($('tout').value,$('iCp')); }; gen();
+  }
+
+  function rel(ms){ var d=ms-Date.now(), s=Math.round(Math.abs(d)/1000), u=[['year',31536000],['month',2592000],['day',86400],['hour',3600],['minute',60],['second',1]], t='just now';
+    for(var i=0;i<u.length;i++){ if(s>=u[i][1]){ var n=Math.floor(s/u[i][1]); t=n+' '+u[i][0]+(n===1?'':'s'); break; } }
+    return t==='just now'?t:(d<0?t+' ago':'in '+t); }
+  function tTime(){
+    var box=$('tBox');
+    box.innerHTML='<div class="fld"><label for="tIn">UNIX SECONDS, UNIX MILLISECONDS OR A DATE</label><input type="text" id="tIn" autocomplete="off" spellcheck="false" placeholder="1730505600  or  2026-11-02T08:00:00Z"></div><div class="trow"><button type="button" class="mbtn solid" id="tGo">CONVERT</button><button type="button" class="mbtn" id="tNow">NOW</button></div><p class="tstat" id="tStat" aria-live="polite"></p><div id="tOut"></div>';
+    function conv(){
+      var v=$('tIn').value.trim(), st=$('tStat'), ms;
+      if(!v){ st.className='tstat bad'; st.textContent='Type a time first.'; $('tOut').innerHTML=''; return; }
+      if(/^-?\d+(\.\d+)?$/.test(v)){ var n=parseFloat(v); ms=Math.abs(n)>=1e11?n:n*1000; } else ms=Date.parse(v);
+      if(!isFinite(ms)||isNaN(new Date(ms).getTime())){ st.className='tstat bad'; st.textContent='I can’t read that as a time.'; $('tOut').innerHTML=''; return; }
+      st.className='tstat'; st.textContent='';
+      var d=new Date(ms);
+      $('tOut').innerHTML=orow('ISO (UTC)',d.toISOString())+orow('LOCAL',d.toString())+orow('UNIX (S)',String(Math.floor(ms/1000)))+orow('UNIX (MS)',String(Math.round(ms)))+orow('RELATIVE',rel(ms));
+    }
+    $('tGo').onclick=conv; $('tIn').addEventListener('keydown',function(e){ if(e.key==='Enter') conv(); });
+    $('tNow').onclick=function(){ $('tIn').value=String(Date.now()); conv(); };
+    $('tNow').click();
+  }
+
   /* ---- MANAGER (admins only; every action is re-checked by the database) ---- */
   var ERRM={
     not_authenticated:'Please sign in on the main site first.', not_staff:'Admins only.', locked:'The panel is locked. Enter your admin password.',
@@ -741,13 +1033,15 @@
   function renderRoom(id){
     var r=room(id);
     if(id==='lab') renderLab(); else if(id==='arch') renderArch(); else if(id==='corn') renderCorner();
-    else if(id==='cls') renderCls(); else if(id==='mgr') renderMgr();
+    else if(id==='cls') renderCls(); else if(id==='mgr') renderMgr(); else if(id==='arc') renderArcade(); else if(id==='tool') renderTools();
     else roomBody.innerHTML='<div class="cut placeholder"><div class="in"><span class="chip">ARRIVES IN PHASE '+r.ph+'</span></div></div>';
-    document.getElementById('rDeco').hidden=(id!=='corn');
+    var dc=document.getElementById('rDeco'), SP={lab:'confused',arch:'cheer',arc:'game',tool:'wink',cls:'peek',corn:'sleep',mgr:'pout'};
+    dc.src=spr(SP[id]||'hi'); dc.hidden=false;
     document.getElementById('roomFoot').textContent='SPECSOFT // HUB // '+r.name.toUpperCase()+(['lab','arch','corn','cls'].indexOf(id)>=0?(DATA.live?' // LIVE':' // OFFLINE COPY'):'');
     upgradeIcons(vRoom);
   }
   function show(id,keep){
+    clearArcade();
     var r=room(id);
     if(!r){ id='home'; vHome.classList.add('on'); vRoom.classList.remove('on'); }
     else {
@@ -776,6 +1070,9 @@
     var lt=t.closest('[data-lt]'); if(lt){ labTag=lt.getAttribute('data-lt'); renderLab(); upgradeIcons(roomBody); return; }
     var at=t.closest('[data-at]'); if(at){ archTag=at.getAttribute('data-at'); renderArch(); upgradeIcons(roomBody); return; }
     var ct=t.closest('[data-ct]'); if(ct){ cornTab=ct.getAttribute('data-ct'); renderCorner(); upgradeIcons(roomBody); return; }
+    var gt=t.closest('[data-gt]'); if(gt){ arcTab=gt.getAttribute('data-gt'); renderArcade(); upgradeIcons(roomBody); return; }
+    var tt=t.closest('[data-tt]'); if(tt){ toolTab=tt.getAttribute('data-tt'); renderTools(); return; }
+    var cp=t.closest('[data-copy]'); if(cp){ copyText(cp.getAttribute('data-copy'),cp); return; }
     if(t.closest('#moreDone')){ showAllDone=!showAllDone; renderLab(); upgradeIcons(roomBody); return; }
     // manager
     var mt=t.closest('[data-mt]'); if(mt){ MG.tab=mt.getAttribute('data-mt'); renderMgr(); return; }
