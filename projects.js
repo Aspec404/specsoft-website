@@ -3,7 +3,7 @@
 
    Reads the SAME rows the profile pages use (profile_projects), so every like,
    comment and repost a project already has shows up here and counts on both pages.
-   Needs supabase-hub.sql installed (hub_projects) and projects.css.
+   Needs supabase-projects-hub.sql installed (hub_projects, profile_project_saves) and projects.css.
 
    Load order on projects.html:  supabase-js, supabase-config.js, main.js, projects.js
    ========================================================================== */
@@ -19,7 +19,7 @@
             ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null
     );
 
-    // To add or rename a category: change it here AND in the check constraint in supabase-hub.sql
+    // To add or rename a category: change it here, in HUBCATS in studio-publish.js AND in the check constraint in supabase-projects-hub.sql
     var CATS = [['ai', 'AI'], ['games', 'Games'], ['software', 'Software'], ['roblox', 'Roblox'], ['other', 'Other']];
     var PAGE = 24;
     var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -145,7 +145,7 @@
     function friendly(err) {
         var code = String(err && err.code || '');
         var msg = String(err && err.message || '').toLowerCase();
-        if (code === 'PGRST202' || /hub_projects|profile_project_saves/.test(msg)) return 'Run supabase-hub.sql in your Supabase SQL Editor to turn on the hub.';
+        if (code === 'PGRST202' || /hub_projects|profile_project_saves/.test(msg)) return 'Run supabase-projects-hub.sql in your Supabase SQL Editor to turn on the hub.';
         if (code === '42501' || msg.indexOf('row-level security') >= 0) return 'You are not allowed to do that right now.';
         if (code === '23505') return 'You already did that.';
         if (msg.indexOf('failed to fetch') >= 0 || msg.indexOf('network') >= 0) return 'Cannot reach the server. Check your connection.';
@@ -500,6 +500,15 @@
     /* ----------------------------------------------------------------------
        detail dialog
        ---------------------------------------------------------------------- */
+    // A Studio project posted by Publish. The database tells us its link name (studio_slug, only for projects that are public AND live),
+    // and the viewer page is built from THIS page's own address, so it works wherever the site is hosted (no domain or stored link needed).
+    function studioHref(p) {
+        var s = typeof p.studio_slug === 'string' ? p.studio_slug : '';
+        if (!/^[a-z0-9][a-z0-9-]{2,39}$/.test(s)) return '';
+        try { return new URL('studio-view.html?p=' + encodeURIComponent(s), location.href).href; } catch (e) { return ''; }
+    }
+    function studioEmbed(p) { return studioHref(p); }       // same address as the hub page by construction, so only this site's own viewer is ever framed
+
     function mediaFor(p) {
         var box = el('div', { class: 'ph-d-stage' });
         var embed = ytEmbed(p.video_url), vid = safeHttps(p.video_url), cover = safeHttps(p.cover_url);
@@ -513,6 +522,23 @@
             if (cover) v.setAttribute('poster', cover);
             v.appendChild(el('source', { src: vid, type: /\.mp4(?:$|[?#])|video\/mp4/i.test(vid) ? 'video/mp4' : 'video/webm' }));
             box.appendChild(v);
+        } else if (studioEmbed(p)) {                           // click to play: nothing runs until the visitor asks for it
+            var live = studioEmbed(p);
+            box.style.position = 'relative';
+            box.appendChild(artEl(p));
+            if (cover) box.appendChild(imgEl(cover));
+            var over = el('div', { style: 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' });
+            over.appendChild(el('button', {
+                type: 'button', class: 'btn-primary', 'aria-label': 'Play ' + p.title + ' here',
+                onclick: function () {
+                    clear(box);
+                    box.appendChild(el('iframe', {
+                        class: 'ph-d-video', src: live, title: p.title + ' (live)', allowfullscreen: true,
+                        sandbox: 'allow-scripts allow-same-origin allow-popups allow-pointer-lock', referrerpolicy: 'strict-origin-when-cross-origin'
+                    }));
+                }
+            }, icon('play', true), ' PLAY LIVE'));
+            box.appendChild(over);
         } else {
             box.appendChild(artEl(p));
             if (cover) box.appendChild(imgEl(cover));
@@ -555,7 +581,7 @@
         acts.appendChild(engBtn('save', p));
         acts.appendChild(el('button', { type: 'button', class: 'ph-eng', title: 'Share', 'aria-label': 'Share project', onclick: function () { shareProject(p); } }, icon('share')));
 
-        var link = $('phDLink'), live = safeHttps(p.url);
+        var link = $('phDLink'), live = studioHref(p) || safeHttps(p.url);
         clear(link);
         if (live) { link.href = live; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.appendChild(document.createTextNode('OPEN PROJECT ')); link.appendChild(icon('external')); }
         else { link.href = profileProjectHref(p); link.removeAttribute('target'); link.removeAttribute('rel'); link.appendChild(document.createTextNode('VIEW ON PROFILE ')); link.appendChild(icon('user')); }

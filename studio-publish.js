@@ -7,12 +7,25 @@
 (function () {
     'use strict';
     if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
-    var G = window.StudioGraph, P = window.StudioProject, PV = window.StudioPreview;
-    if (!G || !P) return;
+    var G = window.StudioGraph, PV = window.StudioPreview;
+    if (!G) return;
+    /* studio.js creates window.StudioProject AFTER this file loads, so it is looked up when a page is used, not at load time */
+    var P = {
+        client: function () { var s = window.StudioProject; return s ? s.client() : null; },
+        user: function () { var s = window.StudioProject; return s ? s.user() : null; },
+        current: function () { var s = window.StudioProject; return s ? s.current() : null; },
+        saved: function () { var s = window.StudioProject; return s ? s.saved() : null; },
+        isDirty: function () { var s = window.StudioProject; return s ? s.isDirty() : false; }
+    };
     var X = window.StudioPublish = {}, seq = 0;
-    var MAX_PAGE = 5 * 1024 * 1024, MAX_FILES = 5 * 1024 * 1024, SLUG = /^[a-z0-9][a-z0-9-]{2,39}$/, VER = /^[0-9]{1,3}(\.[0-9]{1,3}){0,2}$/;
+    var MAX_PAGE = 300000, MAX_FILES = 280000, SLUG = /^[a-z0-9][a-z0-9-]{2,39}$/, VER = /^[0-9]{1,3}(\.[0-9]{1,3}){0,2}$/;
     var KINDS = [['website', 'Static website'], ['game', 'HTML game'], ['interactive', 'Interactive experience'], ['source', 'Source code']];
     var CATS = [['website', 'Website'], ['game', 'Game'], ['art', 'Art'], ['tool', 'Tool'], ['education', 'Education'], ['other', 'Other']];
+    var HUBCATS = [['ai', 'AI'], ['games', 'Games'], ['software', 'Software'], ['roblox', 'Roblox'], ['other', 'Other']];   // the Projects hub's own categories (projects.js)
+    function hubCatFor(c) { return c === 'game' ? 'games' : (c === 'website' || c === 'tool' || c === 'education') ? 'software' : 'other'; }
+    var SHARES = [['none', 'No copy: visitors can only open it'], ['free', 'Free copy: any signed-in member can copy it'], ['password', 'Password to copy: members need your password']];
+    function shareName(m) { return (SHARES.filter(function (x) { return x[0] === m; })[0] || SHARES[0])[1]; }
+    function shareErr(c) { return { not_signed_in: 'sign in first', bad_mode: 'unknown mode', not_found: 'publish a release first', password_required: 'type a password (4 to 60 characters)', bad_password: 'the password must be 4 to 60 characters' }[c] || String(c || 'unknown error'); }
     var VIS = [['public', 'Public: anyone with the link, listed'], ['unlisted', 'Unlisted: anyone with the link'], ['private', 'Private: only you']];
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
     function say(sev, src, m) { G.log(sev, src, m); }
@@ -45,9 +58,11 @@
     }
     function nice(err) {
         var m = (err && err.message) || 'Unknown error', c = err && err.code;
+        if (/(studio_set_sharing|studio_share_info|studio_copy|sharing|pass_hash|'graph' column of 'studio_releases')/.test(m) && /(does not exist|schema cache|Could not find)/i.test(m)) return 'The Sharing options are not installed yet. Run supabase-studio-phase7c-sharing.sql in the Supabase SQL Editor.';
         if (/studio_(versions|releases|published|open)/.test(m) && /(does not exist|schema cache|Could not find)/i.test(m)) return 'The Phase 7 tables are not installed yet. Run supabase-studio-phase7.sql in the Supabase SQL Editor.';
         if (c === '23505' && /slug/.test(m + (err.details || ''))) return 'That link name is already taken. Pick another one.';
         if (c === '23505') return 'That version number already exists for this project. Pick a new number.';
+        if (/hub_project_id/.test(m)) return 'The Projects hub link is not installed yet. Run supabase-studio-phase7b-hub.sql in the Supabase SQL Editor.';
         if (c === '42501' || /row-level security/i.test(m)) return 'Not allowed. You may have reached a limit (15 snapshots or 50 releases per project) or the project is not yours.';
         return m;
     }
@@ -109,7 +124,7 @@
         w.appendChild(msg); w.appendChild(el('h2', '', 'Snapshots')); w.appendChild(list);
 
         async function snapshot(label, nt) {
-            var g = G.get(); if (JSON.stringify(g).length > 5 * 1024 * 1024) return { ok: false, error: 'This project is too large to snapshot (5 MB max).' };
+            var g = G.get(); if (JSON.stringify(g).length > 450000) return { ok: false, error: 'This project is too large to snapshot (450 KB max).' };
             var r = await sb.from('studio_versions').insert({ project_id: proj.id, owner_id: P.user().id, label: String(label || '').trim().slice(0, 80), note: String(nt || '').trim().slice(0, 500), graph: g }).select('number').single();
             if (r.error) return { ok: false, error: nice(r.error) }; return { ok: true, number: r.data.number };
         }
@@ -180,7 +195,15 @@
         var title = field(g1, 'Title', input('text', 60, proj.title));
         var slug = field(g1, 'Link name', input('text', 40, slugFrom(proj.title)), 'Letters, numbers and dashes, 3 to 40.');
         var vis = field(g1, 'Visibility', select(VIS, 'private'));
+        var share = field(g1, 'Copying', select(SHARES, 'none'), 'Who may copy this project into their own Studio. A change applies to releases published after it.');
+        var sharePw = field(g1, 'Copy password', input('password', 60, '', '4 to 60 characters'), 'Leave empty to keep the current password.'); sharePw.autocomplete = 'new-password';
+        function syncShareUi() { sharePw.parentNode.style.display = share.value === 'password' ? '' : 'none'; }
+        share.addEventListener('change', syncShareUi); syncShareUi();
         form.appendChild(g1);
+        var hubL = el('label', 'px-chk'), hubOn = el('input'), hubCat = select(HUBCATS, hubCatFor('website')); hubOn.type = 'checkbox'; hubOn.checked = true;
+        hubL.appendChild(hubOn); hubL.appendChild(el('span', '', 'Also show it on the Projects hub (only when Visibility is Public)')); form.appendChild(hubL);
+        var hg = el('div', 'px-grid'); hg.style.marginTop = '8px'; field(hg, 'Projects hub category', hubCat); form.appendChild(hg);
+        cat.addEventListener('change', function () { hubCat.value = hubCatFor(cat.value); });
         var desc = el('textarea'); desc.maxLength = 300; var dl = el('label', 'px-f'); dl.style.marginTop = '10px'; dl.appendChild(el('span', '', 'Description (300 characters)')); dl.appendChild(desc); form.appendChild(dl);
         var cw = el('div', 'px-actions'), cimg = el('img', 'px-cover'), cfile = el('input'); cimg.alt = 'Cover preview'; cimg.hidden = true; cfile.type = 'file'; cfile.accept = 'image/png,image/jpeg,image/webp'; cfile.setAttribute('aria-label', 'Cover image');
         var crm = btn('Remove cover', function () { cover = null; cimg.hidden = true; cfile.value = ''; crm.hidden = true; }); crm.hidden = true;
@@ -194,7 +217,7 @@
         w.appendChild(status); w.appendChild(form); w.appendChild(rc); w.appendChild(msg); w.appendChild(el('h2', '', 'Release history')); w.appendChild(hist);
 
         function fillFromPub() {
-            if (!pub) return; kind.value = (rels.filter(function (r) { return r.id === pub.release_id; })[0] || rels[0] || { kind: 'website' }).kind; cat.value = pub.category; title.value = pub.title; slug.value = pub.slug; vis.value = pub.visibility; desc.value = pub.description || '';
+            if (!pub) return; share.value = pub.sharing || 'none'; syncShareUi(); kind.value = (rels.filter(function (r) { return r.id === pub.release_id; })[0] || rels[0] || { kind: 'website' }).kind; cat.value = pub.category; title.value = pub.title; slug.value = pub.slug; vis.value = pub.visibility; desc.value = pub.description || '';
             if (pub.cover && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(pub.cover)) { cover = pub.cover; cimg.src = cover; cimg.hidden = false; crm.hidden = false; }
         }
         function listing() {                             // reads and validates the form; returns null (and says why) when something is wrong
@@ -203,17 +226,25 @@
             if (!SLUG.test(s)) { msg.show('The link name needs 3 to 40 letters, numbers or dashes, and cannot start with a dash.', 'err'); return null; }
             return { project_id: proj.id, owner_id: P.user().id, slug: s, title: t.slice(0, 60), description: d.slice(0, 300), category: cat.value, cover: cover, visibility: vis.value };
         }
+        function hubStatus(c) {                          // the Projects hub line in the Status card
+            if (!pub) return;
+            if (!pub.hub_project_id) { c.appendChild(el('p', 'px-msg', 'Projects hub: not listed. Set Visibility to Public, then post it.')); var pa = el('div', 'px-actions'); pa.style.marginTop = '0'; pa.appendChild(btn('Post to Projects hub', postToHub, '', 'Creates the card on the Projects hub from the listing above')); c.appendChild(pa); return; }
+            c.appendChild(el('p', 'px-msg ok', 'Projects hub: listed. Its likes, comments and reposts live on that card.'));
+            var a = el('div', 'px-actions'); a.style.marginTop = '0';
+            a.appendChild(btn('See the Projects hub', function () { window.open(new URL('projects.html', location.href).href, '_blank', 'noopener'); }));
+            a.appendChild(btn('Remove from hub', removeFromHub, 'st-danger', 'Deletes the card, including its likes, comments and reposts')); c.appendChild(a);
+        }
         function paintStatus() {
             status.textContent = ''; var c = el('div', 'px-card'); c.appendChild(el('h2', '', 'Status'));
             var live = pub && pub.release_id ? rels.filter(function (r) { return r.id === pub.release_id; })[0] : null;
-            if (!live) { c.appendChild(el('p', 'px-msg', pub ? 'Unpublished. Visitors see "not available". Pick a release below and press Make live, or publish a new one.' : 'Not published yet.')); status.appendChild(c); return; }
+            if (!live) { c.appendChild(el('p', 'px-msg', pub ? 'Unpublished. Visitors see "not available". Pick a release below and press Make live, or publish a new one.' : 'Not published yet.')); hubStatus(c); status.appendChild(c); return; }
             var line = el('div'); line.appendChild(el('span', 'px-ver', 'v' + live.version)); line.appendChild(el('span', 'px-live', pub.visibility.toUpperCase())); c.appendChild(line);
-            var u = viewUrl(pub.slug); c.appendChild(el('p', 'px-url', u));
+            var u = viewUrl(pub.slug); c.appendChild(el('p', 'px-url', u)); c.appendChild(el('p', 'px-msg', 'Copying: ' + shareName(pub.sharing || 'none')));
             var a = el('div', 'px-actions');
             a.appendChild(btn('Open Project', function () { window.open(u, '_blank', 'noopener'); }, '', 'Opens the standalone viewer in a new tab'));
             a.appendChild(btn('Copy link', function () { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(function () { msg.show('Link copied.', 'ok'); }, function () { msg.show('The browser blocked copying. Select the link above.', 'err'); }); }));
             a.appendChild(btn('Unpublish', unpublish, 'st-danger', 'Visitors will see "not available". Your releases are kept.'));
-            c.appendChild(a); if (pub.visibility === 'private') c.appendChild(el('p', 'px-msg', 'Visibility is Private: only you can open it, while signed in.')); status.appendChild(c);
+            c.appendChild(a); if (pub.visibility === 'private') c.appendChild(el('p', 'px-msg', 'Visibility is Private: only you can open it, while signed in.')); hubStatus(c); status.appendChild(c);
         }
         function paintHist() {
             hist.textContent = ''; if (!rels.length) { hist.appendChild(el('p', 'px-msg', 'No releases yet.')); return; }
@@ -235,20 +266,67 @@
             if (a.error || b.error) { msg.show(nice(a.error || b.error), 'err'); return; }
             pub = a.data; rels = b.data || []; ver.value = nextVersion(rels[0] && rels[0].version); paintStatus(); paintHist();
         }
+        async function syncHub(row) {                    // creates or updates the card on the Projects hub (a profile_projects row); returns a sentence for the message box
+            if (!hubOn.checked) return '';
+            var existing = pub && pub.hub_project_id, live = row.visibility === 'public' && !!row.release_id;
+            var vu = viewUrl(row.slug), httpsOk = /^https:\/\//i.test(vu);      // the database only accepts https links on a hub card (projects_url_https)
+            var noLink = '';                                       // no warning needed: the hub builds the Open Project link from its own address (studio_slug)
+            var base = { title: row.title, summary: (row.description || 'Made with SPECSOFT Studio.').slice(0, 280), category: hubCat.value, url: live && httpsOk ? vu : null, tags: ['studio'] };
+            if (existing) {
+                var u = await sb.from('profile_projects').update(base).eq('id', existing);
+                return u.error ? ' The Projects hub did not accept the update: ' + hubNice(u.error) : (live ? ' The Projects hub card is updated.' + noLink : ' Its Projects hub card no longer links here, because it is not Public and live.');
+            }
+            if (!live) return ' It is not on the Projects hub yet: it needs Visibility set to Public and a live release.';
+            var ins = await sb.from('profile_projects').insert(Object.assign({ owner_id: P.user().id }, base)).select('id').single();
+            if (ins.error) return ' It could not be added to the Projects hub: ' + hubNice(ins.error);
+            var lk = await sb.from('studio_published').update({ hub_project_id: ins.data.id }).eq('project_id', proj.id);
+            if (lk.error) return ' A card was added to the Projects hub, but linking it failed: ' + nice(lk.error);
+            return ' It is now on the Projects hub.' + noLink;
+        }
+        function hubNice(e) { if (e && /projects_url_https/.test(e.message || '')) return 'the database refused the link (rule projects_url_https). Send me that rule and I will match it.'; return (e && (e.code === '42501' || /row-level security/i.test(e.message || ''))) ? 'the Projects hub refused it (your profile may already have the maximum number of projects).' : nice(e); }
+        function kindOf(t) { return /could not|did not|failed/i.test(t) ? 'err' : 'ok'; }
+        async function removeFromHub() {
+            if (!pub || !pub.hub_project_id) return;
+            if (!window.confirm('Remove it from the Projects hub? This deletes the card, including its likes, comments and reposts. Your published project stays live.')) return;
+            var d = await sb.from('profile_projects').delete().eq('id', pub.hub_project_id); if (d.error) return msg.show(nice(d.error), 'err');
+            say('warn', 'publish', 'Removed from the Projects hub'); msg.show('Removed from the Projects hub.', 'ok'); reload();
+        }
+        function shareCheck() {                          // returns a sentence when the Copying choice cannot be saved yet
+            if (share.value !== 'password') return '';
+            var cur = pub && pub.sharing === 'password', pw = sharePw.value;
+            if (!pw && !cur) return 'Type a password (4 to 60 characters) for "Password to copy", or pick another Copying option.';
+            if (pw && (pw.length < 4 || pw.length > 60)) return 'The copy password needs 4 to 60 characters.';
+            return '';
+        }
+        async function applySharing() {                  // saves the Copying choice (the password is hashed on the server); returns a sentence for the message box
+            var mode = share.value, cur = (pub && pub.sharing) || 'none', pw = sharePw.value;
+            if (mode === cur && !(mode === 'password' && pw)) return '';
+            var r = await sb.rpc('studio_set_sharing', { p_project: proj.id, p_mode: mode, p_password: mode === 'password' ? pw : '' });
+            if (r.error) return ' It could not change Copying: ' + nice(r.error);
+            if (r.data && r.data.ok === false) return ' It could not change Copying: ' + shareErr(r.data.error) + '.';
+            sharePw.value = '';
+            return mode === 'none' ? ' Copying is off.' : ' Copying is on (' + (mode === 'free' ? 'free copy' : 'password') + '). Releases published from now on can be copied.';
+        }
+        function postToHub() {                           // one click: tick the box, check the basics, then save the listing (which creates the card)
+            if (!pub || !pub.release_id) return msg.show('Publish a release first, so the card has something to open.', 'err');
+            if (vis.value !== 'public') return msg.show('Set Visibility to Public in the Listing box first, then press Post to Projects hub again.', 'err');
+            hubOn.checked = true; saveListing();
+        }
         async function saveListing() {
             var row = listing(); if (!row) return; if (!pub) { msg.show('Publish a release first. The listing is created with your first release.', 'err'); return; }
-            row.release_id = pub.release_id; var r = await sb.from('studio_published').upsert(row, { onConflict: 'project_id' });
-            if (r.error) return msg.show(nice(r.error), 'err'); msg.show('Listing saved.', 'ok'); reload();
+            var se = shareCheck(); if (se) return msg.show(se, 'err'); row.release_id = pub.release_id; var r = await sb.from('studio_published').upsert(row, { onConflict: 'project_id' });
+            if (r.error) return msg.show(nice(r.error), 'err'); var sx = await applySharing(), hx = await syncHub(row); msg.show('Listing saved.' + sx + hx, kindOf(sx + hx)); reload();
         }
         async function publish() {
             var row = listing(); if (!row) return; var v = ver.value.trim(); if (!VER.test(v)) return msg.show('The version number should look like 1.0.0.', 'err');
-            var g = P.saved(); if (!g) return msg.show('There is no saved version of this project yet. Press Save first.', 'err');
+            var g = P.saved(); if (!g) return msg.show('There is no saved version of this project yet. Press Save first.', 'err'); var se = shareCheck(); if (se) return msg.show(se, 'err');
             var k = kind.value, rel = { project_id: proj.id, owner_id: P.user().id, version: v, notes: notes.value.trim().slice(0, 500), kind: k, bundle: '', files: null };
+            if (share.value !== 'none') { if (JSON.stringify(g).length > 450000) return msg.show('This project is too large to include a copy (450 KB max). Pick "No copy" or make the project smaller.', 'err'); rel.graph = g; }   // the snapshot a visitor copies; only stored when copying is on
             if (k === 'source') {
-                var f = X.collectFiles(g); if (!f.files.length) return msg.show('There are no code files to publish.', 'err'); if (f.size > MAX_FILES) return msg.show('The code is too large to publish (' + (f.size / (1024 * 1024)).toFixed(2) + ' MB, max ' + (MAX_FILES / (1024 * 1024)).toFixed(2) + ' MB).', 'err'); rel.files = f.files;
+                var f = X.collectFiles(g); if (!f.files.length) return msg.show('There are no code files to publish.', 'err'); if (f.size > MAX_FILES) return msg.show('The code is too large to publish (' + Math.round(f.size / 1000) + ' KB, max ' + Math.round(MAX_FILES / 1000) + ' KB).', 'err'); rel.files = f.files;
             } else {
                 if (!PV || !PV.assemble) return msg.show('The Preview module is missing, so a page cannot be built.', 'err');
-                var a = PV.assemble(g); if (!a.hasHtml) return msg.show('Nothing to publish yet: add an HTML file in the Code Editor and Save.', 'err'); if (a.size > MAX_PAGE) return msg.show('The page is too large (' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, max ' + (MAX_PAGE / (1024 * 1024)).toFixed(2) + ' MB).', 'err');
+                var a = PV.assemble(g); if (!a.hasHtml) return msg.show('Nothing to publish yet: add an HTML file in the Code Editor and Save.', 'err'); if (a.size > MAX_PAGE) return msg.show('The page is too large (' + Math.round(a.size / 1000) + ' KB, max ' + Math.round(MAX_PAGE / 1000) + ' KB).', 'err');
                 rel.bundle = a.doc('published');
             }
             pubBtn.disabled = true; msg.show('Publishing...', '');
@@ -256,7 +334,7 @@
             if (ins.error) { pubBtn.disabled = false; return msg.show(nice(ins.error), 'err'); }
             row.release_id = ins.data.id; var up = await sb.from('studio_published').upsert(row, { onConflict: 'project_id' }); pubBtn.disabled = false;
             if (up.error) { msg.show('The release v' + v + ' was saved, but the listing was not updated: ' + nice(up.error), 'err'); reload(); return; }
-            say('ok', 'publish', 'Published v' + v + ' (' + vis.value + ') at ' + viewUrl(row.slug)); msg.show('Published v' + v + '. It is live.', 'ok'); notes.value = ''; reload();
+            var sx = await applySharing(), hx = await syncHub(row); say('ok', 'publish', 'Published v' + v + ' (' + row.visibility + ') at ' + viewUrl(row.slug)); msg.show('Published v' + v + '. It is live.' + sx + hx, kindOf(sx + hx)); notes.value = ''; reload();
         }
         async function goLive(r) {
             if (!window.confirm('Make v' + r.version + ' the live release?')) return;
@@ -266,7 +344,8 @@
         async function unpublish() {
             if (!window.confirm('Unpublish? Visitors will see "not available". Your releases are kept.')) return;
             var u = await sb.from('studio_published').update({ release_id: null }).eq('project_id', proj.id); if (u.error) return msg.show(nice(u.error), 'err');
-            say('warn', 'publish', 'Unpublished'); msg.show('Unpublished.', 'ok'); reload();
+            var note = ''; if (pub.hub_project_id) { var h = await sb.from('profile_projects').update({ url: null }).eq('id', pub.hub_project_id); note = h.error ? ' (The Projects hub card could not be updated: ' + nice(h.error) + ')' : ' Its Projects hub card stays, with its likes and comments, but no longer links here.'; }
+            say('warn', 'publish', 'Unpublished'); msg.show('Unpublished.' + note, 'ok'); reload();
         }
         async function delRel(r) {
             if (!window.confirm('Delete release v' + r.version + '? This cannot be undone.')) return;

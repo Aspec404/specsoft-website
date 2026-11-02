@@ -170,8 +170,14 @@
         };
     }
     function sandboxMain(K, wsrc) {                      // runs inside the sandboxed iframe: relays between page and worker
-        var w = new Worker(URL.createObjectURL(new Blob([wsrc], { type: 'text/javascript' })));
         function send(m) { m.k = K; parent.postMessage(m, '*'); }
+        var w = null, why = '';
+        try { w = new Worker(URL.createObjectURL(new Blob([wsrc], { type: 'text/javascript' }))); }                       // some browsers refuse a blob: worker inside a sandboxed frame...
+        catch (e1) {
+            why = String((e1 && e1.message) || e1);
+            try { w = new Worker('data:text/javascript;charset=utf-8,' + encodeURIComponent(wsrc)); }                       // ...so try a data: worker
+            catch (e2) { send({ t: 'err', name: 'Error', message: 'This browser would not start the script worker (' + why.slice(0, 100) + ')', line: 0 }); return; }
+        }
         w.onmessage = function (e) { if (e.data && typeof e.data === 'object') send(e.data); };
         w.onerror = function (e) { send({ t: 'err', name: 'Error', message: String(e.message || 'Worker error'), line: 0 }); };
         addEventListener('message', function (e) { if (e.source === parent && e.data && e.data.k === K) w.postMessage(e.data); });
@@ -179,7 +185,7 @@
     }
     function srcdoc(token) {
         var w = '(' + workerMain.toString() + ')()';
-        return '<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' \'unsafe-eval\' blob:; worker-src blob:"><script>(' +
+        return '<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' \'unsafe-eval\' blob:; worker-src blob: data:"><script>(' +
             sandboxMain.toString() + ')(' + JSON.stringify(token) + ',' + JSON.stringify(w).replace(/</g, '\\u003c') + ')<\/script>';
     }
     function newToken() {
@@ -247,16 +253,16 @@
         var input = {};
         (ctx.ups[n.id] || []).forEach(function (f) { var u = ctx.byId[f]; if (u && u.label in grp.results) input[u.label] = grp.results[u.label]; });
         return new Promise(function (resolve, reject) {
-            var token = newToken(), ms = c.timeout || 5000, finished = false, timer;
+            var token = newToken(), ms = c.timeout || 5000, finished = false, timer, readyT;
             var frame = document.createElement('iframe');
             frame.setAttribute('sandbox', 'allow-scripts'); frame.setAttribute('aria-hidden', 'true'); frame.style.display = 'none';
-            function finish(fn, v) { if (finished) return; finished = true; clearTimeout(timer); window.removeEventListener('message', onMsg); grp.killers.delete(kill); if (ctx.ctl) ctx.ctl.killers.delete(kill); frame.remove(); fn(v); }
+            function finish(fn, v) { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(readyT); window.removeEventListener('message', onMsg); grp.killers.delete(kill); if (ctx.ctl) ctx.ctl.killers.delete(kill); frame.remove(); fn(v); }
             function kill() { finish(reject, CANCEL); }
             function reply(r) { if (finished) return; r.k = token; try { frame.contentWindow.postMessage(r, '*'); } catch (e) {} }
             function onMsg(e) {
                 if (e.source !== frame.contentWindow) return;
                 var m = e.data; if (!m || typeof m !== 'object' || m.k !== token) return;
-                if (m.t === 'ready') reply({ t: 'run', code: code, input: input });
+                if (m.t === 'ready') { clearTimeout(readyT); reply({ t: 'run', code: code, input: input }); }
                 else if (m.t === 'call') {
                     if (typeof m.id !== 'number' || typeof m.fn !== 'string') return;
                     var id = m.id, args = Array.isArray(m.args) ? m.args.slice(0, 10) : [];
@@ -267,6 +273,7 @@
             }
             grp.killers.add(kill); if (ctx.ctl) ctx.ctl.killers.add(kill);
             timer = setTimeout(function () { finish(reject, new Error('Script timed out after ' + ms + ' ms and was stopped')); }, ms);
+            readyT = setTimeout(function () { finish(reject, new Error('The script sandbox did not start. A browser extension, or your site\'s security headers (Content-Security-Policy), may be blocking it.')); }, Math.min(ms, 4000));
             window.addEventListener('message', onMsg);
             frame.srcdoc = srcdoc(token); document.body.appendChild(frame);
         });
