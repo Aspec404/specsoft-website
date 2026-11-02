@@ -1619,6 +1619,65 @@
         composerRange = range.cloneRange();
     }
 
+    // ----- settings for the emoji helpers (Settings > Chats). On unless switched off. -----
+    function chatOpt(key) {
+        try { return !(window.SpecSettings && window.SpecSettings.get(key) === false); } catch (e) { return true; }
+    }
+
+    // ----- emoticons: ":)" becomes a real emoji when you press space or send. It only counts when it stands alone
+    //       (so "http://" and "8) next step" are left alone). Add or remove lines freely, keys are lowercase. -----
+    const EMOTICONS = {
+        ':)': '\uD83D\uDE42', ':-)': '\uD83D\uDE42', ':(': '\uD83D\uDE41', ':-(': '\uD83D\uDE41',
+        ':d': '\uD83D\uDE03', ':-d': '\uD83D\uDE03', ';)': '\uD83D\uDE09', ';-)': '\uD83D\uDE09',
+        ':p': '\uD83D\uDE1B', ':-p': '\uD83D\uDE1B', ';p': '\uD83D\uDE1C', ':o': '\uD83D\uDE2E', ':-o': '\uD83D\uDE2E',
+        ":'(": '\uD83D\uDE22', ":')": '\uD83E\uDD72', ':*': '\uD83D\uDE18', ':-*': '\uD83D\uDE18',
+        '<3': '\u2764\uFE0F', '</3': '\uD83D\uDC94', 'xd': '\uD83D\uDE06',
+        ':|': '\uD83D\uDE10', ':-|': '\uD83D\uDE10', ':/': '\uD83D\uDE15', ':-/': '\uD83D\uDE15',
+        '>:(': '\uD83D\uDE20', '>:)': '\uD83D\uDE08', '^_^': '\uD83D\uDE0A', 't_t': '\uD83D\uDE2D', '-_-': '\uD83D\uDE11', 'o_o': '\uD83D\uDE33'
+    };
+    const EMO_RE = new RegExp('(^|\\s)(' + Object.keys(EMOTICONS).sort(function (a, b) { return b.length - a.length; })
+        .map(function (k) { return k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')(\\s*)$', 'i');
+
+    // "hi :) " -> "hi \uD83D\uDE42 "   (needSpace: only when a space was just typed after it)
+    function emoticonize(str, needSpace) {
+        const m = EMO_RE.exec(str);
+        if (!m || (needSpace && !m[3])) return null;
+        const emoji = EMOTICONS[m[2].toLowerCase()];
+        if (!emoji) return null;
+        return str.slice(0, m.index + m[1].length) + emoji + m[3];
+    }
+
+    function convertTypedEmoticon() {
+        const root = $('chInput');
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+        const node = sel.anchorNode;
+        if (!node || node.nodeType !== 3 || !root.contains(node)) return;
+        if (root.textContent.indexOf('```') !== -1) return;                 // leave code blocks alone
+        const at = sel.anchorOffset;
+        const out = emoticonize(node.nodeValue.slice(0, at), true);
+        if (!out) return;
+        node.nodeValue = out + node.nodeValue.slice(at);
+        const r = document.createRange();
+        r.setStart(node, out.length);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+
+    // an emoticon at the very end of the message (no space after it) is converted when you send
+    function emoticonAtEnd() {
+        try {
+            const root = $('chInput');
+            if (root.textContent.indexOf('```') !== -1) return;
+            let n = root;
+            while (n.lastChild) n = n.lastChild;
+            if (n.nodeType !== 3) return;
+            const out = emoticonize(n.nodeValue, false);
+            if (out) n.nodeValue = out;
+        } catch (e) { /* ignore */ }
+    }
+
     // typing  :name:  turns it into the emoji right away
     function convertTypedEmoji() {
         const root = $('chInput');
@@ -1724,6 +1783,7 @@
 
     async function sendMessage() {
         if (!S.current || !sb || S.sending) return;
+        if (chatOpt('chatEmoticons')) emoticonAtEnd();
         const raw = $('chInput').value;
         const file = S.pendingFile;
         let body = applySlash(raw).trim();
@@ -3327,6 +3387,7 @@
         ch.on('broadcast', { event: 'typing' }, function (msg) {
             const p = msg && msg.payload;
             if (!p || p.uid === S.me.id) return;
+            if (window.SPCH && !SPCH.typingOk(p.ch)) return;       // typing in another channel / post of this community
             setTyping(roomId, p.uid, p.name, p.txt);
         });
         ch.on('broadcast', { event: 'seen' }, function (msg) {
@@ -3353,9 +3414,14 @@
 
     // ----- typing: per room, shown in the chat, the header and the chat list -----
     // custom typing text (Settings > Chats). It comes from another person's device, so it is cleaned again here
+    // Strict on purpose: max 25 characters, only <@username> for < > @, nothing rude, suggestive or harmful, no links.
+    // The check lives in site-settings.js. If it is not loaded yet, the custom text is simply not used (normal "is typing").
     function cleanTyping(t) {
-        if (typeof t !== 'string') return '';
-        return t.replace(/[\u0000-\u001f\u007f\u200b-\u200f\u2028\u2029\ufeff]/g, '').trim().slice(0, 50);
+        if (typeof t !== 'string' || !t) return '';
+        const SS = window.SpecSettings;
+        if (!SS || typeof SS.typingCheck !== 'function') return '';
+        const r = SS.typingCheck(t);
+        return r && r.ok ? r.text : '';
     }
     function myTypingText() {
         try { return cleanTyping(String((window.SpecSettings && window.SpecSettings.get('typingText')) || '')); } catch (e) { return ''; }
@@ -3389,22 +3455,46 @@
         return typersOf(roomId).map(function (v) { return v.name; });
     }
 
+    // The pill under the messages. It is only rebuilt when its words change, so the dots keep bouncing smoothly
+    // (it used to be rebuilt every second, which restarted the animation).
+    let typingSig = '', typingLeave = null;
+    function shortName(n) { n = String(n || 'Someone'); return n.length > 20 ? n.slice(0, 19) + '\u2026' : n; }
+
+    function typingLine(r, typers) {
+        // one person with a custom indicator: show theirs (also hidden if your sensitive filter dislikes it)
+        if (typers.length === 1 && typers[0].txt && !(S.filterOn && isSensitive(typers[0].txt))) {
+            const who = r.kind === 'dm' ? roomTitle(r) : typers[0].name;
+            return { text: typers[0].txt.replace(/<@username>/gi, shortName(who)).slice(0, 80), custom: true };
+        }
+        if (r.kind === 'dm') return { text: shortName(roomTitle(r)) + ' is typing', custom: false };
+        const n = typers.map(function (v) { return shortName(v.name); });
+        if (n.length === 1) return { text: n[0] + ' is typing', custom: false };
+        if (n.length === 2) return { text: n[0] + ' and ' + n[1] + ' are typing', custom: false };
+        if (n.length === 3) return { text: n[0] + ', ' + n[1] + ' and ' + n[2] + ' are typing', custom: false };
+        return { text: n[0] + ', ' + n[1] + ' and ' + (n.length - 2) + ' others are typing', custom: false };
+    }
+
     function paintTyping() {
         const box = $('chTyping');
-        box.textContent = '';
         const r = S.current;
-        if (!r) return;
-        const typers = typersOf(r.room_id);
-        const names = typers.map(function (v) { return v.name; });
+        const typers = r ? typersOf(r.room_id) : [];
         paintSub();
-        if (!names.length) return;
-        let text = r.kind === 'dm' ? roomTitle(r) + ' is typing' : names.length === 1 ? names[0] + ' is typing' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing' : 'Several people are typing';
-        // one person typing with a custom indicator: show theirs (hidden by the sensitive filter like any other text)
-        if (typers.length === 1 && typers[0].txt && !(S.filterOn && isSensitive(typers[0].txt))) {
-            text = typers[0].txt.replace(/<@username>/gi, r.kind === 'dm' ? roomTitle(r) : typers[0].name).slice(0, 120);
+        const line = typers.length ? typingLine(r, typers) : null;
+        const sig = line ? (line.custom ? 'c|' : 'd|') + line.text : '';
+        if (sig === typingSig && (!sig || box.firstChild)) return;      // same words: leave the dots alone
+        typingSig = sig;
+        clearTimeout(typingLeave);
+        if (!line) {
+            const old = box.firstChild;
+            if (!old) return;
+            old.classList.add('is-leaving');                            // fade out, then remove
+            typingLeave = setTimeout(function () { if (!typingSig) box.textContent = ''; }, 180);
+            return;
         }
-        box.appendChild(el('span', { class: 'ch-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i')));
-        box.appendChild(document.createTextNode(text));
+        box.textContent = '';
+        box.appendChild(el('div', { class: 'ch-typing-pill' + (line.custom ? ' is-custom' : '') },
+            el('span', { class: 'ch-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i')),
+            el('span', { class: 'ch-typing-text', text: line.text })));
     }
 
     // the chat list is repainted in place so a hover or an open menu is never disturbed
@@ -3441,7 +3531,7 @@
                 c.send({ type: 'broadcast', event: 'typing', payload: { room: room.room_id, uid: S.me.id, name: nameOf(S.profile), txt: myTypingText() } });
             } else if (S.roomCh) {
                 lastTypingSent = now;
-                S.roomCh.send({ type: 'broadcast', event: 'typing', payload: { uid: S.me.id, name: nameOf(S.profile), txt: myTypingText() } });
+                S.roomCh.send({ type: 'broadcast', event: 'typing', payload: { uid: S.me.id, name: nameOf(S.profile), txt: myTypingText(), ch: window.SPCH ? SPCH.typingKey() : null } });
             }
         } catch (e) { /* ignore */ }
     }
@@ -5100,7 +5190,8 @@
         // composer
         const input = $('chInput');
         input.addEventListener('input', function (e) {
-            if (e.inputType === 'insertText' && e.data === ':' && !e.isComposing) convertTypedEmoji();
+            if (e.inputType === 'insertText' && e.data === ':' && !e.isComposing && chatOpt('chatEmojiCodes')) convertTypedEmoji();
+            if (e.inputType === 'insertText' && /^[ \u00a0]$/.test(e.data || '') && !e.isComposing && chatOpt('chatEmoticons')) convertTypedEmoticon();
             autosize();
             updateMention();
             updateEmojiSuggest();

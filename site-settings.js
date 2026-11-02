@@ -40,6 +40,7 @@
     function tg(key, label, desc, def, x) { return Object.assign({ key: key, type: 'toggle', label: label, desc: desc, def: def }, x || {}); }
     function sl(key, label, desc, def, options, x) { return Object.assign({ key: key, type: 'select', label: label, desc: desc, def: def, options: options }, x || {}); }
     function rg(key, label, desc, def, min, max, step, unit, x) { return Object.assign({ key: key, type: 'range', label: label, desc: desc, def: def, min: min, max: max, step: step, unit: unit || '' }, x || {}); }
+    var TY_MAX = 35;      // longest custom typing indicator, in characters. Change this one number to change the limit everywhere.
     function tx(key, label, desc, def, max, placeholder, x) { return Object.assign({ key: key, type: 'text', label: label, desc: desc, def: def, max: max, placeholder: placeholder || '' }, x || {}); }
     function pal(key, label, desc, def, options, x) { return Object.assign({ key: key, type: 'palette', label: label, desc: desc, def: def, options: options }, x || {}); }
     // select / palette options are [value, label, premium?, hex?]. premium ones are locked until
@@ -143,8 +144,10 @@
         { id: 'chats', title: 'Chats', blurb: 'How chats behave for you.',
           icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
           items: [
-            tx('typingText', 'Custom typing indicator', 'What other people see while you type. Up to 50 characters. Type <@username> where your name should go. Leave it empty for the normal "is typing".', '', 50, '<@username> is cooking...'),
+            tx('typingText', 'Custom typing indicator', 'What other people see while you type. Up to ' + TY_MAX + ' characters. Type <@username> where your name should go. Keep it friendly: rude, suggestive or harmful text is blocked. Leave it empty for the normal "is typing".', '', TY_MAX, '<@username> is cooking', { guard: 'typing' }),
             tg('chatMoreBtn', 'Show dots button on messages', 'Phones and tablets: adds a small \u22ee button on every message. It opens the same menu as holding the message.', false, { cls: 'ss-chat-more', clsOn: true }),
+            tg('chatEmojiCodes', 'Convert :shortcodes: to emoji', 'Type :sob: and it turns into \uD83D\uDE2D right away. Turn off to keep the text exactly as you typed it.', true),
+            tg('chatEmoticons', 'Convert emoticons to emoji', 'Type :) and press space or send, and it turns into \uD83D\uDE42. Also works for :( :D ;) :P <3 and a few more.', true),
             sl('chatEnter', 'Sending messages', 'Choose which key sends a message on desktop. Phones always use the send button.', 'enter', [['enter', 'Enter sends (Shift+Enter for a new line)'], ['ctrl', 'Ctrl+Enter sends (Enter for a new line)']]),
             tg('chatSound', 'Chat sounds', 'A soft ping for new messages.', true, { ls: { key: 'specsoft.chat.sound', on: 'on', off: 'off' } }),
             tg('chatFilter', 'Hide sensitive messages', 'Covers harsh messages with a notice. Only you see the cover.', true, { ls: { key: 'specsoft.chat.filter', on: 'on', off: 'off' } }),
@@ -177,6 +180,105 @@
     }
     function isLocked(it, v) { var o = optionOf(it, v); return !!(o && o[2] && !ownedId(it.key + ':' + o[0])); }
 
+
+    /* ------------------------------------------------------------- typing indicator guard
+       The custom typing text is shown to OTHER people. It is checked when you save it, when your device
+       sends it, and again on every device that receives it (chats.js). Text that fails is dropped and the
+       normal "is typing" shows instead. The word lists below are easy to extend.
+       Rules: max 25 characters in total, only <@username> may use < > @, no links / emails / numbers,
+       no rude, suggestive or harmful words, no letter-spacing tricks like "s e x".                      */
+    var TY_STRONG = ['fuck', 'motherfuck', 'shit', 'bullshit', 'horseshit', 'dipshit', 'cunt', 'bitch', 'asshole', 'dumbass', 'jackass',
+        'dickhead', 'cocksuck', 'bastard', 'wanker', 'twat', 'whore', 'nigger', 'nigga', 'faggot', 'retard',
+        'putang', 'tangina', 'gago', 'ulol', 'tarantado', 'pakyu', 'pakshet', 'punyeta', 'bwisit', 'buwisit', 'siraulo', 'kantot', 'pekpek', 'yawa', 'pisti', 'piste', 'bilat',
+        // suggestive / sexual
+        'porn', 'nude', 'nsfw', 'orgasm', 'erotic', 'horny', 'fetish', 'blowjob', 'handjob', 'jerkoff', 'jackoff', 'masturbat', 'bondage', 'molest',
+        'pedophil', 'paedophil', 'incest', 'sexy', 'sexting', 'sexual', 'onlyfan', 'vagina', 'penis', 'boob', 'titties', 'lingerie', 'hentai', 'camgirl',
+        'stripper', 'intercourse', 'ejaculat', 'genital', 'dildo', 'vibrator', 'milf', 'prostitut', 'boner', 'erection', 'cumshot', 'creampie', 'deepthroat', 'rape',
+        // harmful / hateful
+        'nazi', 'hitler', 'genocid', 'suicid', 'terroris', 'massacre', 'holocaust', 'lynch', 'murder', 'slaughter', 'torture', 'cocaine', 'heroin', 'fentanyl', 'overdose'];
+    var TY_EXACT = ['ass', 'dick', 'pussy', 'slut', 'piss', 'prick', 'douche', 'bollocks', 'bobo', 'tanga', 'inutil', 'tite', 'boang', 'buang'];
+    var TY_WHOLE = ['sex', 'cum', 'cock', 'anal', 'tit', 'tits', 'thot', 'spic', 'coon', 'kike', 'chink', 'gook', 'dyke', 'negro', 'tranny', 'kkk', 'isis', 'meth', 'lsd', 'mdma', 'pron', 'seggs'];
+    var TY_PHRASES = ['kill yourself', 'kys', 'go die', 'hope you die', 'hang yourself', 'neck yourself', 'end yourself', 'nobody likes you', 'you are worthless',
+        'you re worthless', 'hayop ka', 'kill you', 'kill him', 'kill her', 'kill them', 'kill myself', 'kms', 'shoot up', 'school shooter', 'school shooting',
+        'bomb threat', 'self harm', 'cut myself', 'end my life', 'want to die', 'wanna die', 'sex with', 'send nudes', 'strip club', 'suck my', 'lick my',
+        'show me your', 'free robux', 'free nitro', 'free vbucks', 'dm me', 'add me', 'follow me', 'heil hitler', 'white power'];
+    var TY_BAD_EMOJI = ['\uD83C\uDF46', '\uD83C\uDF51', '\uD83D\uDCA6', '\uD83D\uDD1E', '\uD83D\uDC45', '\uD83D\uDD95', '\uD83D\uDD2B', '\uD83D\uDD2A', '\uD83D\uDCA3', '\uD83E\uDE78'];
+
+    function tyPattern(word, tail) {
+        var parts = word.split('').map(function (ch) {
+            if (ch === ' ') return '[^a-z]+';
+            return (/[aeiou]/.test(ch) ? '[' + ch + '*]' : ch) + '+';       // fuuuck, f*ck
+        });
+        return new RegExp('(?:^|[^a-z])' + parts.join('[.\\-_]{0,2}') + tail + '(?![a-z])');
+    }
+    var TY_RES = []
+        .concat(TY_STRONG.map(function (w) { return tyPattern(w, '[a-z]{0,8}'); }))
+        .concat(TY_EXACT.map(function (w) { return tyPattern(w, '(?:s|es|ed|ing|er|ers|y)?'); }))
+        .concat(TY_WHOLE.map(function (w) { return tyPattern(w, 's?'); }))
+        .concat(TY_PHRASES.map(function (w) { return tyPattern(w, ''); }));
+
+    function tyNormalize(text) {
+        var n = String(text || '').normalize('NFKD')
+            .replace(/[\u0300-\u036f\u200B-\u200D\uFEFF]/g, '')
+            .toLowerCase()
+            .replace(/shii?take/g, ' ');
+        // sneaky spellings: f4ck, sh!t, $hit, a$$
+        return n.replace(/[a-z0-9@$!|*]+/g, function (tok) {
+            if (!/[a-z]/.test(tok)) return tok;
+            return tok
+                .replace(/([a-z])[!|]([a-z])/g, '$1i$2')
+                .replace(/@/g, 'a').replace(/\$/g, 's')
+                .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
+        });
+    }
+    // "s e x", "p.o.r.n", "s-e-x"  ->  "sex", "porn"
+    function tySquash(n) {
+        return n.replace(/(?:^|[^a-z0-9])((?:[a-z][\s.\-_*]+){2,}[a-z])(?![a-z0-9])/g, function (m, run) { return ' ' + run.replace(/[\s.\-_*]+/g, '') + ' '; });
+    }
+    function tyBad(text) {
+        var i;
+        for (i = 0; i < TY_BAD_EMOJI.length; i++) if (text.indexOf(TY_BAD_EMOJI[i]) !== -1) return true;
+        var n = tyNormalize(text), q = tySquash(n);
+        return TY_RES.some(function (re) { return re.test(n) || re.test(q); });
+    }
+
+    var TY_UNI = null;
+    try {
+        TY_UNI = {
+            chars: new RegExp("^[\\p{L}\\p{N}\\p{M} .,!?'\u2019\"\\-_:;()~*+&%#/\u2026\u0001\\p{Extended_Pictographic}\\uFE0F]+$", 'u'),
+            marks: new RegExp('\\p{M}{3,}', 'u'),
+            letters: new RegExp('[\\p{L}\\p{Extended_Pictographic}]', 'gu')
+        };
+    } catch (e) { TY_UNI = null; }
+
+    // returns { ok: true, text } (text may be '' = use the normal indicator) or { ok: false, error }
+    function typingCheck(raw) {
+        var t = String(raw == null ? '' : raw).replace(/[\u0000-\u001f\u007f\u200b-\u200f\u2028\u2029\ufeff]/g, '').replace(/\s+/g, ' ').trim();
+        if (!t) return { ok: true, text: '' };
+        var len = Array.from(t).length;
+        if (len > TY_MAX) return { ok: false, error: 'Too long: keep it to ' + TY_MAX + ' characters in total (you have ' + len + ').' };
+
+        var ph = t.match(/<@username>/gi) || [];
+        if (ph.length > 1) return { ok: false, error: 'Use <@username> only once.' };
+        var rest = t.replace(/<@username>/gi, '\u0001');
+        if (/[<>]/.test(rest)) return { ok: false, error: 'Only <@username> can use the < > symbols. It has to be spelled exactly <@username>.' };
+        if (rest.indexOf('@') !== -1) return { ok: false, error: 'The @ symbol is only for <@username>.' };
+
+        var ok = TY_UNI ? TY_UNI.chars.test(rest) && !TY_UNI.marks.test(rest) : /^[A-Za-z0-9 .,!?'"\-_:;()~*+&%#\/\u0001]+$/.test(rest);
+        if (!ok) return { ok: false, error: 'Some characters are not allowed. Use letters, numbers, spaces and basic punctuation.' };
+        if (/(.)\1{3,}/u.test(rest.replace(/ /g, '\u0002'))) return { ok: false, error: 'Too many repeated characters in a row.' };
+
+        var plain = rest.replace(/\u0001/g, ' ');
+        if (/https?:|www\.|\b[a-z0-9-]+\.(?:com|net|org|gg|io|me|ly|xyz|tk|ru|cn|co|dev|app|tv|to|cc|info|link|ws)\b|\d{5,}|\d[\d\s().\-]{6,}\d/i.test(plain)) {
+            return { ok: false, error: 'No links, emails, usernames or phone numbers.' };
+        }
+        var words = TY_UNI ? (plain.match(TY_UNI.letters) || []).length : (plain.match(/[A-Za-z]/g) || []).length;
+        if (!ph.length && words < 2) return { ok: false, error: 'Add a few real words.' };
+        if (tyBad(plain)) return { ok: false, error: 'That text is not allowed. Keep it friendly and fine for everyone.' };
+
+        return { ok: true, text: t.replace(/<@username>/gi, '<@username>') };
+    }
+
     function coerce(it, v, ignoreLock) {
         if (it.type === 'toggle') return (v === true || v === false) ? v : (v === 'true' ? true : (v === 'false' ? false : undefined));
         if (it.type === 'select' || it.type === 'palette') {
@@ -186,6 +288,7 @@
         }
         if (it.type === 'text') {
             if (typeof v !== 'string') return undefined;
+            if (it.guard === 'typing') { var chk = typingCheck(v); return chk.ok ? chk.text : undefined; }   // blocked text is never stored
             return v.replace(/[\u0000-\u001f\u007f\u200b-\u200f\u2028\u2029\ufeff]/g, '').slice(0, it.max || 50);
         }
         if (it.type === 'range') {
@@ -553,7 +656,7 @@
     /* ------------------------------------------------------------------ boot */
     window.SpecSettings = {
         CATS: CATS, PRESETS: PRESETS, fmtTime: fmtTime, fmtDate: fmtDate, dayKey: dayKey, get: get, view: view, set: set,
-        item: function (k) { return ITEMS[k]; }, isLocked: isLocked,
+        item: function (k) { return ITEMS[k]; }, isLocked: isLocked, typingCheck: typingCheck,
         setPreview: setPreview, clearPreview: clearPreview, previewing: previewing,
         applyPreset: applyPreset, resetCursor: resetCursor, exportCursorCode: exportCursorCode, importCursorCode: importCursorCode, all: snapshot, reset: reset, exportJSON: exportJSON, importJSON: importJSON,
         on: function (fn) { listeners.push(fn); },

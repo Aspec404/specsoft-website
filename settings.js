@@ -172,23 +172,34 @@
     }
     function textBlock(it) {
         var max = it.max || 50;
+        var guarded = it.guard === 'typing' && typeof S.typingCheck === 'function';
         var inp = h('input', { type: 'text', class: 'sx-code', 'data-key': it.key, maxlength: String(max), placeholder: it.placeholder || '', spellcheck: 'false', autocomplete: 'off', 'aria-label': it.label });
         inp.value = S.view(it.key);
-        var count = h('div', { class: 'sx-row-desc', text: inp.value.length + '/' + max });
+        var len = function (v) { return Array.from(v).length; };
+        var count = h('div', { class: 'sx-row-desc', text: len(inp.value) + '/' + max });
+        var note = h('div', { class: 'sx-row-desc', role: 'status', text: '' });
         var prev = h('output', { class: 'sx-readout', 'data-typing-preview': it.key, text: typingPreview(inp.value) });
         var timer = null;
+        function verdict(v) { return guarded ? S.typingCheck(v) : { ok: true, text: v }; }
+        function show(r) { note.textContent = r.ok ? '' : r.error; note.style.color = r.ok ? '' : '#ef4444'; }
         inp.addEventListener('input', function () {
-            count.textContent = inp.value.length + '/' + max;
-            prev.textContent = typingPreview(inp.value);
+            var v = inp.value, r = verdict(v);
+            count.textContent = len(v) + '/' + max;
+            show(r);
+            prev.textContent = r.ok ? typingPreview(v) : 'Not saved yet. Fix the text above first.';
             clearTimeout(timer);
-            timer = setTimeout(function () { S.set(it.key, inp.value); flash('Saved'); }, 450);
+            if (r.ok) timer = setTimeout(function () { S.set(it.key, v); flash('Saved'); }, 450);
         });
-        inp.addEventListener('blur', function () { clearTimeout(timer); if (inp.value !== S.get(it.key)) S.set(it.key, inp.value); });
+        inp.addEventListener('blur', function () {
+            clearTimeout(timer);
+            var r = verdict(inp.value);
+            if (r.ok && r.text !== S.get(it.key)) S.set(it.key, inp.value);
+        });
         var clear = h('button', { type: 'button', class: 'sx-btn', text: 'Clear', onclick: function () {
-            inp.value = ''; count.textContent = '0/' + max; prev.textContent = typingPreview('');
+            inp.value = ''; count.textContent = '0/' + max; show({ ok: true }); prev.textContent = typingPreview('');
             S.set(it.key, ''); flash('Back to the normal indicator');
         } });
-        return block(it, [h('div', { class: 'sx-code-row' }, [inp, clear]), count, h('div', { class: 'sx-row-desc', text: 'Preview' }), prev]);
+        return block(it, [h('div', { class: 'sx-code-row' }, [inp, clear]), count, note, h('div', { class: 'sx-row-desc', text: 'Preview' }), prev]);
     }
 
     function readoutText() {

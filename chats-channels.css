@@ -220,3 +220,193 @@
 .chx-member span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chx-dlg .ch-dlg-foot { flex-wrap: wrap; }
 .chx-dlg .ch-dlg-foot .ch-btn--danger { margin-right: auto; }
+
+/* ==========================================================================
+   PHASE 2: panels (forum, roadmap, events), reorder mode, post buttons
+   ========================================================================== */
+
+/* ----- the panel replaces the feed + composer for forum / roadmap / event channels ----- */
+.chx-overlay.chx-panel {
+    display: block;
+    place-items: initial;
+    padding: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--bg-base);
+    -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+}
+.chx-panel-body { max-width: 980px; margin: 0 auto; padding: 18px 18px 40px; }
+
+.chx-phead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.chx-phead-text { min-width: 0; }
+.chx-phead h3 { font-size: 21px; font-weight: 600; letter-spacing: -0.4px; }
+.chx-phead p { margin-top: 4px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+.chx-phead .ch-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.chx-phead .ch-btn .chx-ico { width: 15px; height: 15px; }
+
+.chx-pempty { padding: 36px 16px; text-align: center; color: var(--text-secondary); line-height: 1.6; }
+.chx-pempty h4 { margin-bottom: 4px; color: var(--text-primary); font-size: 16px; }
+.chx-pfoot { display: flex; justify-content: center; padding: 14px 0; }
+.chx-pfoot .ch-btn[hidden] { display: none; }
+
+/* ----- forum ----- */
+.chx-threads { display: flex; flex-direction: column; gap: 8px; }
+.chx-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+.chx-thread:hover { background: var(--bg-card-hover); border-color: var(--border-hover); }
+.chx-thread.is-pinned { border-color: var(--border-hover); }
+.chx-thread-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; min-width: 0; }
+.chx-thread-title > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chx-badge { width: 15px; height: 15px; color: var(--text-secondary); }
+.chx-thread-excerpt { color: var(--text-secondary); font-size: 14px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.chx-thread-meta { color: var(--text-secondary); font-size: 12px; }
+
+/* the buttons that appear in the chat header while a post is open */
+.chx-thr { white-space: nowrap; }
+@media (max-width: 700px) { .chx-thr { padding-left: 10px; padding-right: 10px; } }
+
+/* ----- roadmap ----- */
+.chx-board {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(250px, 1fr);
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-snap-type: x proximity;
+}
+.chx-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 14px; background: color-mix(in srgb, var(--text-primary) 3%, transparent); scroll-snap-align: start; }
+.chx-col-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 6px; font-size: 13px; font-weight: 600; }
+.chx-col-n { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--text-primary) 10%, transparent); color: var(--text-secondary); font-size: 12px; text-align: center; }
+.chx-rm-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; }
+.chx-rm-card h4 { font-size: 15px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.chx-rm-card p { color: var(--text-secondary); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.chx-rm-foot { display: flex; align-items: center; gap: 8px; }
+.chx-rm-tools { display: inline-flex; margin-left: auto; }
+.chx-rm-tools .chx-mini { opacity: 1; }
+.chx-pill { padding: 2px 9px; border: 1px solid var(--border-hover); border-radius: 999px; color: var(--text-secondary); font-size: 11px; }
+.chx-vote {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px 5px 8px;
+    background: none;
+    border: 1px solid var(--border-hover);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.chx-vote .chx-ico { width: 14px; height: 14px; }
+.chx-vote:hover { background: var(--accent-dim); color: var(--text-primary); }
+.chx-vote.is-on { background: var(--bg-card-hover); border-color: var(--text-primary); color: var(--text-primary); }
+
+/* ----- events ----- */
+.chx-events { display: flex; flex-direction: column; gap: 10px; }
+.chx-events--past { margin-top: 4px; }
+.chx-event { display: flex; gap: 14px; padding: 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; }
+.chx-event.is-past { opacity: 0.7; }
+.chx-date { flex: none; width: 54px; padding: 8px 0; text-align: center; border: 1px solid var(--border-hover); border-radius: 12px; }
+.chx-date-m { display: block; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.chx-date-d { display: block; font-size: 22px; font-weight: 700; line-height: 1.15; }
+.chx-event-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.chx-event-main h4 { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 600; }
+.chx-event-main h4 .chx-mini { opacity: 1; }
+.chx-event-when { font-size: 14px; }
+.chx-event-where, .chx-event-people { color: var(--text-secondary); font-size: 13px; }
+.chx-event-desc { color: var(--text-secondary); font-size: 14px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.chx-rsvp { display: inline-grid; grid-template-columns: repeat(3, auto); gap: 3px; margin-top: 8px; padding: 3px; align-self: flex-start; border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+.chx-rsvp button { padding: 7px 14px; background: none; border: 0; border-radius: 8px; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: background 0.2s ease, color 0.2s ease; }
+.chx-rsvp button:hover { color: var(--text-primary); }
+.chx-rsvp button.is-on { background: var(--bg-card-hover); color: var(--text-primary); box-shadow: 0 0 0 1px var(--border-hover); }
+@media (max-width: 520px) { .chx-event { flex-direction: column; } .chx-date { width: 62px; } }
+
+/* ----- reorder mode ----- */
+.ch-iconbtn.is-on { background: var(--bg-card-hover); color: var(--text-primary); }
+.chx-reorder-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px 12px; border: 1px solid var(--border-hover); border-radius: 12px; background: var(--bg-card); }
+.chx-reorder-bar p { flex: 1; min-width: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+
+.chx-sec--static { padding: 6px 4px 4px; }
+.chx-sec-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+
+.chx-grip {
+    flex: none;
+    width: 30px;
+    height: 34px;
+    display: inline-grid;
+    place-items: center;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: grab;
+    touch-action: none;                 /* so a finger drags instead of scrolling */
+    -webkit-user-select: none;
+            user-select: none;
+}
+.chx-grip .chx-ico { width: 18px; height: 18px; }
+.chx-grip:hover, .chx-grip:focus-visible { background: var(--accent-dim); color: var(--text-primary); }
+.chx-ch--static { cursor: default; }
+.chx-ch--static:hover { background: none; color: var(--text-secondary); }
+
+.chx-row.is-dragging, .chx-group.is-dragging { opacity: 0.45; }
+body.chx-dragging, body.chx-dragging * { cursor: grabbing !important; }
+body.chx-dragging .chx-grip { cursor: grabbing; }
+
+/* where it will land */
+.chx-row.chx-drop-before { box-shadow: 0 -2px 0 0 var(--text-primary); }
+.chx-row.chx-drop-after  { box-shadow: 0  2px 0 0 var(--text-primary); }
+.chx-group.chx-drop-before { box-shadow: 0 -2px 0 0 var(--text-primary); }
+.chx-group.chx-drop-after  { box-shadow: 0  2px 0 0 var(--text-primary); }
+.chx-group.chx-drop-into { outline: 2px dashed var(--border-hover); outline-offset: 2px; border-radius: 10px; }
+.chx-group--loose[data-loose] { min-height: 28px; }
+
+@media (prefers-reduced-motion: reduce) { .chx-thread, .chx-vote, .chx-rsvp button { transition: none; } }
+
+/* ==========================================================================
+   PHASE 3: forum search + filters
+   ========================================================================== */
+.chx-ptools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.chx-ptools[hidden] { display: none; }
+.chx-search { position: relative; flex: 1 1 240px; min-width: 0; }
+.chx-search > .chx-ico { position: absolute; left: 12px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); color: var(--text-secondary); pointer-events: none; }
+.chx-search-input { width: 100%; padding-left: 36px; }
+.chx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chx-chip {
+    padding: 7px 13px;
+    background: none;
+    border: 1px solid var(--border-hover);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.chx-chip:hover { background: var(--accent-dim); color: var(--text-primary); }
+.chx-chip.is-on { background: var(--bg-card-hover); border-color: var(--text-primary); color: var(--text-primary); }
+.chx-search-status { flex-basis: 100%; min-height: 0; margin: 0; color: var(--text-secondary); font-size: 12px; }
+.chx-search-status:empty { display: none; }
+
+.chx-thread mark {
+    padding: 0 2px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--text-primary) 22%, transparent);
+    color: inherit;
+}
+.chx-reply-tag { color: var(--text-primary); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { .chx-chip { transition: none; } }

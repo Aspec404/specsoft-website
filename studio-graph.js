@@ -7,6 +7,11 @@
     var api = window.StudioGraph = { log: function () {}, onChange: function () {}, onReset: function () {}, openCode: function () {}, onTool: function () {}, onInspect: function () {}, onToggleNodes: function () {}, ext: {} };
     var G = { nodes: [], connections: [], frames: [], groups: [], folders: [] }, ROOT = G, path = [], V = { x: 40, y: 40, k: 1 };
     var tool = 'select', sel = null, SEL = [], selFrame = null, pend = null, open = false, drag = null, space = false, traceOn = false, trace = {}, hits = {};
+    var clip = null, hist = { undo: [], redo: [], cur: null, t: 0, pending: false, busy: false };   // PHASE 7c: clipboard + undo history
+    (function () {                                       // studio.js assigns api.onChange later; wrap it so every change also notes the history
+        var user = api.onChange;
+        Object.defineProperty(api, 'onChange', { configurable: true, enumerable: true, get: function () { return function () { histNote(); return user.apply(this, arguments); }; }, set: function (f) { user = f; } });
+    })();
     function $(id) { return document.getElementById(id); }
     var canvas = $('stCanvas');
 
@@ -112,7 +117,7 @@
     function nodeEl(n) {
         var fo = G.folders.filter(function (f) { return f.id === n.folder; })[0];
         var d = document.createElement('div');
-        d.className = 'st-node' + (isSel(n.id) ? ' sel' : '') + (n.id === sel ? ' prim' : '') + (n.id === pend ? ' pend' : '') + (n.enabled ? '' : ' off') + ' s-' + n.status + ' t-' + n.type + (n.bp ? ' bp' : '') + (hits[n.id] ? ' hit' : '') + (fo ? ' fc-' + (fo.c % 6) : '');
+        d.className = 'st-node' + (isSel(n.id) ? ' sel' : '') + (n.id === sel ? ' prim' : '') + (n.id === pend ? ' pend' : '') + (n.enabled ? '' : ' off') + ' s-' + n.status + ' t-' + n.type + (n.bp ? ' bp' : '') + (hits[n.id] ? ' hit' : '') + (fo ? ' fc-' + (fo.c % 6) : '') + (clip && clip.cut && clip.g === G && clip.ids.indexOf(n.id) > -1 ? ' is-cut' : '');
         d.dataset.id = n.id; d.style.left = n.x + 'px'; d.style.top = n.y + 'px'; if (fo) d.title = 'Folder: ' + fo.name;
         var i = document.createElement('i'); i.className = 'st-port in'; var o = document.createElement('i'); o.className = 'st-port out'; d.appendChild(i);
         if (n.type !== 'reroute') {
@@ -238,14 +243,18 @@
         }
         if (drag.t === 'fmove') {
             var f = frameById(drag.id); if (!f) return; var fx = Math.round(p.x - drag.ox), fy = Math.round(p.y - drag.oy); drag.moved = true;
-            f.x = fx; f.y = fy; drag.carry.forEach(function (c) { var n = byId(c.id); if (n) { n.x = c.x + (fx - drag.fx); n.y = c.y + (fy - drag.fy); } }); render(); return;
+            f.x = fx; f.y = fy; drag.carry.forEach(function (c) { var n = byId(c.id); if (n) { n.x = c.x + (fx - drag.fx); n.y = c.y + (fy - drag.fy); var el = nodesEl.querySelector('[data-id="' + n.id + '"]'); if (el) { el.style.left = n.x + 'px'; el.style.top = n.y + 'px'; } } }); drawWires(); drawUnder(); return;
         }
         if (drag.t === 'frs') { var g = frameById(drag.id); if (!g) return; g.w = Math.max(80, Math.round(p.x - g.x)); g.h = Math.max(60, Math.round(p.y - g.y)); drag.moved = true; drawUnder(); return; }
         if (drag.t === 'fcreate') {
             drag.w = p.x - drag.x; drag.h = p.y - drag.y;
             drag.el.style.cssText = 'left:' + Math.min(drag.x, p.x) + 'px;top:' + Math.min(drag.y, p.y) + 'px;width:' + Math.abs(drag.w) + 'px;height:' + Math.abs(drag.h) + 'px'; return;
         }
-        if (drag.t === 'lasso') { drag.pts.push([p.x, p.y]); lassoEl.setAttribute('points', drag.pts.map(function (q) { return q[0] + ',' + q[1]; }).join(' ')); }
+        if (drag.t === 'lasso') {
+            var lp = drag.pts[drag.pts.length - 1];       // skip tiny moves and cap the length so a long drag cannot slow the page down
+            if (drag.pts.length >= 600 || Math.abs(p.x - lp[0]) + Math.abs(p.y - lp[1]) < 4 / V.k) return;
+            drag.pts.push([p.x, p.y]); lassoEl.setAttribute('points', drag.pts.map(function (q) { return q[0] + ',' + q[1]; }).join(' '));
+        }
     });
     function endDrag() {
         var d = drag; drag = null; if (!d) return;
@@ -417,9 +426,9 @@
     api.load = function (g) {
         G = ROOT = cleanGraph(g, 0); path = [];
         Object.keys(api.ext).forEach(function (k) { api.ext[k].load(g && g[k]); });
-        open = true; selClear(); pend = null; V = { x: 40, y: 40, k: 1 }; setTool('select'); api.onReset();
+        open = true; selClear(); pend = null; V = { x: 40, y: 40, k: 1 }; setTool('select'); api.onReset(); histReset();
     };
-    api.clear = function () { open = false; G = ROOT = { nodes: [], connections: [] }; path = []; Object.keys(api.ext).forEach(function (k) { api.ext[k].load(undefined); }); selClear(); pend = null; render(); api.onReset(); };
+    api.clear = function () { open = false; G = ROOT = { nodes: [], connections: [] }; path = []; Object.keys(api.ext).forEach(function (k) { api.ext[k].load(undefined); }); selClear(); pend = null; render(); api.onReset(); histReset(); };
     api.get = function () { var c = cleanGraph(ROOT, 0); var out = { version: 3, nodes: c.nodes, connections: c.connections, frames: c.frames, groups: c.groups, folders: c.folders }; Object.keys(api.ext).forEach(function (k) { if (api.ext[k].save) out[k] = api.ext[k].save(); }); return out; };   // statuses are never saved
     api.isOpen = function () { return open; };
     function walk(g, labels, fn) { g.nodes.forEach(function (n) { fn(n, labels); if (n.config && n.config.sub) walk(n.config.sub, labels.concat(n.label), fn); }); }
@@ -432,8 +441,8 @@
     api.tree = function () {
         function conv(g) {
             ens(g); var out = [], fm = {};
-            g.folders.forEach(function (f) { var it = { id: 'f:' + f.id, label: f.name, type: 'folder', children: [] }; fm[f.id] = it; out.push(it); });
-            g.nodes.forEach(function (n) { var it = { id: n.id, label: n.label, type: n.type, lang: n.config.lang, children: n.config.sub ? conv(n.config.sub) : null }; (n.folder && fm[n.folder] ? fm[n.folder].children : out).push(it); });
+            g.folders.forEach(function (f) { var it = { id: 'f:' + f.id, label: f.name, type: 'folder', c: f.c, children: [] }; fm[f.id] = it; out.push(it); });
+            g.nodes.forEach(function (n) { var it = { id: n.id, label: n.label, type: n.type, lang: n.config.lang, en: n.enabled, bp: !!n.bp, children: n.config.sub ? conv(n.config.sub) : null }; (n.folder && fm[n.folder] ? fm[n.folder].children : out).push(it); });
             return out;
         }
         return conv(ROOT);
@@ -463,6 +472,106 @@
         if (sel === id) { var p = document.querySelector('.st-status'); if (p) p.textContent = s; }
     };
     api.resetStatus = function () { eachNode(ROOT, function (n) { api.setStatus(n.id, 'idle'); }); };
+    /* ---- Phase 7c: undo / redo, clipboard, rename, open, and helpers for the right-click menus ---- */
+    function depthOf(g) { var d = 0; g.nodes.forEach(function (n) { if (n.config && n.config.sub) d = Math.max(d, 1 + depthOf(n.config.sub)); }); return d; }
+    function snap() { var c = cleanGraph(ROOT, 0); return JSON.stringify({ nodes: c.nodes, connections: c.connections, frames: c.frames, groups: c.groups, folders: c.folders }); }
+    function histCommit() {                              // the state before a burst of edits becomes one undo step
+        hist.pending = false; if (!open || hist.busy) return;
+        var s = snap(); if (s === hist.cur) return;
+        if (hist.cur !== null) {
+            hist.undo.push(hist.cur); var tot = 0; hist.undo.forEach(function (x) { tot += x.length; });
+            while (hist.undo.length > 40 || (tot > 8000000 && hist.undo.length > 1)) tot -= hist.undo.shift().length;
+        }
+        hist.cur = s; hist.redo = [];
+    }
+    function histNote() { if (hist.busy || !open) return; hist.pending = true; clearTimeout(hist.t); hist.t = setTimeout(histCommit, 400); }
+    function histReset() { clearTimeout(hist.t); hist.pending = false; hist.undo = []; hist.redo = []; hist.cur = open ? snap() : null; }
+    function restore(s) {
+        hist.busy = true;
+        try {
+            var ids = path.map(function (n) { return n.id; });
+            ROOT = cleanGraph(JSON.parse(s), 0); G = ROOT; path = [];
+            ids.forEach(function (id) { var n = G.nodes.filter(function (x) { return x.id === id && x.type === 'branch'; })[0]; if (n) { path.push(n); G = n.config.sub; } });   // stay inside the same branch when it still exists
+            selClear(); pend = null; drag = null; render(); api.onChange();
+        } finally { hist.busy = false; }
+    }
+    api.undo = function () {
+        if (!open) return false; clearTimeout(hist.t); histCommit();
+        if (!hist.undo.length) { api.log('info', 'graph', 'Nothing to undo'); return false; }
+        hist.redo.push(hist.cur); hist.cur = hist.undo.pop(); restore(hist.cur); api.log('info', 'graph', 'Undo'); return true;
+    };
+    api.redo = function () {
+        if (!open) return false; clearTimeout(hist.t); histCommit();
+        if (!hist.redo.length) { api.log('info', 'graph', 'Nothing to redo'); return false; }
+        hist.undo.push(hist.cur); hist.cur = hist.redo.pop(); restore(hist.cur); api.log('info', 'graph', 'Redo'); return true;
+    };
+    api.canUndo = function () { return open && (hist.undo.length > 0 || hist.pending); };
+    api.canRedo = function () { return open && hist.redo.length > 0; };
+
+    api.hasClip = function () { return !!clip; };
+    api.copy = function (cut) {                          // copy or cut the selected nodes (a cut moves them when you paste)
+        var ids = SEL.slice(); if (!ids.length) return api.log('warn', 'graph', (cut ? 'Cut' : 'Copy') + ': select one or more nodes first');
+        var set = {}; ids.forEach(function (i) { set[i] = 1; });
+        clip = { cut: !!cut, g: G, ids: ids, k: 0,
+            nodes: ids.map(function (i) { var c = JSON.parse(JSON.stringify(byId(i))); c.status = 'idle'; c.group = null; return c; }),
+            folds: ids.map(function (i) { var f = G.folders.filter(function (x) { return x.id === byId(i).folder; })[0]; return f ? f.name : null; }),
+            conns: G.connections.filter(function (c) { return set[c.from] && set[c.to]; }).map(function (c) { return { from: c.from, to: c.to }; }) };
+        api.log('info', 'graph', (cut ? 'Cut ' : 'Copied ') + ids.length + ' node(s)' + (cut ? '. They move when you paste.' : '')); render();
+    };
+    api.paste = function (at) {                          // at = a world position (right-click), or nothing for a small offset
+        if (!open) return false; if (!clip) { api.log('warn', 'graph', 'Paste: nothing copied yet'); return false; }
+        var d = clip, rm = d.cut ? d.ids : [];
+        if (rm.length && path.some(function (p) { return rm.indexOf(p.id) > -1; })) { api.log('warn', 'graph', 'You cannot paste a cut branch into itself'); return false; }
+        var deep = 0; d.nodes.forEach(function (x) { if (x.config && x.config.sub) deep = Math.max(deep, 1 + depthOf(x.config.sub)); });
+        if (path.length + deep > MAX_DEPTH) { api.log('warn', 'graph', 'Paste: branches can only nest ' + MAX_DEPTH + ' levels deep'); return false; }
+        var freed = (d.cut && d.g === G) ? rm.filter(function (i) { return byId(i); }).length : 0;
+        if (G.nodes.length - freed + d.nodes.length > MAX_NODES) { api.log('warn', 'graph', 'Node limit reached (' + MAX_NODES + ')'); return false; }
+        if (d.cut) {                                     // the originals leave only now, so a cut that is never pasted loses nothing
+            var src = d.g; src.nodes = src.nodes.filter(function (x) { return rm.indexOf(x.id) < 0; });
+            src.connections = src.connections.filter(function (c) { return rm.indexOf(c.from) < 0 && rm.indexOf(c.to) < 0; }); d.cut = false;
+        }
+        var minX = Infinity, minY = Infinity; d.nodes.forEach(function (x) { minX = Math.min(minX, num(x.x)); minY = Math.min(minY, num(x.y)); });
+        d.k++; var dx = at ? Math.round(at.x - minX) : 30 * d.k, dy = at ? Math.round(at.y - minY) : 30 * d.k, map = {}, made = [];
+        var raw = d.nodes.map(function (o) { var c = JSON.parse(JSON.stringify(o)); c.id = uid(); map[o.id] = c.id; c.x = num(c.x) + dx; c.y = num(c.y) + dy; if (c.config && c.config.sub) reid(c.config.sub); return c; });
+        var cl = cleanGraph({ nodes: raw, connections: d.conns.map(function (c) { return { id: uid(), from: map[c.from], to: map[c.to] }; }) }, path.length);
+        cl.nodes.forEach(function (c, i) {
+            if (G.nodes.some(function (x) { return x.label === c.label; })) c.label = nextLabelFor(c);
+            var fn = d.folds[i];
+            if (fn) { var f = G.folders.filter(function (x) { return x.name.toLowerCase() === fn.toLowerCase(); })[0]; if (!f && G.folders.length < MAX_FOLDERS) { f = { id: uid(), name: fn, c: G.folders.length % 6 }; G.folders.push(f); } if (f) c.folder = f.id; }
+            G.nodes.push(c); made.push(c.id);
+        });
+        G.connections = G.connections.concat(cl.connections); selSet(made); api.log('ok', 'graph', 'Pasted ' + made.length + ' node(s)'); changed(); return true;
+    };
+    api.rename = function (id, label) {
+        var n = byId(id); label = String(label == null ? '' : label).trim().slice(0, 20); if (!n || !label || label === n.label) return false;
+        if (G.nodes.some(function (x) { return x !== n && x.label === label; })) api.log('warn', 'graph', 'Another node here is already called "' + label + '". Scripts find nodes by label, so only the first can be reached.');
+        else if (!/^[A-Za-z0-9_ -]+$/.test(label)) api.log('info', 'graph', '"' + label + '" has characters that studio.runNode("...") cannot use. It still works as a label.');
+        n.label = label; api.log('ok', 'graph', 'Renamed to ' + label); changed(); return true;
+    };
+    api.enterBranch = function (id) { var n = byId(id); if (!n || n.type !== 'branch') return false; enter(n); return true; };
+    api.worldAt = function (x, y) { return toWorld({ clientX: x, clientY: y }); };
+    api.addAt = function (p, type) { return open ? addNode(p, type === 'branch' ? 'branch' : 'basic') : null; };
+    api.splice = function (wireId, p, kind) { if (!open) return; if (kind === 'wait') spliceAt(wireId, p, 'basic', { prefix: 'W', config: { eDelay: 1000 } }); else spliceAt(wireId, p, 'reroute', {}); };
+    api.removeWire = function (id) { removeWire(id); };
+    api.removeFrame = function (id) { removeFrame(id); };
+    api.renameFrame = function (id, label) { var f = frameById(id); label = String(label == null ? '' : label).trim().slice(0, 40); if (!f || !label) return false; f.label = label; drawUnder(); api.onChange(); return true; };
+    api.frameLabel = function (id) { var f = frameById(id); return f ? f.label : null; };
+    api.toggleBp = function (id) { var n = byId(id); if (!n) return; n.bp = !n.bp; api.log('info', 'graph', (n.bp ? 'Breakpoint set on ' : 'Breakpoint removed from ') + n.label); changed(); };
+
+    api.fit = function () {                              // zoom and pan so every node and frame is visible
+        if (!open || (!G.nodes.length && !G.frames.length)) return false;
+        var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        G.nodes.forEach(function (n) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x + dw(n)); y1 = Math.max(y1, n.y + dh(n)); });
+        G.frames.forEach(function (f) { x0 = Math.min(x0, f.x); y0 = Math.min(y0, f.y); x1 = Math.max(x1, f.x + f.w); y1 = Math.max(y1, f.y + f.h); });
+        var r = canvas.getBoundingClientRect(), pad = 60, w = Math.max(1, x1 - x0), h = Math.max(1, y1 - y0);
+        V.k = Math.min(1.5, Math.max(0.3, Math.min((r.width - pad * 2) / w, (r.height - pad * 2) / h)));
+        V.x = (r.width - w * V.k) / 2 - x0 * V.k; V.y = (r.height - h * V.k) / 2 - y0 * V.k; applyView(); return true;
+    };
+    api.zoomBy = function (f) {                          // zoom around the middle of the canvas
+        var r = canvas.getBoundingClientRect(), mx = r.width / 2, my = r.height / 2, k = Math.min(2.5, Math.max(0.3, V.k * f)), q = k / V.k;
+        V.x = mx - (mx - V.x) * q; V.y = my - (my - V.y) * q; V.k = k; applyView();
+    };
+    api.resetView = function () { V = { x: 40, y: 40, k: 1 }; applyView(); };
     setTool('select');
 
     /* ---- Phase 7a: STools API (the toolbar and shortcuts live in studio-stools.js) ---- */

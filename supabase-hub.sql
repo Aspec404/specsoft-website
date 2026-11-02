@@ -1,229 +1,124 @@
 -- ==========================================================================
--- SPECSOFT® PROJECTS HUB
+-- SPECSOFT® HUB (Phase 3): tasks, Spectra's Corner posts, Classified files
 --
--- RUN ORDER: supabase-profiles.sql, supabase-project-social.sql, supabase-chats.sql and
--- supabase-admin.sql FIRST, then this file. Safe to run more than once.
+-- RUN ORDER: supabase-admin.sql FIRST (this uses its staff system), then this file.
 -- HOW TO RUN: Supabase dashboard > SQL Editor > New query > paste ALL > Run.
+-- Safe to run more than once. Re-running never overwrites or duplicates the
+-- starter content once the tables have rows.
 --
--- WHAT THIS DOES
---   Every project a member posts on their profile already lives in ONE table,
---   profile_projects, and likes / comments / reposts point at that project's id.
---   So the Projects Hub does not copy anything: it reads the same rows through
---   hub_projects(). Every like and comment a project already has shows up on the hub
---   automatically, and new ones count on both pages because they are the same rows.
+-- WHERE THE SECURITY LIVES
+--   Everyone can READ published Hub content (it is shown on a secret page, not a
+--   vault). Nobody can WRITE from the website directly. Every change goes through
+--   a function that calls admin_gate('admin'), so on the SERVER, on EVERY call:
+--     1. you are signed in,
+--     2. you are in staff_members as admin or owner,
+--     3. you unlocked the admin panel with YOUR admin password this session.
+--   Every save and delete is written to the same append-only audit log as the
+--   Console, so you can see who published or removed what.
 --
---   Adds: a category on every project, a "show on the hub" switch (on by default),
---   a private Saved list, staff "hide from hub", and live updates.
+--   Classified files: the secret text and the clearance code are never readable
+--   by the website. The code is stored only as a bcrypt hash, and the text only
+--   comes back from hub_declassify() when the right code is sent.
+--   (The public teaser IS public: never put a secret in it. Anything you wrap in
+--   [[double brackets]] is blacked out by the database BEFORE it is stored.)
 -- ==========================================================================
 
--- --------------------------------------------------------------------------
--- 1) NEW COLUMNS ON profile_projects
--- --------------------------------------------------------------------------
-alter table public.profile_projects add column if not exists category text;
-alter table public.profile_projects add column if not exists show_in_hub boolean not null default true;
-alter table public.profile_projects add column if not exists hub_hidden_at timestamptz;
-alter table public.profile_projects add column if not exists hub_hidden_by uuid references public.profiles(id) on delete set null;
-alter table public.profile_projects add column if not exists hub_hidden_reason text;
-
--- one-time guess for projects that already exist, based on their tags
--- (rerunning this file never touches a project that already has a category)
-update public.profile_projects set category = case
-  when exists (select 1 from unnest(tags) t where lower(t) in ('roblox', 'lua', 'luau', 'rbxl', 'roblox studio')) then 'roblox'
-  when exists (select 1 from unnest(tags) t where lower(t) in ('ai', 'ml', 'llm', 'gpt', 'chatbot', 'machine learning', 'neural', 'agent', 'agents')) then 'ai'
-  when exists (select 1 from unnest(tags) t where lower(t) in ('game', 'games', 'gamedev', 'unity', 'godot', 'unreal', 'fps', 'rpg', 'simulator', 'platformer')) then 'games'
-  when exists (select 1 from unnest(tags) t where lower(t) in ('app', 'tool', 'tools', 'software', 'web', 'website', 'bot', 'discord', 'api', 'cli', 'plugin', 'extension', 'library', 'framework', 'html', 'css', 'javascript', 'js', 'python', 'react')) then 'software'
-  else 'other'
-end
-where category is null;
-
-alter table public.profile_projects alter column category set default 'other';
-alter table public.profile_projects alter column category set not null;
-
-alter table public.profile_projects drop constraint if exists projects_category_valid;
-alter table public.profile_projects add constraint projects_category_valid
-  check (category in ('ai', 'games', 'software', 'roblox', 'other'));
-
-create index if not exists profile_projects_hub_idx
-  on public.profile_projects (created_at desc)
-  where show_in_hub and hub_hidden_at is null;
-
--- members can never un-hide a project staff hid (only admin_hub_hide below may change these)
-create or replace function public.projects_hub_guard()
-returns trigger
-language plpgsql
-as $$
-begin
-  if tg_op = 'INSERT' then
-    new.hub_hidden_at := null;
-    new.hub_hidden_by := null;
-    new.hub_hidden_reason := null;
-  elsif coalesce(current_setting('specsoft.admin_hide', true), '') <> '1' then
-    new.hub_hidden_at := old.hub_hidden_at;
-    new.hub_hidden_by := old.hub_hidden_by;
-    new.hub_hidden_reason := old.hub_hidden_reason;
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists projects_hub_guard on public.profile_projects;
-create trigger projects_hub_guard before insert or update on public.profile_projects
-  for each row execute function public.projects_hub_guard();
-
+create extension if not exists pgcrypto with schema extensions;
 
 -- --------------------------------------------------------------------------
--- 2) SAVED PROJECTS (private bookmarks)
+-- 1) TABLES
 -- --------------------------------------------------------------------------
-create table if not exists public.profile_project_saves (
-  user_id    uuid not null references public.profiles(id) on delete cascade,
-  project_id uuid not null references public.profile_projects(id) on delete cascade,
+create table if not exists public.hub_tasks (
+  id         uuid primary key default gen_random_uuid(),
+  tag        text not null check (tag ~ '^[A-Z0-9]{2,12}$'),
+  status     text not null check (status in ('todo', 'doing', 'done')),
+  title      text not null check (char_length(btrim(title)) between 2 and 80),
+  descr      text not null default '' check (char_length(descr) <= 300),
+  say        text check (say is null or char_length(say) <= 160),
+  pos        int  not null default 0,
+  created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
-  primary key (user_id, project_id)
+  updated_at timestamptz not null default now()
 );
 
-create index if not exists profile_project_saves_user_idx on public.profile_project_saves (user_id, created_at desc);
+create table if not exists public.hub_posts (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null check (kind in ('diary', 'story')),
+  title      text not null check (char_length(btrim(title)) between 2 and 80),
+  body       text not null check (char_length(btrim(body)) between 2 and 4000),
+  published  boolean not null default true,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
-alter table public.profile_project_saves enable row level security;
+create table if not exists public.hub_files (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null check (char_length(btrim(title)) between 2 and 80),
+  teaser     text not null check (char_length(btrim(teaser)) between 2 and 400),
+  hint       text check (hint is null or char_length(hint) <= 160),
+  body       text not null check (char_length(btrim(body)) between 2 and 4000),
+  code_hash  text not null,
+  published  boolean not null default false,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
-drop policy if exists "saves are private"     on public.profile_project_saves;
-drop policy if exists "members save projects" on public.profile_project_saves;
-drop policy if exists "members unsave"        on public.profile_project_saves;
+create index if not exists hub_tasks_pos_idx on public.hub_tasks (pos, created_at);
+create index if not exists hub_posts_kind_idx on public.hub_posts (kind, created_at desc);
 
-create policy "saves are private"
-  on public.profile_project_saves for select to authenticated
-  using (auth.uid() = user_id);
+alter table public.hub_tasks enable row level security;
+alter table public.hub_posts enable row level security;
+alter table public.hub_files enable row level security;
 
-create policy "members save projects"
-  on public.profile_project_saves for insert to authenticated
-  with check (
-    auth.uid() = user_id
-    and (select count(*) from public.profile_project_saves s where s.user_id = auth.uid()) < 500
-  );
+drop policy if exists "hub tasks are public"        on public.hub_tasks;
+drop policy if exists "hub posts: published are public" on public.hub_posts;
+drop policy if exists "hub files: published teasers are public" on public.hub_files;
+create policy "hub tasks are public"        on public.hub_tasks for select to anon, authenticated using (true);
+create policy "hub posts: published are public" on public.hub_posts for select to anon, authenticated using (published);
+create policy "hub files: published teasers are public" on public.hub_files for select to anon, authenticated using (published);
 
-create policy "members unsave"
-  on public.profile_project_saves for delete to authenticated
-  using (auth.uid() = user_id);
+revoke all on public.hub_tasks, public.hub_posts, public.hub_files from anon, authenticated;
+grant select on public.hub_tasks to anon, authenticated;
+grant select (id, kind, title, body, created_at) on public.hub_posts to anon, authenticated;
+-- body + code_hash of a classified file are deliberately NOT granted
+grant select (id, title, teaser, hint, created_at) on public.hub_files to anon, authenticated;
 
 
 -- --------------------------------------------------------------------------
--- 3) THE HUB FEED (one call: projects + owner + like/comment/repost counts + "did I...")
---    p_sort: newest | liked | az      p_id: open one project (deep links)
+-- 2) PUBLIC: declassify a file (the only way its secret text leaves the database)
 -- --------------------------------------------------------------------------
-create or replace function public.hub_projects(
-  p_q            text    default null,
-  p_category     text    default null,
-  p_sort         text    default 'newest',
-  p_limit        int     default 24,
-  p_offset       int     default 0,
-  p_saved_only   boolean default false,
-  p_pinned_only  boolean default false,
-  p_id           uuid    default null
-)
+create or replace function public.hub_declassify(p_id uuid, p_code text)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = public
 as $$
 declare
-  v_uid   uuid := auth.uid();
-  v_limit int  := least(greatest(coalesce(p_limit, 24), 1), 60);
-  v_off   int  := greatest(coalesce(p_offset, 0), 0);
-  v_q     text := nullif(btrim(coalesce(p_q, '')), '');
-  v_cat   text := nullif(btrim(coalesce(p_category, '')), '');
-  v_like  text;
-  v_total bigint := 0;
-  v_items jsonb := '[]'::jsonb;
+  v_f public.hub_files;
+  v_code text := lower(btrim(coalesce(p_code, '')));
 begin
-  if v_q is not null then
-    v_like := '%' || replace(replace(replace(left(v_q, 80), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+  select * into v_f from public.hub_files where id = p_id and published;
+  if v_f.id is null then
+    return jsonb_build_object('ok', false, 'error', 'not_found');
   end if;
 
-  with base as (
-    select p.*,
-           o.username     as o_username,
-           o.display_name as o_display,
-           o.avatar_url   as o_avatar,
-           (select count(*) from public.profile_project_likes l where l.project_id = p.id) as like_count
-    from public.profile_projects p
-    join public.profiles o on o.id = p.owner_id
-    where p.show_in_hub
-      and p.hub_hidden_at is null
-      and not public.sanction_active(p.owner_id, array['ban'])
-      and (p_id is null or p.id = p_id)
-      and (v_cat is null or p.category = v_cat)
-      and (not coalesce(p_pinned_only, false) or p.pinned)
-      and (
-        v_like is null
-        or p.title ilike v_like escape '\'
-        or coalesce(p.summary, '') ilike v_like escape '\'
-        or o.username ilike v_like escape '\'
-        or exists (select 1 from unnest(p.tags) t where t ilike v_like escape '\')
-      )
-      and (
-        not coalesce(p_saved_only, false)
-        or (v_uid is not null and exists (
-              select 1 from public.profile_project_saves s where s.project_id = p.id and s.user_id = v_uid))
-      )
-  ),
-  ranked as (
-    select b.*,
-           count(*) over () as total_count,
-           row_number() over (
-             order by (case when p_sort = 'liked' then b.like_count end) desc nulls last,
-                      (case when p_sort = 'az' then lower(b.title) end) asc nulls last,
-                      b.created_at desc
-           ) as rn
-    from base b
-  ),
-  page as (
-    select * from ranked where rn > v_off and rn <= v_off + v_limit
-  )
-  select coalesce(max(total_count), 0),
-         coalesce(jsonb_agg(
-           jsonb_build_object(
-             'id', pg.id,
-             'owner_id', pg.owner_id,
-             'title', pg.title,
-             'summary', pg.summary,
-             'url', pg.url,
-             'repo_url', pg.repo_url,
-             'cover_url', pg.cover_url,
-             'video_url', pg.video_url,
-             'tags', to_jsonb(pg.tags),
-             'pinned', pg.pinned,
-             'category', pg.category,
-             'created_at', pg.created_at,
-             'owner', jsonb_build_object('id', pg.owner_id, 'username', pg.o_username, 'display_name', pg.o_display, 'avatar_url', pg.o_avatar),
-             'like_count', pg.like_count,
-             'comment_count', (select count(*) from public.profile_project_comments c where c.project_id = pg.id),
-             'repost_count',  (select count(*) from public.profile_reposts r where r.project_id = pg.id),
-             'liked',    v_uid is not null and exists (select 1 from public.profile_project_likes l where l.project_id = pg.id and l.user_id = v_uid),
-             'reposted', v_uid is not null and exists (select 1 from public.profile_reposts r where r.project_id = pg.id and r.user_id = v_uid),
-             'saved',    v_uid is not null and exists (select 1 from public.profile_project_saves s where s.project_id = pg.id and s.user_id = v_uid)
-           ) order by pg.rn
-         ), '[]'::jsonb)
-  into v_total, v_items
-  from page pg;
+  if char_length(v_code) < 1 or char_length(v_code) > 60
+     or extensions.crypt(v_code, v_f.code_hash) <> v_f.code_hash then
+    perform pg_sleep(0.6);   -- slows down guessing
+    return jsonb_build_object('ok', false, 'error', 'bad_code');
+  end if;
 
-  return jsonb_build_object(
-    'ok', true,
-    'total', v_total,
-    'items', v_items,
-    'saved_count', case when v_uid is null then 0 else (select count(*) from public.profile_project_saves where user_id = v_uid) end
-  );
+  return jsonb_build_object('ok', true, 'body', v_f.body);
 end;
 $$;
 
-revoke all on function public.hub_projects(text, text, text, int, int, boolean, boolean, uuid) from public;
-grant execute on function public.hub_projects(text, text, text, int, int, boolean, boolean, uuid) to anon, authenticated;
-
 
 -- --------------------------------------------------------------------------
--- 4) STAFF: hide a project from the hub (the member's profile keeps it)
---    Needs supabase-admin.sql. The admin console gets a button for this next.
+-- 3) ADMINS ONLY: list everything (drafts included), save, delete
 -- --------------------------------------------------------------------------
-create or replace function public.admin_hub_hide(p_project uuid, p_hidden boolean, p_reason text)
+create or replace function public.hub_admin_list()
 returns jsonb
 language plpgsql
 security definer
@@ -231,59 +126,253 @@ set search_path = public
 as $$
 declare
   v_err text;
-  v_p public.profile_projects;
 begin
-  v_err := public.admin_gate('moderator', 'hub_hide');
+  v_err := public.admin_gate('admin', 'hub_list');
   if v_err is not null then return jsonb_build_object('ok', false, 'error', v_err); end if;
 
-  select * into v_p from public.profile_projects where id = p_project;
-  if v_p.id is null then
-    return public.admin_fail('hub_hide', null, p_reason, 'not_found');
+  return jsonb_build_object(
+    'ok', true,
+    'tasks', coalesce((select jsonb_agg(to_jsonb(t) order by t.pos, t.created_at) from public.hub_tasks t), '[]'::jsonb),
+    'posts', coalesce((select jsonb_agg(to_jsonb(p) order by p.created_at desc) from public.hub_posts p), '[]'::jsonb),
+    'files', coalesce((select jsonb_agg(to_jsonb(f) - 'code_hash' order by f.created_at desc) from public.hub_files f), '[]'::jsonb)
+  );
+end;
+$$;
+
+create or replace function public.hub_admin_save(p_type text, p_data jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_err text;
+  v_id uuid;
+  v_before jsonb;
+  v_after jsonb;
+  v_meta jsonb := jsonb_build_object('type', p_type);
+  v_title text := btrim(coalesce(p_data ->> 'title', ''));
+  v_pub boolean := coalesce((p_data ->> 'published')::boolean, false);
+  v_text text;
+  v_code text := lower(btrim(coalesce(p_data ->> 'code', '')));
+begin
+  v_err := public.admin_gate('admin', 'hub_save');
+  if v_err is not null then return jsonb_build_object('ok', false, 'error', v_err); end if;
+
+  if p_data is null or jsonb_typeof(p_data) <> 'object' then
+    return public.admin_fail('hub_save', null, null, 'bad_input', v_meta);
   end if;
-  if char_length(btrim(coalesce(p_reason, ''))) < 3 then
-    return public.admin_fail('hub_hide', v_p.owner_id, p_reason, 'reason_required', jsonb_build_object('project', p_project));
+
+  begin
+    v_id := nullif(p_data ->> 'id', '')::uuid;
+  exception when others then
+    return public.admin_fail('hub_save', null, null, 'bad_id', v_meta);
+  end;
+
+  if p_type = 'task' then
+    declare
+      v_tag text := upper(btrim(coalesce(p_data ->> 'tag', '')));
+      v_status text := coalesce(p_data ->> 'status', '');
+      v_descr text := btrim(coalesce(p_data ->> 'descr', ''));
+      v_say text := nullif(btrim(coalesce(p_data ->> 'say', '')), '');
+    begin
+      if v_tag !~ '^[A-Z0-9]{2,12}$' then return public.admin_fail('hub_save', null, null, 'bad_tag', v_meta); end if;
+      if v_status not in ('todo', 'doing', 'done') then return public.admin_fail('hub_save', null, null, 'bad_status', v_meta); end if;
+      if char_length(v_title) not between 2 and 80 then return public.admin_fail('hub_save', null, null, 'bad_title', v_meta); end if;
+      if char_length(v_descr) > 300 or char_length(coalesce(v_say, '')) > 160 then return public.admin_fail('hub_save', null, null, 'bad_text', v_meta); end if;
+
+      if v_id is null then
+        insert into public.hub_tasks (tag, status, title, descr, say, pos, created_by)
+        values (v_tag, v_status, v_title, v_descr, v_say, coalesce((select max(pos) from public.hub_tasks), 0) + 10, auth.uid())
+        returning id into v_id;
+      else
+        select to_jsonb(t) into v_before from public.hub_tasks t where t.id = v_id;
+        if v_before is null then return public.admin_fail('hub_save', null, null, 'not_found', v_meta); end if;
+        update public.hub_tasks
+        set tag = v_tag, status = v_status, title = v_title, descr = v_descr, say = v_say, updated_at = now()
+        where id = v_id;
+      end if;
+      select to_jsonb(t) into v_after from public.hub_tasks t where t.id = v_id;
+    end;
+
+  elsif p_type = 'post' then
+    declare
+      v_kind text := coalesce(p_data ->> 'kind', '');
+      v_body text := btrim(coalesce(p_data ->> 'body', ''));
+    begin
+      if v_kind not in ('diary', 'story') then return public.admin_fail('hub_save', null, null, 'bad_kind', v_meta); end if;
+      if char_length(v_title) not between 2 and 80 then return public.admin_fail('hub_save', null, null, 'bad_title', v_meta); end if;
+      if char_length(v_body) not between 2 and 4000 then return public.admin_fail('hub_save', null, null, 'bad_text', v_meta); end if;
+
+      if v_id is null then
+        insert into public.hub_posts (kind, title, body, published, created_by)
+        values (v_kind, v_title, v_body, v_pub, auth.uid())
+        returning id into v_id;
+      else
+        select to_jsonb(p) into v_before from public.hub_posts p where p.id = v_id;
+        if v_before is null then return public.admin_fail('hub_save', null, null, 'not_found', v_meta); end if;
+        update public.hub_posts
+        set kind = v_kind, title = v_title, body = v_body, published = v_pub, updated_at = now()
+        where id = v_id;
+      end if;
+      select to_jsonb(p) into v_after from public.hub_posts p where p.id = v_id;
+    end;
+
+  elsif p_type = 'file' then
+    declare
+      v_teaser text := btrim(coalesce(p_data ->> 'teaser', ''));
+      v_hint text := nullif(btrim(coalesce(p_data ->> 'hint', '')), '');
+      v_body text := btrim(coalesce(p_data ->> 'body', ''));
+    begin
+      -- anything in [[double brackets]] is blacked out BEFORE it is stored (the teaser is public)
+      v_teaser := regexp_replace(v_teaser, '\[\[.+?\]\]', repeat(chr(9608), 6), 'g');
+
+      if char_length(v_title) not between 2 and 80 then return public.admin_fail('hub_save', null, null, 'bad_title', v_meta); end if;
+      if char_length(v_teaser) not between 2 and 400 or char_length(coalesce(v_hint, '')) > 160 then return public.admin_fail('hub_save', null, null, 'bad_text', v_meta); end if;
+      if char_length(v_body) not between 2 and 4000 then return public.admin_fail('hub_save', null, null, 'bad_text', v_meta); end if;
+      if v_code <> '' and char_length(v_code) not between 1 and 60 then return public.admin_fail('hub_save', null, null, 'bad_code', v_meta); end if;
+
+      if v_id is null then
+        if v_code = '' then return public.admin_fail('hub_save', null, null, 'code_required', v_meta); end if;
+        insert into public.hub_files (title, teaser, hint, body, code_hash, published, created_by)
+        values (v_title, v_teaser, v_hint, v_body, extensions.crypt(v_code, extensions.gen_salt('bf', 8)), v_pub, auth.uid())
+        returning id into v_id;
+      else
+        select to_jsonb(f) - 'code_hash' into v_before from public.hub_files f where f.id = v_id;
+        if v_before is null then return public.admin_fail('hub_save', null, null, 'not_found', v_meta); end if;
+        update public.hub_files
+        set title = v_title, teaser = v_teaser, hint = v_hint, body = v_body, published = v_pub, updated_at = now(),
+            code_hash = case when v_code = '' then code_hash else extensions.crypt(v_code, extensions.gen_salt('bf', 8)) end
+        where id = v_id;
+      end if;
+      select to_jsonb(f) - 'code_hash' - 'body' into v_after from public.hub_files f where f.id = v_id;
+      v_before := v_before - 'body';
+      v_meta := v_meta || jsonb_build_object('code_changed', v_code <> '');
+    end;
+
+  else
+    return public.admin_fail('hub_save', null, null, 'bad_type', v_meta);
   end if;
 
-  perform set_config('specsoft.admin_hide', '1', true);
-  update public.profile_projects
-  set hub_hidden_at     = case when p_hidden then now() else null end,
-      hub_hidden_by     = case when p_hidden then auth.uid() else null end,
-      hub_hidden_reason = case when p_hidden then left(btrim(p_reason), 300) else null end
-  where id = p_project;
-  perform set_config('specsoft.admin_hide', '', true);
+  perform public.admin_log('hub_save', null, null, true, v_before, v_after, v_meta, 'hub_' || p_type, v_id::text);
+  return jsonb_build_object('ok', true, 'id', v_id);
+end;
+$$;
 
-  if p_hidden then
-    perform public.admin_notify(v_p.owner_id, 'info', 'A project was removed from the Projects Hub',
-      '"' || left(v_p.title, 60) || '": ' || btrim(p_reason) || ' It is still on your profile.');
+create or replace function public.hub_admin_delete(p_type text, p_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_err text;
+  v_before jsonb;
+  v_meta jsonb := jsonb_build_object('type', p_type);
+begin
+  v_err := public.admin_gate('admin', 'hub_delete');
+  if v_err is not null then return jsonb_build_object('ok', false, 'error', v_err); end if;
+
+  if p_type = 'task' then
+    select to_jsonb(t) into v_before from public.hub_tasks t where t.id = p_id;
+    delete from public.hub_tasks where id = p_id;
+  elsif p_type = 'post' then
+    select to_jsonb(p) into v_before from public.hub_posts p where p.id = p_id;
+    delete from public.hub_posts where id = p_id;
+  elsif p_type = 'file' then
+    select to_jsonb(f) - 'code_hash' - 'body' into v_before from public.hub_files f where f.id = p_id;
+    delete from public.hub_files where id = p_id;
+  else
+    return public.admin_fail('hub_delete', null, null, 'bad_type', v_meta);
   end if;
 
-  perform public.admin_log('hub_hide', v_p.owner_id, p_reason, true,
-    jsonb_build_object('hidden', v_p.hub_hidden_at is not null),
-    jsonb_build_object('hidden', p_hidden), null, 'project', p_project::text);
+  if v_before is null then
+    return public.admin_fail('hub_delete', null, null, 'not_found', v_meta);
+  end if;
 
+  perform public.admin_log('hub_delete', null, null, true, v_before, null, v_meta, 'hub_' || p_type, p_id::text);
   return jsonb_build_object('ok', true);
 end;
 $$;
 
-revoke all on function public.admin_hub_hide(uuid, boolean, text) from public, anon;
-grant execute on function public.admin_hub_hide(uuid, boolean, text) to authenticated;
-
 
 -- --------------------------------------------------------------------------
--- 5) LIVE UPDATES: new projects, likes and comments reach an open hub without a refresh
+-- 4) WHO CAN CALL WHAT
+--    Same approach as supabase-admin.sql: take everything away, hand back only
+--    what each function needs.
 -- --------------------------------------------------------------------------
 do $$
 declare
-  t text;
+  r record;
 begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    foreach t in array array['profile_projects', 'profile_project_likes', 'profile_project_comments', 'profile_reposts'] loop
-      if to_regclass('public.' || t) is not null and not exists (
-        select 1 from pg_publication_tables
-        where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
-      ) then
-        execute format('alter publication supabase_realtime add table public.%I', t);
-      end if;
-    end loop;
+  for r in
+    select p.oid::regprocedure as sig, p.proname
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname in ('hub_declassify', 'hub_admin_list', 'hub_admin_save', 'hub_admin_delete')
+  loop
+    execute format('revoke all on function %s from public, anon, authenticated', r.sig);
+    if r.proname = 'hub_declassify' then
+      execute format('grant execute on function %s to anon, authenticated', r.sig);
+    else
+      execute format('grant execute on function %s to authenticated', r.sig);
+    end if;
+  end loop;
+end $$;
+
+
+-- --------------------------------------------------------------------------
+-- 5) STARTER CONTENT (only inserted while a table is empty)
+-- --------------------------------------------------------------------------
+do $$
+begin
+  if not exists (select 1 from public.hub_tasks) then
+    insert into public.hub_tasks (tag, status, title, descr, say, pos) values
+      ('CHATS',  'done',  'Windows 11 emoji',                'Fluent 3D emoji pictures instead of plain text.', '“Finally, no more :smiling_face: text.”', 10),
+      ('CHATS',  'done',  'Emoji picker and quick reactions','Picker categories plus a quick reactions bar, all kept in chat-emoji.js.', null, 20),
+      ('STUDIO', 'done',  'Studio Phase 1',                  'The foundation of SPECSOFT Studio.', null, 30),
+      ('STUDIO', 'done',  'Studio Phase 2',                  'The node canvas.', null, 40),
+      ('STUDIO', 'done',  'Studio Phase 3',                  'Execution engine, run controls, history and console.', null, 50),
+      ('STUDIO', 'done',  'Studio Phase 4',                  'JS nodes, delays and nested branches.', null, 60),
+      ('STUDIO', 'done',  'Studio Phase 5',                  'Studio sidebar, Code Editor, Database and Timeline.', null, 70),
+      ('STUDIO', 'done',  'Studio Phase 6',                  'Secure Preview and the PC-only guard.', '“Phones in desktop mode? Nice try.”', 80),
+      ('SITE',   'done',  '404 page',                        'Spectra’s 404 page, built from the mockup.', '“...Huh? This page doesn’t exist?”', 90),
+      ('HUB',    'done',  'Hub Phase 1',                     'Secret entrance, gate and the Hub shell.', '“You weren’t supposed to find this place.”', 100),
+      ('HUB',    'done',  'Hub Phase 2',                     'Laboratory, Archives and the new icon system.', null, 110),
+      ('HUB',    'done',  'Hub Phase 3',                     'Spectra’s Corner, Classified and the admin Manager.', '“Fine. You can write in my diary. Carefully.”', 120),
+      ('STUDIO', 'doing', 'Studio Phase 7',                  'STools and resizable panels.', null, 130),
+      ('STUDIO', 'todo',  'Studio Phase 8',                  'The final phase of the Studio spec.', null, 140),
+      ('HUB',    'todo',  'Hub Phase 4',                     'Arcade and Toolbox.', null, 150);
+  end if;
+
+  if not exists (select 1 from public.hub_posts) then
+    insert into public.hub_posts (kind, title, body) values
+      ('diary', 'Day 1: Face down',
+       'They made a whole page where I lie face down and say “...Tch.” Rude. Accurate, but rude.' || E'\n\n' ||
+       'I’m keeping the chibi, though. She’s small and she never has to talk to anyone.'),
+      ('diary', 'Someone clicked me five times',
+       'FIVE. I said stop. I said stop twice. They kept going anyway.' || E'\n\n' ||
+       '...Fine. I respect the commitment. Don’t tell anyone, but I left the door open on purpose.'),
+      ('diary', 'Tea report',
+       'Tea is the only thing around here that never throws an error. Everything else breaks at 3 a.m. Tea does not.' || E'\n\n' ||
+       'I am considering making tea the official SPECSOFT language.'),
+      ('story', 'The Missing Page',
+       'One night a page went missing. Not deleted, not hidden, just gone.' || E'\n\n' ||
+       'Spectra searched the Archives with a tiny flashlight and found it behind a sticky note that said “brb”. The page was hiding because it was shy.' || E'\n\n' ||
+       'She sat next to it for a whole hour and said nothing. When the page finally came out, she muttered, “...Tch. You had me worried,” and put it back where it belonged.' || E'\n\n' ||
+       'She told everyone she was just stretching her legs.'),
+      ('story', 'Spectra and the Red Button',
+       'In the Laboratory there is a big red button with no label. Everyone says don’t touch it.' || E'\n\n' ||
+       'Spectra stared at it for ten whole minutes. She wanted to. She really, really wanted to.' || E'\n\n' ||
+       'Then she made a cup of tea instead. The button stayed red, nothing exploded, and Spectra declared herself the winner. Probably.');
+  end if;
+
+  if not exists (select 1 from public.hub_files) then
+    insert into public.hub_files (title, teaser, hint, body, code_hash, published) values
+      ('FILE 001: The Red Button',
+       'The red button in the Laboratory is connected to ██████. Spectra has pressed it ██████ times.',
+       'Her favorite sound. Three letters.',
+       'DECLASSIFIED.' || E'\n\n' || 'The red button does nothing. Spectra presses it when she thinks nobody is looking.' || E'\n\n' || 'Please do not tell her we know.',
+       extensions.crypt('tch', extensions.gen_salt('bf', 8)),
+       true);
   end if;
 end $$;

@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Hub | SPECSOFT</title>
+
+<!-- GATE: only reachable by finding the secret on 404.html. No key = bounced back. -->
+<style>html:not(.ok){visibility:hidden}</style>
+<script>
+  (function(){
+    var ok=false;
+    try{ ok = sessionStorage.getItem('specsoft_hub_key')==='spectra-5'; }catch(e){}
+    if(!ok){ location.replace('404.html'); }
+    else { document.documentElement.classList.add('ok'); }
+  })();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f5f5f9; --bg2:#ebebf2; --panel:#ffffff;
+    --ink:#2a2a30; --ink-soft:#5b5b66; --ghost:#dcdce6; --line:#2a2a30;
+    --focus:#6b6bff;
+    --font-ui:"Chakra Petch",system-ui,sans-serif;
+    --font-hand:"Kalam","Comic Sans MS",cursive;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:var(--font-ui);color:var(--ink);min-height:100vh;min-height:100dvh;
+    background:radial-gradient(900px 600px at 15% 10%,#fff 0%,transparent 60%),linear-gradient(135deg,var(--bg),var(--bg2));
+    overflow-x:hidden;
+  }
+  button,input{font:inherit;color:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+
+  /* ---------- icons (inline SVG by default, auto-upgrade to Flaticon files) ---------- */
+  .ico{display:inline-grid;place-items:center;width:1.35em;height:1.35em;flex:none;vertical-align:middle}
+  .ico svg,.ico img{width:100%;height:100%;object-fit:contain;display:block}
+
+  /* chamfered frame: outer = border colour, inner = fill */
+  .cut{--c:14px;background:var(--line);padding:2px;
+    clip-path:polygon(var(--c) 0,calc(100% - var(--c)) 0,100% var(--c),100% calc(100% - var(--c)),calc(100% - var(--c)) 100%,var(--c) 100%,0 calc(100% - var(--c)),0 var(--c))}
+  .cut>.in{background:var(--panel);height:100%;
+    clip-path:polygon(calc(var(--c) - 1px) 0,calc(100% - var(--c) + 1px) 0,100% calc(var(--c) - 1px),100% calc(100% - var(--c) + 1px),calc(100% - var(--c) + 1px) 100%,calc(var(--c) - 1px) 100%,0 calc(100% - var(--c) + 1px),0 calc(var(--c) - 1px))}
+
+  /* ---------- shell ---------- */
+  .app{display:grid;grid-template-columns:270px minmax(0,1fr);grid-template-rows:auto 1fr;min-height:100vh;min-height:100dvh}
+  .top{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:clamp(14px,2vw,22px) clamp(14px,2.4vw,32px)}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:clamp(17px,1.6vw,24px);letter-spacing:.04em}
+  .brand svg{width:clamp(28px,2.6vw,40px)}
+  .tag{font-size:12px;letter-spacing:.3em;color:var(--ink-soft)}
+  .top .rule{flex:1;height:1.5px;background:var(--line);opacity:.5}
+  .stripes{display:flex;gap:5px;transform:skewX(-20deg)}
+  .stripes i{display:block;width:16px;height:11px;background:var(--ink)}
+  .stripes i:nth-child(1){opacity:.18}.stripes i:nth-child(2){opacity:.3}.stripes i:nth-child(3){opacity:.45}
+  .stripes i:nth-child(4){opacity:.65}.stripes i:nth-child(5){opacity:1}
+  .lock{font-weight:600;font-size:14px;padding:8px 16px;background:var(--ink);color:#fff;border:0;
+    clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px)}
+  .lock:hover{background:#000}
+
+  /* ---------- sidebar ---------- */
+  .side{padding:0 0 24px clamp(14px,2.4vw,32px);min-width:0}
+  .nav{display:flex;flex-direction:column;gap:8px;position:sticky;top:16px}
+  .nav h2{font-size:12px;letter-spacing:.3em;color:var(--ink-soft);font-weight:600;margin:4px 6px 4px}
+  .nav button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 14px;background:transparent;border:0;
+    font-weight:600;font-size:16px;border-left:3px solid transparent;transition:background .15s,border-color .15s}
+  .nav button .ico{font-size:19px}
+  .nav button:hover{background:#fff}
+  .nav button[aria-current="page"]{background:#fff;border-left-color:var(--ink)}
+  .nav button .st{margin-left:auto;font-size:11px;letter-spacing:.12em;color:var(--ink-soft)}
+  .nav button .st.open{color:var(--ink);font-weight:700}
+
+  /* ---------- main ---------- */
+  .main{padding:0 clamp(14px,2.4vw,32px) 40px 20px;min-width:0}
+  .view{display:none}.view.on{display:block}
+
+  .greet{display:grid;grid-template-columns:minmax(180px,.8fr) 1.3fr;align-items:end;min-height:280px;position:relative}
+  .greet .girl{align-self:end;width:100%;max-width:420px;display:block;margin-left:-8px;margin-bottom:-2px}
+  .greet .talk{padding:0 0 clamp(60px,9vw,120px) 6px;position:relative}
+  .bubble{background:#fff;border:2px solid var(--ink);border-radius:26px;position:relative;
+    padding:clamp(16px,2vw,26px) clamp(18px,2.2vw,30px);font-family:var(--font-hand);font-weight:700;
+    font-size:clamp(17px,1.9vw,26px);line-height:1.3;min-height:3.4em;transform:rotate(-1.2deg)}
+  .bubble::after{content:"";position:absolute;left:-14px;bottom:26px;border:9px solid transparent;border-right:16px solid var(--ink);border-left:0}
+  .bubble::before{content:"";position:absolute;left:-10px;bottom:28px;z-index:1;border:7px solid transparent;border-right:13px solid #fff;border-left:0}
+  .caret{display:inline-block;width:2px;height:1em;background:var(--ink);vertical-align:-.12em;margin-left:2px;animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .who{font-size:12px;letter-spacing:.25em;color:var(--ink-soft);margin:0 0 8px 6px}
+
+  .sect-h{display:flex;align-items:center;gap:14px;margin:26px 0 14px}
+  .sect-h h2{font-size:clamp(18px,1.8vw,24px);letter-spacing:.04em}
+  .sect-h::after{content:"";flex:1;height:1.5px;background:var(--line);opacity:.4}
+
+  .board{display:grid;grid-template-columns:1.1fr 1fr;gap:18px}
+  .card .in{padding:clamp(14px,1.8vw,22px)}
+  .card h3{font-size:17px;margin-bottom:10px}
+  .bar{height:12px;background:#e4e4ec;position:relative;margin:10px 0 6px;clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+  .bar i{display:block;height:100%;background:var(--ink);width:0;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+  .meta{font-size:13px;color:var(--ink-soft)}
+  .tasks{list-style:none;display:flex;flex-direction:column;gap:9px;margin-top:12px}
+  .tasks li{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.35}
+  .tasks .bx{flex:none;width:18px;height:18px;border:2px solid var(--ink);margin-top:1px;display:grid;place-items:center}
+  .tasks .bx .ico{width:12px;height:12px}
+  .tasks li.done .bx{background:var(--ink);color:#fff}
+  .tasks li.done span:last-child{color:var(--ink-soft)}
+
+  .rooms{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .room{border:0;text-align:left;display:block;transition:transform .15s}
+  .room.cut{background:var(--line);padding:2px}
+  .room:hover{transform:translateY(-3px)}
+  .room .in{padding:16px 16px 14px;min-height:128px;display:flex;flex-direction:column;gap:4px}
+  .room .ico{font-size:28px;margin-bottom:2px}
+  .room b{font-size:18px}
+  .room p{font-size:14px;color:var(--ink-soft);line-height:1.35}
+  .chip{margin-top:auto;align-self:flex-start;font-size:11px;letter-spacing:.14em;font-weight:600;padding:3px 8px;border:1.5px solid var(--ink);display:inline-block}
+  .chip.live{background:var(--ink);color:#fff}
+
+  /* ---------- room pages ---------- */
+  .back{background:none;border:0;font-weight:600;margin-bottom:12px;padding:4px 0;display:inline-flex;align-items:center;gap:8px}
+  .back:hover{text-decoration:underline}
+  .rhead{display:flex;align-items:center;gap:16px;margin-bottom:4px}
+  .rhead .ico{font-size:40px}
+  .rhead h2{font-size:clamp(26px,3.2vw,40px);line-height:1}
+  .quote{font-family:var(--font-hand);font-weight:700;font-size:clamp(17px,1.8vw,24px);margin:8px 0 18px}
+  .placeholder .in{padding:clamp(18px,3vw,36px)}
+
+  /* filters */
+  .tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 18px}
+  .fchip{background:#fff;border:1.5px solid var(--ink);padding:6px 14px;font-size:13px;font-weight:600;letter-spacing:.1em}
+  .fchip:hover{background:#f0f0f6}
+  .fchip[aria-pressed="true"],.fchip[aria-pressed="true"]:hover{background:var(--ink);color:#fff}
+  .search{margin-left:auto;display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--ink);padding:6px 12px;min-width:200px}
+  .search input{border:0;outline:0;background:none;width:100%;font-size:15px}
+  .search:focus-within{outline:3px solid var(--focus);outline-offset:2px}
+
+  /* laboratory: kanban */
+  .summary .in{padding:16px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+  .summary .bar{flex:1;min-width:180px;margin:0}
+  .summary b{font-size:22px}
+  .kan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:18px;align-items:start}
+  .col h3{display:flex;align-items:center;gap:10px;font-size:15px;letter-spacing:.14em;margin-bottom:12px}
+  .col h3 .n{margin-left:auto;font-size:12px;border:1.5px solid var(--ink);padding:1px 8px}
+  .col .in{padding:14px;display:flex;flex-direction:column;gap:10px;min-height:120px}
+  .tc{border:1.5px solid var(--ink);padding:10px 12px;background:#fff}
+  .tc b{display:block;font-size:15px;margin:4px 0 2px}
+  .tc p{font-size:13px;color:var(--ink-soft);line-height:1.35}
+  .tg{font-size:10px;letter-spacing:.18em;font-weight:700;color:var(--ink-soft)}
+  .tc.doing{border-width:2.5px;box-shadow:4px 4px 0 var(--ink)}
+  .empty{font-size:13px;color:var(--ink-soft);font-family:var(--font-hand);padding:6px 2px}
+  .more{background:none;border:1.5px dashed var(--ink);padding:8px;font-weight:600;font-size:13px;letter-spacing:.08em}
+  .more:hover{background:#f0f0f6}
+
+  /* archives */
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}
+  .stat .in{padding:14px 16px}
+  .stat b{display:block;font-size:30px;line-height:1}
+  .stat span{font-size:12px;letter-spacing:.14em;color:var(--ink-soft)}
+  .tl{list-style:none;position:relative;padding-left:34px}
+  .tl::before{content:"";position:absolute;left:11px;top:6px;bottom:6px;width:2px;background:var(--ink);opacity:.35}
+  .tl li{position:relative;margin-bottom:14px}
+  .tl li::before{content:"";position:absolute;left:-30px;top:16px;width:12px;height:12px;background:var(--ink);transform:rotate(45deg)}
+  .tl .in{padding:12px 16px}
+  .tl .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .tl .row .ico{font-size:18px}
+  .tl b{font-size:16px}
+  .tl p{font-size:14px;color:var(--ink-soft);margin-top:3px;line-height:1.4}
+  .tl .say{font-family:var(--font-hand);font-weight:700;color:var(--ink);font-size:15px;margin-top:6px}
+  .tl .no{margin-left:auto;font-size:11px;letter-spacing:.14em;color:var(--ink-soft)}
+
+
+  /* ---------- Phase 3: Corner, Classified, Manager ---------- */
+  textarea,select{font:inherit;color:inherit}
+  .rwrap{position:relative}
+  .deco{position:absolute;right:0;top:-8px;width:clamp(90px,14vw,170px);height:auto;pointer-events:none;opacity:.95}
+  .note-box .in{padding:clamp(16px,2.4vw,26px);font-family:var(--font-hand);font-weight:700;font-size:clamp(16px,1.6vw,21px);line-height:1.4}
+  .pages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .page .in{padding:16px 18px 14px;font-family:var(--font-hand);font-size:clamp(16px,1.5vw,19px);line-height:1.5}
+  .page time{display:block;font-family:var(--font-ui);font-size:11px;letter-spacing:.2em;color:var(--ink-soft);margin-bottom:2px}
+  .page h3{font-family:var(--font-ui);font-size:18px;margin-bottom:6px}
+  .page p+p{margin-top:8px}
+  .stories{display:flex;flex-direction:column;gap:12px}
+  .story{border:2px solid var(--ink);background:#fff}
+  .story summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px 18px;font-weight:700;font-size:18px}
+  .story summary::-webkit-details-marker{display:none}
+  .story summary::after{content:"+";margin-left:auto;font-size:24px;line-height:1}
+  .story[open] summary::after{content:"\2212"}
+  .story summary:hover{background:#f3f3f8}
+  .story .sbody{padding:4px 18px 18px;font-family:var(--font-hand);font-size:clamp(17px,1.6vw,20px);line-height:1.55;border-top:1.5px dashed var(--ink)}
+  .story .sbody p{margin-top:10px}
+  .files{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .file .in{padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+  .file .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .file .row b{font-size:17px}
+  .file .tz{font-family:var(--font-hand);font-weight:700;font-size:17px;line-height:1.45;overflow-wrap:anywhere}
+  .rd{background:var(--ink);color:var(--ink);padding:0 2px;user-select:none}
+  .hint{font-size:12px;letter-spacing:.12em;color:var(--ink-soft)}
+  .dc-form{display:flex;gap:8px;flex-wrap:wrap}
+  .dc-form input{flex:1;min-width:140px}
+  .dc-msg{font-family:var(--font-hand);font-weight:700;font-size:15px;min-height:1.2em}
+  .doc{border:2px dashed var(--ink);padding:12px 14px;position:relative;font-family:var(--font-hand);font-size:17px;line-height:1.5;background:#fafafd}
+  .doc p+p{margin-top:8px}
+  .stamp{display:inline-block;font-family:var(--font-ui);font-weight:700;font-size:12px;letter-spacing:.2em;border:2px solid var(--ink);padding:2px 8px;transform:rotate(-4deg);margin-bottom:8px}
+
+  /* forms + buttons */
+  input[type=text],input[type=password],select,textarea{border:1.5px solid var(--ink);background:#fff;padding:9px 11px;width:100%;border-radius:0}
+  textarea{resize:vertical;min-height:110px;line-height:1.4}
+  .mbtn{border:1.5px solid var(--ink);background:#fff;padding:7px 14px;font-weight:600;font-size:13px;letter-spacing:.1em}
+  .mbtn:hover{background:#f0f0f6}
+  .mbtn.solid{background:var(--ink);color:#fff}
+  .mbtn.solid:hover{background:#000}
+  .mbtn.danger{border-color:#b3261e;color:#b3261e}
+  .mbtn[disabled]{opacity:.5;cursor:default}
+  .fld{display:grid;gap:5px;margin-bottom:13px}
+  .fld>label,.fld>.lbl{font-size:12px;letter-spacing:.14em;font-weight:600}
+  .fld small{font-size:12px;color:var(--ink-soft);line-height:1.35}
+  .fld.chk{display:flex;align-items:center;gap:10px}
+  .fld.chk input{width:18px;height:18px}
+  .mgtop{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+  .mgtop .sp{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .mlist{display:flex;flex-direction:column;gap:10px}
+  .mrow{display:flex;gap:12px;align-items:center;border:1.5px solid var(--ink);background:#fff;padding:10px 12px}
+  .mrow .mt{flex:1;min-width:0}
+  .mrow .mt b{display:block;font-size:15px;overflow-wrap:anywhere}
+  .mrow .mt span{font-size:11px;letter-spacing:.16em;color:var(--ink-soft)}
+  .mrow .macts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .mrow select{width:auto;padding:6px 8px;font-size:13px}
+  .unlock .in{padding:clamp(16px,2.4vw,26px);max-width:520px}
+  .unlock h3{font-size:19px;margin-bottom:6px}
+  .dlg{border:0;padding:0;background:transparent;width:min(560px,94vw);max-height:92vh;margin:auto;overflow:visible}
+  .dlg::backdrop{background:rgba(42,42,48,.45)}
+  .dlg .in{padding:clamp(16px,2.4vw,24px);max-height:88vh;overflow:auto}
+  .dlg h2{font-size:20px;margin-bottom:14px}
+  .dlg .foot{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+  .dlg .err{font-family:var(--font-hand);font-weight:700;color:#b3261e;min-height:1.2em;margin-bottom:8px}
+
+  .footline{margin-top:34px;display:flex;align-items:center;gap:14px;font-size:12px;letter-spacing:.28em;color:var(--ink-soft)}
+  .footline::after{content:"";flex:1;height:1.5px;background:var(--line);opacity:.35}
+
+  /* ---------- mobile ---------- */
+  @media (max-width:900px){
+    .app{grid-template-columns:minmax(0,1fr)}
+    .side{padding:0 14px 6px}
+    .nav{flex-direction:row;overflow-x:auto;position:static;gap:6px;padding-bottom:6px;scrollbar-width:none}
+    .nav::-webkit-scrollbar{display:none}
+    .nav h2{display:none}
+    .nav button{width:auto;flex:none;white-space:nowrap;padding:9px 13px;font-size:15px;border-left:0;border-bottom:3px solid transparent}
+    .nav button[aria-current="page"]{border-bottom-color:var(--ink)}
+    .nav button .st{display:none}
+    .main{padding:0 14px 40px}
+    .greet{grid-template-columns:1fr;min-height:0}
+    .greet .talk{order:1;padding:0 0 22px}
+    .greet .girl{order:2;max-width:340px;margin:0 auto}
+    .bubble::after,.bubble::before{display:none}
+    .board,.kan{grid-template-columns:1fr}
+    .stats{grid-template-columns:1fr 1fr}
+    .rooms{grid-template-columns:1fr 1fr;gap:12px}
+    .search{margin-left:0;width:100%}
+    .pages,.files{grid-template-columns:1fr}
+    .mrow{flex-wrap:wrap}
+    .mrow .macts{width:100%;justify-content:flex-start}
+    .deco{width:88px;top:-4px}
+    .tag,.top .rule,.stripes{display:none}
+    .top{justify-content:space-between}
+  }
+  @media (max-width:420px){ .rooms{grid-template-columns:1fr} }
+  @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="85 150 810 810" preserveAspectRatio="xMidYMid meet">
+    <path fill="currentColor" d="M485 157 589 262 301 551 344 595 761 179 865 283 740 410 888 559 784 664 634 515 344 804 91 551Z"/>
+    <path fill="currentColor" d="M634 605 739 710 494 954 390 850Z"/>
+  </symbol>
+</svg>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#logo"/></svg>SPECSOFT</div>
+    <span class="tag">// HUB</span>
+    <span class="rule"></span>
+    <span class="stripes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <button class="lock" id="lockBtn" type="button">Lock the Hub</button>
+  </header>
+
+  <aside class="side"><nav class="nav" id="nav" aria-label="Hub rooms"></nav></aside>
+
+  <main class="main" id="main">
+
+    <!-- OVERVIEW -->
+    <section class="view on" id="v-home" aria-label="Hub overview">
+      <div class="greet">
+        <img class="girl" src="assets/spectra-404-girl.png" alt="Spectra, the SPECSOFT mascot">
+        <div class="talk">
+          <p class="who">SPECTRA</p>
+          <div class="bubble" aria-live="polite"><span id="type"></span><span class="caret" aria-hidden="true"></span></div>
+        </div>
+      </div>
+
+      <div class="sect-h"><h2>Hub progress</h2></div>
+      <div class="board">
+        <div class="cut card"><div class="in">
+          <h3>Building the Hub</h3>
+          <div class="bar"><i id="barFill"></i></div>
+          <div class="meta" id="barMeta"></div>
+          <ul class="tasks" id="phaseList"></ul>
+        </div></div>
+        <div class="cut card"><div class="in">
+          <h3>SPECSOFT so far</h3>
+          <ul class="tasks" id="soFar"></ul>
+        </div></div>
+      </div>
+
+      <div class="sect-h"><h2>Rooms</h2></div>
+      <div class="rooms" id="rooms"></div>
+      <div class="footline">SPECSOFT // HUB</div>
+    </section>
+
+    <!-- ROOM -->
+    <section class="view" id="v-room" aria-live="polite">
+      <button class="back" type="button" id="backBtn"></button>
+      <div class="rwrap"><div class="rhead"><span id="rIc"></span><h2 id="rName"></h2></div><img class="deco" id="rDeco" src="assets/spectra-404-chibi.png" alt="" hidden></div>
+      <p class="quote" id="rQuote"></p>
+      <div id="roomBody"></div>
+      <div class="footline" id="roomFoot"></div>
+    </section>
+
+  </main>
+</div>
+
+<dialog class="dlg" id="mgDlg"><div class="cut"><form class="in" id="mgForm" novalidate></form></div></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+<script src="supabase-config.js"></script>
+<script>
+(function(){
+  var KEY='specsoft_hub_key';
+
+  /* =====================================================================
+     ICONS  (inline SVG by default; a Flaticon file named after the icon in
+     assets/icons/ replaces it automatically, e.g. assets/icons/laboratory.png)
+     Names: home laboratory archives arcade toolbox classified corner manager
+            check doing todo trophy calendar arrow-left search
+     ===================================================================== */
+  var ICON_DIR='assets/icons/', ICON_EXT='png';
+  var P={
+    'home':'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-5h4v5"/>',
+    'laboratory':'<path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.5A2 2 0 0 0 6.3 21.5h11.4a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M7.5 15h9"/>',
+    'archives':'<path d="M3 5h18v4H3z"/><path d="M5 9v10h14V9"/><path d="M10 13h4"/>',
+    'arcade':'<path d="M6 8h12a4 4 0 0 1 4 4v3a3 3 0 0 1-5.4 1.8L15.5 15h-7l-1.1 1.8A3 3 0 0 1 2 15v-3a4 4 0 0 1 4-4z"/><path d="M7 10.5v3M5.5 12h3"/><path d="M16 11.5h.01M18 13h.01"/>',
+    'toolbox':'<path d="M3 8h18v12H3z"/><path d="M9 8V5h6v3"/><path d="M3 13h18"/><path d="M11 12v3h2v-3"/>',
+    'classified':'<path d="M5 11h14v10H5z"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v2.5"/>',
+    'corner':'<path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 9h2a2 2 0 0 1 0 4h-2"/><path d="M7 3v2M11 3v2"/><path d="M4 21h13"/>',
+    'manager':'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+    'check':'<path d="M5 12.5 10 17 19 7"/>',
+    'doing':'<path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/>',
+    'todo':'<path d="M5 5h14v14H5z"/>',
+    'trophy':'<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H4a3 3 0 0 0 4 4"/><path d="M16 6h4a3 3 0 0 1-4 4"/><path d="M12 13v4M8 21h8M9 17h6"/>',
+    'calendar':'<path d="M4 6h16v14H4z"/><path d="M4 10h16M8 3v4M16 3v4"/>',
+    'arrow-left':'<path d="M20 12H4m6-7-7 7 7 7"/>',
+    'search':'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 5 5"/>'
+  };
+  function svg(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(P[n]||P.todo)+'</svg>'; }
+  function icon(n){ return '<span class="ico" data-icon="'+n+'">'+svg(n)+'</span>'; }
+  var iconState={};
+  function useFile(el,n){ if(el.firstChild&&el.firstChild.tagName==='IMG') return; el.innerHTML='<img src="'+ICON_DIR+n+'.'+ICON_EXT+'" alt="" draggable="false">'; }
+  function upgradeIcons(root){
+    [].forEach.call((root||document).querySelectorAll('.ico[data-icon]'),function(el){
+      var n=el.getAttribute('data-icon'), st=iconState[n];
+      if(st==='yes'){ useFile(el,n); return; }
+      if(st) return;
+      iconState[n]='loading';
+      var im=new Image();
+      im.onload=function(){ iconState[n]='yes'; [].forEach.call(document.querySelectorAll('.ico[data-icon="'+n+'"]'),function(e){ useFile(e,n); }); };
+      im.onerror=function(){ iconState[n]='no'; };
+      im.src=ICON_DIR+n+'.'+ICON_EXT;
+    });
+  }
+
+  /* =====================================================================
+     DATABASE (Supabase). Nothing here is a security measure: every admin
+     action is re-checked on the server by supabase-hub.sql. If the database
+     is not reachable, the Hub shows the built-in copy below.
+     ===================================================================== */
+  var CFG=window.SPECSOFT_CONFIG||{
+    SUPABASE_URL:'https://mcpjjmbvuzclzrniunkq.supabase.co',
+    SUPABASE_ANON_KEY:'sb_publishable_uuybm3j2xZ0wdrbIhxANCQ_QApPdkv7'
+  };
+  var sb=null;
+  try{
+    sb=window.getSupabaseClient?window.getSupabaseClient():((window.supabase&&CFG.SUPABASE_URL&&CFG.SUPABASE_ANON_KEY)?window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY):null);
+  }catch(e){ sb=null; }
+  async function rpc(name,args){
+    if(!sb) return {ok:false,error:'offline'};
+    try{ var r=await sb.rpc(name,args||{}); if(r.error) return {ok:false,error:'server'}; return r.data||{ok:false,error:'empty'}; }
+    catch(e){ return {ok:false,error:'offline'}; }
+  }
+
+  /* ---- built-in copy (used until/unless the database answers) ---- */
+  var ROOMS=[
+    {id:'lab',  ic:'laboratory', name:'Laboratory',       desc:'Experiments and works in progress.',   q:'“Experiments live here. Don’t touch the red button.”', ph:2, open:true},
+    {id:'arch', ic:'archives',   name:'Archives',         desc:'Everything SPECSOFT has done so far.', q:'“Every win SPECSOFT ever had. Yes, I counted.”',        ph:2, open:true},
+    {id:'arc',  ic:'arcade',     name:'Arcade',           desc:'Tiny games for tiny breaks.',          q:'“Games. Don’t tell the others I play here.”',           ph:4},
+    {id:'tool', ic:'toolbox',    name:'Toolbox',          desc:'Handy tools in one place.',            q:'“Useful stuff. You’re welcome.”',                       ph:4},
+    {id:'cls',  ic:'classified', name:'Classified',       desc:'██████ ████ ███████.',                 q:'“...You don’t have clearance. Yet.”',                   ph:3, open:true},
+    {id:'corn', ic:'corner',     name:'Spectra’s Corner', desc:'Her diary and little stories.',        q:'“This is my corner. Knock first.”',                     ph:3, open:true}
+  ];
+  var MGR={id:'mgr', ic:'manager', name:'Manager', q:'“Admins only. ...Don’t break anything.”', ph:3, open:true};
+  var PHASES=[
+    {t:'Secret entrance and Hub shell', d:1},
+    {t:'Laboratory and Archives',       d:1},
+    {t:'Spectra’s Corner, Classified and Manager', d:1},
+    {t:'Arcade and Toolbox',            d:0}
+  ];
+  var SOFAR=[
+    {t:'Chat app with Windows 11 emoji', d:1},
+    {t:'SPECSOFT Studio phases 1 to 6',  d:1},
+    {t:'404 page with Spectra',          d:1},
+    {t:'Studio phases 7 and 8',          d:0}
+  ];
+  var DATA={
+    live:false,
+    tasks:[
+      {tag:'CHATS', st:'done', t:'Windows 11 emoji',            d:'Fluent 3D emoji pictures instead of plain text.', say:'“Finally, no more :smiling_face: text.”'},
+      {tag:'CHATS', st:'done', t:'Emoji picker and quick reactions', d:'Picker categories plus a quick reactions bar, all kept in chat-emoji.js.'},
+      {tag:'STUDIO',st:'done', t:'Studio Phase 1',              d:'The foundation of SPECSOFT Studio.'},
+      {tag:'STUDIO',st:'done', t:'Studio Phase 2',              d:'The node canvas.'},
+      {tag:'STUDIO',st:'done', t:'Studio Phase 3',              d:'Execution engine, run controls, history and console.'},
+      {tag:'STUDIO',st:'done', t:'Studio Phase 4',              d:'JS nodes, delays and nested branches.'},
+      {tag:'STUDIO',st:'done', t:'Studio Phase 5',              d:'Studio sidebar, Code Editor, Database and Timeline.'},
+      {tag:'STUDIO',st:'done', t:'Studio Phase 6',              d:'Secure Preview and the PC-only guard.', say:'“Phones in desktop mode? Nice try.”'},
+      {tag:'SITE',  st:'done', t:'404 page',                    d:'Spectra’s 404 page, built from the mockup.', say:'“...Huh? This page doesn’t exist?”'},
+      {tag:'HUB',   st:'done', t:'Hub Phase 1',                 d:'Secret entrance, gate and the Hub shell.', say:'“You weren’t supposed to find this place.”'},
+      {tag:'HUB',   st:'done', t:'Hub Phase 2',                 d:'Laboratory, Archives and the new icon system.'},
+      {tag:'HUB',   st:'done', t:'Hub Phase 3',                 d:'Spectra’s Corner, Classified and the admin Manager.', say:'“Fine. You can write in my diary. Carefully.”'},
+      {tag:'STUDIO',st:'doing',t:'Studio Phase 7',              d:'STools and resizable panels.'},
+      {tag:'STUDIO',st:'todo', t:'Studio Phase 8',              d:'The final phase of the Studio spec.'},
+      {tag:'HUB',   st:'todo', t:'Hub Phase 4',                 d:'Arcade and Toolbox.'}
+    ],
+    posts:[
+      {kind:'diary', title:'Day 1: Face down', body:'They made a whole page where I lie face down and say “...Tch.” Rude. Accurate, but rude.\n\nI’m keeping the chibi, though. She’s small and she never has to talk to anyone.'},
+      {kind:'diary', title:'Someone clicked me five times', body:'FIVE. I said stop. I said stop twice. They kept going anyway.\n\n...Fine. I respect the commitment. Don’t tell anyone, but I left the door open on purpose.'},
+      {kind:'diary', title:'Tea report', body:'Tea is the only thing around here that never throws an error. Everything else breaks at 3 a.m. Tea does not.\n\nI am considering making tea the official SPECSOFT language.'},
+      {kind:'story', title:'The Missing Page', body:'One night a page went missing. Not deleted, not hidden, just gone.\n\nSpectra searched the Archives with a tiny flashlight and found it behind a sticky note that said “brb”. The page was hiding because it was shy.\n\nShe sat next to it for a whole hour and said nothing. When the page finally came out, she muttered, “...Tch. You had me worried,” and put it back where it belonged.\n\nShe told everyone she was just stretching her legs.'},
+      {kind:'story', title:'Spectra and the Red Button', body:'In the Laboratory there is a big red button with no label. Everyone says don’t touch it.\n\nSpectra stared at it for ten whole minutes. She wanted to. She really, really wanted to.\n\nThen she made a cup of tea instead. The button stayed red, nothing exploded, and Spectra declared herself the winner. Probably.'}
+    ],
+    files:[]
+  };
+  async function loadData(){
+    if(!sb) return;
+    try{
+      var r=await Promise.all([
+        sb.from('hub_tasks').select('id,tag,status,title,descr,say,pos,created_at').order('pos',{ascending:true}).order('created_at',{ascending:true}),
+        sb.from('hub_posts').select('id,kind,title,body,created_at').order('created_at',{ascending:false}),
+        sb.from('hub_files').select('id,title,teaser,hint,created_at').order('created_at',{ascending:false})
+      ]);
+      if(r[0].error||r[1].error||r[2].error||!r[0].data) return;
+      DATA.tasks=r[0].data.map(function(x){ return {id:x.id,tag:x.tag,st:x.status,t:x.title,d:x.descr,say:x.say}; });
+      DATA.posts=r[1].data||[]; DATA.files=r[2].data||[]; DATA.live=true;
+    }catch(e){ /* keep the built-in copy */ }
+  }
+
+  /* ---- helpers ---- */
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function paras(s){ return String(s||'').split(/\n{2,}/).map(function(p){ return '<p>'+esc(p).replace(/\n/g,'<br>')+'</p>'; }).join(''); }
+  function redact(s){ return esc(s).replace(/█+/g,function(m){ return '<span class="rd" role="img" aria-label="redacted">'+m+'</span>'; }); }
+  function fmtDate(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }catch(e){ return ''; } }
+  function allRooms(){ return ROOMS.concat(MG.isAdmin?[MGR]:[]); }
+  function room(id){ return allRooms().filter(function(r){return r.id===id;})[0]; }
+  function tagsOf(){ var o=[]; DATA.tasks.forEach(function(t){ if(o.indexOf(t.tag)<0) o.push(t.tag); }); return o; }
+  function taskList(arr){
+    return arr.map(function(x){ return '<li class="'+(x.d?'done':'')+'"><span class="bx">'+(x.d?icon('check'):'')+'</span><span>'+esc(x.t)+'</span></li>'; }).join('');
+  }
+  function note(msg){ return '<div class="cut note-box"><div class="in">'+msg+'</div></div>'; }
+  var roomBody=document.getElementById('roomBody');
+
+  /* ---- manager state (needs to exist before nav is built) ---- */
+  var MG={isAdmin:false,level:'',unlocked:false,tab:'tasks',data:null,busy:false};
+
+  /* ---- nav + overview ---- */
+  var nav=document.getElementById('nav'), rooms=document.getElementById('rooms');
+  function buildNav(){
+    var cur=(nav.querySelector('[aria-current="page"]')||{getAttribute:function(){return 'home';}}).getAttribute('data-go');
+    nav.innerHTML='<h2>ROOMS</h2><button type="button" data-go="home">'+icon('home')+'Overview</button>'+
+      allRooms().map(function(r){
+        return '<button type="button" data-go="'+r.id+'">'+icon(r.ic)+r.name+'<span class="st'+(r.open?' open':'')+'">'+(r.id==='mgr'?'ADMIN':(r.open?'OPEN':'P'+r.ph))+'</span></button>';
+      }).join('');
+    var b=nav.querySelector('[data-go="'+cur+'"]'); if(b) b.setAttribute('aria-current','page');
+    upgradeIcons(nav);
+  }
+  buildNav();
+  rooms.innerHTML=ROOMS.map(function(r){
+    return '<button class="room cut" type="button" data-go="'+r.id+'"><span class="in">'+icon(r.ic)+'<b>'+r.name+'</b><p>'+r.desc+'</p><span class="chip'+(r.open?' live':'')+'">'+(r.open?'OPEN':'PHASE '+r.ph)+'</span></span></button>';
+  }).join('');
+  document.getElementById('phaseList').innerHTML=taskList(PHASES.map(function(p){return {t:p.t,d:p.d};}));
+  document.getElementById('soFar').innerHTML=taskList(SOFAR);
+  var doneP=PHASES.filter(function(p){return p.d;}).length;
+  document.getElementById('barMeta').textContent=doneP+' of '+PHASES.length+' phases done';
+  var bar=document.getElementById('barFill');
+  setTimeout(function(){ bar.style.width=Math.round(doneP/PHASES.length*100)+'%'; },250);
+
+  /* ---- LABORATORY ---- */
+  var labTag='ALL', showAllDone=false;
+  function chips(cur,attr,list){
+    return (list||['ALL'].concat(tagsOf())).map(function(t){ return '<button type="button" class="fchip" '+attr+'="'+esc(t)+'" aria-pressed="'+(t===cur)+'">'+esc(String(t).toUpperCase())+'</button>'; }).join('');
+  }
+  function renderLab(){
+    var pool=DATA.tasks.filter(function(t){ return labTag==='ALL'||t.tag===labTag; });
+    var done=pool.filter(function(t){return t.st==='done';}), doing=pool.filter(function(t){return t.st==='doing';}), todo=pool.filter(function(t){return t.st==='todo';});
+    var pct=pool.length?Math.round(done.length/pool.length*100):0;
+    function card(t){ return '<div class="tc '+t.st+'"><span class="tg">'+esc(t.tag)+'</span><b>'+esc(t.t)+'</b><p>'+esc(t.d)+'</p></div>'; }
+    function col(title,ic,arr){
+      return '<div class="col cut"><div class="in"><h3>'+icon(ic)+title+'<span class="n">'+arr.length+'</span></h3>'+(arr.length?arr.map(card).join(''):'<p class="empty">Nothing here.</p>')+'</div></div>';
+    }
+    var doneRev=done.slice().reverse();
+    var doneShown=showAllDone?doneRev:doneRev.slice(0,4);
+    var more=done.length>4?'<button type="button" class="more" id="moreDone">'+(showAllDone?'SHOW LESS':'SHOW ALL ('+done.length+')')+'</button>':'';
+    roomBody.innerHTML=
+      '<div class="tools" role="group" aria-label="Filter tasks">'+chips(labTag,'data-lt')+'</div>'+
+      '<div class="cut summary"><div class="in"><b>'+pct+'%</b><div class="bar"><i style="width:'+pct+'%"></i></div><span class="meta">'+done.length+' of '+pool.length+' tasks done</span></div></div>'+
+      '<div class="kan">'+col('TO DO','todo',todo)+col('DOING','doing',doing)+
+        '<div class="col cut"><div class="in"><h3>'+icon('check')+'DONE<span class="n">'+done.length+'</span></h3>'+
+        (doneShown.length?doneShown.map(card).join(''):'<p class="empty">Nothing here.</p>')+more+'</div></div></div>';
+  }
+
+  /* ---- ARCHIVES ---- */
+  var archTag='ALL', archQ='';
+  function renderArch(){
+    var all=DATA.tasks.filter(function(t){return t.st==='done';});
+    function cnt(tag,st){ return DATA.tasks.filter(function(t){return t.tag===tag&&(!st||t.st===st);}).length; }
+    function stat(n,l){ return '<div class="cut stat"><div class="in"><b>'+n+'</b><span>'+l+'</span></div></div>'; }
+    var q=archQ.trim().toLowerCase();
+    var list=all.map(function(t,i){ return {t:t,n:i+1}; }).reverse().filter(function(x){
+      return (archTag==='ALL'||x.t.tag===archTag)&&(!q||(x.t.t+' '+x.t.d+' '+x.t.tag).toLowerCase().indexOf(q)>=0);
+    });
+    roomBody.innerHTML=
+      '<div class="stats">'+stat(all.length,'MILESTONES')+stat(cnt('STUDIO','done')+'/'+cnt('STUDIO'),'STUDIO PHASES')+stat(cnt('HUB','done')+'/'+cnt('HUB'),'HUB PHASES')+stat(ROOMS.length,'HUB ROOMS')+'</div>'+
+      '<div class="tools"><div role="group" aria-label="Filter milestones" style="display:flex;gap:10px;flex-wrap:wrap">'+chips(archTag,'data-at')+'</div>'+
+        '<label class="search">'+icon('search')+'<input id="archSearch" type="search" placeholder="Search the archives" value="'+esc(archQ)+'" aria-label="Search the archives"></label></div>'+
+      (list.length?'<ol class="tl">'+list.map(function(x){
+        return '<li><div class="cut"><div class="in"><div class="row">'+icon('trophy')+'<b>'+esc(x.t.t)+'</b><span class="tg">'+esc(x.t.tag)+'</span><span class="no">#'+String(x.n).padStart(2,'0')+'</span></div><p>'+esc(x.t.d)+'</p>'+(x.t.say?'<p class="say">'+esc(x.t.say)+'</p>':'')+'</div></div></li>';
+      }).join('')+'</ol>':'<p class="empty">...Nothing found. Did you make that up?</p>');
+    var inp=document.getElementById('archSearch');
+    inp.addEventListener('input',function(){ archQ=inp.value; var pos=inp.selectionStart; renderArch(); upgradeIcons(roomBody); var n=document.getElementById('archSearch'); n.focus(); n.setSelectionRange(pos,pos); });
+  }
+
+  /* ---- SPECTRA'S CORNER ---- */
+  var cornTab='diary';
+  function renderCorner(){
+    var list=DATA.posts.filter(function(p){return p.kind===cornTab;});
+    var h='<div class="tools" role="group" aria-label="Corner sections">'+
+      [['diary','DIARY'],['story','STORIES']].map(function(t){ return '<button type="button" class="fchip" data-ct="'+t[0]+'" aria-pressed="'+(cornTab===t[0])+'">'+t[1]+'</button>'; }).join('')+'</div>';
+    if(!list.length){ h+='<p class="empty">...Nothing here yet. She’s probably still writing it.</p>'; }
+    else if(cornTab==='diary'){
+      h+='<div class="pages">'+list.map(function(p,i){
+        return '<article class="cut page"><div class="in"><time>'+esc(fmtDate(p.created_at)||('PAGE '+(list.length-i)))+'</time><h3>'+esc(p.title)+'</h3>'+paras(p.body)+'</div></article>';
+      }).join('')+'</div>';
+    } else {
+      h+='<div class="stories">'+list.map(function(p){
+        return '<details class="story"><summary>'+icon('corner')+esc(p.title)+'</summary><div class="sbody">'+paras(p.body)+'</div></details>';
+      }).join('')+'</div>';
+    }
+    roomBody.innerHTML=h;
+  }
+
+  /* ---- CLASSIFIED ---- */
+  var DECL={};
+  try{ DECL=JSON.parse(sessionStorage.getItem('specsoft_hub_declass')||'{}')||{}; }catch(e){ DECL={}; }
+  function saveDecl(){ try{ sessionStorage.setItem('specsoft_hub_declass',JSON.stringify(DECL)); }catch(e){} }
+  function renderCls(){
+    if(!DATA.files.length){
+      roomBody.innerHTML=note(DATA.live?'...Nothing here. Or nothing you’re allowed to see.':'The archive is offline right now, so the files can’t be opened.');
+      return;
+    }
+    roomBody.innerHTML='<p class="meta" style="margin-bottom:14px">'+DATA.files.length+' file'+(DATA.files.length===1?'':'s')+'. Each one needs a clearance code.</p><div class="files">'+DATA.files.map(function(f){
+      var open=DECL[f.id]!=null;
+      return '<article class="cut file"><div class="in"><div class="row">'+icon('classified')+'<b>'+esc(f.title)+'</b><span class="tg">CLASSIFIED</span></div>'+
+        '<p class="tz">'+redact(f.teaser)+'</p>'+
+        (open?'<div class="doc"><span class="stamp">DECLASSIFIED</span>'+paras(DECL[f.id])+'</div>':
+          (f.hint?'<p class="hint">HINT: '+esc(f.hint)+'</p>':'')+
+          '<form class="dc-form" data-id="'+esc(f.id)+'"><input type="text" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Clearance code" aria-label="Clearance code for '+esc(f.title)+'"><button class="mbtn solid" type="submit">DECLASSIFY</button></form><p class="dc-msg" aria-live="polite"></p>')+
+        '</div></article>';
+    }).join('')+'</div>';
+  }
+  document.addEventListener('submit',async function(e){
+    var f=e.target.closest&&e.target.closest('.dc-form'); if(!f) return;
+    e.preventDefault();
+    var inp=f.querySelector('input'), btn=f.querySelector('button'), msg=f.nextElementSibling;
+    if(!inp.value.trim()){ msg.textContent='...Type something first.'; return; }
+    btn.disabled=true; msg.textContent='Checking...';
+    var d=await rpc('hub_declassify',{p_id:f.getAttribute('data-id'),p_code:inp.value});
+    btn.disabled=false;
+    if(d.ok){ DECL[f.getAttribute('data-id')]=d.body; saveDecl(); renderCls(); upgradeIcons(roomBody); }
+    else if(d.error==='bad_code'){ msg.textContent='...Wrong code. Nice try.'; inp.select(); }
+    else if(d.error==='offline'){ msg.textContent='The archive is offline.'; }
+    else { msg.textContent='That file is gone or sealed.'; }
+  });
+
+  /* ---- MANAGER (admins only; every action is re-checked by the database) ---- */
+  var ERRM={
+    not_authenticated:'Please sign in on the main site first.', not_staff:'Admins only.', locked:'The panel is locked. Enter your admin password.',
+    forbidden:'Your staff level can’t do that.', bad_type:'That type isn’t valid.', bad_id:'That item id isn’t valid.', bad_tag:'Tag: 2 to 12 letters or numbers.',
+    bad_status:'Pick a status.', bad_title:'Title: 2 to 80 characters.', bad_text:'One of the texts is too long or too short.', bad_kind:'Pick diary or story.',
+    bad_code:'Code: 1 to 60 characters.', code_required:'A new classified file needs a clearance code.', not_found:'That item no longer exists.', bad_input:'Something in the form isn’t valid.',
+    offline:'No connection to the database.', server:'The database refused that.', empty:'No answer from the database.'
+  };
+  function errText(d){ return ERRM[d&&d.error]||('Something went wrong ('+(d&&d.error||'unknown')+').'); }
+
+  async function checkAdmin(){
+    if(!sb||!sb.auth) return;
+    try{
+      var s=await sb.auth.getSession();
+      if(!s||!s.data||!s.data.session) return;
+      var d=await rpc('admin_status');
+      if(d&&d.staff&&(d.level==='admin'||d.level==='owner')){ MG.isAdmin=true; MG.level=d.level; MG.unlocked=!!d.unlocked; buildNav(); }
+    }catch(e){ /* not an admin */ }
+  }
+
+  function renderMgr(){
+    if(curId!=='mgr') return;
+    if(!sb){ roomBody.innerHTML=note('No database connection from this page.'); return; }
+    if(!MG.isAdmin){ roomBody.innerHTML=note('...Nice try. This room is for admins only.'); return; }
+    if(!MG.unlocked){
+      roomBody.innerHTML='<div class="cut unlock"><form class="in" id="unlockForm"><h3>Unlock the Manager</h3><p class="meta" style="margin-bottom:12px">Use your admin password, the same one as the Console.</p>'+
+        '<div class="fld"><label for="unlockPw">ADMIN PASSWORD</label><input id="unlockPw" type="password" autocomplete="current-password" maxlength="128"></div>'+
+        '<p class="dc-msg" id="unlockMsg" aria-live="polite"></p><button class="mbtn solid" type="submit">UNLOCK</button></form></div>';
+      return;
+    }
+    if(!MG.data){ roomBody.innerHTML=note('Loading...'); fetchAdmin(); return; }
+    var T=MG.tab, d=MG.data;
+    var rows='';
+    if(T==='tasks'){
+      rows=d.tasks.map(function(t){
+        return '<div class="mrow"><div class="mt"><span>'+esc(t.tag)+'</span><b>'+esc(t.title)+'</b></div><div class="macts">'+
+          '<select data-mstat="'+esc(t.id)+'" aria-label="Status of '+esc(t.title)+'">'+['todo','doing','done'].map(function(s){ return '<option value="'+s+'"'+(t.status===s?' selected':'')+'>'+s.toUpperCase()+'</option>'; }).join('')+'</select>'+
+          '<button type="button" class="mbtn" data-medit="task" data-id="'+esc(t.id)+'">EDIT</button><button type="button" class="mbtn danger" data-mdel="task" data-id="'+esc(t.id)+'">DELETE</button></div></div>';
+      }).join('');
+    } else if(T==='posts'){
+      rows=d.posts.map(function(p){
+        return '<div class="mrow"><div class="mt"><span>'+esc(p.kind.toUpperCase())+' · '+(p.published?'PUBLISHED':'DRAFT')+'</span><b>'+esc(p.title)+'</b></div><div class="macts">'+
+          '<button type="button" class="mbtn" data-medit="post" data-id="'+esc(p.id)+'">EDIT</button><button type="button" class="mbtn danger" data-mdel="post" data-id="'+esc(p.id)+'">DELETE</button></div></div>';
+      }).join('');
+    } else {
+      rows=d.files.map(function(f){
+        return '<div class="mrow"><div class="mt"><span>FILE · '+(f.published?'PUBLISHED':'DRAFT')+'</span><b>'+esc(f.title)+'</b></div><div class="macts">'+
+          '<button type="button" class="mbtn" data-medit="file" data-id="'+esc(f.id)+'">EDIT</button><button type="button" class="mbtn danger" data-mdel="file" data-id="'+esc(f.id)+'">DELETE</button></div></div>';
+      }).join('');
+    }
+    var newType={tasks:'task',posts:'post',files:'file'}[T];
+    roomBody.innerHTML=
+      '<div class="mgtop"><div role="group" aria-label="Manager sections" style="display:flex;gap:10px;flex-wrap:wrap">'+
+        [['tasks','TASKS'],['posts','CORNER'],['files','CLASSIFIED']].map(function(t){ return '<button type="button" class="fchip" data-mt="'+t[0]+'" aria-pressed="'+(T===t[0])+'">'+t[1]+'</button>'; }).join('')+'</div>'+
+        '<div class="sp"><button type="button" class="mbtn solid" data-mnew="'+newType+'">+ NEW</button><button type="button" class="mbtn" id="mLock">LOCK NOW</button></div></div>'+
+      '<p class="meta" style="margin-bottom:12px">Everything you save is public on the Hub the moment it is published, and is recorded in the audit log.</p>'+
+      '<div class="mlist">'+(rows||'<p class="empty">Nothing here yet.</p>')+'</div>';
+  }
+  async function fetchAdmin(){
+    var d=await rpc('hub_admin_list');
+    if(d.ok){ MG.data=d; }
+    else if(d.error==='locked'){ MG.unlocked=false; }
+    else { roomBody.innerHTML=note(esc(errText(d))); return; }
+    renderMgr(); upgradeIcons(roomBody);
+  }
+  async function refreshAll(){ MG.data=null; await loadData(); await fetchAdmin(); }
+
+  document.addEventListener('submit',async function(e){
+    if(e.target.id!=='unlockForm') return;
+    e.preventDefault();
+    var pw=document.getElementById('unlockPw'), msg=document.getElementById('unlockMsg'), btn=e.target.querySelector('button');
+    if(!pw.value){ msg.textContent='Type your password.'; return; }
+    btn.disabled=true; msg.textContent='Checking...';
+    var d=await rpc('admin_unlock',{p_password:pw.value}); pw.value='';
+    btn.disabled=false;
+    if(d.ok){ MG.unlocked=true; MG.data=null; renderMgr(); upgradeIcons(roomBody); }
+    else if(d.error==='bad_password'){ msg.textContent='Wrong password.'+(d.attempts_left!=null?' '+d.attempts_left+' tries left.':''); }
+    else if(d.error==='too_many_attempts'){ msg.textContent='Too many wrong tries. Locked for a while.'; }
+    else if(d.error==='no_password'){ msg.textContent='You have no admin password yet. Create one in the Console first.'; }
+    else { msg.textContent=errText(d); }
+  });
+
+  /* editor dialog */
+  var dlg=document.getElementById('mgDlg'), dform=document.getElementById('mgForm');
+  function fld(id,label,html,help){ return '<div class="fld"><label for="'+id+'">'+label+'</label>'+html+(help?'<small>'+help+'</small>':'')+'</div>'; }
+  function openEditor(type,id){
+    var d=MG.data, item=null;
+    if(id){ item=(type==='task'?d.tasks:type==='post'?d.posts:d.files).filter(function(x){return x.id===id;})[0]; if(!item) return; }
+    var v=function(k,def){ return item&&item[k]!=null?item[k]:(def==null?'':def); };
+    var h='<h2>'+(item?'Edit ':'New ')+({task:'task',post:'Corner post',file:'classified file'}[type])+'</h2><div class="err" id="mgErr" aria-live="polite"></div><input type="hidden" name="id" value="'+esc(v('id'))+'">';
+    if(type==='task'){
+      h+=fld('f_title','TITLE','<input type="text" id="f_title" name="title" maxlength="80" value="'+esc(v('title'))+'">')+
+         fld('f_tag','TAG','<input type="text" id="f_tag" name="tag" maxlength="12" value="'+esc(v('tag','HUB'))+'">','Short group name like STUDIO, CHATS, SITE or HUB.')+
+         fld('f_status','STATUS','<select id="f_status" name="status">'+['todo','doing','done'].map(function(s){ return '<option value="'+s+'"'+(v('status','todo')===s?' selected':'')+'>'+s.toUpperCase()+'</option>'; }).join('')+'</select>')+
+         fld('f_descr','DESCRIPTION','<textarea id="f_descr" name="descr" maxlength="300">'+esc(v('descr'))+'</textarea>')+
+         fld('f_say','SPECTRA SAYS (optional)','<input type="text" id="f_say" name="say" maxlength="160" value="'+esc(v('say'))+'">','Shows in the Archives for finished tasks.');
+    } else if(type==='post'){
+      h+=fld('f_kind','TYPE','<select id="f_kind" name="kind"><option value="diary"'+(v('kind','diary')==='diary'?' selected':'')+'>DIARY</option><option value="story"'+(v('kind')==='story'?' selected':'')+'>STORY</option></select>')+
+         fld('f_title','TITLE','<input type="text" id="f_title" name="title" maxlength="80" value="'+esc(v('title'))+'">')+
+         fld('f_body','TEXT','<textarea id="f_body" name="body" maxlength="4000" style="min-height:180px">'+esc(v('body'))+'</textarea>','Leave a blank line between paragraphs.')+
+         '<div class="fld chk"><input type="checkbox" id="f_pub" name="published"'+(item?(item.published?' checked':''):' checked')+'><label for="f_pub">Published (visible to everyone in the Hub)</label></div>';
+    } else {
+      h+=fld('f_title','TITLE','<input type="text" id="f_title" name="title" maxlength="80" value="'+esc(v('title'))+'">')+
+         fld('f_teaser','PUBLIC TEASER','<textarea id="f_teaser" name="teaser" maxlength="400">'+esc(v('teaser'))+'</textarea>','Everyone can read this. Wrap anything secret in [[double brackets]] and it is blacked out before it is saved.')+
+         fld('f_hint','HINT (optional)','<input type="text" id="f_hint" name="hint" maxlength="160" value="'+esc(v('hint'))+'">')+
+         fld('f_body','SECRET TEXT','<textarea id="f_body" name="body" maxlength="4000" style="min-height:140px">'+esc(v('body'))+'</textarea>','Only appears after someone enters the right code.')+
+         fld('f_code','CLEARANCE CODE','<input type="text" id="f_code" name="code" maxlength="60" autocomplete="off" value="" placeholder="'+(item?'leave empty to keep the current code':'e.g. tch')+'">','Not case sensitive. It is stored scrambled, so nobody (including you) can read it back.')+
+         '<div class="fld chk"><input type="checkbox" id="f_pub" name="published"'+(item&&item.published?' checked':'')+'><label for="f_pub">Published (visible in Classified)</label></div>';
+    }
+    h+='<div class="foot"><button type="button" class="mbtn" id="mgCancel">CANCEL</button><button type="submit" class="mbtn solid" id="mgSave">SAVE</button></div>';
+    dform.innerHTML=h; dform.setAttribute('data-type',type);
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+  }
+  function closeEditor(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
+  async function doSave(type,data){
+    var d=await rpc('hub_admin_save',{p_type:type,p_data:data});
+    if(d.error==='locked'){ MG.unlocked=false; closeEditor(); renderMgr(); return d; }
+    return d;
+  }
+  dform.addEventListener('submit',async function(e){
+    e.preventDefault();
+    var type=dform.getAttribute('data-type'), fd=new FormData(dform), data={};
+    fd.forEach(function(val,k){ data[k]=val; });
+    data.published=!!dform.querySelector('[name=published]')&&dform.querySelector('[name=published]').checked;
+    if(!data.id) delete data.id;
+    var btn=document.getElementById('mgSave'), err=document.getElementById('mgErr');
+    btn.disabled=true; err.textContent='';
+    var d=await doSave(type,data);
+    btn.disabled=false;
+    if(d.ok){ closeEditor(); await refreshAll(); }
+    else if(d.error!=='locked'){ err.textContent=errText(d); }
+  });
+
+  /* ---- room view + switching (hash is only the room id) ---- */
+  var vHome=document.getElementById('v-home'), vRoom=document.getElementById('v-room');
+  var curId='home';
+  function renderRoom(id){
+    var r=room(id);
+    if(id==='lab') renderLab(); else if(id==='arch') renderArch(); else if(id==='corn') renderCorner();
+    else if(id==='cls') renderCls(); else if(id==='mgr') renderMgr();
+    else roomBody.innerHTML='<div class="cut placeholder"><div class="in"><span class="chip">ARRIVES IN PHASE '+r.ph+'</span></div></div>';
+    document.getElementById('rDeco').hidden=(id!=='corn');
+    document.getElementById('roomFoot').textContent='SPECSOFT // HUB // '+r.name.toUpperCase()+(['lab','arch','corn','cls'].indexOf(id)>=0?(DATA.live?' // LIVE':' // OFFLINE COPY'):'');
+    upgradeIcons(vRoom);
+  }
+  function show(id,keep){
+    var r=room(id);
+    if(!r){ id='home'; vHome.classList.add('on'); vRoom.classList.remove('on'); }
+    else {
+      vHome.classList.remove('on'); vRoom.classList.add('on');
+      document.getElementById('rIc').innerHTML=icon(r.ic);
+      document.getElementById('rName').textContent=r.name;
+      document.getElementById('rQuote').textContent=r.q;
+      document.getElementById('backBtn').innerHTML=icon('arrow-left')+'Back to overview';
+    }
+    curId=id;
+    if(r) renderRoom(id);
+    [].forEach.call(nav.querySelectorAll('button[data-go]'),function(b){
+      if(b.getAttribute('data-go')===id) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+    });
+    if(!keep){
+      if(location.hash!=='#'+id) history.replaceState(null,'', id==='home'?location.pathname:'#'+id);
+      window.scrollTo({top:0});
+    }
+    upgradeIcons(vRoom);
+  }
+
+  document.addEventListener('click',async function(e){
+    var t=e.target;
+    var g=t.closest('[data-go]'); if(g){ show(g.getAttribute('data-go')); return; }
+    if(t.closest('#backBtn')){ show('home'); return; }
+    var lt=t.closest('[data-lt]'); if(lt){ labTag=lt.getAttribute('data-lt'); renderLab(); upgradeIcons(roomBody); return; }
+    var at=t.closest('[data-at]'); if(at){ archTag=at.getAttribute('data-at'); renderArch(); upgradeIcons(roomBody); return; }
+    var ct=t.closest('[data-ct]'); if(ct){ cornTab=ct.getAttribute('data-ct'); renderCorner(); upgradeIcons(roomBody); return; }
+    if(t.closest('#moreDone')){ showAllDone=!showAllDone; renderLab(); upgradeIcons(roomBody); return; }
+    // manager
+    var mt=t.closest('[data-mt]'); if(mt){ MG.tab=mt.getAttribute('data-mt'); renderMgr(); return; }
+    var mn=t.closest('[data-mnew]'); if(mn){ openEditor(mn.getAttribute('data-mnew'),null); return; }
+    var me=t.closest('[data-medit]'); if(me){ openEditor(me.getAttribute('data-medit'),me.getAttribute('data-id')); return; }
+    var md=t.closest('[data-mdel]');
+    if(md){
+      if(!window.confirm('Delete this for good? This cannot be undone.')) return;
+      var d=await rpc('hub_admin_delete',{p_type:md.getAttribute('data-mdel'),p_id:md.getAttribute('data-id')});
+      if(d.ok) await refreshAll();
+      else if(d.error==='locked'){ MG.unlocked=false; renderMgr(); }
+      else window.alert(errText(d));
+      return;
+    }
+    if(t.closest('#mLock')){ await rpc('admin_lock'); MG.unlocked=false; MG.data=null; renderMgr(); return; }
+    if(t.closest('#mgCancel')){ closeEditor(); return; }
+  });
+  // quick status change in the manager list
+  document.addEventListener('change',async function(e){
+    var sel=e.target.closest&&e.target.closest('[data-mstat]'); if(!sel) return;
+    var item=MG.data.tasks.filter(function(x){return x.id===sel.getAttribute('data-mstat');})[0]; if(!item) return;
+    var d=await doSave('task',{id:item.id,tag:item.tag,status:sel.value,title:item.title,descr:item.descr||'',say:item.say||''});
+    if(d.ok) await refreshAll(); else if(d.error!=='locked'){ window.alert(errText(d)); await refreshAll(); }
+  });
+  window.addEventListener('hashchange',function(){ show(location.hash.slice(1)||'home'); });
+
+  /* ---- lock the hub ---- */
+  document.getElementById('lockBtn').addEventListener('click',function(){
+    try{ sessionStorage.removeItem(KEY); }catch(e){}
+    location.replace('404.html');
+  });
+
+  /* ---- Spectra types her line ---- */
+  var LINE='Psst... you’re not supposed to find this place. Anyway, welcome!';
+  var out=document.getElementById('type');
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduce){ out.textContent=LINE; }
+  else{
+    var i=0;
+    (function tick(){
+      out.textContent=LINE.slice(0,++i);
+      if(i<LINE.length){ var ch=LINE.charAt(i-1); setTimeout(tick, ch==='.'||ch==='!'?320: ch===','?140:34); }
+    })();
+  }
+
+  /* ---- boot ---- */
+  upgradeIcons(document);
+  var h0=location.hash.slice(1);
+  if(h0&&h0!=='mgr') show(h0);
+  Promise.all([loadData(),checkAdmin()]).then(function(){
+    if(h0==='mgr'&&MG.isAdmin) show('mgr');
+    else if(curId!=='home') show(curId,true);   // refresh the open room with live data
+  });
+})();
+</script>
+</body>
+</html>

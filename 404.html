@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>404 Not Found | SPECSOFT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@600;700&family=Caveat+Brush&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f3f7;
+    --bg2:#e9e9f0;
+    --ink:#2a2a30;
+    --ink-soft:#55555e;
+    --line:#2a2a30;
+    --ghost:#dcdce6;
+    --font-ui:"Chakra Petch","Rajdhani",system-ui,sans-serif;
+    --font-hand:"Kalam","Comic Sans MS",cursive;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font-ui);
+    color:var(--ink);
+    background:
+      radial-gradient(900px 600px at 20% 30%, #fff 0%, transparent 60%),
+      linear-gradient(135deg,var(--bg) 0%,var(--bg2) 100%);
+    overflow-x:hidden;
+  }
+
+  /* ---------- stage ---------- */
+  .stage{
+    position:relative;
+    min-height:100vh;
+    min-height:100dvh;
+    display:grid;
+    grid-template-columns:1.05fr 1fr;
+    align-items:center;
+    padding:clamp(18px,3vw,40px);
+    isolation:isolate;
+  }
+
+  /* giant ghost logo behind the girl */
+  .ghost-logo{
+    position:absolute;left:-6vw;top:20vh;width:34vw;max-width:520px;
+    color:var(--ghost);opacity:.8;z-index:-1;pointer-events:none;
+  }
+
+  /* ---------- top bar ---------- */
+  .brand{
+    position:absolute;top:clamp(18px,3vw,36px);left:clamp(18px,3vw,40px);
+    display:flex;align-items:center;gap:14px;width:min(340px,50vw);
+    font-weight:700;font-size:clamp(18px,1.7vw,26px);letter-spacing:.04em;
+    text-decoration:none;color:var(--ink);z-index:5;
+  }
+  .brand svg{width:clamp(30px,3vw,44px);flex:none}
+  .brand::after{content:"";flex:1;height:1.5px;background:var(--line);opacity:.7}
+
+  .stripes{
+    position:absolute;top:clamp(18px,3vw,36px);right:clamp(18px,3vw,40px);
+    display:flex;gap:5px;transform:skewX(-20deg);
+  }
+  .stripes i{display:block;width:clamp(14px,1.6vw,24px);height:clamp(10px,1vw,15px);background:var(--ink)}
+  .stripes i:nth-child(1){opacity:.18}.stripes i:nth-child(2){opacity:.28}
+  .stripes i:nth-child(3){opacity:.4}.stripes i:nth-child(4){opacity:.55}
+  .stripes i:nth-child(5){opacity:.75}.stripes i:nth-child(6){opacity:1}
+
+  /* ---------- character side ---------- */
+  .char{position:relative;align-self:end;justify-self:start;width:100%}
+  .char img.girl{
+    display:block;width:min(100%,780px);height:auto;
+    margin-left:-3vw;margin-bottom:-2vh;
+    filter:drop-shadow(0 18px 30px rgba(40,40,60,.12));
+  }
+  .bubble{
+    position:absolute;top:-14%;left:58%;
+    width:clamp(190px,23vw,330px);
+    padding:clamp(12px,1.5vw,20px) clamp(34px,3.2vw,50px) clamp(12px,1.5vw,20px) clamp(14px,1.6vw,24px);
+    background:#fff;border:2px solid var(--ink);border-radius:26px;
+    font-family:var(--font-hand);font-weight:700;
+    font-size:clamp(15px,1.55vw,23px);line-height:1.25;text-align:center;
+    transform:rotate(-3deg);
+  }
+  .bubble::after{ /* tail */
+    content:"";position:absolute;left:14%;bottom:-20px;
+    border:11px solid transparent;border-top:20px solid var(--ink);border-bottom:0;
+    border-left-width:4px;transform:skewX(24deg);
+  }
+  .bubble::before{
+    content:"";position:absolute;left:calc(14% + 2px);bottom:-15px;z-index:1;
+    border:9px solid transparent;border-top:16px solid #fff;border-bottom:0;
+    border-left-width:3px;transform:skewX(24deg);
+  }
+  .bubble .anger{
+    position:absolute;right:10px;bottom:8px;width:1.5em;height:1.5em;color:var(--ink);
+    animation:throb 1.4s ease-in-out infinite;
+  }
+  @keyframes throb{0%,100%{transform:scale(1)}50%{transform:scale(1.25) rotate(8deg)}}
+
+  .scribble{
+    position:absolute;top:8%;left:14%;width:clamp(36px,5vw,70px);color:var(--ink);
+    opacity:.9;
+  }
+
+  /* ---------- message side ---------- */
+  .msg{
+    position:relative;text-align:center;justify-self:center;
+    width:min(100%,640px);padding-top:6vh;
+  }
+  .warn{
+    width:clamp(54px,6vw,86px);margin:0 auto 6px;display:block;
+  }
+  .rule-wrap{display:flex;align-items:center;gap:14px;justify-content:center}
+  .rule-wrap::before,.rule-wrap::after{content:"";height:1.5px;background:var(--line);flex:1;max-width:120px}
+
+  .big404{
+    font-family:var(--font-ui);font-weight:700;
+    font-size:clamp(110px,19vw,300px);line-height:.88;letter-spacing:-.02em;
+    color:var(--ink);
+    position:relative;display:inline-block;
+    /* chiselled, slightly sliced look */
+    clip-path:polygon(0 0,100% 0,100% 100%,0 100%);
+    text-shadow:0 0 0 var(--ink);
+    animation:glitch 6s steps(1) infinite;
+  }
+  .big404::after{ /* diagonal slash cutting through the 0 */
+    content:"";position:absolute;left:38%;top:12%;width:4px;height:78%;
+    background:var(--bg);transform:rotate(32deg);opacity:.9;
+  }
+  @keyframes glitch{
+    0%,92%,100%{transform:none}
+    93%{transform:translateX(-4px) skewX(-3deg)}
+    94%{transform:translateX(5px)}
+    95%{transform:none}
+  }
+
+  .nf{
+    display:flex;align-items:center;justify-content:center;gap:clamp(12px,2vw,26px);
+    margin:clamp(2px,1vh,10px) 0 clamp(14px,2vh,24px);
+  }
+  .nf::before,.nf::after{content:"";height:2px;background:var(--line);flex:1;max-width:110px}
+  .nf h1{
+    font-size:clamp(26px,3.6vw,56px);font-weight:700;letter-spacing:.04em;
+    white-space:nowrap;
+  }
+
+  .desc{
+    font-family:var(--font-hand);font-size:clamp(15px,1.6vw,22px);line-height:1.45;
+    color:var(--ink);max-width:24em;margin:0 auto clamp(18px,3vh,34px);
+  }
+
+  .btn{
+    --cut:14px;
+    display:inline-flex;align-items:center;gap:12px;
+    padding:clamp(12px,1.6vh,16px) clamp(26px,3vw,46px);
+    background:var(--ink);color:#fff;text-decoration:none;
+    font-weight:600;font-size:clamp(15px,1.4vw,20px);letter-spacing:.02em;
+    clip-path:polygon(var(--cut) 0,calc(100% - var(--cut)) 0,100% var(--cut),100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,var(--cut) 100%,0 calc(100% - var(--cut)),0 var(--cut));
+    position:relative;transition:transform .18s ease,background .18s ease;
+  }
+  .btn svg{width:1.2em;height:1.2em;transition:transform .18s ease}
+  .btn:hover{background:#000;transform:translateY(-2px)}
+  .btn:hover svg{transform:translateX(-4px)}
+  .btn:focus-visible{outline:3px solid #6b6bff;outline-offset:4px}
+  .btn-frame{ /* double outline like the mockup */
+    display:inline-block;padding:4px;
+    border:2px solid var(--ink);
+    clip-path:polygon(18px 0,calc(100% - 18px) 0,100% 18px,100% calc(100% - 18px),calc(100% - 18px) 100%,18px 100%,0 calc(100% - 18px),0 18px);
+  }
+
+  /* ---------- chibi ---------- */
+  .chibi{
+    position:absolute;right:clamp(18px,4vw,70px);bottom:clamp(30px,6vh,64px);
+    display:flex;align-items:flex-end;gap:10px;
+  }
+  .chibi img{width:clamp(110px,13vw,200px);height:auto;display:block}
+  .tch{
+    font-family:var(--font-hand);font-weight:700;font-size:clamp(14px,1.4vw,20px);
+    margin-bottom:clamp(40px,6vh,70px);
+  }
+
+
+  /* ---------- secret: click chibi Spectra 5 times ---------- */
+  .chibi-btn{background:none;border:0;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+  .chibi-btn:focus-visible{outline:3px solid #6b6bff;outline-offset:4px;border-radius:12px}
+  .chibi-btn.shake{animation:shake .38s ease both}
+  @keyframes shake{
+    0%,100%{transform:translateX(0) rotate(0)}
+    20%{transform:translateX(calc(var(--amp,2px)*-1)) rotate(calc(var(--amp,2px)*-.35deg))}
+    40%{transform:translateX(var(--amp,2px)) rotate(calc(var(--amp,2px)*.35deg))}
+    60%{transform:translateX(calc(var(--amp,2px)*-.8))}
+    80%{transform:translateX(calc(var(--amp,2px)*.8))}
+  }
+  .flash{position:fixed;inset:0;z-index:50;background:#fff;display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity .45s ease}
+  .flash.on{opacity:1;pointer-events:all}
+  .flash p{font-family:var(--font-hand);font-weight:700;font-size:clamp(20px,3vw,34px);text-align:center;padding:0 24px}
+
+  /* ---------- footer strip ---------- */
+  .foot{
+    position:absolute;left:clamp(18px,3vw,40px);right:clamp(18px,3vw,40px);
+    bottom:clamp(14px,2.4vh,26px);
+    display:flex;align-items:center;gap:16px;
+    font-size:clamp(11px,.95vw,14px);letter-spacing:.32em;color:var(--ink-soft);
+  }
+  .foot .line{flex:1;max-width:36vw;height:1.5px;background:var(--ink);opacity:.5}
+  .foot .stripes-s{display:flex;gap:4px;transform:skewX(-20deg)}
+  .foot .stripes-s i{width:12px;height:12px;background:var(--ink)}
+  .foot .stripes-s i:nth-child(1){opacity:.2}.foot .stripes-s i:nth-child(2){opacity:.35}
+  .foot .stripes-s i:nth-child(3){opacity:.55}.foot .stripes-s i:nth-child(4){opacity:.8}
+  .foot .stripes-s i:nth-child(5){opacity:1}
+  .foot .sq{margin-left:auto;display:flex;gap:6px}
+  .foot .sq i{width:11px;height:11px;background:var(--ink)}
+  .foot .sq i:nth-child(1){opacity:.3}.foot .sq i:nth-child(2){opacity:.5}
+  .foot .sq i:nth-child(3){opacity:.7}.foot .sq i:nth-child(4){opacity:.85}
+  .foot .sq i:nth-child(5){opacity:1}
+
+  /* sparkles */
+  .spark{position:absolute;color:#c9c9d6;font-size:22px;animation:tw 4s ease-in-out infinite}
+  @keyframes tw{0%,100%{opacity:.3}50%{opacity:1}}
+
+  /* ---------- mobile ---------- */
+  @media (max-width:860px){
+    .stage{grid-template-columns:1fr;padding:84px 18px 70px;gap:0}
+    .msg{order:1;padding-top:0}
+    .char{order:2;margin-top:28px}
+    .char img.girl{margin:0 auto;width:min(100%,520px)}
+    .bubble{left:auto;right:2%;top:-4%;width:min(46vw,230px)}
+    .scribble{left:4%;top:4%}
+    .ghost-logo{width:70vw;left:-20vw;top:40vh}
+    .chibi{position:static;order:3;justify-content:center;margin-top:18px}
+    .tch{margin-bottom:34px}
+    .foot{letter-spacing:.14em;gap:10px;flex-wrap:wrap;bottom:14px}
+    .foot .line,.foot .stripes-s{display:none}
+    .nf::before,.nf::after{max-width:36px}
+    .btn{width:100%;justify-content:center}
+    .btn-frame{width:min(100%,320px)}
+  }
+  @media (max-width:380px){
+    .brand{width:46vw;font-size:16px}
+    .stripes i{width:11px}
+    .nf h1{font-size:24px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<main class="stage">
+
+  <!-- decorative -->
+  <svg class="ghost-logo" viewBox="0 0 100 100" aria-hidden="true"><use href="#logo"/></svg>
+  <span class="spark" style="top:8%;left:66%" aria-hidden="true">+</span>
+  <span class="spark" style="top:38%;left:54%;animation-delay:1.2s" aria-hidden="true">+</span>
+
+  <a class="brand" href="index.html" aria-label="SPECSOFT home">
+    <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#logo"/></svg>
+    SPECSOFT
+  </a>
+
+  <div class="stripes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+  <!-- LEFT: character -->
+  <section class="char">
+    <svg class="scribble" viewBox="0 0 60 60" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true">
+      <path d="M8 40C20 8 52 14 48 30 44 46 12 44 14 26 16 10 44 8 46 22"/>
+    </svg>
+
+    <div class="bubble" role="note">
+      ...Huh?<br>This page doesn’t exist?
+      <svg class="anger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 9.5c3.2 0 5.5-2.3 5.5-5.5M20.5 9.5c-3.2 0-5.5-2.3-5.5-5.5M3.5 14.5c3.2 0 5.5 2.3 5.5 5.5M20.5 14.5c-3.2 0-5.5 2.3-5.5 5.5"/></svg>
+    </div>
+
+    <!-- 👇 Put the girl artwork (transparent PNG, no text) here -->
+    <img class="girl" src="assets/spectra-404-girl.png" alt="SPECSOFT mascot leaning on her arm, looking confused">
+  </section>
+
+  <!-- RIGHT: message -->
+  <section class="msg">
+    <svg class="warn" viewBox="0 0 100 90" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" aria-hidden="true">
+      <path d="M50 6 94 82H6Z"/><path d="M50 32v28" stroke-linecap="round"/><circle cx="50" cy="71" r="3" fill="currentColor"/>
+    </svg>
+    <div class="rule-wrap"><div class="big404" aria-hidden="true">404</div></div>
+
+    <div class="nf"><h1>NOT FOUND</h1></div>
+
+    <p class="desc">The page you’re looking for might have been moved, deleted, or never existed.</p>
+
+    <span class="btn-frame">
+      <a class="btn" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4m6-7-7 7 7 7"/></svg>
+        Go Back Home
+      </a>
+    </span>
+  </section>
+
+  <!-- chibi -->
+  <div class="chibi">
+    <span class="tch" id="tch" aria-live="polite">...Tch.</span>
+    <button class="chibi-btn" id="chibi" type="button" aria-label="Spectra, lying face down">
+      <img src="assets/spectra-404-chibi.png" alt="" draggable="false">
+    </button>
+  </div>
+
+  <div class="flash" id="flash" aria-hidden="true"><p id="flashText"></p></div>
+
+  <div class="foot" aria-hidden="true">
+    <span>SPECSOFT</span><span>//</span><span>404 ERROR</span>
+    <span class="line"></span>
+    <span class="stripes-s"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="sq"><i></i><i></i><i></i><i></i><i></i></span>
+  </div>
+</main>
+
+<!-- Original SPECSOFT logo, traced to SVG. Uses currentColor so it can be recolored. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="85 150 810 810" preserveAspectRatio="xMidYMid meet">
+    <path fill="currentColor" d="M485 157 589 262 301 551 344 595 761 179 865 283 740 410 888 559 784 664 634 515 344 804 91 551Z"/>
+    <path fill="currentColor" d="M634 605 739 710 494 954 390 850Z"/>
+  </symbol>
+</svg>
+
+<script>
+  // Secret: click chibi Spectra 5 times (tab-only key, resets when the tab closes)
+  (function(){
+    var btn=document.getElementById('chibi'), tch=document.getElementById('tch');
+    var flash=document.getElementById('flash'), flashText=document.getElementById('flashText');
+    var lines=["...Tch.","...Hey.","Stop that.","I said stop\u2014","...Fine. You found it."];
+    var n=0, timer=null, done=false;
+    function reset(){ n=0; tch.textContent=lines[0]; }
+    btn.addEventListener('click',function(){
+      if(done) return;
+      n++; clearTimeout(timer);
+      tch.textContent=lines[Math.min(n,5)-1];
+      btn.style.setProperty('--amp',(n*2.5)+'px');
+      btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+      if(n>=5){
+        done=true;
+        try{ sessionStorage.setItem('specsoft_hub_key','spectra-5'); }catch(e){}
+        flashText.textContent="...Tch. Fine. You found it.";
+        setTimeout(function(){ flash.classList.add('on'); },250);
+        setTimeout(function(){ location.href='hub.html'; },1700);
+      } else {
+        timer=setTimeout(reset,2200);
+      }
+    });
+  })();
+</script>
+</body>
+</html>

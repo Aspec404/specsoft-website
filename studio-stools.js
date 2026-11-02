@@ -2,6 +2,9 @@
    (Folder, Align, Find, Inspect, Monitor). The graph itself is edited by studio-graph.js (its STools API);
    running is done by studio-engine.js. This file only connects the two and adds the diagnostics.
 
+   PHASE 7b (this version): resizable bottom panel and Properties panel, Console search / copy / export / error badge,
+   View tools (fit, zoom), a UI-stall watchdog, and anti-freeze guards (Console row cap, debounced Explorer refresh).
+
    Needs, in studio.html: <script src="studio-stools.js"></script> AFTER studio-shell.js and BEFORE studio.js.
    Optional engine additions (E.spawn, E.setEnabled, E.start({graph})) unlock Spawn, live Toggle and
    "Start from selection". Without them those three degrade to a clear message in the Console. */
@@ -46,7 +49,7 @@
         '.st-tools button.sx-b[aria-pressed="true"]{background:var(--text-primary);color:var(--bg-base,#000)}',
         '.st-tools button.sx-b:disabled{opacity:.3;cursor:not-allowed}',
         '.st-tools button.sx-b[data-key]::after{content:attr(data-key);position:absolute;right:2px;bottom:0;font:500 .5rem var(--font-mono,monospace);opacity:.6}',
-        '@media (min-width:901px){.st-app{grid-template-columns:250px 100px 1fr 260px}.st-app.collapsed{grid-template-columns:0 100px 1fr 260px}',
+        '@media (min-width:901px){.st-app{grid-template-columns:250px 100px 1fr var(--sx-props,260px)}.st-app.collapsed{grid-template-columns:0 100px 1fr var(--sx-props,260px)}',
         '.st-app:not([data-mode="graph"]){grid-template-columns:250px 1fr}.st-app.collapsed:not([data-mode="graph"]){grid-template-columns:0 1fr}}',
         '@media (max-width:900px){.st-tools{align-items:center}.sx-sec{display:flex;align-items:center}.st-tools button.sx-h{width:auto;border:0;margin:0}.sx-grid{display:flex;padding:0 4px}}',
         /* panels */
@@ -60,7 +63,25 @@
         '.sx-list button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--border-subtle,#2a2a2a);color:var(--text-primary);padding:6px 2px;font:inherit;cursor:pointer}',
         '.sx-list button:hover{background:rgba(127,127,127,.15)}.sx-list small{display:block;color:var(--text-secondary)}',
         '.st-inspect dl{margin:0}.st-inspect dt{color:var(--text-secondary);margin-top:6px}.st-inspect dd{margin:2px 0 0;word-break:break-all}',
-        '@media (prefers-reduced-motion:reduce){.st-node.pulse{box-shadow:none}}'
+        /* resizable panels */
+        '.st-work{position:relative}',
+        '.st-app:not([data-mode="dock"]):not([data-mode="page"]) .st-work{grid-template-rows:auto minmax(0,1fr) var(--sx-dock,260px)}',
+        '.sx-grip{position:absolute;z-index:6;touch-action:none;background:transparent}',
+        '.sx-grip-h{left:0;right:0;bottom:calc(var(--sx-dock,260px) - 4px);height:9px;cursor:ns-resize}',
+        '.sx-grip-v{top:0;bottom:0;right:-4px;width:9px;cursor:ew-resize}',
+        '.sx-grip::after{content:"";position:absolute;background:var(--text-secondary);opacity:0;border-radius:2px;transition:opacity .15s}',
+        '.sx-grip-h::after{left:50%;top:3px;width:48px;height:3px;margin-left:-24px}.sx-grip-v::after{top:50%;left:3px;height:48px;width:3px;margin-top:-24px}',
+        '.sx-grip:hover::after,.sx-grip:focus-visible::after,.sx-grip.on::after{opacity:.9}',
+        '.st-app[data-mode="dock"] .sx-grip,.st-app[data-mode="page"] .sx-grip,.st-app:not([data-mode="graph"]) .sx-grip-v{display:none}',
+        '.st-app.sx-resizing{user-select:none;-webkit-user-select:none}.st-app.sx-resizing iframe{pointer-events:none}',
+        /* Console and Debugger fixes: the old "div" grid rule squeezed the Compare box, and 70px was too narrow for a time like 10:45:12 PM */
+        '.st-log>div{grid-template-columns:92px 52px 84px minmax(0,1fr);overflow-wrap:anywhere}',
+        '.st-hist details>div{grid-template-columns:60px 52px 84px minmax(0,1fr);overflow-wrap:anywhere}',
+        '.st-hist .st-cmp{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.st-hist .st-cmp>div{display:block;flex-basis:100%;overflow:auto}',
+        '.sx-ctl{display:inline-flex;align-items:center;gap:2px;margin-left:6px}.sx-ctl[hidden]{display:none}',
+        '.st-tabs input.sx-search{width:120px;box-sizing:border-box;background:var(--bg-base,#000);color:var(--text-primary);border:1px solid var(--border-subtle,#333);font:400 .72rem var(--font-mono,monospace);padding:3px 6px}',
+        '.sx-badge{margin-left:6px;background:#e5484d;color:#fff;border-radius:9px;padding:0 6px;font:600 .62rem var(--font-mono,monospace)}.sx-badge[hidden]{display:none}',
+        '@media (prefers-reduced-motion:reduce){.st-node.pulse{box-shadow:none}.sx-grip::after{transition:none}}'
     ].join('\n');
     var styleEl = document.createElement('style'); styleEl.id = 'stStoolsCss'; styleEl.textContent = CSS; document.head.appendChild(styleEl);
 
@@ -74,6 +95,7 @@
         duplicate: '<rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V4H4v12h4"/>',
         group: '<path stroke-dasharray="3 2" d="M3 3h18v18H3z"/><rect x="6" y="6" width="5" height="5"/><rect x="13" y="13" width="5" height="5"/>',
         frame: '<path d="M7 3v18M17 3v18M3 7h18M3 17h18"/>',
+        undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>', redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
         connect: '<circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/><path d="M7.5 12h9M14 9l3 3-3 3"/>',
         node: '<rect x="4" y="6" width="16" height="12" rx="1"/><path d="M12 9.5v5M9.5 12h5"/>',
         folder: '<path d="M3 7h6l2 2h10v10H3z"/>',
@@ -93,7 +115,11 @@
         validate: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 5-5"/>',
         debug: '<path d="M8 8h8v8a4 4 0 0 1-8 0zM12 4v4M4 12h4M16 12h4M5 6l3 3M19 6l-3 3"/>',
         trace: '<path d="M4 18c4 0 4-12 8-12s4 12 8 12"/><circle cx="4" cy="18" r="1.5"/><circle cx="20" cy="18" r="1.5"/>',
-        monitor: '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4M6 12l3-3 3 3 4-4"/>'
+        monitor: '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4M6 12l3-3 3 3 4-4"/>',
+        fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+        zoomin: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4M11 8v6M8 11h6"/>',
+        zoomout: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4M8 11h6"/>',
+        resetview: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>'
     };
     function svg(id) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[id] + '</svg>'; }
 
@@ -108,7 +134,9 @@
             { id: 'lasso', name: 'Lasso', key: 'L', kind: 'tool', tool: 'lasso', tip: 'Draw a loop around nodes to select them. Shift adds to the selection.' },
             { id: 'duplicate', name: 'Duplicate', key: 'Ctrl+D', kind: 'action', run: function () { G.duplicate(); }, tip: 'Copy the selected nodes and the connections between them.' },
             { id: 'group', name: 'Group', key: 'Ctrl+G', kind: 'action', run: function () { G.group(); }, tip: 'Bind 2+ selected nodes so they move together. Ctrl+Shift+G ungroups.' },
-            { id: 'frame', name: 'Frame', key: 'F', kind: 'tool', tool: 'frame', tip: 'Drag a rectangle to draw a labelled frame. Moving a frame moves the nodes inside it.' }
+            { id: 'frame', name: 'Frame', key: 'F', kind: 'tool', tool: 'frame', tip: 'Drag a rectangle to draw a labelled frame. Moving a frame moves the nodes inside it.' },
+            { id: 'undo', name: 'Undo', key: 'Ctrl+Z', kind: 'action', run: function () { history(false); }, tip: 'Undo the last change to the graph (nodes, connections, code, frames, folders). Waits while a run is active.' },
+            { id: 'redo', name: 'Redo', key: 'Ctrl+Y', kind: 'action', run: function () { history(true); }, tip: 'Redo what you just undid.' }
         ] },
         { name: 'Graphs', items: [
             { id: 'connect', name: 'Connect', key: 'Ctrl+C', kind: 'tool', tool: 'connect', tip: 'Click a node, then another, to connect them. Loops are blocked.' },
@@ -134,10 +162,16 @@
             { id: 'validate', name: 'Validate', key: '', kind: 'action', run: function () { validate(); }, tip: 'Check for loops, empty or broken scripts, wrong label references and limits.' },
             { id: 'debug', name: 'Debug', key: '', kind: 'tool', tool: 'debug', tip: 'Click a node to set or remove a breakpoint. The run pauses when that node starts.' },
             { id: 'trace', name: 'Trace', key: '', kind: 'toggle', run: function () { traceToggle(); }, tip: 'Show run order and time on every node.' },
-            { id: 'monitor', name: 'Monitor', key: '', kind: 'pop', run: function () { monitorPop(); }, tip: 'Live panel: run state, node counts, running nodes and breakpoints.' }
+            { id: 'monitor', name: 'Monitor', key: '', kind: 'pop', run: function () { monitorPop(); }, tip: 'Live panel: run state, node counts, running nodes, breakpoints and UI stalls.' }
+        ] },
+        { name: 'View', items: [
+            { id: 'fit', name: 'Fit view', key: 'V', kind: 'action', run: function () { viewOp('fit'); }, tip: 'Zoom and pan so the whole graph is visible.' },
+            { id: 'zoomin', name: 'Zoom in', key: '+', kind: 'action', run: function () { viewOp('in'); }, tip: 'Zoom in (the mouse wheel works too).' },
+            { id: 'zoomout', name: 'Zoom out', key: '-', kind: 'action', run: function () { viewOp('out'); }, tip: 'Zoom out.' },
+            { id: 'resetview', name: 'Reset view', key: '0', kind: 'action', run: function () { viewOp('reset'); }, tip: 'Back to 100% at the top-left.' }
         ] }
     ];
-    var ITEM = {}, KEYS = { 'ctrl+shift+g': { run: function () { G.ungroup(); } }, 'ctrl+a': { run: function () { G.selectAll(); } } };
+    var ITEM = {}, KEYS = { 'ctrl+shift+g': { run: function () { G.ungroup(); } }, 'ctrl+a': { run: function () { G.selectAll(); } }, 'ctrl+shift+z': { run: function () { history(true); } } };
     SECTIONS.forEach(function (s) { s.items.forEach(function (it) { ITEM[it.id] = it; if (it.key) KEYS[it.key.toLowerCase()] = it; }); });
 
     /* ---- state ---- */
@@ -181,6 +215,7 @@
             if (open) {
                 if (it.id === 'start') dis = rs !== 'idle'; else if (it.id === 'pause') dis = rs === 'idle'; else if (it.id === 'step') dis = rs === 'running';
                 else if (it.id === 'stop' || it.id === 'spawn') dis = rs === 'idle';
+                else if (it.id === 'undo') dis = typeof G.canUndo !== 'function' || !G.canUndo(); else if (it.id === 'redo') dis = typeof G.canRedo !== 'function' || !G.canRedo();
             }
             if (it.kind === 'tool') on = t === it.tool; else if (it.kind === 'pop') on = pop.name === it.id; else if (it.id === 'trace') on = tr;
             if (b.disabled !== dis) b.disabled = dis;
@@ -194,7 +229,9 @@
         if (e.key === 'Escape' && pop.el) closePop();
         if (!G.isOpen() || e.altKey || !e.key || $('stApp').dataset.mode !== 'graph') return;
         var t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
-        var k = (e.ctrlKey || e.metaKey ? 'ctrl+' : '') + (e.shiftKey ? 'shift+' : '') + e.key.toLowerCase(), it = KEYS[k];
+        var ky = e.key, ctl = e.ctrlKey || e.metaKey;
+        if (!ctl) { if (ky === '=' || ky === '+') ky = '+'; else if (ky === '_' || ky === '-') ky = '-'; }          // + and - work with or without Shift
+        var sh = e.shiftKey && (ky.length > 1 || /^[a-z]$/i.test(ky)), k = (ctl ? 'ctrl+' : '') + (sh ? 'shift+' : '') + ky.toLowerCase(), it = KEYS[k];
         if (!it) return;
         if ((k === 'ctrl+c' || k === 'ctrl+a') && String(window.getSelection ? window.getSelection() : '').length) return;      // text is selected: let the normal copy happen
         e.preventDefault(); if (it.kind) trigger(it); else it.run();
@@ -280,8 +317,8 @@
     }
     function monitorPop() {
         openPop('monitor', 'st-pop', function (p) {
-            head(p, 'Monitor'); var st = el('p', 'sx-note'), cnt = el('p', 'sx-note'), run = el('ul', 'sx-list'), bp = el('p', 'sx-note'), clr = btn('Clear all breakpoints', clearBps);
-            p.appendChild(st); p.appendChild(cnt); p.appendChild(el('strong', '', 'Running now')); p.appendChild(run); p.appendChild(bp); p.appendChild(clr);
+            head(p, 'Monitor'); var st = el('p', 'sx-note'), cnt = el('p', 'sx-note'), run = el('ul', 'sx-list'), bp = el('p', 'sx-note'), clr = btn('Clear all breakpoints', clearBps), perf = el('p', 'sx-note');
+            p.appendChild(st); p.appendChild(cnt); p.appendChild(el('strong', '', 'Running now')); p.appendChild(run); p.appendChild(bp); p.appendChild(clr); p.appendChild(perf);
             pop.paint = function () {
                 var list = G.listNodes(), c = {}, running = [], bps = 0;
                 list.forEach(function (x) {
@@ -292,6 +329,7 @@
                 cnt.textContent = ['running', 'waiting', 'done', 'error', 'stopped', 'skipped', 'idle'].filter(function (k) { return c[k]; }).map(function (k) { return k + ' ' + c[k]; }).join('  |  ') || 'No nodes yet.';
                 run.textContent = ''; running.forEach(function (t) { run.appendChild(el('li', '', t)); }); if (!running.length) run.appendChild(el('li', 'sx-dim', 'Nothing running'));
                 bp.textContent = 'Breakpoints: ' + bps; clr.disabled = !bps;
+                perf.textContent = (stalls.ok ? 'UI stalls over 400 ms: ' + stalls.n + (stalls.n ? ' (worst ' + stalls.worst + ' ms)' : '') : 'UI stall detection is not supported by this browser') + '  |  Console rows: ' + (logEl ? logEl.children.length : 0) + ' of ' + MAXROWS;
             };
             pop.paint();
         });
@@ -339,6 +377,17 @@
         if (!hasE('setEnabled')) return;
         ids.forEach(function (id) { var n = G.node(id); if (n) E.setEnabled(id, n.enabled); });
     };
+
+    function history(redo) {
+        if (typeof G.undo !== 'function') return say('warn', 'undo', 'Undo needs the updated studio-graph.js');
+        if (runState() !== 'idle') return say('warn', 'undo', 'Stop the run before ' + (redo ? 'redoing' : 'undoing') + '.');
+        if (redo) G.redo(); else G.undo(); syncAll();
+    }
+    function viewOp(op) {
+        if (typeof G.fit !== 'function') return say('warn', 'view', 'View tools need the updated studio-graph.js (it adds fit and zoom).');
+        if (op === 'fit') { if (!G.fit()) say('info', 'view', 'Nothing to fit yet: the graph is empty.'); }
+        else if (op === 'in') G.zoomBy(1.25); else if (op === 'out') G.zoomBy(0.8); else G.resetView();
+    }
 
     /* ---- diagnostics ---- */
     function showConsole() { var b = document.querySelector('[data-tab="log"]'); if (b && b.getAttribute('aria-selected') !== 'true') b.click(); }
@@ -416,10 +465,13 @@
             if (t && t.ms == null && started[id]) { t.ms = Date.now() - started[id]; G.traceUpdate(id, t); }
         }
     }
+    var tickN = 0, lastWH = 0;
     setInterval(function () {                             // cheap watcher: keeps button states right even when the top bar buttons are used
+        if (document.hidden) return;                      // a background tab does no work at all
         syncAll();
         if (runState() === 'idle') { stepPending = false; if (Object.keys(hitIds).length) clearHits(); }
-        if (pop.paint) pop.paint();
+        if (pop.paint && ++tickN % 2 === 0) pop.paint();  // the Monitor repaints twice a second, not four times
+        if (work && work.clientHeight !== lastWH) { lastWH = work.clientHeight; applyUI(); }
     }, 250);
 
     /* clicking a line in the Console (or a Validate result) jumps to its node, even inside a nested branch or from another view */
@@ -436,5 +488,118 @@
         G.traceReset(); setTimeout(syncAll, 0);
     } };
     G.onTool = function () { syncAll(); };
+
+    /* ---- anti-freeze 1: the Explorer tree and code list used to rebuild on EVERY keystroke in the editor; now they wait for a pause in typing ---- */
+    var SH = window.StudioShell;
+    if (SH && typeof SH.refresh === 'function') {
+        var rawRefresh = SH.refresh, rt = 0;
+        SH.refresh = function () { clearTimeout(rt); rt = setTimeout(function () { rt = 0; rawRefresh(); }, 150); };
+    }
+
+    /* ---- anti-freeze 2: a watchdog that reports when the page was blocked (Chromium browsers; others just skip it) ---- */
+    var stalls = { ok: false, n: 0, worst: 0, last: 0 };
+    try {
+        new PerformanceObserver(function (list) {
+            list.getEntries().forEach(function (en) {
+                if (en.duration < 400) return; stalls.n++; stalls.worst = Math.max(stalls.worst, Math.round(en.duration));
+                if (Date.now() - stalls.last > 5000) { stalls.last = Date.now(); say('warn', 'perf', 'The page was busy for ' + Math.round(en.duration) + ' ms (it may have felt frozen). If this repeats, look for a very large graph or a heavy script.'); }
+            });
+        }).observe({ entryTypes: ['longtask'] }); stalls.ok = true;
+    } catch (e) {}
+
+    /* ---- resizable panels: drag the top edge of the bottom panel, or the right edge of the workspace (Properties). Saved on this device only ---- */
+    var app = $('stApp'), work = $('stWork'), dock = $('stDock'), propsEl = document.querySelector('.st-props'), UI = { dock: 260, props: 260, folded: false }, raf = 0, rafFn = null, rz = 0;
+    function cl(v, lo, hi, d) { v = +v; return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
+    try { var o = JSON.parse(localStorage.getItem('studio-ui') || '{}'); UI.dock = cl(o.dock, 90, 1200, 260); UI.props = cl(o.props, 200, 520, 260); UI.folded = o.folded === true; } catch (e) {}
+    function saveUI() { try { localStorage.setItem('studio-ui', JSON.stringify(UI)); } catch (e) {} }
+    function later(fn) { rafFn = fn; if (!raf) raf = requestAnimationFrame(function () { raf = 0; var f = rafFn; rafFn = null; if (f) f(); }); }   // at most one layout change per frame
+    var gh = el('div', 'sx-grip sx-grip-h'), gv = el('div', 'sx-grip sx-grip-v');
+    function tabsH() { var t = dock && dock.querySelector('.st-tabs'); return (t && t.offsetHeight) || 38; }
+    function applyUI() {
+        if (!app || !work) return;
+        var maxD = work.clientHeight ? Math.max(120, work.clientHeight - 150) : 1200, d = UI.folded ? tabsH() + 1 : Math.min(UI.dock, maxD);
+        app.style.setProperty('--sx-dock', d + 'px'); app.style.setProperty('--sx-props', UI.props + 'px');
+        gh.setAttribute('aria-valuenow', String(d)); gv.setAttribute('aria-valuenow', String(UI.props));
+    }
+    function grip(g, onStart, onMove) {
+        g.addEventListener('pointerdown', function (e) {
+            if (e.button !== 0) return; e.preventDefault();
+            var st = onStart(e); g.setPointerCapture(e.pointerId); app.classList.add('sx-resizing'); g.classList.add('on');
+            function mv(ev) { later(function () { onMove(st, ev); applyUI(); }); }
+            function up() { g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); app.classList.remove('sx-resizing'); g.classList.remove('on'); setTimeout(saveUI, 60); }
+            g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+        });
+    }
+    function fold() { UI.folded = !UI.folded; applyUI(); saveUI(); }
+    if (app && work && dock) {
+        gh.setAttribute('role', 'separator'); gh.setAttribute('aria-orientation', 'horizontal'); gh.tabIndex = 0;
+        gh.setAttribute('aria-label', 'Resize the bottom panel: drag, or use Up and Down. Enter folds it.'); gh.title = 'Drag to resize. Double-click to fold or unfold.';
+        gv.setAttribute('role', 'separator'); gv.setAttribute('aria-orientation', 'vertical'); gv.tabIndex = 0;
+        gv.setAttribute('aria-label', 'Resize the Properties panel: drag, or use Left and Right.'); gv.title = 'Drag to resize the Properties panel.';
+        grip(gh, function (e) { return { y: e.clientY, h: dock.offsetHeight }; }, function (st, ev) { UI.folded = false; UI.dock = cl(st.h + (st.y - ev.clientY), 90, 1200, 260); });
+        grip(gv, function (e) { return { x: e.clientX, w: propsEl ? propsEl.offsetWidth : UI.props }; }, function (st, ev) { UI.props = cl(st.w + (st.x - ev.clientX), 200, 520, 260); });
+        gh.addEventListener('dblclick', fold);
+        gh.addEventListener('keydown', function (e) {
+            var d = e.shiftKey ? 96 : 24;
+            if (e.key === 'ArrowUp') { UI.folded = false; UI.dock = cl(dock.offsetHeight + d, 90, 1200, 260); }
+            else if (e.key === 'ArrowDown') { UI.folded = false; UI.dock = cl(dock.offsetHeight - d, 90, 1200, 260); }
+            else if (e.key === 'Enter') { e.preventDefault(); return fold(); } else return;
+            e.preventDefault(); applyUI(); saveUI();
+        });
+        gv.addEventListener('keydown', function (e) {
+            var d = e.shiftKey ? 96 : 24;
+            if (e.key === 'ArrowLeft') UI.props = cl(UI.props + d, 200, 520, 260); else if (e.key === 'ArrowRight') UI.props = cl(UI.props - d, 200, 520, 260); else return;
+            e.preventDefault(); applyUI(); saveUI();
+        });
+        work.appendChild(gh); work.appendChild(gv); applyUI();
+        window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(applyUI, 100); });
+    }
+
+    /* ---- Console: search, copy, export, error badge, and a hard cap on rows (an endless studio.log loop can no longer grow the page until it freezes) ---- */
+    var logEl = $('stLog'), tabsEl = dock && dock.querySelector('.st-tabs'), clearBtn = $('stClear'), MAXROWS = 500;
+    var query = '', errN = 0, logTab = tabsEl && tabsEl.querySelector('[data-tab="log"]'), badge = el('span', 'sx-badge'), ctl = el('span', 'sx-ctl'), qt = 0;
+    function paintBadge() { badge.hidden = !errN; badge.textContent = errN > 99 ? '99+' : String(errN); badge.setAttribute('aria-label', errN + ' new error(s)'); }
+    function consoleText() {
+        return Array.prototype.filter.call(logEl.children, function (r) { return !r.hidden; }).map(function (r) {
+            return Array.prototype.map.call(r.children, function (c) { return c.textContent; }).join('\t');
+        }).join('\n');
+    }
+    function copyLog() {
+        var t = consoleText(), n = t ? t.split('\n').length : 0; if (!n) return say('info', 'console', 'Nothing to copy');
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { say('ok', 'console', 'Copied ' + n + ' line(s)'); }, function () { say('warn', 'console', 'The browser blocked copying. Use Export instead.'); });
+        else say('warn', 'console', 'This browser cannot copy from here. Use Export instead.');
+    }
+    function exportLog() {
+        var t = consoleText(); if (!t) return say('info', 'console', 'Nothing to export');
+        try {
+            var u = URL.createObjectURL(new Blob([t + '\n'], { type: 'text/plain' })), a = document.createElement('a');
+            a.href = u; a.download = 'studio-console-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '.txt'; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(u); }, 2000); say('ok', 'console', 'Exported ' + t.split('\n').length + ' line(s)');
+        } catch (e) { say('warn', 'console', 'Export failed: ' + String((e && e.message) || e).slice(0, 120)); }
+    }
+    if (logEl && tabsEl && clearBtn) {
+        var q = el('input', 'sx-search'); q.type = 'search'; q.maxLength = 40; q.placeholder = 'Search'; q.setAttribute('aria-label', 'Search the console');
+        q.addEventListener('input', function () {
+            clearTimeout(qt); qt = setTimeout(function () {
+                query = q.value.trim().toLowerCase();
+                Array.prototype.forEach.call(logEl.children, function (r) { r.hidden = query ? r.textContent.toLowerCase().indexOf(query) < 0 : false; });
+            }, 150);
+        });
+        var cb = el('button', 'st-link', 'Copy'), eb = el('button', 'st-link', 'Export'); cb.type = eb.type = 'button';
+        cb.title = 'Copy the visible console lines'; eb.title = 'Download the visible console lines as a .txt file'; cb.addEventListener('click', copyLog); eb.addEventListener('click', exportLog);
+        ctl.appendChild(q); ctl.appendChild(cb); ctl.appendChild(eb); tabsEl.insertBefore(ctl, clearBtn);
+        Array.prototype.forEach.call(tabsEl.querySelectorAll('[data-tab]'), function (b) { b.addEventListener('click', function () { ctl.hidden = b.dataset.tab !== 'log'; }); });
+        if (logTab) { logTab.appendChild(badge); logTab.addEventListener('click', function () { errN = 0; paintBadge(); }); paintBadge(); }
+        new MutationObserver(function (muts) {
+            muts.forEach(function (m) {
+                Array.prototype.forEach.call(m.addedNodes, function (r) {
+                    if (r.nodeType !== 1) return; if (query) r.hidden = r.textContent.toLowerCase().indexOf(query) < 0;
+                    if (r.classList.contains('error') && !(logTab && logTab.getAttribute('aria-selected') === 'true' && !dock.hidden)) { errN++; paintBadge(); }
+                });
+            });
+            while (logEl.children.length > MAXROWS) logEl.removeChild(logEl.firstChild);
+            if (!logEl.children.length && errN) { errN = 0; paintBadge(); }
+        }).observe(logEl, { childList: true });
+    }
     build(); syncAll();
 })();
