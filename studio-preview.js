@@ -9,7 +9,7 @@
 (function () {
     'use strict';
     if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
-    var G = window.StudioGraph, MAX_DOC = 300000, MAX_LOGS = 1000, RATE = 100, BEAT_LIMIT = 5000;
+    var G = window.StudioGraph, MAX_DOC = 5 * 1024 * 1024, MAX_LOGS = 1000, RATE = 100, BEAT_LIMIT = 5000;
     var LEVELS = { log: 'info', info: 'info', debug: 'info', warn: 'warn', error: 'error' };
     var CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; worker-src blob:";
     var P = window.StudioPreview = {}, ui = {}, st = { hostOrigin: '', doc: '', sent: false, running: false, token: '', frame: null, logs: 0, errors: 0, win: [], warned: 0, beat: 0, wd: 0, map: [], timer: 0 };
@@ -109,7 +109,7 @@
         var g = sourceGraph(); if (!g) return;
         var a = P.assemble(g); info(a);
         if (!a.hasHtml) { G.log('warn', 'preview', 'Nothing to show yet: add an HTML file (Code Editor, New, HTML)'); status('Add an HTML file'); return; }
-        if (a.size > MAX_DOC) { G.log('error', 'preview', 'The page is too large to preview (' + Math.round(a.size / 1000) + ' KB, max ' + Math.round(MAX_DOC / 1000) + ' KB)'); return; }
+        if (a.size > MAX_DOC) { G.log('error', 'preview', 'The page is too large to preview (' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, max ' + (MAX_DOC / (1024 * 1024)).toFixed(2) + ' MB)'); return; }
         st.token = token(); st.logs = 0; st.errors = 0; st.win = []; st.warned = 0; st.map = a.map; st.beat = Date.now();
         var f = document.createElement('iframe'), host = window.STUDIO_PREVIEW_HOST || '';
         try { st.hostOrigin = host ? new URL(host, location.href).origin : ''; } catch (e) { st.hostOrigin = ''; host = ''; }
@@ -118,7 +118,7 @@
         else { f.setAttribute('sandbox', 'allow-scripts'); f.srcdoc = a.doc(st.token); }
         st.frame = f; st.running = true; window.addEventListener('message', onMsg);
         ui.host.appendChild(f); ui.empty.hidden = true; buttons(); status();
-        G.log('info', 'preview', 'Preview started (' + a.files.length + ' file(s), ' + (a.size / 1000).toFixed(1) + ' KB, ' + (ui.source.value === 'saved' ? 'last saved version' : 'current draft') + ')');
+        G.log('info', 'preview', 'Preview started (' + a.files.length + ' file(s), ' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, ' + (ui.source.value === 'saved' ? 'last saved version' : 'current draft') + ')');
         st.wd = setInterval(function () {                  // watchdog: a page that stops answering is removed
             if (Date.now() - st.beat > BEAT_LIMIT) { G.log('error', 'preview', 'The page stopped responding and was removed'); P.stop(true); status('Not responding, stopped'); }
         }, 1000);

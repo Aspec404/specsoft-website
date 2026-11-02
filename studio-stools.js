@@ -444,8 +444,9 @@
         }
         check(g, []);
         var size = JSON.stringify(g).length;
-        if (size > 450000) report('error', 'Project is ' + (size / 1000).toFixed(0) + ' KB. Saving stops at 450 KB.', null);
-        else if (size > 360000) report('warn', 'Project is ' + (size / 1000).toFixed(0) + ' KB of the 450 KB save limit.', null);
+        var MAX_PROJECT = 5 * 1024 * 1024;
+        if (size > MAX_PROJECT) report('error', 'Project is ' + (size / (1024 * 1024)).toFixed(2) + ' MB. Saving stops at 5 MB.', null);
+        else if (size > MAX_PROJECT * 0.8) report('warn', 'Project is ' + (size / (1024 * 1024)).toFixed(2) + ' MB of the 5 MB save limit.', null);
         if (g.nodes.length >= 180) report('warn', 'The root graph has ' + g.nodes.length + ' of 200 nodes.', null);
         if (evalOff) say('info', 'validate', 'JavaScript syntax check skipped: this page does not allow it.');
         if (!errs && !warns) say('ok', 'validate', 'Checked ' + count + ' node(s): no problems found.');

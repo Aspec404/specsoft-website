@@ -1635,14 +1635,37 @@
         ':|': '\uD83D\uDE10', ':-|': '\uD83D\uDE10', ':/': '\uD83D\uDE15', ':-/': '\uD83D\uDE15',
         '>:(': '\uD83D\uDE20', '>:)': '\uD83D\uDE08', '^_^': '\uD83D\uDE0A', 't_t': '\uD83D\uDE2D', '-_-': '\uD83D\uDE11', 'o_o': '\uD83D\uDE33'
     };
-    const EMO_RE = new RegExp('(^|\\s)(' + Object.keys(EMOTICONS).sort(function (a, b) { return b.length - a.length; })
-        .map(function (k) { return k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')(\\s*)$', 'i');
+    // dragged out ( :)))  :DDD  XDDD  :(((  <333 ) gives a bigger emoji. Needs 2 or more extra characters.
+    const EMO_STRONG = {
+        ':)': '\uD83D\uDE04', ':-)': '\uD83D\uDE04', ':(': '\uD83D\uDE22', ':-(': '\uD83D\uDE22',
+        ':d': '\uD83D\uDE01', ':-d': '\uD83D\uDE01', 'xd': '\uD83E\uDD23', ':p': '\uD83D\uDE1D', ':-p': '\uD83D\uDE1D',
+        ':o': '\uD83D\uDE32', ':-o': '\uD83D\uDE32', '<3': '\uD83D\uDC95'
+    };
+    const EMO_KEYS = Object.keys(EMOTICONS).sort(function (a, b) { return b.length - a.length; });
+    const EMO_STRETCH = /[)(dpo3]$/;                     // keys ending like this can be dragged out
+    const emoEsc = function (k) { return k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
+    const EMO_RE = new RegExp('(^|\\s)(' + EMO_KEYS.map(function (k) {
+        return emoEsc(k) + (EMO_STRETCH.test(k) ? '(?:' + emoEsc(k.slice(-1)) + '){0,9}' : '');
+    }).join('|') + ')(\\s*)$', 'i');
 
-    // "hi :) " -> "hi \uD83D\uDE42 "   (needSpace: only when a space was just typed after it)
+    // ":)))" -> the emoji for ":)" (bigger one when dragged out), or null
+    function emoticonFor(tok) {
+        const t = tok.toLowerCase();
+        for (let i = 0; i < EMO_KEYS.length; i++) {
+            const k = EMO_KEYS[i];
+            if (t.indexOf(k) !== 0) continue;
+            const rest = t.slice(k.length);
+            if (rest && !(EMO_STRETCH.test(k) && rest === new Array(rest.length + 1).join(k.slice(-1)))) continue;
+            return (rest.length >= 2 && EMO_STRONG[k]) || EMOTICONS[k];
+        }
+        return null;
+    }
+
+    // "hi :) " -> "hi (emoji) "   (needSpace: only when a space was just typed after it)
     function emoticonize(str, needSpace) {
         const m = EMO_RE.exec(str);
         if (!m || (needSpace && !m[3])) return null;
-        const emoji = EMOTICONS[m[2].toLowerCase()];
+        const emoji = emoticonFor(m[2]);
         if (!emoji) return null;
         return str.slice(0, m.index + m[1].length) + emoji + m[3];
     }
@@ -1679,6 +1702,7 @@
     }
 
     // typing  :name:  turns it into the emoji right away
+    // secret: typing  :name\x5>:  puts that emoji 5 times in a row (any shortcode, from 1 to 15)
     function convertTypedEmoji() {
         const root = $('chInput');
         const sel = window.getSelection();
@@ -1686,25 +1710,34 @@
         const node = sel.anchorNode;
         if (!node || node.nodeType !== 3 || !root.contains(node)) return;
         const upto = node.nodeValue.slice(0, sel.anchorOffset);
-        const m = /:([a-z0-9_+-]{1,32}):$/i.exec(upto);
+
+        let times = 1;
+        let m = /:([a-z0-9_+-]{1,32})\\x(\d{1,2})>:$/i.exec(upto);
+        if (m) times = Math.max(1, Math.min(15, parseInt(m[2], 10) || 1));
+        else m = /:([a-z0-9_+-]{1,32}):$/i.exec(upto);
         if (!m) return;
-        let img = null;
-        const url = composerEmojiUrl(m[1]);
-        if (url) img = makeComposerEmoji(m[0], url);
-        else {
+
+        const code = ':' + m[1] + ':';
+        let src = composerEmojiUrl(m[1]);
+        if (!src) {
             const item = flByCode(m[1]);                                   // :sob: typed by hand -> Windows 11 picture
             const before = m.index > 0 ? upto.charAt(m.index - 1) : '';
-            if (item && !/[A-Za-z0-9]/.test(before)) img = makeComposerEmoji(m[0], item.url);
+            if (item && !/[A-Za-z0-9]/.test(before)) src = item.url;
         }
-        if (!img) return;
+        if (!src) return;
+
+        const imgs = [];
+        for (let i = 0; i < times; i++) imgs.push(makeComposerEmoji(code, src));
+
         const after = node.nodeValue.slice(sel.anchorOffset);
         const parent = node.parentNode;
+        const ref = node.nextSibling;
         node.nodeValue = node.nodeValue.slice(0, m.index);
-        parent.insertBefore(img, node.nextSibling);
+        imgs.forEach(function (img) { parent.insertBefore(img, ref); });
         let tail = null;
-        if (after) { tail = document.createTextNode(after); parent.insertBefore(tail, img.nextSibling); }
+        if (after) { tail = document.createTextNode(after); parent.insertBefore(tail, ref); }
         const r = document.createRange();
-        if (tail) r.setStart(tail, 0); else r.setStartAfter(img);
+        if (tail) r.setStart(tail, 0); else r.setStartAfter(imgs[imgs.length - 1]);
         r.collapse(true);
         sel.removeAllRanges();
         sel.addRange(r);

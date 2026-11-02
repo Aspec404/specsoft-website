@@ -147,7 +147,7 @@
             tx('typingText', 'Custom typing indicator', 'What other people see while you type. Up to ' + TY_MAX + ' characters. Type <@username> where your name should go. Keep it friendly: rude, suggestive or harmful text is blocked. Leave it empty for the normal "is typing".', '', TY_MAX, '<@username> is cooking', { guard: 'typing' }),
             tg('chatMoreBtn', 'Show dots button on messages', 'Phones and tablets: adds a small \u22ee button on every message. It opens the same menu as holding the message.', false, { cls: 'ss-chat-more', clsOn: true }),
             tg('chatEmojiCodes', 'Convert :shortcodes: to emoji', 'Type :sob: and it turns into \uD83D\uDE2D right away. Turn off to keep the text exactly as you typed it.', true),
-            tg('chatEmoticons', 'Convert emoticons to emoji', 'Type :) and press space or send, and it turns into \uD83D\uDE42. Also works for :( :D ;) :P <3 and a few more.', true),
+            tg('chatEmoticons', 'Convert emoticons to emoji', 'Type :) and press space or send, and it turns into \uD83D\uDE42. Also works for :( :D ;) :P <3 and a few more, and dragged-out ones like :))) :DDD XDDD give a bigger emoji.', true),
             sl('chatEnter', 'Sending messages', 'Choose which key sends a message on desktop. Phones always use the send button.', 'enter', [['enter', 'Enter sends (Shift+Enter for a new line)'], ['ctrl', 'Ctrl+Enter sends (Enter for a new line)']]),
             tg('chatSound', 'Chat sounds', 'A soft ping for new messages.', true, { ls: { key: 'specsoft.chat.sound', on: 'on', off: 'off' } }),
             tg('chatFilter', 'Hide sensitive messages', 'Covers harsh messages with a notice. Only you see the cover.', true, { ls: { key: 'specsoft.chat.filter', on: 'on', off: 'off' } }),

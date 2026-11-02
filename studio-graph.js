@@ -284,7 +284,7 @@
     document.addEventListener('keyup', function (e) { if (e.key === ' ') space = false; });
 
     /* ---- Phase 4: node config, branches, script editor ---- */
-    var MAX_DEPTH = 5, TYPES = ['basic', 'script', 'branch', 'database', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs'];
+    var MAX_DEPTH = 5, MAX_TEXT = 5 * 1024 * 1024, TYPES = ['basic', 'script', 'branch', 'database', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs'];
     var TEMPLATE = "// input = results of the nodes connected into this one\nstudio.log('Hello from a script node');\nawait studio.delay(500);\nreturn { ok: true };";
     var TEMPLATES = { javascript: TEMPLATE, html: '<!-- HTML for your project -->\n<h1>Hello from SPECSOFT Studio</h1>', css: '/* CSS for your project */\nbody { font-family: sans-serif; }',
         pagejs: "// Runs inside the Preview page (not in the graph)\nconsole.log('page ready');\ndocument.body.insertAdjacentHTML('beforeend', '<p>Hello from page JS</p>');" };
@@ -303,8 +303,8 @@
         var nodes = (Array.isArray(g.nodes) ? g.nodes : []).slice(0, MAX_NODES).map(function (n) {
             n = n || {}; var type = TYPES.indexOf(n.type) > -1 ? n.type : 'basic', c = n.config || {}; ids[n.id] = 1;
             var cfg = { aDelay: clamp(c.aDelay, 0, 600000, 0), eDelay: clamp(c.eDelay, 0, 600000, 0), oDelay: clamp(c.oDelay, 0, 600000, 0), unit: c.unit === 's' ? 's' : 'ms',
-                timeout: clamp(c.timeout, 100, 30000, 5000), mode: c.mode === 'independent' ? 'independent' : 'inline', code: type === 'script' ? String(c.code || '').slice(0, 20000) : '', lang: LANGS.indexOf(c.lang) > -1 ? c.lang : 'javascript',
-                sql: type === 'database' ? String(c.sql || '').slice(0, 20000) : '', waitEvent: /^[A-Za-z0-9_-]{1,20}$/.test(c.waitEvent || '') ? c.waitEvent : '' };
+                timeout: clamp(c.timeout, 100, 30000, 5000), mode: c.mode === 'independent' ? 'independent' : 'inline', code: type === 'script' ? String(c.code || '').slice(0, MAX_TEXT) : '', lang: LANGS.indexOf(c.lang) > -1 ? c.lang : 'javascript',
+                sql: type === 'database' ? String(c.sql || '').slice(0, MAX_TEXT) : '', waitEvent: /^[A-Za-z0-9_-]{1,20}$/.test(c.waitEvent || '') ? c.waitEvent : '' };
             if (type === 'branch') cfg.sub = depth < MAX_DEPTH ? cleanGraph(c.sub, depth + 1) : { nodes: [], connections: [], frames: [], groups: [], folders: [] };
             return { id: String(n.id), label: String(n.label || 'N').slice(0, 20), type: type, x: num(n.x), y: num(n.y), enabled: n.enabled !== false, status: 'idle',
                 group: gids[n.group] ? n.group : null, folder: fids[n.folder] ? n.folder : null, bp: n.bp === true, config: cfg };
@@ -384,7 +384,7 @@
     }
     function editor(n, key, lang) {                       // used by the Code Editor view (the Properties panel only links to it)
         var wrap = document.createElement('div'), pre = document.createElement('pre'), ta = document.createElement('textarea');
-        wrap.className = 'st-code'; pre.setAttribute('aria-hidden', 'true'); ta.spellcheck = false; ta.maxLength = 20000; ta.value = n.config[key]; ta.setAttribute('aria-label', 'Code');
+        wrap.className = 'st-code'; pre.setAttribute('aria-hidden', 'true'); ta.spellcheck = false; ta.maxLength = MAX_TEXT; ta.value = n.config[key]; ta.setAttribute('aria-label', 'Code');
         function paint() { pre.innerHTML = highlight(ta.value, lang); }          // every highlighter escapes what it prints
         ta.addEventListener('input', function () { n.config[key] = ta.value; paint(); api.onChange(); });
         ta.addEventListener('scroll', function () { pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft; });

@@ -10,7 +10,7 @@
     var G = window.StudioGraph, P = window.StudioProject, PV = window.StudioPreview;
     if (!G || !P) return;
     var X = window.StudioPublish = {}, seq = 0;
-    var MAX_PAGE = 300000, MAX_FILES = 280000, SLUG = /^[a-z0-9][a-z0-9-]{2,39}$/, VER = /^[0-9]{1,3}(\.[0-9]{1,3}){0,2}$/;
+    var MAX_PAGE = 5 * 1024 * 1024, MAX_FILES = 5 * 1024 * 1024, SLUG = /^[a-z0-9][a-z0-9-]{2,39}$/, VER = /^[0-9]{1,3}(\.[0-9]{1,3}){0,2}$/;
     var KINDS = [['website', 'Static website'], ['game', 'HTML game'], ['interactive', 'Interactive experience'], ['source', 'Source code']];
     var CATS = [['website', 'Website'], ['game', 'Game'], ['art', 'Art'], ['tool', 'Tool'], ['education', 'Education'], ['other', 'Other']];
     var VIS = [['public', 'Public: anyone with the link, listed'], ['unlisted', 'Unlisted: anyone with the link'], ['private', 'Private: only you']];
@@ -109,7 +109,7 @@
         w.appendChild(msg); w.appendChild(el('h2', '', 'Snapshots')); w.appendChild(list);
 
         async function snapshot(label, nt) {
-            var g = G.get(); if (JSON.stringify(g).length > 450000) return { ok: false, error: 'This project is too large to snapshot (450 KB max).' };
+            var g = G.get(); if (JSON.stringify(g).length > 5 * 1024 * 1024) return { ok: false, error: 'This project is too large to snapshot (5 MB max).' };
             var r = await sb.from('studio_versions').insert({ project_id: proj.id, owner_id: P.user().id, label: String(label || '').trim().slice(0, 80), note: String(nt || '').trim().slice(0, 500), graph: g }).select('number').single();
             if (r.error) return { ok: false, error: nice(r.error) }; return { ok: true, number: r.data.number };
         }
@@ -245,10 +245,10 @@
             var g = P.saved(); if (!g) return msg.show('There is no saved version of this project yet. Press Save first.', 'err');
             var k = kind.value, rel = { project_id: proj.id, owner_id: P.user().id, version: v, notes: notes.value.trim().slice(0, 500), kind: k, bundle: '', files: null };
             if (k === 'source') {
-                var f = X.collectFiles(g); if (!f.files.length) return msg.show('There are no code files to publish.', 'err'); if (f.size > MAX_FILES) return msg.show('The code is too large to publish (' + Math.round(f.size / 1000) + ' KB, max ' + Math.round(MAX_FILES / 1000) + ' KB).', 'err'); rel.files = f.files;
+                var f = X.collectFiles(g); if (!f.files.length) return msg.show('There are no code files to publish.', 'err'); if (f.size > MAX_FILES) return msg.show('The code is too large to publish (' + (f.size / (1024 * 1024)).toFixed(2) + ' MB, max ' + (MAX_FILES / (1024 * 1024)).toFixed(2) + ' MB).', 'err'); rel.files = f.files;
             } else {
                 if (!PV || !PV.assemble) return msg.show('The Preview module is missing, so a page cannot be built.', 'err');
-                var a = PV.assemble(g); if (!a.hasHtml) return msg.show('Nothing to publish yet: add an HTML file in the Code Editor and Save.', 'err'); if (a.size > MAX_PAGE) return msg.show('The page is too large (' + Math.round(a.size / 1000) + ' KB, max ' + Math.round(MAX_PAGE / 1000) + ' KB).', 'err');
+                var a = PV.assemble(g); if (!a.hasHtml) return msg.show('Nothing to publish yet: add an HTML file in the Code Editor and Save.', 'err'); if (a.size > MAX_PAGE) return msg.show('The page is too large (' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, max ' + (MAX_PAGE / (1024 * 1024)).toFixed(2) + ' MB).', 'err');
                 rel.bundle = a.doc('published');
             }
             pubBtn.disabled = true; msg.show('Publishing...', '');

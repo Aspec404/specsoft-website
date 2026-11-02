@@ -56,7 +56,7 @@
     function build() {
         var root = $('stData'); if (!root) return;
         ui.list = el('div', 'dt-tables'); ui.view = el('div', 'dt-view');
-        ui.sql = el('textarea', 'dt-sql'); ui.sql.spellcheck = false; ui.sql.maxLength = 20000; ui.sql.setAttribute('aria-label', 'SQL');
+        ui.sql = el('textarea', 'dt-sql'); ui.sql.spellcheck = false; ui.sql.maxLength = 5 * 1024 * 1024; ui.sql.setAttribute('aria-label', 'SQL');
         ui.sql.placeholder = "CREATE TABLE scores (id INTEGER PRIMARY KEY, name TEXT, points INTEGER);\nINSERT INTO scores (name, points) VALUES ('Ann', 10);\nSELECT * FROM scores;";
         var go = el('button', 'st-btn', 'Run SQL'); go.type = 'button'; go.title = 'Ctrl+Enter';
         ui.out = el('div', 'dt-out'); ui.sql.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); } });

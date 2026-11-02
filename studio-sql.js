@@ -5,11 +5,11 @@
      SELECT * | cols | COUNT/SUM/AVG/MIN/MAX(...) [AS x] FROM t [WHERE ...] [ORDER BY c [ASC|DESC]] [LIMIT n [OFFSET m]]
      WHERE: = != <> < <= > >= LIKE IN (...) IS [NOT] NULL AND OR NOT ( ) + - * /   ?-placeholders for parameters.
    Not supported: JOIN, GROUP BY, subqueries. It parses text itself (no eval), works on a copy and only
-   keeps the changes when every statement succeeds. Limits: 10 tables, 20 columns, 2000 rows/table, 200 KB total. */
+   keeps the changes when every statement succeeds. Limits: 10 tables, 20 columns, 2000 rows/table, 5 MB total. */
 (function (root) {
     'use strict';
     if (typeof window !== 'undefined' && window.__STUDIO_BLOCKED) return;   // blocked device: do nothing (see studio-guard.js)
-    var LIM = { tables: 10, cols: 20, rows: 2000, cell: 2000, bytes: 200000, sql: 20000, params: 20 };
+    var LIM = { tables: 10, cols: 20, rows: 2000, cell: 2000, bytes: 5 * 1024 * 1024, sql: 5 * 1024 * 1024, params: 20 };
     var BAD = { '__proto__': 1, 'constructor': 1, 'prototype': 1 }, AGG = { count: 1, sum: 1, avg: 1, min: 1, max: 1 };
     function Err(m) { return new Error(m); }
     function name(n) { if (BAD[n]) throw Err('Name not allowed: ' + n); return n; }

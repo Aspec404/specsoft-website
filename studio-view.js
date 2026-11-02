@@ -10,7 +10,7 @@
     var sb = window.getSupabaseClient ? window.getSupabaseClient() : ((window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY) ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null);
     var CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; worker-src blob:";
     var KIND = { website: 'Static website', game: 'HTML game', interactive: 'Interactive experience', source: 'Source code' };
-    var MAX_DOC = 400000, frame = null;
+    var MAX_DOC = 5 * 1024 * 1024, frame = null;
     function $(id) { return document.getElementById(id); }
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
     function main(node) { var m = $('main'); m.textContent = ''; m.appendChild(node); }
@@ -34,7 +34,7 @@
         }); c.appendChild(play); main(c); play.focus();
     }
     function showSource(row) {
-        var files = (Array.isArray(row.files) ? row.files : []).slice(0, 200).map(function (f) { f = f || {}; return { name: String(f.name || 'file').slice(0, 80), lang: String(f.lang || '').slice(0, 20), code: String(f.code || '').slice(0, 300000) }; });
+        var files = (Array.isArray(row.files) ? row.files : []).slice(0, 200).map(function (f) { f = f || {}; return { name: String(f.name || 'file').slice(0, 80), lang: String(f.lang || '').slice(0, 20), code: String(f.code || '').slice(0, 5 * 1024 * 1024) }; });
         var wrap = el('div', 'src'), ul = el('ul'), pre = el('pre'), cur = null;
         if (!files.length) { msg('No files', 'This release has no code files.'); return; }
         function open(i, b) { pre.textContent = files[i].code; if (cur) cur.removeAttribute('aria-current'); b.setAttribute('aria-current', 'true'); cur = b; pre.scrollTop = 0; }
