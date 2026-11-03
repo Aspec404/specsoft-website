@@ -214,6 +214,7 @@
         { k: 'invites',    t: 'Invites',               i: 'link',    show: function () { return has('manage_invites'); } },
         { k: 'moderation', t: 'Moderation',            i: 'gavel',   show: function () { return has('view_mod_log') || has('ban_members'); } },
         { k: 'layout',     t: 'Channels & categories', i: 'layout',  show: function () { return has('manage_channels'); } },
+        { k: 'background', t: 'Chat background',     i: 'image',   show: function () { return has('manage_community'); }, bg: true },
         { k: 'pinned',     t: 'Pinned messages',       i: 'pin',     show: function () { return true; }, legacy: 'pinned' },
         { k: 'media',      t: 'Media & files',         i: 'image',   show: function () { return true; }, legacy: 'media' },
         { k: 'danger',     t: 'Leave / delete',        i: 'trash',   show: function () { return true; }, danger: true }
@@ -257,6 +258,7 @@
 
     function go(n) {
         if (n.legacy) { var h = H(); DLG.close(); h.openSettings(n.legacy); return; }
+        if (n.bg) { var rm = ST.room; DLG.close(); openBgDialog(rm, 'community'); return; }
         ST.tab = n.k;
         paintNav();
         paintBody();
@@ -971,6 +973,7 @@
             case 'thread.update':        return [a, ' changed a forum post'];
             case 'thread.delete':        return [a, ' deleted the forum post "' + (mt.title || '') + '"'];
             case 'community.profile':    return [a, ' updated the community profile'];
+            case 'community.background': return [a, ' changed the community background'];
             case 'invite.visibility':    return [a, ' set the community to ' + String(mt.visibility || '').replace('_', ' ')];
             case 'invite.regen':         return [a, ' made a new invite code'];
             default:                     return [a, ' ' + e.action];
@@ -1165,6 +1168,243 @@
             el('p', { class: 'ch-help', text: 'This cannot be undone. Type "' + room.name + '" to confirm.' }), typed, del));
     }
 
+    /* ======================================================================
+       CHAT BACKGROUNDS (supabase-chat-backgrounds.sql)
+       Community background: set by people who can edit the community profile, everybody sees it.
+       My background: only me, any chat. It wins over the community one.
+       ====================================================================== */
+    var BG_ME = 'chat-backgrounds';
+    var BGD = null, BG = { room: null, data: null, token: 0, sub: null, subRoom: null };
+    var BG_DEF = { opacity: 35, blur: 0, dim: 25 };
+
+    function bgUrl(path, kind) {
+        if (!path) return null;
+        try { return H().sb.storage.from(kind === 'community' ? BUCKET : BG_ME).getPublicUrl(path).data.publicUrl; } catch (e) { return null; }
+    }
+    function setLayer(node, url, s) {
+        node.style.setProperty('--csx-img', url ? 'url("' + String(url).replace(/"/g, '%22') + '")' : 'none');
+        node.style.setProperty('--csx-op', String((s.opacity == null ? BG_DEF.opacity : s.opacity) / 100));
+        node.style.setProperty('--csx-blur', (s.blur == null ? BG_DEF.blur : s.blur) + 'px');
+        node.style.setProperty('--csx-dim', String((s.dim == null ? BG_DEF.dim : s.dim) / 100));
+    }
+    function bgLayer() {
+        var convo = document.getElementById('chConvo');
+        if (!convo) return null;
+        var l = document.getElementById('csxBg');
+        if (!l) {
+            l = document.createElement('div');
+            l.id = 'csxBg'; l.className = 'csx-bg'; l.setAttribute('aria-hidden', 'true');
+            convo.insertBefore(l, convo.firstChild);
+        }
+        return l;
+    }
+    function paintBg() {
+        var convo = document.getElementById('chConvo'), l = bgLayer();
+        if (!convo || !l) return;
+        var d = BG.data, s = null, kind = null;
+        if (d) {
+            if (d.mine && d.mine.path) { s = d.mine; kind = 'mine'; }
+            else if (d.community && !(d.mine && d.mine.hide_community)) { s = d.community; kind = 'community'; }
+        }
+        var url = s && bgUrl(s.path, kind);
+        if (!url) { convo.classList.remove('has-csx-bg'); return; }
+        setLayer(l, url, s);
+        convo.classList.add('has-csx-bg');
+    }
+    function bgUnsub() {
+        if (BG.sub) { try { H().sb.removeChannel(BG.sub); } catch (e) { /* ignore */ } }
+        BG.sub = null; BG.subRoom = null;
+    }
+    async function loadBg(room) {
+        var tok = ++BG.token;
+        BG.room = room.room_id;
+        try {
+            var res = await rpc('chat_bg_get', { p_room: room.room_id });
+            if (res.error) throw res.error;
+            if (tok !== BG.token) return;
+            BG.data = res.data || {};
+        } catch (e) { if (tok === BG.token) BG.data = null; }        // SQL not run yet: no backgrounds
+        if (tok !== BG.token) return;
+        paintBg();
+        if (room.kind === 'community' && BG.data && BG.subRoom !== room.room_id) {
+            bgUnsub();
+            try {
+                BG.subRoom = room.room_id;
+                BG.sub = H().sb.channel('specsoft-bg-' + room.room_id)
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_community_settings', filter: 'room_id=eq.' + room.room_id }, function () {
+                        var cur = H().S.current;
+                        if (cur && cur.room_id === room.room_id) loadBg(cur);
+                    }).subscribe();
+            } catch (e) { BG.sub = null; }
+        }
+    }
+    function ensureBgBtn() {
+        if (document.getElementById('csxBgBtn')) return;
+        var box = document.querySelector('#chConvo .ch-head-actions');
+        if (!box) return;
+        var b = el('button', { type: 'button', class: 'ch-iconbtn', id: 'csxBgBtn', 'aria-label': 'Chat background', title: 'Chat background', onclick: function () {
+            var r = H().S.current;
+            if (r) openBgDialog(r);
+        } }, ico('image'));
+        box.insertBefore(b, document.getElementById('chMembersBtn') || box.firstChild);
+    }
+    function onOpen(room) {
+        if (!room) return;
+        ensureBgBtn();
+        if (BG.room !== room.room_id) { BG.data = null; paintBg(); }
+        if (BG.subRoom && BG.subRoom !== room.room_id) bgUnsub();
+        loadBg(room);
+    }
+    function onClose() {
+        BG.token++; BG.room = null; BG.data = null;
+        bgUnsub();
+        paintBg();
+    }
+
+    async function resizeFit(file, max) {
+        if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) throw new Error('Pick a PNG, JPG, WebP or GIF image.');
+        if (file.size > 15 * 1024 * 1024) throw new Error('That image is too big (15 MB max).');
+        var bmp = await loadBitmap(file);
+        var sc = Math.min(1, max / Math.max(bmp.width, bmp.height));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(bmp.width * sc)); c.height = Math.max(1, Math.round(bmp.height * sc));
+        var g = c.getContext('2d');
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(bmp, 0, 0, c.width, c.height);
+        var blob = await new Promise(function (r) { c.toBlob(r, 'image/webp', 0.82); });
+        if (!blob || blob.type !== 'image/webp') blob = await new Promise(function (r) { c.toBlob(r, 'image/jpeg', 0.85); });
+        if (!blob) throw new Error('Could not read that image.');
+        return blob;
+    }
+
+    function slider(label, min, max, unit, val, onInput) {
+        var out = el('output', { class: 'csx-sval', text: val + unit });
+        var inp = el('input', { type: 'range', class: 'csx-range', min: String(min), max: String(max), value: String(val), 'aria-label': label });
+        inp.addEventListener('input', function () { out.textContent = inp.value + unit; onInput(Number(inp.value)); });
+        return { node: el('div', { class: 'csx-slider' }, el('div', { class: 'csx-slabel' }, el('span', { text: label }), out), inp), set: function (v) { inp.value = String(v); out.textContent = v + unit; } };
+    }
+
+    // one editor, used for "My background" and "Community background"
+    function bgEditor(room, kind, tabs) {
+        var d = BG.data || {};
+        var base = kind === 'community' ? d.community : d.mine;
+        var st = {
+            path: base && base.path || null,
+            opacity: base ? base.opacity : BG_DEF.opacity, blur: base ? base.blur : BG_DEF.blur, dim: base ? base.dim : BG_DEF.dim,
+            hide: !!(d.mine && d.mine.hide_community), pending: null, clear: false
+        };
+        var m = box();
+        var prev = el('div', { class: 'csx-bgprev' }, el('div', { class: 'csx-bgprev-layer' }),
+            el('div', { class: 'csx-bgprev-msgs' },
+                el('div', { class: 'csx-bgmsg' }, el('b', { text: 'Alex' }), 'this is how messages look 👀'),
+                el('div', { class: 'csx-bgmsg is-me' }, 'looks good, bro 🔥'),
+                el('div', { class: 'csx-bgmsg' }, el('b', { text: 'Sam' }), 'can you read this part?')));
+        var layer = prev.firstChild;
+        function url() { return st.clear ? null : (st.pending ? st.pending.url : bgUrl(st.path, kind)); }
+        function paint() { setLayer(layer, url(), st); prev.classList.toggle('is-empty', !url()); }
+
+        var sOp = slider('Opacity', 5, 100, '%', st.opacity, function (v) { st.opacity = v; paint(); });
+        var sBl = slider('Blur', 0, 20, 'px', st.blur, function (v) { st.blur = v; paint(); });
+        var sDm = slider('Dim (easier to read)', 0, 80, '%', st.dim, function (v) { st.dim = v; paint(); });
+
+        function pick() {
+            var f = document.createElement('input');
+            f.type = 'file'; f.accept = 'image/png,image/jpeg,image/webp,image/gif';
+            f.addEventListener('change', async function () {
+                var file = f.files && f.files[0];
+                if (!file) return;
+                try {
+                    var blob = await resizeFit(file, 1600);
+                    if (st.pending) URL.revokeObjectURL(st.pending.url);
+                    st.pending = { blob: blob, url: URL.createObjectURL(blob) };
+                    st.clear = false; say(m, ''); paint();
+                } catch (err) { say(m, err.message || 'Could not use that image.'); }
+            });
+            f.click();
+        }
+
+        var hideCb = null;
+        if (kind === 'mine' && room.kind === 'community') {
+            hideCb = el('input', { type: 'checkbox', checked: st.hide });
+            hideCb.addEventListener('change', function () { st.hide = hideCb.checked; });
+        }
+
+        var save = btn('Save', '', async function () {
+            say(m, '');
+            H().setLoading(save, true);
+            var uid = H().S.me.id, newPath = null, bucket = kind === 'community' ? BUCKET : BG_ME;
+            try {
+                if (st.pending) {
+                    var ext = st.pending.blob.type === 'image/webp' ? '.webp' : '.jpg';
+                    newPath = kind === 'community' ? room.room_id + '/bg-' + Date.now() + ext : uid + '/' + room.room_id + '-' + Date.now() + ext;
+                    ok(await H().sb.storage.from(bucket).upload(newPath, st.pending.blob, { contentType: st.pending.blob.type, cacheControl: '31536000' }));
+                }
+                var args = kind === 'community'
+                    ? { p_room: room.room_id, p_path: newPath, p_opacity: st.opacity, p_blur: st.blur, p_dim: st.dim, p_clear: st.clear }
+                    : { p_room: room.room_id, p_path: newPath, p_opacity: st.opacity, p_blur: st.blur, p_dim: st.dim, p_hide: st.hide, p_clear: st.clear };
+                try { ok(await rpc(kind === 'community' ? 'chat_community_bg_save' : 'chat_my_bg_save', args)); }
+                catch (err) { if (newPath) { try { await H().sb.storage.from(bucket).remove([newPath]); } catch (e) { /* ignore */ } } throw err; }
+                if ((newPath || st.clear) && st.path) { try { await H().sb.storage.from(bucket).remove([st.path]); } catch (e) { /* best effort */ } }
+                var nextPath = st.clear ? null : (newPath || st.path);
+                BG.data = BG.data || {};
+                if (kind === 'community') BG.data.community = nextPath ? { path: nextPath, opacity: st.opacity, blur: st.blur, dim: st.dim } : null;
+                else BG.data.mine = { path: nextPath, opacity: st.opacity, blur: st.blur, dim: st.dim, hide_community: st.hide };
+                st.path = nextPath; st.pending = null; st.clear = false;
+                paintBg(); paint();
+                say(m, 'Saved.', true);
+            } catch (err) { say(m, msg(err)); }
+            finally { H().setLoading(save, false); }
+        });
+
+        var wrap = el('div', { class: 'csx-bgedit' },
+            tabs || null,
+            el('p', { class: 'ch-help', text: kind === 'community' ? 'Everybody in this community sees this background.' : 'Only you see this background. The other people in the chat do not.' }),
+            m, prev,
+            el('div', { class: 'csx-btnrow' },
+                btn('Choose image', 'ch-btn--ghost ch-btn--sm', pick),
+                btn('Remove image', 'ch-btn--ghost ch-btn--sm', function () { if (st.pending) URL.revokeObjectURL(st.pending.url); st.pending = null; st.clear = true; paint(); }),
+                btn('Reset sliders', 'ch-btn--ghost ch-btn--sm', function () {
+                    st.opacity = BG_DEF.opacity; st.blur = BG_DEF.blur; st.dim = BG_DEF.dim;
+                    sOp.set(st.opacity); sBl.set(st.blur); sDm.set(st.dim); paint();
+                })),
+            sOp.node, sBl.node, sDm.node,
+            hideCb ? el('label', { class: 'ch-check' }, hideCb, el('span', { class: 'ch-box', 'aria-hidden': 'true' }), el('span', { text: 'Hide the community background (just for me)' })) : null,
+            el('div', { class: 'csx-btnrow' }, save));
+        paint();
+        return wrap;
+    }
+
+    async function openBgDialog(room, startTab) {
+        if (!room) return;
+        if (BG.room !== room.room_id) await loadBg(room);
+        if (!BGD) {
+            BGD = document.createElement('dialog');
+            BGD.className = 'ch-dlg csx-bgdlg';
+            BGD.setAttribute('aria-labelledby', 'csxBgTitle');
+            BGD.innerHTML = '<header class="ch-dlg-head"><h2 id="csxBgTitle">Chat background</h2><button type="button" class="ch-iconbtn" aria-label="Close"></button></header><div class="ch-dlg-body" id="csxBgBody"></div>';
+            document.body.appendChild(BGD);
+            var x = BGD.querySelector('button');
+            x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS.close + '</svg>';
+            x.addEventListener('click', function () { BGD.close(); });
+            BGD.addEventListener('click', function (e) { if (e.target === BGD) BGD.close(); });
+        }
+        var body = BGD.querySelector('#csxBgBody');
+        var canCommunity = room.kind === 'community' && !!(SP && SP.can && SP.can('manage_community', room));
+        var tab = startTab === 'community' && canCommunity ? 'community' : 'mine';
+        function draw() {
+            body.textContent = '';
+            var tabs = null;
+            if (canCommunity) {
+                tabs = el('div', { class: 'csx-seg csx-seg--tabs', role: 'tablist' },
+                    el('button', { type: 'button', role: 'tab', class: tab === 'mine' ? 'is-on' : '', 'aria-selected': String(tab === 'mine'), onclick: function () { tab = 'mine'; draw(); } }, 'My background'),
+                    el('button', { type: 'button', role: 'tab', class: tab === 'community' ? 'is-on' : '', 'aria-selected': String(tab === 'community'), onclick: function () { tab = 'community'; draw(); } }, 'For everyone'));
+            }
+            body.appendChild(bgEditor(room, tab, tabs));
+        }
+        draw();
+        if (!BGD.open) BGD.showModal();
+    }
+
     /* ----------------------------------------------------------------------
        public API
        ---------------------------------------------------------------------- */
@@ -1181,6 +1421,9 @@
             open(room, tab);
             return true;
         },
+        onOpen: onOpen,
+        onClose: onClose,
+        openBg: openBgDialog,
         artEl: artEl,
         art: function (room, size) {
             var a = artEl(room);

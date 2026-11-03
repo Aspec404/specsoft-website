@@ -1363,6 +1363,7 @@
         S.opening = false;
         markRead(room.room_id);
         if (window.SPCH) SPCH.afterOpen();
+        if (window.SPCS && window.SPCS.onOpen) window.SPCS.onOpen(room);       // chat background
         if (!opts.keepRoomCh || !S.roomCh) joinRoomChannel(room.room_id);
         loadSeen(room.room_id);
         holdHint();
@@ -1373,6 +1374,7 @@
     function closeRoom() {
         leaveRoomChannel();
         if (window.SPCH) SPCH.close();
+        if (window.SPCS && window.SPCS.onClose) window.SPCS.onClose();
         S.current = null;
         S.opening = false;
         $('chConvo').hidden = true;

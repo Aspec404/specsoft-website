@@ -232,3 +232,32 @@ img.ch-art--img { display: block; width: 46px; height: 46px; padding: 0; }
 @media (prefers-reduced-motion: reduce) {
     .csx-visopt, .csx-tab, .chx-comm { transition: none; }
 }
+
+/* ----- chat background (community or personal) ----- */
+.csx-bg { display: none; position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.has-csx-bg > .csx-bg { display: block; }
+.csx-bg::before, .csx-bgprev-layer::before {
+    content: ''; position: absolute; inset: calc(var(--csx-blur, 0px) * -2);
+    background: var(--csx-img, none) center / cover no-repeat;
+    opacity: var(--csx-op, 0.35); filter: blur(var(--csx-blur, 0px));
+}
+.csx-bg::after, .csx-bgprev-layer::after { content: ''; position: absolute; inset: 0; background: var(--bg-base); opacity: var(--csx-dim, 0.25); }
+.has-csx-bg > .ch-feed { position: relative; z-index: 1; }
+.has-csx-bg > .ch-typing { position: relative; z-index: 2; }
+.has-csx-bg > .ch-convo-head, .has-csx-bg > .ch-composer { position: relative; z-index: 3; }
+.has-csx-bg > .ch-jump { z-index: 4; }
+
+.ch-dlg.csx-bgdlg { width: min(560px, calc(100vw - 24px)); }
+.csx-bgedit { display: grid; gap: 14px; }
+.csx-bgedit .ch-help { margin: 0; }
+.csx-bgprev { position: relative; height: 210px; border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-base); overflow: hidden; }
+.csx-bgprev.is-empty::before { content: 'No image yet'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-secondary); font-size: 13px; }
+.csx-bgprev-layer { position: absolute; inset: 0; overflow: hidden; }
+.csx-bgprev-msgs { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 14px; }
+.csx-bgmsg { align-self: flex-start; max-width: 80%; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-card); font-size: 13px; }
+.csx-bgmsg b { display: block; margin-bottom: 2px; font-size: 11px; color: var(--text-secondary); }
+.csx-bgmsg.is-me { align-self: flex-end; background: var(--accent-dim); border-color: var(--accent); }
+.csx-slider { display: grid; gap: 6px; }
+.csx-slabel { display: flex; justify-content: space-between; font-size: 13px; }
+.csx-sval { color: var(--text-secondary); font-family: var(--font-mono); font-size: 12px; }
+.csx-range { width: 100%; accent-color: var(--accent); }
