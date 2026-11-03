@@ -229,7 +229,7 @@
         mount: function (body, c) {
             var state = { items: [], dead: false };
             var board = el('div', { class: 'chx-board' });
-            var manage = A().canManage();
+            var manage = A().canManage('manage_events');
             var addBtn = manage ? el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: function () { editItem(null); } }, svg('plus'), el('span', { text: 'Add item' })) : null;
             body.appendChild(head('Roadmap', c.topic || (manage ? 'Add what you are working on. Members can vote.' : 'Vote for what you want next.'), addBtn));
             body.appendChild(board);
@@ -348,7 +348,7 @@
     SP.panels.event = {
         mount: function (body, c) {
             var state = { upcoming: [], past: null, dead: false };
-            var manage = A().canManage();
+            var manage = A().canManage('manage_events');
             var list = el('div', { class: 'chx-events' });
             var pastBox = el('div', { class: 'chx-events chx-events--past' });
             var pastBtn = el('button', { type: 'button', class: 'ch-btn ch-btn--ghost', onclick: togglePast }, 'Show past events');

@@ -119,7 +119,11 @@
         item_not_found: 'That item is no longer available.',
         event_not_found: 'That event is no longer available.',
         roadmap_limit: 'A roadmap can have up to 200 items.',
-        event_limit: 'That channel has too many events.'
+        event_limit: 'That channel has too many events.',
+        no_send: 'You do not have permission to talk here.',
+        timed_out: 'You are in a timeout. You cannot post right now.',
+        banned: 'You are banned from this community.',
+        private_community: 'This community is private. You need an invite from a member.'
     };
     function fe(err) {
         var m = String(err && err.message || '');
@@ -136,7 +140,45 @@
     }
     function active(roomId) { return !!(ST.roomId && roomId === ST.roomId && ST.channel); }
     function roomNow() { return (ST.roomId && H.S.roomMap.get(ST.roomId)) || H.S.current || null; }
-    function canManage() { var r = roomNow(); return !!r && (r.role === 'owner' || r.role === 'admin'); }
+    /* ---- permissions (custom roles, supabase-community-settings.sql) ----
+       Old-style owners and admins can do everything. Everybody else gets what their roles allow.
+       If the SQL has not been run, the permission list is simply unknown and the old rules stay. */
+    var PERMS = new Map();                       // roomId -> { perms: Set, owner: bool, rank: int }
+    function legacyAdmin(r) { return !!r && (r.role === 'owner' || r.role === 'admin'); }
+    function can(key, room) {
+        var r = room || roomNow();
+        if (!r || r.kind !== 'community') return false;
+        if (legacyAdmin(r)) return true;
+        var p = PERMS.get(r.room_id);
+        return !!(p && p.perms.has(key));
+    }
+    function canTalk(room) {                     // unknown permissions never lock anybody out
+        var r = room || roomNow();
+        if (!r || r.kind !== 'community' || legacyAdmin(r) || !PERMS.has(r.room_id)) return true;
+        return can('send_messages', r);
+    }
+    function canManage(key) { return can(key || 'manage_channels'); }
+    async function loadPerms(roomId) {
+        try {
+            var res = await H.sb.rpc('chat_my_perms', { p_room: roomId });
+            if (res.error) throw res.error;
+            var d = res.data || {};
+            PERMS.set(roomId, { perms: new Set(d.perms || []), owner: !!d.owner, rank: d.rank || 0 });
+        } catch (e) { PERMS.delete(roomId); }
+    }
+    var permsT = null;
+    function permsChanged() {                    // somebody changed roles: refresh what this person may do
+        clearTimeout(permsT);
+        permsT = setTimeout(async function () {
+            var id = ST.roomId;
+            if (!id) return;
+            await loadPerms(id);
+            if (ST.roomId !== id) return;
+            H.renderList();
+            SP.lockComposer();
+            SP.paintHeader();
+        }, 400);
+    }
     function lvl(roomId) { return ST.levels.get(roomId) || 'all'; }
     function lvlHelp(v) { for (var i = 0; i < LEVELS.length; i++) if (LEVELS[i].v === v) return LEVELS[i].help; return ''; }
 
@@ -198,6 +240,8 @@
             ST.sub = H.sb.channel('specsoft-chs-' + roomId)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_channels', filter: 'room_id=eq.' + roomId }, reloadSoon)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_sections', filter: 'room_id=eq.' + roomId }, reloadSoon)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_member_roles', filter: 'room_id=eq.' + roomId }, permsChanged)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_roles', filter: 'room_id=eq.' + roomId }, permsChanged)
                 .subscribe();
         } catch (e) { ST.sub = null; }
     }
@@ -290,6 +334,7 @@
         if (!data.channels.length) { SP.close(); return; }
 
         if (H.S.tl && H.S.tl.has(room.room_id)) H.S.tl.delete(room.room_id);     // drop typing from the channel you are leaving
+        await loadPerms(room.room_id);
         ST.roomId = room.room_id;
         applyStructure(room.room_id, data);
 
@@ -375,7 +420,7 @@
         var c = curChannel();
         if (!c) return null;
         if (c.type === 'spoiler') return 'Spoiler channel. Click a message to reveal it.';
-        if (c.type === 'announcements' && !canManage()) return 'Announcements. Only admins can post.';
+        if (c.type === 'announcements' && !can('post_announcements')) return 'Announcements. Only admins can post.';
         if (ST.thread && ST.threadInfo) return ST.threadInfo.title + (ST.threadInfo.locked ? ' (locked)' : '');
         if (isPanel(c)) return c.topic || TYPES[c.type].label;
         return c.topic || (r.name + ' · ' + r.member_count + ' member' + (r.member_count === 1 ? '' : 's'));
@@ -397,14 +442,15 @@
     SP.lockComposer = function () {
         var r = H.S.current;
         var c = r && active(r.room_id) ? curChannel() : null;
-        var threadLocked = !!(c && ST.thread && ST.threadInfo && ST.threadInfo.locked && !canManage());
-        var lock = !!c && ((c.type === 'announcements' && !canManage()) || (isPanel(c) && !ST.thread) || threadLocked);
+        var threadLocked = !!(c && ST.thread && ST.threadInfo && ST.threadInfo.locked && !can('manage_threads'));
+        var noTalk = !!c && !canTalk(r) && !isPanel(c);
+        var lock = !!c && ((c.type === 'announcements' && !can('post_announcements')) || (isPanel(c) && !ST.thread) || threadLocked || noTalk);
         var input = H.$('chInput');
         if (!input) return;
         if (lock) {
             input.setAttribute('contenteditable', 'false');
             input.setAttribute('aria-disabled', 'true');
-            input.dataset.placeholder = threadLocked ? 'This post is locked.' : isPanel(c) ? 'Use the panel above to take part.' : 'Only owners and admins can post in announcements.';
+            input.dataset.placeholder = threadLocked ? 'This post is locked.' : isPanel(c) ? 'Use the panel above to take part.' : (noTalk && c.type !== 'announcements') ? 'You do not have permission to talk here.' : 'Only owners and admins can post in announcements.';
             ['chAttachBtn', 'chEmojiBtn', 'chGifBtn', 'chDevBtn', 'chMicBtn', 'chSend'].forEach(function (id) { var b = H.$(id); if (b) b.disabled = true; });
             ST.locked = true;
         } else if (ST.locked) {
@@ -556,6 +602,12 @@
                 el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: function () { ST.reorder = false; H.renderList(); } }, 'Done')));
         } else {
             body.appendChild(el('button', { type: 'button', class: 'chx-back', onclick: function () { H.setNav('mine'); } }, svg('back'), el('span', { text: 'My chats' })));
+            if (window.SPCS) {
+                body.appendChild(el('button', { type: 'button', class: 'chx-comm', 'aria-label': 'Open community settings', onclick: function () { window.SPCS.open(room); } },
+                    window.SPCS.art(room, 34),
+                    el('span', { class: 'chx-comm-text' }, el('strong', { text: room.name || 'Community' }), el('small', { text: 'Community settings' })),
+                    svg('gear', 'chx-comm-gear')));
+            }
             body.appendChild(notifControl(room));
         }
 
@@ -1175,11 +1227,11 @@
             return H.el('button', { type: 'button', class: 'ch-btn ch-btn--ghost ch-btn--sm chx-thr' + (danger ? ' ch-btn--danger' : ''), onclick: fn }, label);
         }
         nodes.push(b('All posts', SP.closeThread));
-        if (canManage()) {
+        if (canManage('manage_threads')) {
             nodes.push(b(t.pinned ? 'Unpin' : 'Pin', function () { setThread({ p_pinned: !t.pinned }); }));
             nodes.push(b(t.locked ? 'Unlock' : 'Lock', function () { setThread({ p_locked: !t.locked }); }));
         }
-        if (canManage() || t.author_id === me) nodes.push(b('Delete post', deleteThread, true));
+        if (canManage('manage_threads') || t.author_id === me) nodes.push(b('Delete post', deleteThread, true));
         nodes.reverse().forEach(function (n) { box.insertBefore(n, box.firstChild); });
     }
 
@@ -1354,10 +1406,23 @@
     // coming back to the tab: catch up on anything the ping missed
     document.addEventListener('visibilitychange', function () { if (!document.hidden) liveFire(); });
 
+    // permissions + reorder, used by chats.js and by the community settings screen
+    SP.can = function (key, room) { return can(key, room); };
+    SP.reloadPerms = async function (roomId) {
+        await loadPerms(roomId);
+        if (ST.roomId === roomId) { H.renderList(); SP.lockComposer(); SP.paintHeader(); }
+    };
+    SP.startReorder = function () {
+        if (!ST.roomId || !canManage()) return false;
+        ST.reorder = true;
+        H.renderList();
+        return true;
+    };
+
     SP.panels = SP.panels || {};
     SP.api = {
         H: function () { return H; }, ST: ST, svg: svg, fe: fe, TYPES: TYPES,
-        canManage: canManage, openForm: openForm,
+        canManage: canManage, can: can, openForm: openForm,
         // panels: live(fn) runs fn when somebody else changed this channel. Returns a function that stops it.
         live: function (fn) {
             if (!ST.live) return function () {};

@@ -36,7 +36,7 @@
         'g.pulse .st-wire{stroke:var(--text-primary);stroke-width:4}',
         '.st-node.fc-0{border-left:4px solid #6aa9ff}.st-node.fc-1{border-left:4px solid #2fa66a}.st-node.fc-2{border-left:4px solid #e0a800}',
         '.st-node.fc-3{border-left:4px solid #c084fc}.st-node.fc-4{border-left:4px solid #e5484d}.st-node.fc-5{border-left:4px solid #38bdf8}',
-        '.st-canvas[data-tool="lasso"],.st-canvas[data-tool="frame"],.st-canvas[data-tool="createbranch"],.st-canvas[data-tool="reroute"],.st-canvas[data-tool="wait"]{cursor:crosshair}',
+        '.st-canvas[data-tool="lasso"],.st-canvas[data-tool="frame"],.st-canvas[data-tool="createbranch"],.st-canvas[data-tool="createtrigger"],.st-canvas[data-tool="reroute"],.st-canvas[data-tool="wait"]{cursor:crosshair}',
         '.st-canvas[data-tool="inspect"]{cursor:help}.st-canvas[data-tool="debug"] .st-node:hover{border-color:#e5484d}',
         '.st-canvas[data-tool="cut"] .st-frame-bar:hover,.st-canvas[data-tool="delete"] .st-frame-bar:hover{background:#e5484d;color:#fff}',
         /* tool bar */
@@ -110,6 +110,7 @@
         pause: '<path d="M8 5v14M16 5v14"/>',
         step: '<path d="M5 4l9 8-9 8zM18 5v14"/>',
         pulse: '<path d="M2 12h5l3-8 4 16 3-8h5"/>',
+        trigger: '<path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/>',
         wait: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
         toggle: '<rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="2.5"/>',
         spawn: '<circle cx="12" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M12 8.5v3M12 11.5l-5 4.5M12 11.5l5 4.5"/>',
@@ -145,6 +146,7 @@
             { id: 'node', name: 'Node', key: 'N', kind: 'tool', tool: 'create', tip: 'Click the canvas to place a node.' },
             { id: 'folder', name: 'Folder', key: '', kind: 'pop', run: function () { folderPop(); }, tip: 'Put the selected nodes in a named folder (it also appears in Explorer).' },
             { id: 'branch', name: 'Branch', key: 'B', kind: 'tool', tool: 'createbranch', tip: 'Click the canvas to place a branch (a nested graph). Double-click it to open.' },
+            { id: 'trigger', name: 'Trigger', key: '', kind: 'tool', tool: 'createtrigger', tip: 'Click the canvas to place a trigger (Timer, On Event or On Error). Wire it to what should happen each time it fires.' },
             { id: 'reroute', name: 'Reroute', key: 'R', kind: 'tool', tool: 'reroute', tip: 'Click the canvas for a reroute dot, or click a connection to insert one.' },
             { id: 'align', name: 'Align', key: 'A', kind: 'pop', run: function () { alignPop(); }, tip: 'Align or evenly spread the selected nodes.' },
             { id: 'inspect', name: 'Inspect', key: 'I', kind: 'tool', tool: 'inspect', tip: 'Click a node to see its details.' },
@@ -402,6 +404,16 @@
         while (q.length) { var k = q.shift(); seen++; adj[k].forEach(function (t) { if (--deg[t] === 0) q.push(t); }); }
         return seen === c.nodes.length;
     }
+    function externalRefs(html) {                          // links in an HTML file that the sandboxed Preview cannot load
+        var out = [], re = /<(link|script)\b[^>]*>/gi, m;
+        while ((m = re.exec(html)) && out.length < 5) {
+            var tag = m[0], isLink = m[1].toLowerCase() === 'link', a = tag.match(isLink ? /\bhref\s*=\s*["']?([^"'\s>]+)/i : /\bsrc\s*=\s*["']?([^"'\s>]+)/i);
+            if (!a || /^(data:|#|blob:)/i.test(a[1])) continue;
+            if (isLink && !/\brel\s*=\s*["']?[^"'>]*stylesheet/i.test(tag)) continue;
+            out.push({ kind: isLink ? 'stylesheet' : 'script', url: a[1].slice(0, 60), remote: /^(https?:)?\/\//i.test(a[1]) });
+        }
+        return out;
+    }
     function validate() {
         if (!G.isOpen()) return; showConsole();
         var g = G.get(), errs = 0, warns = 0, count = 0, emitted = {}, evalOff = false, AF = null;
@@ -420,15 +432,28 @@
             c.nodes.forEach(function (n) { if (byLabel[n.label]) dup[n.label] = 1; else byLabel[n.label] = n; });
             Object.keys(dup).forEach(function (l) { report('warn', where + l + ': more than one node has this label. Scripts find nodes by label, so only the first can be reached.', byLabel[l].id); });
             if (!topoOk(c)) report('error', (where || 'Root graph: ') + 'contains a loop, so it cannot run.', null);
+            c.nodes.filter(function (t) { return t.type === 'trigger'; }).forEach(function (t) {      // a node that reacts to a trigger cannot also be fed from the main flow
+                var seen = {}, st = [t.id], bad = {}; seen[t.id] = 1;
+                while (st.length) { var f = st.pop(); c.connections.forEach(function (x) { if (x.from === f && !seen[x.to]) { seen[x.to] = 1; st.push(x.to); } }); }
+                c.connections.forEach(function (x) { if (seen[x.to] && !seen[x.from] && !bad[x.to]) { bad[x.to] = 1; var tn = c.nodes.filter(function (q) { return q.id === x.to; })[0]; report('error', where + (tn ? tn.label : '?') + ': reacts to trigger ' + t.label + ' but is also fed by another node. Feed it only from the trigger side.', x.to); } });
+            });
             c.nodes.forEach(function (n) {
                 var cf = n.config || {}, name = where + n.label;
                 var ins = c.connections.filter(function (x) { return x.to === n.id; }).length, outs = c.connections.filter(function (x) { return x.from === n.id; }).length;
                 if (n.type === 'reroute') { if (!ins || !outs) report('warn', name + ': reroute is not connected on both sides.', n.id); return; }
+                if (n.type === 'trigger') {
+                    if (ins) report('error', name + ': a trigger has no input. Remove the connection going into it.', n.id);
+                    if (!outs) report('warn', name + ': this trigger is not wired to anything, so nothing happens when it fires.', n.id);
+                    if (cf.tKind === 'event') { if (!/^[A-Za-z0-9_-]{1,20}$/.test(cf.tEvent || '')) report('warn', name + ': choose an event name (letters, digits, - and _ only).', n.id); else if (!emitted[cf.tEvent]) report('warn', name + ': listens for event "' + cf.tEvent + '" but no script or timeline marker fires it.', n.id); }
+                    if (cf.tKind === 'timer' && cf.tRepeat !== false && cf.tMs < 250) report('info', name + ': a timer under 250 ms uses up its ' + cf.tMax + ' fires quickly.', n.id);
+                    return;
+                }
                 if (c.nodes.length > 1 && !ins && !outs) report('info', name + ': not connected to anything (it still runs, on its own).', n.id);
                 if (cf.waitEvent && !emitted[cf.waitEvent]) report('warn', name + ': waits for event "' + cf.waitEvent + '" but no script or timeline marker fires it.', n.id);
                 if (n.type === 'script') {
                     var code = String(cf.code || '');
                     if (!code.trim()) { report('warn', name + ': script has no code.', n.id); return; }
+                    if (cf.lang === 'html') externalRefs(code).forEach(function (x) { report('warn', name + ': the ' + x.kind + ' "' + x.url + '" will not load in the Preview (' + (x.remote ? 'the Preview has no network access' : 'it is a file on your computer, not part of the project') + '). Paste its ' + (x.kind === 'script' ? 'code into a JavaScript (page) file' : 'rules into a CSS file') + ' and delete this line.', n.id); });
                     if (cf.lang !== 'javascript') return;
                     if (AF && !evalOff) { try { new AF('studio', 'input', code); } catch (e) { if (e && e.name === 'EvalError') evalOff = true; else report('error', name + ': ' + (e.name || 'Error') + ': ' + String(e.message).slice(0, 160), n.id); } }
                     var re = /studio\.(runNode|result|enableNode|disableNode|spawnBranch|stopGroup)\(\s*["'`]([^"'`]{1,40})["'`]/g, m;
@@ -443,10 +468,9 @@
             });
         }
         check(g, []);
-        var size = JSON.stringify(g).length;
-        var MAX_PROJECT = 5 * 1024 * 1024;
-        if (size > MAX_PROJECT) report('error', 'Project is ' + (size / (1024 * 1024)).toFixed(2) + ' MB. Saving stops at 5 MB.', null);
-        else if (size > MAX_PROJECT * 0.8) report('warn', 'Project is ' + (size / (1024 * 1024)).toFixed(2) + ' MB of the 5 MB save limit.', null);
+        var size = new TextEncoder().encode(JSON.stringify(g)).length, MAX_PROJECT = 500000;          // same limit and unit as Save in studio.js
+        if (size > MAX_PROJECT) report('error', 'Project is ' + Math.round(size / 1000) + ' KB. Saving stops at 500 KB.', null);
+        else if (size > MAX_PROJECT * 0.8) report('warn', 'Project is ' + Math.round(size / 1000) + ' KB of the 500 KB save limit.', null);
         if (g.nodes.length >= 180) report('warn', 'The root graph has ' + g.nodes.length + ' of 200 nodes.', null);
         if (evalOff) say('info', 'validate', 'JavaScript syntax check skipped: this page does not allow it.');
         if (!errs && !warns) say('ok', 'validate', 'Checked ' + count + ' node(s): no problems found.');
@@ -610,14 +634,17 @@
         var cr = el('label', 'sx-chk'), crc = el('input'); crc.type = 'checkbox'; crc.checked = UI.clear; cr.title = 'Empty the Console every time a run starts'; cr.appendChild(crc); cr.appendChild(el('span', '', 'Clear on run'));
         crc.addEventListener('change', function () { UI.clear = crc.checked; saveUI(); });
         var fo = $('stFilter'); if (fo) { var po = el('option', '', 'Program output'); po.value = 'out'; fo.appendChild(po); }
-        ctl.appendChild(q); ctl.appendChild(cb); ctl.appendChild(eb); ctl.appendChild(cr); tabsEl.insertBefore(ctl, clearBtn);
+        var rs = el('button', 'st-link', 'Reset layout'); rs.type = 'button'; rs.title = 'Put the bottom panel and Properties panel back to their default sizes';
+        rs.addEventListener('click', function () { UI.dock = 260; UI.props = 260; UI.folded = false; applyUI(); saveUI(); say('ok', 'console', 'Panel layout reset'); });
+        ctl.appendChild(q); ctl.appendChild(cb); ctl.appendChild(eb); ctl.appendChild(cr); ctl.appendChild(rs); tabsEl.insertBefore(ctl, clearBtn);
         Array.prototype.forEach.call(tabsEl.querySelectorAll('[data-tab]'), function (b) { b.addEventListener('click', function () { ctl.hidden = b.dataset.tab !== 'log'; }); });
         if (logTab) { logTab.appendChild(badge); logTab.addEventListener('click', function () { errN = 0; paintBadge(); }); paintBadge(); }
         new MutationObserver(function (muts) {
             muts.forEach(function (m) {
                 Array.prototype.forEach.call(m.addedNodes, function (r) {
                     if (r.nodeType !== 1) return; if (r.children[2]) r.dataset.src = r.children[2].textContent; if (query) r.hidden = r.textContent.toLowerCase().indexOf(query) < 0;
-                    if (r.classList.contains('error') && !(logTab && logTab.getAttribute('aria-selected') === 'true' && !dock.hidden)) { errN++; paintBadge(); }
+                    if (r.classList.contains('error')) { if (UI.folded) { UI.folded = false; applyUI(); saveUI(); }          // an error never stays hidden in a folded panel
+                        if (!(logTab && logTab.getAttribute('aria-selected') === 'true' && !dock.hidden)) { errN++; paintBadge(); } }
                 });
             });
             while (logEl.children.length > MAXROWS) logEl.removeChild(logEl.firstChild);

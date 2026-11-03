@@ -96,8 +96,15 @@ footer,.site-footer,.footer-cta{display:none!important}  /* no footer on Studio 
 .st-node.t-script{border-left:4px solid var(--text-primary)}
 .st-node.t-branch{border-style:double;border-width:4px;padding:5px 12px}
 .st-props input[type=number],.st-props select{width:100%;box-sizing:border-box;background:var(--bg-base,#000);color:var(--text-primary);border:1px solid var(--border-subtle,#333);padding:6px 8px;font:400 .8rem var(--font-mono,monospace)}
-.st-code{position:relative;height:190px;border:1px solid var(--border-subtle,#333);background:var(--bg-base,#000)}
+.st-code{position:relative;display:flex;flex-direction:column;height:190px;border:1px solid var(--border-subtle,#333);background:var(--bg-base,#000)}
 .st-code pre,.st-code textarea{position:absolute;inset:0;margin:0;padding:8px;border:0;box-sizing:border-box;overflow:auto;font:400 .74rem/1.5 var(--font-mono,monospace);white-space:pre;tab-size:2}
+.st-code-in{position:relative;flex:1;min-height:0}
+.st-code-foot,.st-pend{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 8px;border-top:1px solid var(--border-subtle,#333);font:400 .72rem var(--font-mono,monospace);color:var(--text-secondary)}
+.st-pend[hidden]{display:none}.st-pend{color:var(--text-primary);background:var(--bg-card,#101010)}.st-pend .st-btn{padding:2px 8px}
+.st-meter.warn{color:#e0a800}.st-meter.over{color:#ff5c5c;font-weight:700}
+.st-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:rgba(0,0,0,.6)}
+.st-modal-box{max-width:460px;margin:16px;padding:18px;background:var(--bg-card,#101010);border:1px solid var(--border-hover,#666);color:var(--text-primary);font:400 .85rem/1.5 var(--font-mono,monospace)}
+.st-modal-box p{margin:10px 0}.st-modal-row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .st-code pre{color:var(--text-primary);pointer-events:none;word-break:normal}
 .st-code textarea{background:transparent;color:transparent;caret-color:var(--text-primary);resize:none;outline-offset:2px}
 .st-code .h-c{color:#6b7280}.st-code .h-s{color:#2fa66a}.st-code .h-k{color:#c084fc}.st-code .h-n{color:#e0a800}.st-code .h-a{color:#38bdf8}
@@ -208,6 +215,8 @@ footer,.site-footer,.footer-cta{display:none!important}  /* no footer on Studio 
 .dt-null{color:var(--text-secondary);font-style:italic}.dt-err{margin:8px 0;color:#e5484d;font:400 .78rem var(--font-mono,monospace)}
 .st-cmp{padding:8px 4px 12px;font:400 .75rem var(--font-mono,monospace);color:var(--text-secondary)}.st-cmp select{background:var(--bg-base,#000);color:var(--text-primary);border:1px solid var(--border-subtle,#333);padding:3px 6px;font:inherit}.st-cmp .dt{margin-top:8px}
 .st-props{overflow:auto}
+/* Phase 8: on desktop the Studio is pinned to the window, so nothing above it in the page can push the Console off-screen */
+@media (min-width:901px){.st-main{position:fixed!important;inset:0;z-index:1;overflow:hidden}.st-app{height:100vh;height:100dvh}}
 @media (max-width:900px){.st-app,.st-app:not([data-mode="graph"]){grid-template-columns:1fr}.st-rail{max-height:40vh}.st-data{grid-template-columns:1fr}.st-codeview{grid-template-columns:1fr}}
 .st-explorer{max-height:38vh;overflow:auto}
 
@@ -225,3 +234,16 @@ footer,.site-footer,.footer-cta{display:none!important}  /* no footer on Studio 
 .pv-empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;margin:0;color:var(--text-secondary);font-size:.85rem;pointer-events:none}
 .st-codeview.split{grid-template-columns:200px minmax(0,1fr) minmax(0,1fr)}
 .cv-pv{display:flex;min-width:0;min-height:0;border-left:1px solid var(--border-subtle,#2a2a2a)}
+
+/* Phase 8: line-number gutter in the Code Editor */
+.st-gut{position:absolute;left:0;top:0;bottom:0;margin:0;width:var(--gw,4ch);box-sizing:content-box;padding:8px 8px 24px 6px;overflow:hidden;text-align:right;color:#6b7280;border-right:1px solid var(--border-subtle,#333);background:var(--bg-base,#000);font:400 .74rem/1.5 var(--font-mono,monospace);user-select:none;pointer-events:none;white-space:pre}
+.st-code.big .st-gut{padding:12px 8px 24px 6px;font-size:.85rem}
+.st-code.has-gut pre,.st-code.has-gut textarea{padding-left:calc(var(--gw,4ch) + 22px)}
+.st-code.has-gut.big pre,.st-code.has-gut.big textarea{padding-left:calc(var(--gw,4ch) + 26px)}
+
+/* Phase 8: the Console always lives inside the bottom panel. Something outside Studio's own files was making #stLog position:fixed + display:flex, which threw it off-screen */
+#stDock>#stLog{position:static!important;inset:auto!important;transform:none!important;float:none!important;margin:0!important;width:auto!important;max-width:none!important;height:auto!important;min-height:0!important}
+#stDock>#stLog:not([hidden]){display:block!important}
+
+/* Phase 8: Trigger nodes */
+.st-node.t-trigger{border-left:4px solid #34d399;border-radius:14px 3px 3px 14px}

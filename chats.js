@@ -444,7 +444,12 @@
         too_many_snippets: 'You have saved the maximum number of snippets (300).',
         pin_limit: 'This chat already has 50 pinned messages. Unpin one first.',
         message_not_found: 'That message is no longer available.',
-        emote_not_owned: 'You can only send emotes you own. Get it in the Store.'
+        emote_not_owned: 'You can only send emotes you own. Get it in the Store.',
+        no_send: 'You do not have permission to talk here.',
+        timed_out: 'You are in a timeout. You cannot post right now.',
+        banned: 'You are banned from this community.',
+        private_community: 'This community is private. You need an invite from a member.',
+        rank_too_low: 'Their role is as high as yours or higher.'
     };
 
     function isSetupMissing(err) {
@@ -699,6 +704,7 @@
 
     function roomArt(r, size) {
         if (r.kind === 'dm') return avatar({ id: r.other_id, display_name: r.other_display, username: r.other_username, avatar_url: r.other_avatar }, size);
+        if (r.kind === 'community' && window.SPCS) { const a = window.SPCS.artEl(r); if (a) return a; }
         return el('span', { class: 'ch-art' + (size ? '' : ''), text: r.icon || '💬' });
     }
 
@@ -805,10 +811,11 @@
 
     function communityCard(c) {
         return el('article', { class: 'ch-card', role: 'listitem' },
-            el('span', { class: 'ch-card-icon', text: c.icon || '💬' }),
+            (window.SPCS && window.SPCS.cardArt(c)) || el('span', { class: 'ch-card-icon', text: c.icon || '💬' }),
             el('div', { class: 'ch-card-main' },
                 el('h3', { text: c.name }),
                 c.description ? el('p', { text: c.description }) : null,
+                window.SPCS ? window.SPCS.tagsEl(c) : null,
                 el('small', { text: Number(c.member_count) + ' member' + (Number(c.member_count) === 1 ? '' : 's') })),
             c.joined
                 ? el('button', { type: 'button', class: 'ch-btn ch-btn--ghost ch-btn--sm', onclick: function () { openRoom(c.room_id); } }, 'Open')
@@ -1117,7 +1124,7 @@
         const moreBtn = (!deleted && !m.pending)
             ? el('button', { type: 'button', class: 'ch-msg-more', title: 'Message actions', 'aria-label': 'Message actions', onclick: function (e) { e.stopPropagation(); openMsgSheet(m, e.currentTarget.closest('.ch-msg')); } }, icon('more'))
             : null;
-        const canDelete = !deleted && !m.pending && (mine || (S.current && (S.current.role === 'owner' || S.current.role === 'admin')));
+        const canDelete = !deleted && !m.pending && (mine || (S.current && (S.current.role === 'owner' || S.current.role === 'admin')) || modCan('manage_messages'));
         if (canDelete) tools.appendChild(el('button', { type: 'button', class: 'ch-tool ch-tool--danger', title: 'Delete', 'aria-label': 'Delete', onclick: function (e) { e.stopPropagation(); deleteMessage(m); } }, icon('trash')));
 
         const head = grouped ? null : el('div', { class: 'ch-msg-head' },
@@ -1931,7 +1938,9 @@
     async function deleteMessage(m) {
         if (!window.confirm('Delete this message?')) return;
         try {
-            const res = await sb.rpc('chat_delete', { p_id: m.id });
+            const legacy = !!(S.current && (S.current.role === 'owner' || S.current.role === 'admin'));
+            const asMod = !!S.me && m.sender_id !== S.me.id && !legacy && modCan('manage_messages');
+            const res = asMod ? await sb.rpc('chat_mod_delete_message', { p_message: m.id }) : await sb.rpc('chat_delete', { p_id: m.id });
             if (res.error) throw res.error;
             m.deleted_at = new Date().toISOString(); m.body = ''; m.reactions = [];
             rebuildNode(m);
@@ -2118,6 +2127,8 @@
     const SET = { tab: 'general', kind: 'images', media: [], more: false, loading: false };
 
     function canManage(r) { return !!r && r.kind !== 'dm' && (r.role === 'owner' || r.role === 'admin'); }
+    // community permission (custom roles). False when the community SQL / roles are not set up.
+    function modCan(key) { return !!(S.current && window.SPCH && window.SPCH.can && window.SPCH.can(key, S.current)); }
     function canPinHere(r) { return !!r && (r.kind === 'dm' || canManage(r)); }
 
     function settingsErr(err) {
@@ -2139,6 +2150,7 @@
     function openSettings(tab) {
         const r = S.current;
         if (!r) return;
+        if (r.kind === 'community' && !tab && window.SPCS && window.SPCS.open(r)) return;      // new community settings screen
         const dm = r.kind === 'dm';
         $('setTitle').textContent = dm ? 'Chat info' : (r.kind === 'community' ? 'Community settings' : 'Group settings');
         $('setTabGeneral').hidden = dm;
@@ -4447,7 +4459,7 @@
             list.push({ ico: 'pin', label: pinned ? 'Unpin message' : 'Pin message', run: function () { togglePinMessage(m); } });
         }
 
-        const canDelete = mine || !!(S.current && (S.current.role === 'owner' || S.current.role === 'admin'));
+        const canDelete = mine || !!(S.current && (S.current.role === 'owner' || S.current.role === 'admin')) || modCan('manage_messages');
         const canReport = !mine && !bug;
         if (canReport || canDelete) list.push('sep');
         if (canReport) list.push({ ico: 'flag', label: 'Report message', danger: true, run: function () { openReport(m); } });
@@ -5404,7 +5416,8 @@
             S: S, sb: sb, $: $, el: el, toast: toast, friendly: friendly, setLoading: setLoading,
             openRoom: openRoom, closeRoom: closeRoom, setNav: setNav, renderList: renderList, bumpRoom: bumpRoom,
             updateBadges: updateBadges, cacheProfiles: cacheProfiles, pushNotice: pushNotice, mentionsUser: mentionsUser,
-            nameOf: nameOf, safePreview: safePreview, paintHeader: paintHeader
+            nameOf: nameOf, safePreview: safePreview, paintHeader: paintHeader,
+            openSettings: openSettings, loadRooms: loadRooms, startDm: startDm, avatar: avatar
         });
         initTheme();
         initSound();

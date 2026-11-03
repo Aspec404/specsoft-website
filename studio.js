@@ -83,8 +83,8 @@
         var title = $('stTitle').value.trim();
         if (!title) { log('warn', 'save', 'Title cannot be empty'); return; }
         var graph = StudioGraph.get();
-        var MAX_PROJECT = 5 * 1024 * 1024;
-        if (JSON.stringify(graph).length > MAX_PROJECT) { log('error', 'save', 'This project is too large to save (5 MB max). Remove some nodes or code.'); return; }
+        var MAX_PROJECT = 500000, bytes = new TextEncoder().encode(JSON.stringify(graph)).length;        // the database limit counts bytes, not characters
+        if (bytes > MAX_PROJECT) { log('error', 'save', 'This project is too large to save (' + Math.round(bytes / 1000) + ' KB, max 500 KB). Remove some nodes or code.'); return; }
         var r = await sb.from('studio_projects').update({ title: title, graph: S.cur.graph = graph }).eq('id', S.cur.id);
         if (r.error) { fail('save', r.error); return; }
         S.cur.title = title; $('stState').textContent = 'Saved'; try { localStorage.removeItem('studio-recovery:' + S.cur.id); } catch (e) {} log('ok', 'save', 'Saved "' + title + '"'); load();

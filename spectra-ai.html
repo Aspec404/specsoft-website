@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+<title>Spectra AI | SPECSOFT®</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="cursor.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="spectra-ai.css">
+</head>
+<body class="sa-page" data-no-footer>
+<div class="grid-bg"></div><div class="scanlines"></div><div class="vignette"></div><div class="ambient-glow"></div>
+
+<!-- Icon sprite (stroke icons, inherit currentColor) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="3"/><path d="M8 21l3-4"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" stroke-width="2.2"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16 16"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2.5h8a2 2 0 012 2V18a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M8 14.5h8"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="currentColor"><path d="M11 2.5c.4 4.6 1.9 6.1 6.5 6.5-4.6.4-6.1 1.9-6.5 6.5-.4-4.6-1.9-6.1-6.5-6.5C9.1 8.6 10.6 7.1 11 2.5z"/><path d="M18.5 14.5c.2 2 .9 2.8 2.9 2.9-2 .2-2.7.9-2.9 2.9-.2-2-.9-2.7-2.9-2.9 2-.1 2.7-.9 2.9-2.9z" opacity=".85"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 013 3L8 19z"/><path d="M14 7l3 3M12 20h8"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 10.5l7 3 3 7z"/><path d="M21 3L10 13.5"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 012-2h9"/></symbol>
+  <symbol id="i-like" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4a1 1 0 01-1-1v-7a1 1 0 011-1z"/><path d="M7 11l4-7a2 2 0 012 2v3h5.3a2 2 0 012 2.4l-1.2 6A2 2 0 0117.1 20H7"/></symbol>
+  <symbol id="i-dislike" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(180 12 12)"><path d="M7 11v9H4a1 1 0 01-1-1v-7a1 1 0 011-1z"/><path d="M7 11l4-7a2 2 0 012 2v3h5.3a2 2 0 012 2.4l-1.2 6A2 2 0 0117.1 20H7"/></g></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 00-14.5-4M4 5v3.5h3.5M4 13a8 8 0 0014.5 4M20 19v-3.5h-3.5"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10M18 11c0 4-6 3-12 6"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3A4 4 0 0011 18.7l1-1"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+  <symbol id="i-gamepad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="11" rx="5"/><path d="M7.5 10.5v4M5.5 12.5h4"/><circle cx="15.5" cy="11.5" r=".9" fill="currentColor"/><circle cx="18" cy="13.8" r=".9" fill="currentColor"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 100 18c1.4 0 2-1 1.6-2-.5-1.2.2-2.5 1.6-2.5H17a4 4 0 004-4C21 6.5 17 3 12 3z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="10" cy="7.5" r="1" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14.5a5 5 0 008 0M9 9.5h.01M15 9.5h.01" stroke-width="2"/></symbol>
+<symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8 8a5 5 0 01-7-7l8.5-8.5a3.3 3.3 0 014.7 4.7l-8.5 8.5a1.7 1.7 0 01-2.4-2.4L15 7"/></symbol>
+  <symbol id="i-shot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 012-2h2l1.5-2h5L16 6h2a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></symbol>
+  <symbol id="i-brain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a3 3 0 00-3 3 3 3 0 00-2 2.8A3 3 0 005.5 14 3 3 0 009 19a3 3 0 003-2.5V6.5A2.5 2.5 0 009 4zM15 4a3 3 0 013 3 3 3 0 012 2.8 3 3 0 01-1.5 4.2A3 3 0 0115 19a3 3 0 01-3-2.5"/></symbol>
+  <symbol id="i-radar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l5-5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+  </svg>
+
+<div class="sa-app" id="saApp">
+  <canvas id="saBg" aria-hidden="true"></canvas>
+  <div class="sa-back" id="saBack"></div>
+
+  <aside class="sa-side" id="saSide">
+    <button class="sa-collapse" id="saCollapse" type="button" aria-label="Collapse sidebar">‹</button>
+    <a class="sa-logo" href="index.html" aria-label="SPECSOFT home">
+      <img src="assets/specsoft-logo.png" alt="SPECSOFT">
+    </a>
+    <div class="sa-rule"></div>
+    <nav class="sa-navs">
+      <button class="sa-nav on" id="saNew" type="button"><i class="sa-fi" data-i="chat"><svg><use href="#i-chat"/></svg></i><span class="sa-t">New chat</span></button>
+      <button class="sa-nav" id="saAssets" type="button"><i class="sa-fi" data-i="cube"><svg><use href="#i-cube"/></svg></i><span class="sa-t">Assets</span></button>
+      <button class="sa-nav" id="saSearch" type="button"><i class="sa-fi" data-i="search"><svg><use href="#i-search"/></svg></i><span class="sa-t">Search</span></button>
+      <button class="sa-nav" id="saLibrary" type="button"><i class="sa-fi" data-i="folder"><svg><use href="#i-folder"/></svg></i><span class="sa-t">Library</span></button>
+    </nav>
+    <div class="sa-list" id="saList"></div>
+    <div class="sa-rule"></div>
+    <button class="sa-nav sa-nav-s" id="saSettings" type="button"><i class="sa-fi" data-i="gear"><svg><use href="#i-gear"/></svg></i><span class="sa-t">Settings</span></button>
+    <a class="sa-acct" href="profile.html" aria-label="Your profile"><span class="sa-ava" data-user-avatar style="--sp-size:40px"></span><span class="sa-t sa-acct-n"><b data-user-name></b><b class="sa-guest" data-guest-only hidden>Log in</b></span><i class="sa-fi sa-t sa-chev" data-i="chev"><svg><use href="#i-chev"/></svg></i></a>
+  </aside>
+
+  <main class="sa-main">
+    <div class="sa-bgmark" aria-hidden="true">
+      <svg viewBox="0 0 1000 940" preserveAspectRatio="xMinYMid slice"><g fill="currentColor"><polygon points="40,330 400,40 640,40 280,330"/><polygon points="300,310 560,120 700,260 440,450"/><polygon points="-40,900 300,640 400,730 60,990"/></g></svg>
+    </div>
+    <div class="sa-art" aria-hidden="true"><img src="assets/spectra/spectra-hero.png" alt="" onerror="this.parentNode.style.display='none'"></div>
+
+    <header class="sa-top">
+      <button class="sa-ico sa-menu-btn" id="saBurger" type="button" aria-label="Menu">☰</button>
+      <img class="sa-face sa-face-s" src="assets/spectra/spectra-pfp.png" alt="Spectra">
+      <span class="sa-top-t">Spectra</span>
+    </header>
+
+    <div class="sa-scroll" id="saScroll">
+      <section class="sa-hero" id="saHero">
+        <p class="sa-welcome">WELCOME TO</p>
+        <h1 class="sa-wordmark"><img src="assets/specsoft-wordmark.png" alt="SPECSOFT"></h1>
+        <p class="sa-tag">Chat. Create. Explore.</p>
+        <div class="sa-hr"></div>
+        <div class="sa-greet"><img class="sa-face sa-face-s" src="assets/spectra/spectra-pfp.png" alt="Spectra" title="Poke her"><p class="sa-sub sa-bubble" id="saBubble"></p></div>
+        <div class="sa-sugs">
+          <button type="button" class="sa-sug" data-p="Give me 5 original game ideas for a small indie team."><i class="sa-fi" data-i="spark"><svg><use href="#i-spark"/></svg></i>Generate an idea</button>
+          <button type="button" class="sa-sug" data-p="Help me debug a Lua script for my Roblox game."><i class="sa-fi" data-i="code"><svg><use href="#i-code"/></svg></i>Help with code</button>
+          <button type="button" class="sa-sug" data-p="Help me design a new feature for my Roblox game."><i class="sa-fi" data-i="gamepad"><svg><use href="#i-gamepad"/></svg></i>Roblox help</button>
+          <button type="button" class="sa-sug" data-p=""><i class="sa-fi" data-i="pen"><svg><use href="#i-pen"/></svg></i>Just chat</button>
+        </div>
+      </section>
+      <div id="saMsgs"></div>
+    </div>
+
+    <div class="sa-composer">
+      <div class="sa-att" id="saAtt" hidden></div>
+      <input type="file" id="saFile" multiple hidden accept="image/*,.txt,.md,.json,.js,.ts,.py,.lua,.luau,.html,.css,.csv,.xml,.yml,.yaml,.java,.c,.cpp,.cs,.sql,.sh,.log">
+      <div class="sa-box">
+        <button class="sa-persona" id="saPersona" type="button" aria-label="Choose persona"><i class="sa-fi" data-i="spark"><svg><use href="#i-spark"/></svg></i></button>
+        <div class="sa-pmenu" id="saPMenu"></div>
+        <textarea id="saInput" rows="1" maxlength="4000" placeholder="Send a message to Spectra..." aria-label="Message Spectra"></textarea>
+        <button class="sa-send" id="saSend" type="button" aria-label="Send"><i class="sa-fi sa-i-send" data-i="send"><svg><use href="#i-send"/></svg></i><i class="sa-fi sa-i-stop" data-i="stop"><svg><use href="#i-stop"/></svg></i></button>
+      </div>
+      <div class="sa-hint">Enter to send · Shift+Enter for a new line · Spectra can make mistakes</div>
+    </div>
+  </main>
+</div>
+
+<div class="sa-modal" id="saModal"><div class="sa-card"><input id="saQ" autocomplete="off"><div id="saRes"></div></div></div>
+<div class="sa-modal" id="saSet"><div class="sa-card sa-set"><h3>Settings</h3>
+  <label>Nickname<input id="saNick" maxlength="20" placeholder="What should Spectra call you?"></label>
+  <label class="sa-row"><span>Live expressions</span><input type="checkbox" id="saExpr"></label>
+  <label class="sa-row"><span>Typing animation</span><input type="checkbox" id="saTyping"></label>
+  <button class="sa-done" id="saSetClose" type="button">Done</button></div></div>
+<div class="sa-toast" id="saToast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+<script src="supabase-config.js"></script>
+<script src="chat-notify.js" defer></script>
+<script src="ban.js"></script>
+<script src="main.js?v=3"></script>
+<script src="spectra-ai.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="spectra-bg.js" defer></script>
+<script src="cursor.js" defer></script>
+<script src="gate.js"></script>
+<script src="seasons.js"></script>
+</body>
+</html>

@@ -32,6 +32,7 @@
 
     /* ---- graph model ---- */
     function ens(g) { g.frames = g.frames || []; g.groups = g.groups || []; g.folders = g.folders || []; return g; }
+    function trigText(n) { var c = n.config; return 'trigger, ' + (c.tKind === 'event' ? 'on event ' + (c.tEvent || '?') : c.tKind === 'error' ? 'on error' : (c.tRepeat === false ? 'once after ' : 'every ') + c.tMs + ' ms'); }
     function dw(n) { return n.type === 'reroute' ? RW : W; }
     function dh(n) { return n.type === 'reroute' ? RW : H; }
     function byId(id) { for (var i = 0; i < G.nodes.length; i++) if (G.nodes[i].id === id) return G.nodes[i]; return null; }
@@ -56,7 +57,7 @@
     function makeNode(p, type, opts) {
         if (G.nodes.length >= MAX_NODES) { api.log('warn', 'graph', 'Node limit reached (' + MAX_NODES + ')'); return null; }
         opts = opts || {}; type = type || 'basic';
-        var pre = opts.prefix || (type === 'branch' ? 'B' : type === 'reroute' ? 'R' : 'N'), w = type === 'reroute' ? RW : W, h = type === 'reroute' ? RW : H;
+        var pre = opts.prefix || (type === 'branch' ? 'B' : type === 'reroute' ? 'R' : type === 'trigger' ? 'T' : 'N'), w = type === 'reroute' ? RW : W, h = type === 'reroute' ? RW : H;
         var n = { id: uid(), label: nextLabel(pre), type: type, x: Math.round(p.x - w / 2), y: Math.round(p.y - h / 2), enabled: true, status: 'idle', group: null, folder: null, bp: false, config: defaults(type) };
         Object.keys(opts.config || {}).forEach(function (k) { n.config[k] = opts.config[k]; });
         G.nodes.push(n); return n;
@@ -72,6 +73,7 @@
     function connect(a, b) {
         var A = byId(a), B = byId(b);
         if (a === b) return api.log('warn', 'graph', 'A node cannot connect to itself');
+        if (B.type === 'trigger') return api.log('warn', 'graph', B.label + ' is a trigger and has no input. Connect it to what should react, not into it');
         if (G.connections.some(function (c) { return c.from === a && c.to === b; })) return api.log('warn', 'graph', A.label + ' is already connected to ' + B.label);
         if (reaches(b, a)) return api.log('warn', 'graph', 'Rejected ' + A.label + ' to ' + B.label + ': it would create a loop');
         G.connections.push({ id: uid(), from: a, to: b }); api.log('ok', 'graph', 'Connected ' + A.label + ' to ' + B.label); changed();
@@ -119,10 +121,10 @@
         var d = document.createElement('div');
         d.className = 'st-node' + (isSel(n.id) ? ' sel' : '') + (n.id === sel ? ' prim' : '') + (n.id === pend ? ' pend' : '') + (n.enabled ? '' : ' off') + ' s-' + n.status + ' t-' + n.type + (n.bp ? ' bp' : '') + (hits[n.id] ? ' hit' : '') + (fo ? ' fc-' + (fo.c % 6) : '') + (clip && clip.cut && clip.g === G && clip.ids.indexOf(n.id) > -1 ? ' is-cut' : '');
         d.dataset.id = n.id; d.style.left = n.x + 'px'; d.style.top = n.y + 'px'; if (fo) d.title = 'Folder: ' + fo.name;
-        var i = document.createElement('i'); i.className = 'st-port in'; var o = document.createElement('i'); o.className = 'st-port out'; d.appendChild(i);
+        var i = document.createElement('i'); i.className = 'st-port in'; var o = document.createElement('i'); o.className = 'st-port out'; if (n.type !== 'trigger') d.appendChild(i);       // a trigger has no input
         if (n.type !== 'reroute') {
             var s = document.createElement('strong'); s.textContent = n.label;
-            var t = document.createElement('small'); t.textContent = (n.type === 'branch' ? 'branch, ' + n.config.sub.nodes.length + ' nodes' : n.type === 'script' ? 'script, ' + ({ javascript: 'js', pagejs: 'page js' }[n.config.lang] || n.config.lang) : n.type) + (n.enabled ? '' : ' (disabled)');
+            var t = document.createElement('small'); t.textContent = (n.type === 'branch' ? 'branch, ' + n.config.sub.nodes.length + ' nodes' : n.type === 'trigger' ? trigText(n) : n.type === 'script' ? 'script, ' + ({ javascript: 'js', pagejs: 'page js' }[n.config.lang] || n.config.lang) : n.type) + (n.enabled ? '' : ' (disabled)');
             d.appendChild(s); d.appendChild(t);
         }
         d.appendChild(o);
@@ -224,7 +226,7 @@
             else if (tool === 'debug') { n.bp = !n.bp; api.log('info', 'debug', n.label + (n.bp ? ': breakpoint set' : ': breakpoint removed')); changed(); }
             return;
         }
-        if (tool === 'create' || tool === 'createbranch') addNode(p, tool === 'createbranch' ? 'branch' : 'basic');
+        if (tool === 'create' || tool === 'createbranch' || tool === 'createtrigger') addNode(p, tool === 'createbranch' ? 'branch' : tool === 'createtrigger' ? 'trigger' : 'basic');
         else if (tool === 'reroute') addNode(p, 'reroute');
         else if (tool === 'wait') addNode(p, 'basic', { prefix: 'W', config: { eDelay: 1000 } });
         else if (tool === 'frame') {
@@ -284,7 +286,8 @@
     document.addEventListener('keyup', function (e) { if (e.key === ' ') space = false; });
 
     /* ---- Phase 4: node config, branches, script editor ---- */
-    var MAX_DEPTH = 5, MAX_TEXT = 5 * 1024 * 1024, TYPES = ['basic', 'script', 'branch', 'database', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs'];
+    function trigDefaults() { return { tKind: 'timer', tMs: 1000, tRepeat: true, tMax: 20, tEvent: '' }; }
+    var MAX_DEPTH = 5, MAX_TEXT = 5 * 1024 * 1024, TYPES = ['basic', 'script', 'branch', 'database', 'trigger', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs'];
     var TEMPLATE = "// input = results of the nodes connected into this one\nstudio.log('Hello from a script node');\nawait studio.delay(500);\nreturn { ok: true };";
     var TEMPLATES = { javascript: TEMPLATE, html: '<!-- HTML for your project -->\n<h1>Hello from SPECSOFT Studio</h1>', css: '/* CSS for your project */\nbody { font-family: sans-serif; }',
         pagejs: "// Runs inside the Preview page (not in the graph)\nconsole.log('page ready');\ndocument.body.insertAdjacentHTML('beforeend', '<p>Hello from page JS</p>');" };
@@ -293,7 +296,7 @@
     function clamp(v, lo, hi, d) { v = +v; return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
     function defaults(type) {
         var c = { aDelay: 0, eDelay: 0, oDelay: 0, unit: 'ms', timeout: 5000, mode: 'inline', code: type === 'script' ? TEMPLATE : '', lang: 'javascript', sql: type === 'database' ? SQL_TEMPLATE : '', waitEvent: '' };
-        if (type === 'branch') c.sub = { nodes: [], connections: [] }; return c;
+        if (type === 'branch') c.sub = { nodes: [], connections: [] }; if (type === 'trigger') { var td = trigDefaults(); Object.keys(td).forEach(function (k) { c[k] = td[k]; }); } return c;
     }
     function cleanGraph(g, depth) {                      // rebuilds a graph from saved/untrusted data: only known fields survive
         g = g || {}; var ids = {}, str = function (v, n) { return String(v == null ? '' : v).slice(0, n); };
@@ -305,6 +308,7 @@
             var cfg = { aDelay: clamp(c.aDelay, 0, 600000, 0), eDelay: clamp(c.eDelay, 0, 600000, 0), oDelay: clamp(c.oDelay, 0, 600000, 0), unit: c.unit === 's' ? 's' : 'ms',
                 timeout: clamp(c.timeout, 100, 30000, 5000), mode: c.mode === 'independent' ? 'independent' : 'inline', code: type === 'script' ? String(c.code || '').slice(0, MAX_TEXT) : '', lang: LANGS.indexOf(c.lang) > -1 ? c.lang : 'javascript',
                 sql: type === 'database' ? String(c.sql || '').slice(0, MAX_TEXT) : '', waitEvent: /^[A-Za-z0-9_-]{1,20}$/.test(c.waitEvent || '') ? c.waitEvent : '' };
+            if (type === 'trigger') { cfg.tKind = ['timer', 'event', 'error'].indexOf(c.tKind) > -1 ? c.tKind : 'timer'; cfg.tMs = clamp(c.tMs, 50, 600000, 1000); cfg.tRepeat = c.tRepeat !== false; cfg.tMax = clamp(c.tMax, 1, 200, 20); cfg.tEvent = /^[A-Za-z0-9_-]{1,20}$/.test(c.tEvent || '') ? c.tEvent : ''; }
             if (type === 'branch') cfg.sub = depth < MAX_DEPTH ? cleanGraph(c.sub, depth + 1) : { nodes: [], connections: [], frames: [], groups: [], folders: [] };
             return { id: String(n.id), label: String(n.label || 'N').slice(0, 20), type: type, x: num(n.x), y: num(n.y), enabled: n.enabled !== false, status: 'idle',
                 group: gids[n.group] ? n.group : null, folder: fids[n.folder] ? n.folder : null, bp: n.bp === true, config: cfg };
@@ -349,6 +353,7 @@
             if (t === 'branch') n.config.sub = n.config.sub || { nodes: [], connections: [] }; else delete n.config.sub;
             if (t === 'script' && !n.config.code) n.config.code = TEMPLATES[n.config.lang] || TEMPLATE;
             if (t === 'database' && !n.config.sql) n.config.sql = SQL_TEMPLATE;
+            if (t === 'trigger' && !n.config.tKind) { var td = trigDefaults(); Object.keys(td).forEach(function (k2) { n.config[k2] = td[k2]; }); }
             changed();
         });
         return s;
@@ -382,18 +387,94 @@
         if (lang === 'sql') return paintRe(src, /(--[^\n]*)|('(?:[^']|'')*')|\b(select|from|where|and|or|not|insert|into|values|update|set|delete|create|table|drop|if|exists|order|by|asc|desc|limit|offset|like|in|is|null|primary|key|default|as|count|sum|avg|min|max|integer|int|text|real|varchar)\b|(\b\d+(?:\.\d+)?\b)/gi, ['c', 's', 'k', 'n']);
         return highlightJs(src);
     }
+    /* Code size: MAX_CODE is the per-file limit. A paste that does not fit is never cut silently: the person is asked to split it. */
+    var MAX_CODE = 200000, pendingTail = null;
+    function fmt(n) { return Number(n).toLocaleString('en-US'); }
+    function countLines(s) { return s ? s.split('\n').length : 0; }
+    function cutAt(text, room) {                           // where to cut so the first part fits in `room` characters
+        var i = text.lastIndexOf('\n', room - 1);
+        if (i >= 0) return { at: i + 1, chars: false };    // cut AFTER a line break: whole lines only
+        var at = room, c = text.charCodeAt(at - 1);
+        if (c >= 0xD800 && c <= 0xDBFF) at--;              // never split an emoji in half
+        return { at: at, chars: true };                    // one giant line (minified code): cut by character
+    }
+    function splitDialog(info, onSplit, onCancel) {
+        var ov = document.createElement('div'), box = document.createElement('div'), h = document.createElement('strong'), row = document.createElement('div'), prev = document.activeElement;
+        ov.className = 'st-modal'; box.className = 'st-modal-box'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Paste is too large');
+        h.textContent = 'Max is ' + fmt(MAX_CODE) + ' characters per file. Split it?'; box.appendChild(h);
+        function para(t) { var p = document.createElement('p'); p.textContent = t; box.appendChild(p); }
+        para('This paste is ' + fmt(info.pasted) + ' characters and only ' + fmt(info.room) + ' more fit in this file.');
+        if (info.room > 0) {
+            para('Split: the first ' + fmt(info.head) + ' characters go in now' + (info.chars ? '' : ' (cut at a line break)') + '. The remaining ' + fmt(info.tail) + ' are copied to your clipboard and kept in a "Pending tail" bar until you paste them into another file.');
+            if (info.chars) para('Warning: this text has no line breaks (minified?), so it is cut mid-line and the code may break.');
+        } else para('This file is full. Cancel, then paste into a new file.');
+        row.className = 'st-modal-row';
+        function btn(t, fn) { var x = document.createElement('button'); x.type = 'button'; x.className = 'st-btn'; x.textContent = t; x.addEventListener('click', function () { close(); fn(); }); row.appendChild(x); return x; }
+        function close() { document.removeEventListener('keydown', key, true); ov.remove(); if (prev && prev.focus) prev.focus(); }
+        function key(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); onCancel(); } }
+        var first = info.room > 0 ? btn('Split it', onSplit) : null; var cancel = btn('Cancel', onCancel);
+        box.appendChild(row); ov.appendChild(box); document.body.appendChild(ov); document.addEventListener('keydown', key, true); (first || cancel).focus();
+    }
     function editor(n, key, lang) {                       // used by the Code Editor view (the Properties panel only links to it)
-        var wrap = document.createElement('div'), pre = document.createElement('pre'), ta = document.createElement('textarea');
-        wrap.className = 'st-code'; pre.setAttribute('aria-hidden', 'true'); ta.spellcheck = false; ta.maxLength = MAX_TEXT; ta.value = n.config[key]; ta.setAttribute('aria-label', 'Code');
+        var wrap = document.createElement('div'), inn = document.createElement('div'), foot = document.createElement('div'), meter = document.createElement('span'), pend = document.createElement('div'),
+            pre = document.createElement('pre'), ta = document.createElement('textarea'), gut = document.createElement('pre'), gutN = 0;
+        wrap.className = 'st-code has-gut'; gut.className = 'st-gut'; gut.setAttribute('aria-hidden', 'true'); inn.className = 'st-code-in'; foot.className = 'st-code-foot'; meter.className = 'st-meter'; pend.className = 'st-pend';
+        pre.setAttribute('aria-hidden', 'true'); ta.spellcheck = false; ta.value = n.config[key]; ta.setAttribute('aria-label', 'Code');   // no maxLength: the browser would cut a long paste without telling anyone
         function paint() { pre.innerHTML = highlight(ta.value, lang); }          // every highlighter escapes what it prints
-        ta.addEventListener('input', function () { n.config[key] = ta.value; paint(); api.onChange(); });
-        ta.addEventListener('scroll', function () { pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft; });
+        function gutter() {                                  // line numbers: rebuilt only when the number of lines changes
+            var c = countLines(ta.value) || 1; if (c === gutN) return; gutN = c;
+            var a = new Array(c); for (var i = 0; i < c; i++) a[i] = i + 1; gut.textContent = a.join('\n');
+            wrap.style.setProperty('--gw', (Math.max(3, String(c).length) + 1) + 'ch');
+        }
+        function stat() { var len = ta.value.length; meter.textContent = fmt(len) + ' / ' + fmt(MAX_CODE) + ' characters, ' + fmt(countLines(ta.value)) + ' lines' + (len > MAX_CODE ? ' (over the limit: trim or split it)' : ''); meter.className = 'st-meter' + (len > MAX_CODE ? ' over' : len > MAX_CODE * 0.9 ? ' warn' : ''); }
+        function bar() {
+            pend.textContent = ''; pend.hidden = pendingTail == null; if (pendingTail == null) return;
+            var t = document.createElement('span'); t.textContent = 'Pending tail: ' + fmt(pendingTail.length) + ' characters (' + fmt(countLines(pendingTail)) + ' lines) not pasted yet. Paste it into another file.'; pend.appendChild(t);
+            var c = document.createElement('button'), d = document.createElement('button'); c.type = d.type = 'button'; c.className = d.className = 'st-btn'; c.textContent = 'Copy again'; d.textContent = 'Dismiss';
+            c.addEventListener('click', function () { copyText(pendingTail).then(function (ok) { api.log(ok ? 'ok' : 'warn', 'editor', ok ? 'Pending tail copied' : 'The browser blocked copying. Select the text and copy it yourself, or paste the file again.'); }); });
+            d.addEventListener('click', function () { pendingTail = null; bar(); });
+            pend.appendChild(c); pend.appendChild(d);
+        }
+        function copyText(s) { try { return navigator.clipboard.writeText(s).then(function () { return true; }, function () { return false; }); } catch (e) { return Promise.resolve(false); } }
+        ta.addEventListener('input', function () { n.config[key] = ta.value; paint(); gutter(); stat(); api.onChange(); });
+        ta.addEventListener('scroll', function () { pre.scrollTop = gut.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft; });
+        ta.addEventListener('paste', function (e) {
+            var t = e.clipboardData && e.clipboardData.getData('text/plain'); if (!t) return;
+            var a = ta.selectionStart, z = ta.selectionEnd, room = MAX_CODE - (ta.value.length - (z - a));
+            if (t.length <= room) { if (t === pendingTail) { pendingTail = null; bar(); } return; }          // fits: the browser pastes it normally
+            e.preventDefault();                                                                              // too big: nothing changes until the person chooses
+            var cut = room > 0 ? cutAt(t, room) : null;
+            splitDialog({ pasted: t.length, room: Math.max(0, room), head: cut ? cut.at : 0, tail: cut ? t.length - cut.at : t.length, chars: !!(cut && cut.chars) }, function () {
+                var head = t.slice(0, cut.at); pendingTail = t.slice(cut.at); ta.focus(); ta.setSelectionRange(a, z);
+                if (!document.execCommand || !document.execCommand('insertText', false, head)) { ta.setRangeText(head, a, z, 'end'); ta.dispatchEvent(new Event('input')); }   // insertText keeps Ctrl+Z working
+                bar(); copyText(pendingTail).then(function (ok) { api.log(ok ? 'ok' : 'warn', 'editor', 'Pasted ' + fmt(head.length) + ' characters. ' + (ok ? 'The remaining ' + fmt(pendingTail ? pendingTail.length : 0) + ' are on your clipboard and in the Pending tail bar.' : 'The browser blocked copying: use Copy again in the Pending tail bar.')); });
+            }, function () { ta.focus(); });
+        });
         ta.addEventListener('keydown', function (e) {
             if (e.key === 'Tab') { e.preventDefault(); var a = ta.selectionStart; ta.value = ta.value.slice(0, a) + '  ' + ta.value.slice(ta.selectionEnd); ta.selectionStart = ta.selectionEnd = a + 2; ta.dispatchEvent(new Event('input')); }
         });
-        paint(); wrap.appendChild(pre); wrap.appendChild(ta); return wrap;
+        paint(); gutter(); stat(); bar(); inn.appendChild(pre); inn.appendChild(ta); inn.appendChild(gut); foot.appendChild(meter); wrap.appendChild(inn); wrap.appendChild(pend); wrap.appendChild(foot); return wrap;
+    }
+    function trigProps(dl, n) {                           // Trigger nodes: what fires them and how often
+        var c = n.config, k = document.createElement('select'); k.setAttribute('aria-label', 'Trigger kind');
+        [['timer', 'Timer'], ['event', 'On Event'], ['error', 'On Error']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (c.tKind === x[0]) o.selected = true; k.appendChild(o); });
+        k.addEventListener('change', function () { c.tKind = k.value; api.onChange(); renderProps(); });
+        row(dl, 'Fires on', k);
+        if (c.tKind === 'timer') {
+            var ms = document.createElement('input'); ms.type = 'number'; ms.min = 50; ms.max = 600000; ms.step = 50; ms.value = c.tMs; ms.setAttribute('aria-label', 'Milliseconds');
+            ms.addEventListener('input', function () { var v = parseFloat(ms.value); if (!isFinite(v)) return; c.tMs = clamp(v, 50, 600000, 1000); api.onChange(); });
+            row(dl, 'Milliseconds', ms);
+            var rp = document.createElement('input'); rp.type = 'checkbox'; rp.checked = c.tRepeat !== false; rp.setAttribute('aria-label', 'Repeat');
+            rp.addEventListener('change', function () { c.tRepeat = rp.checked; api.onChange(); }); row(dl, 'Repeat', rp);
+        } else if (c.tKind === 'event') {
+            var en = document.createElement('input'); en.type = 'text'; en.maxLength = 20; en.value = c.tEvent || ''; en.placeholder = 'event name'; en.setAttribute('aria-label', 'Event name');
+            en.addEventListener('change', function () { c.tEvent = /^[A-Za-z0-9_-]{1,20}$/.test(en.value) ? en.value : ''; en.value = c.tEvent; api.onChange(); }); row(dl, 'Event name', en);
+        }
+        var mx = document.createElement('input'); mx.type = 'number'; mx.min = 1; mx.max = 200; mx.value = c.tMax; mx.setAttribute('aria-label', 'Maximum fires');
+        mx.addEventListener('input', function () { var v = parseFloat(mx.value); if (!isFinite(v)) return; c.tMax = clamp(v, 1, 200, 20); api.onChange(); }); row(dl, 'Max fires', mx);
     }
     function extraProps(dl, n) {
+        if (n.type === 'trigger') { trigProps(dl, n); return; }
         var u = document.createElement('select'); u.setAttribute('aria-label', 'Time unit');
         [['ms', 'milliseconds'], ['s', 'seconds']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (n.config.unit === x[0]) o.selected = true; u.appendChild(o); });
         u.addEventListener('change', function () { n.config.unit = u.value; api.onChange(); renderProps(); });
@@ -575,7 +656,7 @@
     setTool('select');
 
     /* ---- Phase 7a: STools API (the toolbar and shortcuts live in studio-stools.js) ---- */
-    function nextLabelFor(n) { return nextLabel(n.type === 'branch' ? 'B' : n.type === 'reroute' ? 'R' : /^W\d+$/.test(n.label) ? 'W' : 'N'); }
+    function nextLabelFor(n) { return nextLabel(n.type === 'branch' ? 'B' : n.type === 'reroute' ? 'R' : n.type === 'trigger' ? 'T' : /^W\d+$/.test(n.label) ? 'W' : 'N'); }
     function reid(g) { var m = {}; (g.nodes || []).forEach(function (n) { var o = n.id; n.id = uid(); m[o] = n.id; if (n.config && n.config.sub) reid(n.config.sub); }); (g.connections || []).forEach(function (c) { c.id = uid(); c.from = m[c.from]; c.to = m[c.to]; }); }
     function sized(ids) { return ids.map(byId).filter(Boolean); }
     api.getTool = function () { return tool; }; api.setTool = setTool;

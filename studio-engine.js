@@ -17,6 +17,7 @@
     function noop() {}
     function active() { return !!cur && !cur.ended; }
     function msg(e) { return String((e && e.message) || e).slice(0, 300); }
+    var HANDLED = { handled: true };                     // thrown by a node whose failure was passed to an On Error trigger: downstream nodes skip quietly
 
     function topo(g) {                                   // Kahn: node ids in run order, or null when there is a loop
         var indeg = {}, adj = {}, out = [];
@@ -77,7 +78,7 @@
             (run.evWait[name] = run.evWait[name] || []).push(w); grp.killers.add(k);
         });
     }
-    function emit(run, name) { run.fired[name] = true; ev(run, 'info', 'event "' + name + '" fired'); (run.evWait[name] || []).splice(0).forEach(function (w) { w(); }); }
+    function emit(run, name) { run.fired[name] = true; ev(run, 'info', 'event "' + name + '" fired'); (run.evWait[name] || []).splice(0).forEach(function (w) { w(); }); (run.evOn[name] || []).slice().forEach(function (f) { f(); }); }
     function fire(run, id, m) {
         var n = run.nodes[id], ctl = run.active[id]; if (!n) return;
         if (m.a === 'stop') { run.blocked[id] = true; ev(run, 'warn', 'timeline: stop', n); if (ctl) killCtl(ctl); }
@@ -126,7 +127,7 @@
         var r = StudioSQL.exec(run.db, n.config.sql || '', []); if (r.changed) run.dbChanged = true;
         return r.isSelect ? r.rows.slice(0, MAX_ROWS) : { changes: r.changes };
     }
-    function cancelRun(run) { run.cancelled = true; killGroup(run.root); run.waiters.splice(0).forEach(function (w) { w(); }); }
+    function cancelRun(run) { run.cancelled = true; killGroup(run.root); run.waiters.splice(0).forEach(function (w) { w(); }); run.idleW.splice(0).forEach(function (w) { w(); }); }
 
     function ev(run, sev, text, n) {
         run.events.push({ t: Date.now() - run.startedAt, sev: sev, node: n ? n.label : '', msg: text });
@@ -342,19 +343,94 @@
             await perform(ctx, n);
         } catch (e) {
             if (e === CANCEL) throw e;
-            if (!(e && e.wrapped)) { run.hadError = true; setS(run, n, 'error'); ev(run, 'error', 'failed: ' + msg(e), n); e = { wrapped: true, error: e }; }
-            else if (run.st[n.id] === 'running') setS(run, n, 'error');
+            if (e === HANDLED) { if (run.st[n.id] === 'waiting') { setS(run, n, 'skipped'); ev(run, 'warn', 'skipped (an earlier node failed and an On Error trigger took over)', n); } throw e; }
+            var handlers = (ctx.onError || []).slice(), info;
+            if (!(e && e.wrapped)) { info = msg(e); if (!handlers.length) run.hadError = true; setS(run, n, 'error'); ev(run, 'error', 'failed: ' + info, n); e = { wrapped: true, error: e }; }
+            else { info = msg(e.error); if (run.st[n.id] === 'running') setS(run, n, 'error'); }
+            if (handlers.length) { handlers.forEach(function (h) { h({ message: info, node: n.label, id: n.id }); }); throw HANDLED; }
             throw e;
         }
     }
-    function execGraph(run, grp, graph, depth) {
+    /* ---- triggers: a Trigger node listens (Timer, Event or Error). Each time it fires, the nodes wired after it run as a fresh "wave" ---- */
+    function isTrig(n) { return n.type === 'trigger'; }
+    function wake(run) { run.idleW.splice(0).forEach(function (w) { w(); }); }
+    function reactionOf(graph, t) {                      // everything downstream of a trigger, and the connections among those nodes
+        var seen = {}, ids = {}, st = [t.id];
+        while (st.length) {
+            var f = st.pop();
+            graph.connections.forEach(function (c) {
+                if (c.from !== f || seen[c.to]) return; seen[c.to] = 1;
+                var m = graph.nodes.filter(function (x) { return x.id === c.to; })[0];
+                if (m && !isTrig(m)) { ids[m.id] = 1; st.push(m.id); }
+            });
+        }
+        return { ids: ids, nodes: graph.nodes.filter(function (x) { return ids[x.id]; }), conns: graph.connections.filter(function (c) { return ids[c.to] && (ids[c.from] || c.from === t.id); }) };
+    }
+    function runWave(ctx, tn, react, payload, no) {
+        var run = ctx.run; if (dead(run, ctx.grp)) return;
+        var wg = mkGroup(run, tn.label + ' #' + no, ctx.grp); wg.results[tn.label] = payload; run.waves++;
+        execGraph(run, wg, { nodes: react.nodes, connections: react.conns }, ctx.depth, { wave: true, src: [tn], full: ctx.graph }).then(noop, function (err) {
+            if (err === CANCEL || run.cancelled) return;
+            run.hadError = true; if (!(err && err.wrapped)) ev(run, 'error', 'reaction failed: ' + msg(err), tn);     // a failing reaction never stops the other triggers
+        }).then(function () { wg.done = true; run.waves--; wake(run); });
+    }
+    function armTrigger(ctx, tn, react) {
+        var run = ctx.run, grp = ctx.grp, c = tn.config || {}, kind = ['timer', 'event', 'error'].indexOf(c.tKind) > -1 ? c.tKind : 'timer', max = Math.max(1, Math.min(200, c.tMax || 20)), fires = 0, off = false, it = null, hand = null;
+        function disarm(final) {
+            if (off) return; off = true; run.armed--; run.armK[kind]--; grp.killers.delete(k);
+            if (it) { var i = run.sched.indexOf(it); if (i > -1) run.sched.splice(i, 1); it = null; }
+            if (kind === 'event') { var l = run.evOn[c.tEvent] || [], j = l.indexOf(hand); if (j > -1) l.splice(j, 1); }
+            if (kind === 'error') { var m = ctx.onError.indexOf(hand); if (m > -1) ctx.onError.splice(m, 1); }
+            if (final) setS(run, tn, 'done');
+            wake(run);
+        }
+        function k() { disarm(false); }
+        function next() { it = { t: clockNow(run) + Math.max(50, c.tMs || 1000), fn: function () { it = null; fire({}); } }; schedAdd(run, it); }
+        function fire(payload) {
+            if (off || dead(run, grp)) return;
+            fires++; ev(run, 'info', 'fired (' + fires + ' of at most ' + max + ')', tn);
+            runWave(ctx, tn, react, Object.assign({ trigger: tn.label, count: fires }, payload), fires);
+            if (fires >= max) { ev(run, 'warn', 'reached its limit of ' + max + ' fires, so it stops listening', tn); disarm(true); }
+            else if (kind === 'timer') { if (c.tRepeat === false) disarm(true); else next(); }
+        }
+        run.armed++; run.armK[kind]++; run.disarms.push(function () { disarm(true); }); grp.killers.add(k); setS(run, tn, 'running');
+        if (kind === 'event') {
+            if (!/^[A-Za-z0-9_-]{1,20}$/.test(c.tEvent || '')) { ev(run, 'warn', 'has no valid event name, so it never fires', tn); disarm(true); return; }
+            hand = function () { fire({ event: c.tEvent }); }; (run.evOn[c.tEvent] = run.evOn[c.tEvent] || []).push(hand); ev(run, 'info', 'listening for event "' + c.tEvent + '"', tn);
+        } else if (kind === 'error') {
+            hand = function (info) { fire(info); }; ctx.onError.push(hand); ev(run, 'info', 'listening for errors in this graph', tn);
+        } else { next(); ev(run, 'info', 'timer armed: ' + (c.tRepeat === false ? 'once after ' : 'every ') + Math.max(50, c.tMs || 1000) + ' ms', tn); }
+    }
+    function alive(run) { return run.waves > 0 || run.armK.timer > 0 || (run.armK.event > 0 && run.sched.length > 0); }      // On Error triggers never keep a run alive; On Event ones only while something could still fire the event
+    async function settle(run) {                         // the run ends when the main flow, every wave and every background branch are done and nothing could still fire a trigger
+        var told = false;
+        for (;;) {
+            await drain(run);
+            if (run.cancelled) return;
+            if (!alive(run)) break;
+            if (!told && (run.armK.timer || run.armK.event)) { told = true; ev(run, 'info', 'Listening: ' + run.armed + ' trigger(s) armed. Press Stop to end the run.'); }
+            await new Promise(function (res) { run.idleW.push(res); setTimeout(res, 100); });
+        }
+        if (run.armed) { ev(run, 'info', 'Run finished with ' + run.armed + ' trigger(s) still waiting: nothing left could set them off'); run.disarms.slice().forEach(function (d) { d(); }); }
+    }
+    function execGraph(run, grp, graph, depth, opts) {
+        opts = opts || {};
+        var full = opts.full || graph, trigs = [];
+        if (!opts.wave && graph.nodes.some(isTrig)) {    // triggers and the nodes after them are not part of the main flow
+            var skip = {};
+            graph.nodes.forEach(function (n) { if (!isTrig(n)) return; var r = reactionOf(graph, n); trigs.push({ n: n, r: r }); skip[n.id] = 1; Object.keys(r.ids).forEach(function (id) { skip[id] = 1; }); });
+            graph = { nodes: graph.nodes.filter(function (n) { return !skip[n.id]; }), connections: graph.connections.filter(function (c) { return !skip[c.from] && !skip[c.to]; }) };
+        }
         var order = topo(graph);
         if (!order) return Promise.reject(new Error('A branch contains a loop'));
-        var ctx = { run: run, grp: grp, depth: depth, byId: {}, byLabel: {}, ups: {} }, P = {};
+        var ctx = { run: run, grp: grp, depth: depth, byId: {}, byLabel: {}, ups: {}, onError: [], graph: full }, P = {};
+        (opts.src || []).forEach(function (s) { ctx.byId[s.id] = s; });             // the trigger that started a wave, so its payload reaches the first nodes as input
         graph.nodes.forEach(function (n) { ctx.byId[n.id] = n; run.ctxs[n.id] = ctx; if (!(n.label in ctx.byLabel)) ctx.byLabel[n.label] = n; if (n.enabled) setS(run, n, 'waiting'); });
+        full.nodes.forEach(function (n) { if (!(n.label in ctx.byLabel)) ctx.byLabel[n.label] = n; });        // scripts can still find every node of the graph by label
         graph.connections.forEach(function (c) { (ctx.ups[c.to] = ctx.ups[c.to] || []).push(c.from); });
+        trigs.forEach(function (t) { if (t.n.enabled) armTrigger(ctx, t.n, t.r); });
         order.forEach(function (id) { P[id] = runNode(ctx, ctx.byId[id], (ctx.ups[id] || []).map(function (f) { return P[f]; })); P[id].catch(noop); });
-        return Promise.all(order.map(function (id) { return P[id]; }));
+        return Promise.all(order.map(function (id) { return P[id].catch(function (err) { if (err === HANDLED) return; throw err; }); }));
     }
     async function drain(run) { while (run.bg.length) { var b = run.bg.splice(0); await Promise.all(b); } }
 
@@ -381,10 +457,10 @@
         G.resetStatus();
         var run = cur = { id: ++seq, status: 'running', startedAt: Date.now(), endedAt: 0, events: [], logN: 0, paused: false, cancelled: false, ended: false, hadError: false,
             st: {}, waiters: [], gseq: 0, execs: 0, spawns: 0, bg: [], stack: [], root: null,
-            startAt: {}, blocked: {}, fired: {}, evWait: {}, sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
+            startAt: {}, blocked: {}, fired: {}, evWait: {}, evOn: {}, armed: 0, armK: { timer: 0, event: 0, error: 0 }, disarms: [], waves: 0, idleW: [], sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
         run.root = mkGroup(run, 'root', null); setupTimeline(run, g);
         ev(run, 'info', 'Run ' + run.id + ' started (' + g.nodes.length + ' nodes)');
-        execGraph(run, run.root, g, 0).then(function () { return drain(run); }).then(
+        execGraph(run, run.root, g, 0).then(function () { return settle(run); }).then(
             function () { finalize(run, 'done'); },
             function (err) { if (run.ended || (err === CANCEL && run.cancelled)) return; if (err === CANCEL) err = new Error('A group was stopped unexpectedly'); if (!(err && err.wrapped)) { run.hadError = true; ev(run, 'error', 'Run failed: ' + msg(err)); } cancelRun(run); finalize(run, 'error'); });
         refresh();
