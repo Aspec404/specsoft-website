@@ -36,7 +36,7 @@
         'g.pulse .st-wire{stroke:var(--text-primary);stroke-width:4}',
         '.st-node.fc-0{border-left:4px solid #6aa9ff}.st-node.fc-1{border-left:4px solid #2fa66a}.st-node.fc-2{border-left:4px solid #e0a800}',
         '.st-node.fc-3{border-left:4px solid #c084fc}.st-node.fc-4{border-left:4px solid #e5484d}.st-node.fc-5{border-left:4px solid #38bdf8}',
-        '.st-canvas[data-tool="lasso"],.st-canvas[data-tool="frame"],.st-canvas[data-tool="createbranch"],.st-canvas[data-tool="createtrigger"],.st-canvas[data-tool="reroute"],.st-canvas[data-tool="wait"]{cursor:crosshair}',
+        '.st-canvas[data-tool="lasso"],.st-canvas[data-tool="frame"],.st-canvas[data-tool="createbranch"],.st-canvas[data-tool="createtrigger"],.st-canvas[data-tool="createflow"],.st-canvas[data-tool="reroute"],.st-canvas[data-tool="wait"]{cursor:crosshair}',
         '.st-canvas[data-tool="inspect"]{cursor:help}.st-canvas[data-tool="debug"] .st-node:hover{border-color:#e5484d}',
         '.st-canvas[data-tool="cut"] .st-frame-bar:hover,.st-canvas[data-tool="delete"] .st-frame-bar:hover{background:#e5484d;color:#fff}',
         /* tool bar */
@@ -111,6 +111,7 @@
         step: '<path d="M5 4l9 8-9 8zM18 5v14"/>',
         pulse: '<path d="M2 12h5l3-8 4 16 3-8h5"/>',
         trigger: '<path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/>',
+        flow: '<path d="M4 6h7l3 6h6M4 18h7l3-6M17 9l3 3-3 3"/>',
         wait: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
         toggle: '<rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="2.5"/>',
         spawn: '<circle cx="12" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M12 8.5v3M12 11.5l-5 4.5M12 11.5l5 4.5"/>',
@@ -147,6 +148,7 @@
             { id: 'folder', name: 'Folder', key: '', kind: 'pop', run: function () { folderPop(); }, tip: 'Put the selected nodes in a named folder (it also appears in Explorer).' },
             { id: 'branch', name: 'Branch', key: 'B', kind: 'tool', tool: 'createbranch', tip: 'Click the canvas to place a branch (a nested graph). Double-click it to open.' },
             { id: 'trigger', name: 'Trigger', key: '', kind: 'tool', tool: 'createtrigger', tip: 'Click the canvas to place a trigger (Timer, On Event or On Error). Wire it to what should happen each time it fires.' },
+            { id: 'flow', name: 'Flow', key: '', kind: 'tool', tool: 'createflow', tip: 'Click the canvas to place a flow node (Counter, Loop, Sequence, Randomizer, Reset Node or Spawn Node). Pick its kind in Properties.' },
             { id: 'reroute', name: 'Reroute', key: 'R', kind: 'tool', tool: 'reroute', tip: 'Click the canvas for a reroute dot, or click a connection to insert one.' },
             { id: 'align', name: 'Align', key: 'A', kind: 'pop', run: function () { alignPop(); }, tip: 'Align or evenly spread the selected nodes.' },
             { id: 'inspect', name: 'Inspect', key: 'I', kind: 'tool', tool: 'inspect', tip: 'Click a node to see its details.' },
@@ -432,15 +434,22 @@
             c.nodes.forEach(function (n) { if (byLabel[n.label]) dup[n.label] = 1; else byLabel[n.label] = n; });
             Object.keys(dup).forEach(function (l) { report('warn', where + l + ': more than one node has this label. Scripts find nodes by label, so only the first can be reached.', byLabel[l].id); });
             if (!topoOk(c)) report('error', (where || 'Root graph: ') + 'contains a loop, so it cannot run.', null);
-            c.nodes.filter(function (t) { return t.type === 'trigger'; }).forEach(function (t) {      // a node that reacts to a trigger cannot also be fed from the main flow
+            c.nodes.filter(function (t) { return t.type === 'trigger' || (t.type === 'flow' && ['counter', 'loop', 'sequence', 'random'].indexOf((t.config || {}).fKind) > -1); }).forEach(function (t) {      // a node that reacts to a trigger or a flow node cannot also be fed from the main flow
                 var seen = {}, st = [t.id], bad = {}; seen[t.id] = 1;
                 while (st.length) { var f = st.pop(); c.connections.forEach(function (x) { if (x.from === f && !seen[x.to]) { seen[x.to] = 1; st.push(x.to); } }); }
-                c.connections.forEach(function (x) { if (seen[x.to] && !seen[x.from] && !bad[x.to]) { bad[x.to] = 1; var tn = c.nodes.filter(function (q) { return q.id === x.to; })[0]; report('error', where + (tn ? tn.label : '?') + ': reacts to trigger ' + t.label + ' but is also fed by another node. Feed it only from the trigger side.', x.to); } });
+                c.connections.forEach(function (x) { if (seen[x.to] && x.to !== t.id && !seen[x.from] && !bad[x.to]) { bad[x.to] = 1; var tn = c.nodes.filter(function (q) { return q.id === x.to; })[0]; report('error', where + (tn ? tn.label : '?') + ': reacts to ' + (t.type === 'trigger' ? 'trigger ' : 'flow node ') + t.label + ' but is also fed by another node. Feed it only from that side.', x.to); } });
             });
             c.nodes.forEach(function (n) {
                 var cf = n.config || {}, name = where + n.label;
                 var ins = c.connections.filter(function (x) { return x.to === n.id; }).length, outs = c.connections.filter(function (x) { return x.from === n.id; }).length;
                 if (n.type === 'reroute') { if (!ins || !outs) report('warn', name + ': reroute is not connected on both sides.', n.id); return; }
+                if (n.type === 'flow') {
+                    var fk = cf.fKind, fouts = c.connections.filter(function (x) { return x.from === n.id; });
+                    if (['counter', 'loop', 'sequence', 'random'].indexOf(fk) > -1 && !fouts.length) report('warn', name + ': nothing is wired after this ' + fk + ' node, so it has nothing to control.', n.id);
+                    if (fk === 'random' && fouts.length) { var tot = 0; fouts.forEach(function (x) { tot += cf.weights && Object.prototype.hasOwnProperty.call(cf.weights, x.to) ? cf.weights[x.to] : 1; }); if (fouts.length < 2) report('warn', name + ': a randomizer needs at least two nodes after it to pick from.', n.id); if (tot <= 0) report('error', name + ': every weight is 0, so it can never pick anything.', n.id); }
+                    if (fk === 'reset' && cf.rTarget && cf.rTarget !== '*' && !c.nodes.some(function (q) { return q.id === cf.rTarget; })) report('warn', name + ': the counter it resets was not found at this level.', n.id);
+                    if (fk === 'spawn') { var tb = c.nodes.filter(function (q) { return q.id === cf.sTarget; })[0]; if (!tb || tb.type !== 'branch') report('error', name + ': choose a branch node to spawn.', n.id); }
+                }
                 if (n.type === 'trigger') {
                     if (ins) report('error', name + ': a trigger has no input. Remove the connection going into it.', n.id);
                     if (!outs) report('warn', name + ': this trigger is not wired to anything, so nothing happens when it fires.', n.id);

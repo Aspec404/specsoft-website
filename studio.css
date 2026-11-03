@@ -247,3 +247,4 @@ footer,.site-footer,.footer-cta{display:none!important}  /* no footer on Studio 
 
 /* Phase 8: Trigger nodes */
 .st-node.t-trigger{border-left:4px solid #34d399;border-radius:14px 3px 3px 14px}
+.st-node.t-flow{border-left:4px solid #a78bfa;border-radius:3px 14px 14px 3px}

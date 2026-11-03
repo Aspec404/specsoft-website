@@ -312,6 +312,7 @@
             if (c.eDelay) { ev(run, 'info', 'execution delay ' + c.eDelay + ' ms', n); await sleep(grp, c.eDelay, ctl); await gate(run, grp, ctl); }
             if (n.type === 'script') out = (c.lang === 'html' || c.lang === 'css' || c.lang === 'pagejs') ? cleanOut({ lang: c.lang, content: String(c.code || '') }) : await runScript(cx, n);
             else if (n.type === 'database') out = runSql(run, n);
+            else if (n.type === 'flow') out = await runFlow(cx, n);
             else if (n.type === 'branch') {
                 if (c.mode === 'independent') { branchBg(ctx, n); ev(run, 'info', 'branch runs independently', n); }
                 else { var bg = await branchRun(cx, n); out = bg.results; stopped = !!bg.stopped; }
@@ -353,6 +354,7 @@
     }
     /* ---- triggers: a Trigger node listens (Timer, Event or Error). Each time it fires, the nodes wired after it run as a fresh "wave" ---- */
     function isTrig(n) { return n.type === 'trigger'; }
+    function isGate(n) { return n.type === 'flow' && ['counter', 'loop', 'sequence', 'random'].indexOf((n.config || {}).fKind) > -1; }      // flow nodes that own the nodes wired after them
     function wake(run) { run.idleW.splice(0).forEach(function (w) { w(); }); }
     function reactionOf(graph, t) {                      // everything downstream of a trigger, and the connections among those nodes
         var seen = {}, ids = {}, st = [t.id];
@@ -413,17 +415,90 @@
         }
         if (run.armed) { ev(run, 'info', 'Run finished with ' + run.armed + ' trigger(s) still waiting: nothing left could set them off'); run.disarms.slice().forEach(function (d) { d(); }); }
     }
+    /* ---- flow nodes: Counter, Loop, Sequence and Randomizer own the nodes wired after them and run them as awaited waves; Reset and Spawn act and pass on ---- */
+    function succOf(react, gate) {                       // the nodes wired directly after a flow node, top to bottom on the canvas
+        var seen = {}, out = [];
+        react.conns.forEach(function (c) { if (c.from !== gate.id || seen[c.to]) return; seen[c.to] = 1; var m = react.nodes.filter(function (x) { return x.id === c.to; })[0]; if (m) out.push(m); });
+        out.sort(function (p, q) { return ((p.y || 0) - (q.y || 0)) || ((p.x || 0) - (q.x || 0)) || (p.label < q.label ? -1 : 1); });
+        return out;
+    }
+    function partOf(react, gate, startId) {              // one successor and everything after it
+        var ids = {}, st = [startId]; ids[startId] = 1;
+        while (st.length) { var f = st.pop(); react.conns.forEach(function (c) { if (c.from === f && !ids[c.to] && react.ids[c.to]) { ids[c.to] = 1; st.push(c.to); } }); }
+        return { nodes: react.nodes.filter(function (x) { return ids[x.id]; }), conns: react.conns.filter(function (c) { return ids[c.to] && (ids[c.from] || c.from === gate.id); }) };
+    }
+    async function waveAwait(cx, n, nodes, conns, payload, i) {
+        var run = cx.run; if (dead(run, cx.grp)) throw CANCEL;
+        var wg = mkGroup(run, n.label + ' #' + i, cx.grp); wg.results[n.label] = payload;
+        try { await execGraph(run, wg, { nodes: nodes, connections: conns }, cx.depth, { wave: true, src: [n], full: cx.graph, onError: cx.onError }); }
+        finally { wg.done = true; }
+    }
+    async function runFlow(cx, n) {
+        var run = cx.run, grp = cx.grp, c = n.config || {}, k = c.fKind, react = cx.flows && cx.flows[n.id], st = run.flow[n.id] = run.flow[n.id] || { count: c.cStart || 0 };
+        if (k === 'reset') {
+            var tg = c.rTarget || '*', hit = 0;
+            Object.keys(run.flow).forEach(function (id) { var t = run.nodes[id]; if ((tg === '*' || id === tg) && t && t.type === 'flow' && (t.config || {}).fKind === 'counter') { run.flow[id].count = (t.config || {}).cStart || 0; hit++; } });
+            ev(run, 'info', 'reset ' + hit + ' counter(s)', n); return { reset: hit };
+        }
+        if (k === 'spawn') {
+            var t2 = run.nodes[c.sTarget], cnt = Math.max(1, Math.min(10, c.sN || 1)), made = 0;
+            if (!t2 || t2.type !== 'branch' || !run.ctxs[t2.id]) { ev(run, 'warn', 'spawn needs a branch node of the running graph', n); return { spawned: 0 }; }
+            for (var s = 0; s < cnt; s++) { if (++run.spawns > MAX_SPAWN) throw new Error('Spawn limit reached (' + MAX_SPAWN + ' per run)'); branchBg(run.ctxs[t2.id], t2); made++; }
+            ev(run, 'info', 'spawned ' + made + ' cop' + (made === 1 ? 'y' : 'ies') + ' of ' + t2.label, n); return { spawned: made };
+        }
+        if (!react) { ev(run, 'warn', 'has no nodes after it at this level, so it controls nothing', n); return { note: 'nothing after it' }; }
+        if (k === 'counter') {
+            st.count++; var N = Math.max(1, c.cN || 3), m = c.cMode || 'reach';
+            var pass = m === 'count' || (m === 'reach' ? st.count === N : m === 'every' ? st.count % N === 0 : st.count <= N), res = { count: st.count, passed: pass };
+            ev(run, 'info', 'count ' + st.count + (m === 'count' ? '' : ' of ' + N) + (pass ? ': passing on' : ': not yet'), n);
+            if (pass && m === 'reach' && c.cReset) st.count = c.cStart || 0;
+            if (pass) await waveAwait(cx, n, react.nodes, react.conns, res, st.count);
+            return res;
+        }
+        var ctl = cx.ctl;
+        if (k === 'loop') {
+            var L = Math.max(1, Math.min(100, c.lN || 3)), gap = Math.max(0, c.lGap || 0);
+            for (var i = 1; i <= L; i++) {
+                ev(run, 'info', 'loop ' + i + ' of ' + L, n);
+                await waveAwait(cx, n, react.nodes, react.conns, { index: i, count: L }, i);
+                if (i < L && gap) { await sleep(grp, gap, ctl); await gate(run, grp, ctl); }
+            }
+            return { count: L };
+        }
+        var sc = succOf(react, n);
+        if (k === 'sequence') {
+            var q = Math.max(0, c.qGap || 0);
+            for (var j = 0; j < sc.length; j++) {
+                var part = partOf(react, n, sc[j].id); ev(run, 'info', 'step ' + (j + 1) + ' of ' + sc.length + ': ' + sc[j].label, n);
+                await waveAwait(cx, n, part.nodes, part.conns, { index: j + 1, count: sc.length, node: sc[j].label }, j + 1);
+                if (j < sc.length - 1 && q) { await sleep(grp, q, ctl); await gate(run, grp, ctl); }
+            }
+            return { count: sc.length };
+        }
+        if (k === 'random') {
+            var wts = c.weights || {}, ws = sc.map(function (x) { var w = Object.prototype.hasOwnProperty.call(wts, x.id) ? +wts[x.id] : 1; return isFinite(w) && w > 0 ? Math.min(w, 100) : 0; }), tot = ws.reduce(function (p, v) { return p + v; }, 0);
+            if (!sc.length || tot <= 0) { ev(run, 'warn', 'nothing to pick from (no nodes after it, or every weight is 0)', n); return { chosen: null }; }
+            var r = Math.random() * tot, pi = 0; while (pi < ws.length - 1 && r >= ws[pi]) { r -= ws[pi]; pi++; }
+            var pick = sc[pi], pp = partOf(react, n, pick.id); ev(run, 'info', 'picked ' + pick.label + ' (' + (pi + 1) + ' of ' + sc.length + ')', n);
+            await waveAwait(cx, n, pp.nodes, pp.conns, { chosen: pick.label, index: pi + 1, count: sc.length }, 1);
+            return { chosen: pick.label };
+        }
+        return undefined;
+    }
     function execGraph(run, grp, graph, depth, opts) {
         opts = opts || {};
-        var full = opts.full || graph, trigs = [];
-        if (!opts.wave && graph.nodes.some(isTrig)) {    // triggers and the nodes after them are not part of the main flow
-            var skip = {};
-            graph.nodes.forEach(function (n) { if (!isTrig(n)) return; var r = reactionOf(graph, n); trigs.push({ n: n, r: r }); skip[n.id] = 1; Object.keys(r.ids).forEach(function (id) { skip[id] = 1; }); });
-            graph = { nodes: graph.nodes.filter(function (n) { return !skip[n.id]; }), connections: graph.connections.filter(function (c) { return !skip[c.from] && !skip[c.to]; }) };
-        }
+        var full = opts.full || graph, trigs = [], flows = {}, skip = {}, cut = false;
+        graph.nodes.forEach(function (n) {               // triggers and flow nodes own the nodes wired after them: those run as waves, not as part of the main flow
+            var r;
+            if (isTrig(n) && !opts.wave) { r = reactionOf(graph, n); trigs.push({ n: n, r: r }); skip[n.id] = 1; }
+            else if (isGate(n)) { r = reactionOf(graph, n); flows[n.id] = r; }
+            else return;
+            cut = true; Object.keys(r.ids).forEach(function (id) { skip[id] = 1; });
+        });
+        if (cut) graph = { nodes: graph.nodes.filter(function (n) { return !skip[n.id]; }), connections: graph.connections.filter(function (c) { return !skip[c.from] && !skip[c.to]; }) };
         var order = topo(graph);
         if (!order) return Promise.reject(new Error('A branch contains a loop'));
-        var ctx = { run: run, grp: grp, depth: depth, byId: {}, byLabel: {}, ups: {}, onError: [], graph: full }, P = {};
+        var ctx = { run: run, grp: grp, depth: depth, byId: {}, byLabel: {}, ups: {}, onError: opts.onError || [], flows: flows, graph: full }, P = {};
         (opts.src || []).forEach(function (s) { ctx.byId[s.id] = s; });             // the trigger that started a wave, so its payload reaches the first nodes as input
         graph.nodes.forEach(function (n) { ctx.byId[n.id] = n; run.ctxs[n.id] = ctx; if (!(n.label in ctx.byLabel)) ctx.byLabel[n.label] = n; if (n.enabled) setS(run, n, 'waiting'); });
         full.nodes.forEach(function (n) { if (!(n.label in ctx.byLabel)) ctx.byLabel[n.label] = n; });        // scripts can still find every node of the graph by label
@@ -457,10 +532,10 @@
         G.resetStatus();
         var run = cur = { id: ++seq, status: 'running', startedAt: Date.now(), endedAt: 0, events: [], logN: 0, paused: false, cancelled: false, ended: false, hadError: false,
             st: {}, waiters: [], gseq: 0, execs: 0, spawns: 0, bg: [], stack: [], root: null,
-            startAt: {}, blocked: {}, fired: {}, evWait: {}, evOn: {}, armed: 0, armK: { timer: 0, event: 0, error: 0 }, disarms: [], waves: 0, idleW: [], sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
+            startAt: {}, blocked: {}, fired: {}, evWait: {}, evOn: {}, flow: {}, mainDone: false, armed: 0, armK: { timer: 0, event: 0, error: 0 }, disarms: [], waves: 0, idleW: [], sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
         run.root = mkGroup(run, 'root', null); setupTimeline(run, g);
         ev(run, 'info', 'Run ' + run.id + ' started (' + g.nodes.length + ' nodes)');
-        execGraph(run, run.root, g, 0).then(function () { return settle(run); }).then(
+        execGraph(run, run.root, g, 0).then(function () { run.mainDone = true; return settle(run); }).then(
             function () { finalize(run, 'done'); },
             function (err) { if (run.ended || (err === CANCEL && run.cancelled)) return; if (err === CANCEL) err = new Error('A group was stopped unexpectedly'); if (!(err && err.wrapped)) { run.hadError = true; ev(run, 'error', 'Run failed: ' + msg(err)); } cancelRun(run); finalize(run, 'error'); });
         refresh();
@@ -473,7 +548,12 @@
         if (!active() || cur.status !== 'paused') return;
         cur.clockStart = Date.now(); cur.paused = false; cur.status = 'running'; cur.waiters.splice(0).forEach(function (w) { w(); }); ev(cur, 'ok', 'Run ' + cur.id + ' resumed'); refresh();
     };
-    E.stop = function () { if (!active()) return; var r = cur; cancelRun(r); finalize(r, 'stopped'); };
+    E.stop = function () {
+        if (!active()) return; var r = cur;
+        var quiet = r.mainDone && !r.waves && !r.hadError && !Object.keys(r.active).length;      // only waiting for triggers: nothing is interrupted, so the run counts as finished
+        if (quiet) ev(r, 'info', 'Stopped while only listening for triggers: the run counts as finished');
+        cancelRun(r); finalize(r, quiet ? 'done' : 'stopped');
+    };
     E.restart = function () { if (active()) E.stop(); E.start(); };
     E.isActive = active;
     /* PHASE 7a (STools): the two live operations behind the Spawn and Toggle tools */

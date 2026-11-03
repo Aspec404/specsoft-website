@@ -149,7 +149,9 @@
     function emptyMenu(e, at) {
         M.show([
             { label: 'New node here', ic: 'node', run: function () { G.addAt(at, 'basic'); } },
-            { label: 'New branch here', ic: 'branch', run: function () { G.addAt(at, 'branch'); } }, '-',
+            { label: 'New branch here', ic: 'branch', run: function () { G.addAt(at, 'branch'); } },
+            { label: 'New trigger here', ic: 'node', run: function () { G.addAt(at, 'trigger'); } },
+            { label: 'New flow node here', ic: 'node', run: function () { G.addAt(at, 'flow'); } }, '-',
             { label: 'Paste here', key: 'Ctrl+V', ic: 'paste', disabled: !G.hasClip(), run: function () { G.paste(at); } },
             { label: 'Select all', key: 'Ctrl+A', ic: 'all', run: function () { G.selectAll(); } }, '-',
             { label: 'Undo', key: 'Ctrl+Z', ic: 'undo', disabled: !(G.canUndo && G.canUndo()) || !idle(), run: function () { G.undo(); } },

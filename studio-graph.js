@@ -32,6 +32,7 @@
 
     /* ---- graph model ---- */
     function ens(g) { g.frames = g.frames || []; g.groups = g.groups || []; g.folders = g.folders || []; return g; }
+    function flowText(n) { var c = n.config, k = c.fKind; return 'flow, ' + (k === 'counter' ? 'counter' + (c.cMode === 'count' ? '' : ' ' + c.cMode + ' ' + c.cN) : k === 'loop' ? 'loop x' + c.lN : k === 'sequence' ? 'sequence' : k === 'random' ? 'randomizer' : k === 'reset' ? 'reset node' : 'spawn node'); }
     function trigText(n) { var c = n.config; return 'trigger, ' + (c.tKind === 'event' ? 'on event ' + (c.tEvent || '?') : c.tKind === 'error' ? 'on error' : (c.tRepeat === false ? 'once after ' : 'every ') + c.tMs + ' ms'); }
     function dw(n) { return n.type === 'reroute' ? RW : W; }
     function dh(n) { return n.type === 'reroute' ? RW : H; }
@@ -57,7 +58,7 @@
     function makeNode(p, type, opts) {
         if (G.nodes.length >= MAX_NODES) { api.log('warn', 'graph', 'Node limit reached (' + MAX_NODES + ')'); return null; }
         opts = opts || {}; type = type || 'basic';
-        var pre = opts.prefix || (type === 'branch' ? 'B' : type === 'reroute' ? 'R' : type === 'trigger' ? 'T' : 'N'), w = type === 'reroute' ? RW : W, h = type === 'reroute' ? RW : H;
+        var pre = opts.prefix || (type === 'branch' ? 'B' : type === 'reroute' ? 'R' : type === 'trigger' ? 'T' : type === 'flow' ? 'F' : 'N'), w = type === 'reroute' ? RW : W, h = type === 'reroute' ? RW : H;
         var n = { id: uid(), label: nextLabel(pre), type: type, x: Math.round(p.x - w / 2), y: Math.round(p.y - h / 2), enabled: true, status: 'idle', group: null, folder: null, bp: false, config: defaults(type) };
         Object.keys(opts.config || {}).forEach(function (k) { n.config[k] = opts.config[k]; });
         G.nodes.push(n); return n;
@@ -124,7 +125,7 @@
         var i = document.createElement('i'); i.className = 'st-port in'; var o = document.createElement('i'); o.className = 'st-port out'; if (n.type !== 'trigger') d.appendChild(i);       // a trigger has no input
         if (n.type !== 'reroute') {
             var s = document.createElement('strong'); s.textContent = n.label;
-            var t = document.createElement('small'); t.textContent = (n.type === 'branch' ? 'branch, ' + n.config.sub.nodes.length + ' nodes' : n.type === 'trigger' ? trigText(n) : n.type === 'script' ? 'script, ' + ({ javascript: 'js', pagejs: 'page js' }[n.config.lang] || n.config.lang) : n.type) + (n.enabled ? '' : ' (disabled)');
+            var t = document.createElement('small'); t.textContent = (n.type === 'branch' ? 'branch, ' + n.config.sub.nodes.length + ' nodes' : n.type === 'trigger' ? trigText(n) : n.type === 'flow' ? flowText(n) : n.type === 'script' ? 'script, ' + ({ javascript: 'js', pagejs: 'page js' }[n.config.lang] || n.config.lang) : n.type) + (n.enabled ? '' : ' (disabled)');
             d.appendChild(s); d.appendChild(t);
         }
         d.appendChild(o);
@@ -226,7 +227,7 @@
             else if (tool === 'debug') { n.bp = !n.bp; api.log('info', 'debug', n.label + (n.bp ? ': breakpoint set' : ': breakpoint removed')); changed(); }
             return;
         }
-        if (tool === 'create' || tool === 'createbranch' || tool === 'createtrigger') addNode(p, tool === 'createbranch' ? 'branch' : tool === 'createtrigger' ? 'trigger' : 'basic');
+        if (tool === 'create' || tool === 'createbranch' || tool === 'createtrigger' || tool === 'createflow') addNode(p, tool === 'createbranch' ? 'branch' : tool === 'createtrigger' ? 'trigger' : tool === 'createflow' ? 'flow' : 'basic');
         else if (tool === 'reroute') addNode(p, 'reroute');
         else if (tool === 'wait') addNode(p, 'basic', { prefix: 'W', config: { eDelay: 1000 } });
         else if (tool === 'frame') {
@@ -287,7 +288,8 @@
 
     /* ---- Phase 4: node config, branches, script editor ---- */
     function trigDefaults() { return { tKind: 'timer', tMs: 1000, tRepeat: true, tMax: 20, tEvent: '' }; }
-    var MAX_DEPTH = 5, MAX_TEXT = 5 * 1024 * 1024, TYPES = ['basic', 'script', 'branch', 'database', 'trigger', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs'];
+    function flowDefaults() { return { fKind: 'counter', cMode: 'reach', cN: 3, cStart: 0, cReset: false, lN: 3, lGap: 0, qGap: 0, weights: {}, rTarget: '*', sTarget: '', sN: 1 }; }
+    var MAX_DEPTH = 5, MAX_TEXT = 5 * 1024 * 1024, TYPES = ['basic', 'script', 'branch', 'database', 'trigger', 'flow', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs'];
     var TEMPLATE = "// input = results of the nodes connected into this one\nstudio.log('Hello from a script node');\nawait studio.delay(500);\nreturn { ok: true };";
     var TEMPLATES = { javascript: TEMPLATE, html: '<!-- HTML for your project -->\n<h1>Hello from SPECSOFT Studio</h1>', css: '/* CSS for your project */\nbody { font-family: sans-serif; }',
         pagejs: "// Runs inside the Preview page (not in the graph)\nconsole.log('page ready');\ndocument.body.insertAdjacentHTML('beforeend', '<p>Hello from page JS</p>');" };
@@ -296,7 +298,7 @@
     function clamp(v, lo, hi, d) { v = +v; return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
     function defaults(type) {
         var c = { aDelay: 0, eDelay: 0, oDelay: 0, unit: 'ms', timeout: 5000, mode: 'inline', code: type === 'script' ? TEMPLATE : '', lang: 'javascript', sql: type === 'database' ? SQL_TEMPLATE : '', waitEvent: '' };
-        if (type === 'branch') c.sub = { nodes: [], connections: [] }; if (type === 'trigger') { var td = trigDefaults(); Object.keys(td).forEach(function (k) { c[k] = td[k]; }); } return c;
+        if (type === 'branch') c.sub = { nodes: [], connections: [] }; if (type === 'trigger') { var td = trigDefaults(); Object.keys(td).forEach(function (k) { c[k] = td[k]; }); } if (type === 'flow') { var fd = flowDefaults(); Object.keys(fd).forEach(function (k) { c[k] = fd[k]; }); } return c;
     }
     function cleanGraph(g, depth) {                      // rebuilds a graph from saved/untrusted data: only known fields survive
         g = g || {}; var ids = {}, str = function (v, n) { return String(v == null ? '' : v).slice(0, n); };
@@ -309,6 +311,12 @@
                 timeout: clamp(c.timeout, 100, 30000, 5000), mode: c.mode === 'independent' ? 'independent' : 'inline', code: type === 'script' ? String(c.code || '').slice(0, MAX_TEXT) : '', lang: LANGS.indexOf(c.lang) > -1 ? c.lang : 'javascript',
                 sql: type === 'database' ? String(c.sql || '').slice(0, MAX_TEXT) : '', waitEvent: /^[A-Za-z0-9_-]{1,20}$/.test(c.waitEvent || '') ? c.waitEvent : '' };
             if (type === 'trigger') { cfg.tKind = ['timer', 'event', 'error'].indexOf(c.tKind) > -1 ? c.tKind : 'timer'; cfg.tMs = clamp(c.tMs, 50, 600000, 1000); cfg.tRepeat = c.tRepeat !== false; cfg.tMax = clamp(c.tMax, 1, 200, 20); cfg.tEvent = /^[A-Za-z0-9_-]{1,20}$/.test(c.tEvent || '') ? c.tEvent : ''; }
+            if (type === 'flow') {
+                var wts = {}; if (c.weights && typeof c.weights === 'object') Object.keys(c.weights).slice(0, 50).forEach(function (k) { wts[String(k).slice(0, 80)] = clamp(c.weights[k], 0, 100, 1); });
+                cfg.fKind = ['counter', 'loop', 'sequence', 'random', 'reset', 'spawn'].indexOf(c.fKind) > -1 ? c.fKind : 'counter'; cfg.cMode = ['reach', 'every', 'until', 'count'].indexOf(c.cMode) > -1 ? c.cMode : 'reach';
+                cfg.cN = clamp(c.cN, 1, 100000, 3); cfg.cStart = clamp(c.cStart, 0, 100000, 0); cfg.cReset = c.cReset === true; cfg.lN = clamp(c.lN, 1, 100, 3); cfg.lGap = clamp(c.lGap, 0, 60000, 0); cfg.qGap = clamp(c.qGap, 0, 60000, 0);
+                cfg.weights = wts; cfg.rTarget = c.rTarget === '*' ? '*' : String(c.rTarget || '*').slice(0, 80); cfg.sTarget = String(c.sTarget || '').slice(0, 80); cfg.sN = clamp(c.sN, 1, 10, 1);
+            }
             if (type === 'branch') cfg.sub = depth < MAX_DEPTH ? cleanGraph(c.sub, depth + 1) : { nodes: [], connections: [], frames: [], groups: [], folders: [] };
             return { id: String(n.id), label: String(n.label || 'N').slice(0, 20), type: type, x: num(n.x), y: num(n.y), enabled: n.enabled !== false, status: 'idle',
                 group: gids[n.group] ? n.group : null, folder: fids[n.folder] ? n.folder : null, bp: n.bp === true, config: cfg };
@@ -354,6 +362,7 @@
             if (t === 'script' && !n.config.code) n.config.code = TEMPLATES[n.config.lang] || TEMPLATE;
             if (t === 'database' && !n.config.sql) n.config.sql = SQL_TEMPLATE;
             if (t === 'trigger' && !n.config.tKind) { var td = trigDefaults(); Object.keys(td).forEach(function (k2) { n.config[k2] = td[k2]; }); }
+            if (t === 'flow' && !n.config.fKind) { var fd2 = flowDefaults(); Object.keys(fd2).forEach(function (k3) { n.config[k3] = fd2[k3]; }); }
             changed();
         });
         return s;
@@ -455,6 +464,33 @@
         });
         paint(); gutter(); stat(); bar(); inn.appendChild(pre); inn.appendChild(ta); inn.appendChild(gut); foot.appendChild(meter); wrap.appendChild(inn); wrap.appendChild(pend); wrap.appendChild(foot); return wrap;
     }
+    function flowProps(dl, n) {                           // Flow nodes: Counter, Loop, Sequence, Randomizer, Reset Node, Spawn Node
+        var c = n.config;
+        function pick(label, opts, cur, fn) { var s = document.createElement('select'); s.setAttribute('aria-label', label); opts.forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (x[0] === cur) o.selected = true; s.appendChild(o); }); s.addEventListener('change', function () { fn(s.value); }); row(dl, label, s); }
+        function nr(label, key, lo, hi, step) { var i = document.createElement('input'); i.type = 'number'; i.min = lo; i.max = hi; i.step = step || 1; i.value = c[key]; i.setAttribute('aria-label', label); i.addEventListener('input', function () { var v = parseFloat(i.value); if (!isFinite(v)) return; c[key] = clamp(v, lo, hi, c[key]); api.onChange(); }); row(dl, label, i); }
+        pick('Kind', [['counter', 'Counter'], ['loop', 'Loop'], ['sequence', 'Sequence'], ['random', 'Randomizer'], ['reset', 'Reset Node'], ['spawn', 'Spawn Node']], c.fKind, function (v) { c.fKind = v; api.onChange(); renderProps(); });
+        if (c.fKind === 'counter') {
+            pick('Mode', [['reach', 'Pass when it reaches N'], ['every', 'Pass every Nth time'], ['until', 'Pass the first N times'], ['count', 'Always pass (just count)']], c.cMode, function (v) { c.cMode = v; api.onChange(); renderProps(); });
+            if (c.cMode !== 'count') nr('N', 'cN', 1, 100000); nr('Start at', 'cStart', 0, 100000);
+            if (c.cMode === 'reach') { var rs = document.createElement('input'); rs.type = 'checkbox'; rs.checked = c.cReset === true; rs.setAttribute('aria-label', 'Count again after passing'); rs.addEventListener('change', function () { c.cReset = rs.checked; api.onChange(); }); row(dl, 'Count again after passing', rs); }
+        } else if (c.fKind === 'loop') { nr('Repeats (max 100)', 'lN', 1, 100); nr('Gap (ms)', 'lGap', 0, 60000, 50); }
+        else if (c.fKind === 'sequence') { nr('Gap between steps (ms)', 'qGap', 0, 60000, 50); }
+        else if (c.fKind === 'random') {
+            if (!c.weights) c.weights = {}; var seen = {};
+            G.connections.filter(function (x) { return x.from === n.id; }).forEach(function (x) {
+                if (seen[x.to]) return; seen[x.to] = 1; var t = byId(x.to); if (!t) return;
+                var i = document.createElement('input'); i.type = 'number'; i.min = 0; i.max = 100; i.value = Object.prototype.hasOwnProperty.call(c.weights, x.to) ? c.weights[x.to] : 1; i.setAttribute('aria-label', 'Weight of ' + t.label);
+                i.addEventListener('input', function () { var v = parseFloat(i.value); if (!isFinite(v)) return; c.weights[x.to] = clamp(v, 0, 100, 1); api.onChange(); }); row(dl, 'Weight: ' + t.label, i);
+            });
+            if (!Object.keys(seen).length) row(dl, 'Weights', document.createTextNode('Connect this node to two or more nodes to pick between.'));
+        } else if (c.fKind === 'reset') {
+            pick('Reset', [['*', 'All counters']].concat(G.nodes.filter(function (x) { return x.type === 'flow' && x.config.fKind === 'counter' && x.id !== n.id; }).map(function (x) { return [x.id, x.label]; })), c.rTarget, function (v) { c.rTarget = v; api.onChange(); });
+        } else if (c.fKind === 'spawn') {
+            var bl = G.nodes.filter(function (x) { return x.type === 'branch'; }).map(function (x) { return [x.id, x.label]; });
+            pick('Branch to spawn', [['', bl.length ? 'choose a branch' : 'no branch in this graph']].concat(bl), c.sTarget, function (v) { c.sTarget = v; api.onChange(); });
+            nr('Copies (max 10)', 'sN', 1, 10);
+        }
+    }
     function trigProps(dl, n) {                           // Trigger nodes: what fires them and how often
         var c = n.config, k = document.createElement('select'); k.setAttribute('aria-label', 'Trigger kind');
         [['timer', 'Timer'], ['event', 'On Event'], ['error', 'On Error']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (c.tKind === x[0]) o.selected = true; k.appendChild(o); });
@@ -475,6 +511,7 @@
     }
     function extraProps(dl, n) {
         if (n.type === 'trigger') { trigProps(dl, n); return; }
+        if (n.type === 'flow') { flowProps(dl, n); return; }
         var u = document.createElement('select'); u.setAttribute('aria-label', 'Time unit');
         [['ms', 'milliseconds'], ['s', 'seconds']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (n.config.unit === x[0]) o.selected = true; u.appendChild(o); });
         u.addEventListener('change', function () { n.config.unit = u.value; api.onChange(); renderProps(); });
@@ -631,7 +668,7 @@
     };
     api.enterBranch = function (id) { var n = byId(id); if (!n || n.type !== 'branch') return false; enter(n); return true; };
     api.worldAt = function (x, y) { return toWorld({ clientX: x, clientY: y }); };
-    api.addAt = function (p, type) { return open ? addNode(p, type === 'branch' ? 'branch' : 'basic') : null; };
+    api.addAt = function (p, type) { return open ? addNode(p, ['branch', 'trigger', 'flow'].indexOf(type) > -1 ? type : 'basic') : null; };
     api.splice = function (wireId, p, kind) { if (!open) return; if (kind === 'wait') spliceAt(wireId, p, 'basic', { prefix: 'W', config: { eDelay: 1000 } }); else spliceAt(wireId, p, 'reroute', {}); };
     api.removeWire = function (id) { removeWire(id); };
     api.removeFrame = function (id) { removeFrame(id); };
@@ -656,7 +693,7 @@
     setTool('select');
 
     /* ---- Phase 7a: STools API (the toolbar and shortcuts live in studio-stools.js) ---- */
-    function nextLabelFor(n) { return nextLabel(n.type === 'branch' ? 'B' : n.type === 'reroute' ? 'R' : n.type === 'trigger' ? 'T' : /^W\d+$/.test(n.label) ? 'W' : 'N'); }
+    function nextLabelFor(n) { return nextLabel(n.type === 'branch' ? 'B' : n.type === 'reroute' ? 'R' : n.type === 'trigger' ? 'T' : n.type === 'flow' ? 'F' : /^W\d+$/.test(n.label) ? 'W' : 'N'); }
     function reid(g) { var m = {}; (g.nodes || []).forEach(function (n) { var o = n.id; n.id = uid(); m[o] = n.id; if (n.config && n.config.sub) reid(n.config.sub); }); (g.connections || []).forEach(function (c) { c.id = uid(); c.from = m[c.from]; c.to = m[c.to]; }); }
     function sized(ids) { return ids.map(byId).filter(Boolean); }
     api.getTool = function () { return tool; }; api.setTool = setTool;

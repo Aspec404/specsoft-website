@@ -29,7 +29,7 @@
         '.ex-chev{width:14px;height:14px;flex:none;display:grid;place-items:center;color:var(--text-secondary)}.ex-chev svg{width:11px;height:11px;transition:transform .12s}',
         'li[aria-expanded="true"]>.ex-row .ex-chev svg{transform:rotate(90deg)}',
         '.ex-ic{width:16px;height:16px;flex:none;display:grid;place-items:center;color:var(--ex-c,var(--text-secondary))}.ex-ic svg{width:15px;height:15px}',
-        '.ex-k-folder{--ex-c:var(--fc,#e0a800)}.ex-k-branch{--ex-c:var(--text-primary)}.ex-k-js{--ex-c:#e0a800}.ex-k-html{--ex-c:#e5784d}.ex-k-css{--ex-c:#38bdf8}.ex-k-sql{--ex-c:#c084fc}.ex-k-reroute{--ex-c:var(--text-secondary)}.ex-k-trigger{--ex-c:#34d399}',
+        '.ex-k-folder{--ex-c:var(--fc,#e0a800)}.ex-k-branch{--ex-c:var(--text-primary)}.ex-k-js{--ex-c:#e0a800}.ex-k-html{--ex-c:#e5784d}.ex-k-css{--ex-c:#38bdf8}.ex-k-sql{--ex-c:#c084fc}.ex-k-reroute{--ex-c:var(--text-secondary)}.ex-k-trigger{--ex-c:#34d399}.ex-k-flow{--ex-c:#a78bfa}',
         '.ex-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ex-row.off .ex-label{text-decoration:line-through;opacity:.5}',
         '.ex-meta{flex:none;color:var(--text-secondary);opacity:.65;font-size:.68rem}',
         '.ex-dots{display:flex;gap:4px;flex:none}.ex-dot{width:7px;height:7px;border-radius:50%;display:none}',
@@ -47,11 +47,11 @@
         js: '<path d="M9 5c-2 0-3 1-3 3v2c0 1-1 2-2 2 1 0 2 1 2 2v2c0 2 1 3 3 3M15 5c2 0 3 1 3 3v2c0 1 1 2 2 2-1 0-2 1-2 2v2c0 2-1 3-3 3"/>',
         html: '<path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/>', css: '<path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16"/>',
         sql: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
-        basic: '<rect x="5" y="7" width="14" height="10" rx="1"/>', reroute: '<circle cx="12" cy="12" r="3"/>', trigger: '<path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/>',
+        basic: '<rect x="5" y="7" width="14" height="10" rx="1"/>', reroute: '<circle cx="12" cy="12" r="3"/>', trigger: '<path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/>', flow: '<path d="M4 6h7l3 6h6M4 18h7l3-6M17 9l3 3-3 3"/>',
         chev: '<path d="M9 6l6 6-6 6"/>', collapse: '<path d="M4 8h16M8 12h8M10 16h4"/>', expand: '<path d="M4 6h16M4 12h16M4 18h16M12 9v6"/>'
     };
     function svg(k) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P[k] + '</svg>'; }
-    function kind(n) { return n.type === 'folder' ? 'folder' : n.type === 'branch' ? 'branch' : n.type === 'database' ? 'sql' : n.type === 'reroute' ? 'reroute' : n.type === 'trigger' ? 'trigger' : n.type === 'script' ? (n.lang === 'html' ? 'html' : n.lang === 'css' ? 'css' : 'js') : 'basic'; }
+    function kind(n) { return n.type === 'folder' ? 'folder' : n.type === 'branch' ? 'branch' : n.type === 'database' ? 'sql' : n.type === 'reroute' ? 'reroute' : n.type === 'trigger' ? 'trigger' : n.type === 'flow' ? 'flow' : n.type === 'script' ? (n.lang === 'html' ? 'html' : n.lang === 'css' ? 'css' : 'js') : 'basic'; }
     function ext(n) { return n.type === 'database' ? '.sql' : n.type === 'script' ? (n.lang === 'html' ? '.html' : n.lang === 'css' ? '.css' : n.lang === 'pagejs' ? '.page.js' : '.js') : ''; }
     function count(list) { var c = 0; list.forEach(function (n) { if (n.type !== 'folder') c++; if (n.children) c += count(n.children); }); return c; }
     function collect(list, out) { list.forEach(function (n) { if (n.children) { out.push(n.id); collect(n.children, out); } }); return out; }
