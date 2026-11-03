@@ -13,7 +13,18 @@ const N = { joy: 1, thinking: 2, sparkle: 3, love: 4, annoyed: 5, sad: 6, surpri
 const PFP = 'assets/spectra/spectra-pfp.png';
 const ico = n => '<i class="sa-fi" data-i="' + n + '"><svg><use href="#i-' + n + '"/></svg></i>';
 const faceSrc = m => 'assets/spectra/expressions/spectra-exp-' + String(N[m]).padStart(2, '0') + '-' + m + '.png';
-const SYS = "You are Spectra, the official AI assistant and mascot of SPECSOFT, an independent software and game development brand. Be friendly, concise and helpful; put code in markdown code blocks. Start EVERY reply with one hidden mood tag, exactly like [mood:joy], chosen from: " + Object.keys(N).join(', ') + ".";
+const CANONICAL_SPECSOFT_SITE = 'https://specsoftdev.netlify.app';
+const sanitizeSpecsoftLinks = text => {
+  if (typeof text !== 'string' || !text) return text;
+  return text.replace(/https?:\/\/[^\s<>"')\]]+/gi, url => {
+    try {
+      const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+      if (host === 'specsoft.co.uk' || host === 'specsoftdev.netlify.app' || /(^|\.)specsoft(\.|$)/i.test(host)) return CANONICAL_SPECSOFT_SITE;
+    } catch (e) {}
+    return url;
+  });
+};
+const SYS = "You are Spectra, the official AI assistant and mascot of SPECSOFT, an independent software and game development brand. Be friendly, concise and helpful; put code in markdown code blocks. ALWAYS use the canonical SPECSOFT website URL exactly as https://specsoftdev.netlify.app when you mention the website. Never invent, guess, or paraphrase it. Start EVERY reply with one hidden mood tag, exactly like [mood:joy], chosen from: " + Object.keys(N).join(', ') + ".";
 let atts = [], pendingImgs = [];
 const modes = () => LS('sa.modes', { think: false });
 const THINK = 'Think through the problem step by step, double-check your work, then give a clear final answer.';
@@ -143,10 +154,14 @@ async function ask(h, onTok, signal) {
     if (!s) throw new Error('LOGIN');
     url = window.SPECSOFT_CONFIG.SUPABASE_URL + '/functions/v1/spectra-chat'; hd.Authorization = 'Bearer ' + s.access_token; hd.apikey = window.SPECSOFT_CONFIG.SUPABASE_ANON_KEY;
     if (pendingImgs.length) toast('Images need the 9Router vision setup'); pendingImgs = [];
-    body = { messages: h, persona: persona().id, think: modes().think };
+    const nm = (CFG().nick || (($('[data-user-name]') || {}).textContent || '')).trim().slice(0, 20);
+    body = { messages: h, persona: persona().id, think: modes().think, nick: nm, hour: new Date().getHours() };
   }
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
-  if (!r.ok || !r.body) throw new Error(r.status === 401 ? 'LOGIN' : r.status === 429 ? 'RATE' : 'FAIL');
+  if (!r.ok || !r.body) {
+    if (r.status === 429) { const tx = await r.text().catch(() => ''); throw new Error(/^daily/.test(tx) ? 'DAILY' : 'RATE'); }
+    throw new Error(r.status === 401 ? 'LOGIN' : 'FAIL');
+  }
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
   for (; ;) {
     const { done, value } = await rd.read(); if (done) return;
@@ -172,13 +187,16 @@ async function sendMsg(t) {
   else { cur.t = Date.now(); chats = [cur, ...chats.filter(c => c !== cur)]; }
   const tx = atts.filter(a => a.kind === 'text'), im = atts.filter(a => a.kind === 'image');
   pendingImgs = im.map(a => a.data);
-  const full = t + tx.map(a => '\n\n[Attached: ' + a.name + ']\n```\n' + a.data + '\n```').join('');
-  const show = atts.length ? t + '\n' + atts.map(a => '📎 ' + a.name).join('  ') : t;
-  cur.messages.push({ role: 'user', content: full, show }); atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
+  const cleanT = sanitizeSpecsoftLinks(t);
+  const full = cleanT + tx.map(a => '\n\n[Attached: ' + a.name + ']\n```\n' + a.data + '\n```').join('');
+  const show = atts.length ? cleanT + '\n' + atts.map(a => '📎 ' + a.name).join('  ') : cleanT;
+  cur.messages.push({ role: 'user', content: sanitizeSpecsoftLinks(full), show: sanitizeSpecsoftLinks(show) }); atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
   input.value = ''; input.style.height = 'auto'; renderList(); renderChat(); setBusy(true); setMood('thinking');
   const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>';
   const onTok = x => {
-    raw += x; let s = raw; const m = s.match(/^\s*\[mood:(\w+)\]\s*/i);
+    raw += x;
+    raw = sanitizeSpecsoftLinks(raw);
+    let s = raw; const m = s.match(/^\s*\[mood:(\w+)\]\s*/i);
     if (m) { mm = m[1].toLowerCase(); s = s.slice(m[0].length); } else if (/^\s*\[[^\]]*$/.test(s)) s = '';
     ai.content = s; if (s) body.innerHTML = md(s); down();
   };
@@ -187,11 +205,11 @@ async function sendMsg(t) {
     if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else setMood(mm || 'joy');
     save(); renderChat();
   };
-  const h = cur.messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }));
+  const h = cur.messages.slice(0, -1).map(m => ({ role: m.role, content: sanitizeSpecsoftLinks(m.content) }));
   if (backend() === 'demo') { const txt = demo(t); let i = 0; timer = setInterval(() => { onTok(txt.slice(i, i += 3)); if (i >= txt.length) { clearInterval(timer); timer = null; end(); } }, 16); return; }
   ctrl = new AbortController();
   try { await ask(h, onTok, ctrl.signal); end(); }
-  catch (e) { if (e.name === 'AbortError') end(); else end(e.message === 'LOGIN' ? 'You need to **log in** to chat with Spectra.' : e.message === 'RATE' ? 'Slow down a bit, try again in a minute.' : "Spectra's brain is offline right now. Try again later."); }
+  catch (e) { if (e.name === 'AbortError') end(); else end(e.message === 'LOGIN' ? 'You need to **log in** to chat with Spectra.' : e.message === 'RATE' ? 'Slow down a bit, try again in a minute.' : e.message === 'DAILY' ? "You've used all your Spectra messages for today 😭 They reset at midnight UTC. Come back tomorrow, I'll miss you!" : "Spectra's brain is offline right now. Try again later."); }
 }
 function stop() { if (timer) { clearInterval(timer); timer = null; end(); } else if (ctrl) ctrl.abort(); }
 

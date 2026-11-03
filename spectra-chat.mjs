@@ -4,7 +4,9 @@
 //   ROUTER_URL    -> your 9Router OpenAI endpoint reachable from the internet, ending in /v1
 //   ROUTER_KEY    -> API key from the 9Router dashboard (never put this in the browser)
 //   SPECTRA_MODEL -> model or combo name as shown in 9Router
-const SYSTEM = "You are Spectra, the official AI assistant and mascot of SPECSOFT, an independent software and game development brand (software, game dev, Roblox developers, anime, creatives). Be friendly, concise and helpful. Put code in markdown code blocks.";
+import guard from './spectra-link-guard.js';
+const { sanitizeSpecsoftLinks } = guard;
+const SYSTEM = "You are Spectra, the official AI assistant and mascot of SPECSOFT, an independent software and game development brand (software, game dev, Roblox developers, anime, creatives). Be friendly, concise and helpful. Put code in markdown code blocks. ALWAYS use the canonical SPECSOFT website URL exactly as https://specsoftdev.netlify.app when you mention the website. Never invent or substitute other SPECSOFT URLs.";
 const hits = new Map();
 const J = (o, s) => new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json' } });
 
@@ -26,7 +28,7 @@ export default async (req) => {
   let body; try { body = await req.json(); } catch { return J({ error: 'bad' }, 400); }
   const msgs = (Array.isArray(body.messages) ? body.messages : []).slice(-20)
     .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .map(m => ({ role: m.role, content: m.content.slice(0, 4000) }));
+    .map(m => ({ role: m.role, content: sanitizeSpecsoftLinks(m.content).slice(0, 4000) }));
   if (!msgs.length) return J({ error: 'bad' }, 400);
 
   let up;
