@@ -479,6 +479,10 @@
                 if (n.type === 'script') {
                     var code = String(cf.code || '');
                     if (!code.trim()) { report('warn', name + ': script has no code.', n.id); return; }
+                    if ((cf.lang === 'html' || cf.lang === 'css' || cf.lang === 'pagejs') && window.StudioAssets && StudioAssets.known()) {
+                        var kn = StudioAssets.known(), seenA = {}, rxA = /asset:([A-Za-z0-9._-]{1,60})|studioAsset\(\s*['"]([A-Za-z0-9._-]{1,60})['"]\s*\)/g, mA;
+                        while ((mA = rxA.exec(code)) && Object.keys(seenA).length < 10) { var an = mA[1] || mA[2]; if (!seenA[an] && !Object.prototype.hasOwnProperty.call(kn, an)) { seenA[an] = 1; report('warn', name + ': uses the asset "' + an + '" but it is not in this project Assets.', n.id); } }
+                    }
                     if (cf.lang === 'html') externalRefs(code).forEach(function (x) { report('warn', name + ': the ' + x.kind + ' "' + x.url + '" will not load in the Preview (' + (x.remote ? 'the Preview has no network access' : 'it is a file on your computer, not part of the project') + '). Paste its ' + (x.kind === 'script' ? 'code into a JavaScript (page) file' : 'rules into a CSS file') + ' and delete this line.', n.id); });
                     if (cf.lang !== 'javascript') return;
                     if (AF && !evalOff) { try { new AF('studio', 'input', code); } catch (e) { if (e && e.name === 'EvalError') evalOff = true; else report('error', name + ': ' + (e.name || 'Error') + ': ' + String(e.message).slice(0, 160), n.id); } }

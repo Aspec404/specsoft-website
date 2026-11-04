@@ -91,6 +91,8 @@
     function traceText(t) { return '#' + t.n + (t.ms == null ? ' ...' : ' \u00b7 ' + (t.ms / 1000).toFixed(2) + 's'); }
     function drawWires() {
         layer.textContent = '';
+        var range = window.StudioSettings ? StudioSettings.range() : 0, far = {}, unreach = {};
+        if (range > 0 && window.StudioEngine && StudioEngine.reach) { var rr = StudioEngine.reach({ nodes: G.nodes, connections: G.connections }, range); rr.cut.forEach(function (x) { far[x.from + '|' + x.to] = x.len; }); rr.unreachable.forEach(function (id) { unreach[id] = 1; }); }
         G.connections.forEach(function (c) {
             var a = byId(c.from), b = byId(c.to); if (!a || !b) return;
             var x1 = a.x + dw(a), y1 = a.y + dh(a) / 2, x2 = b.x, y2 = b.y + dh(b) / 2, dx = Math.max(40, Math.abs(x2 - x1) / 2);
@@ -98,8 +100,10 @@
             var g = document.createElementNS(NS, 'g'); g.setAttribute('data-id', c.id);
             var hit = document.createElementNS(NS, 'path'); hit.setAttribute('d', d); hit.setAttribute('class', 'st-hit');
             var vis = document.createElementNS(NS, 'path'); vis.setAttribute('d', d); vis.setAttribute('class', 'st-wire'); vis.setAttribute('marker-end', 'url(#stArrow)');
+            if (far[c.from + '|' + c.to]) { vis.setAttribute('class', 'st-wire st-far'); var tt = document.createElementNS(NS, 'title'); tt.textContent = 'Out of range: ' + far[c.from + '|' + c.to] + ' px long, the signal range is ' + range + ' px. Add reroute nodes to relay the signal.'; g.appendChild(tt); }
             g.appendChild(hit); g.appendChild(vis); layer.appendChild(g);
         });
+        Array.prototype.forEach.call(nodesEl.children, function (nel) { nel.classList.toggle('unreach', !!unreach[nel.dataset.id]); });      // nodes the signal can no longer reach
     }
     function drawUnder() {
         underEl.textContent = '';
@@ -601,6 +605,7 @@
         open = true; selClear(); pend = null; V = { x: 40, y: 40, k: 1 }; setTool('select'); api.onReset(); histReset();
     };
     api.clear = function () { open = false; G = ROOT = { nodes: [], connections: [] }; path = []; Object.keys(api.ext).forEach(function (k) { api.ext[k].load(undefined); }); selClear(); pend = null; render(); api.onReset(); histReset(); };
+    api.redraw = function () { drawWires(); };
     api.get = function () { var c = cleanGraph(ROOT, 0); var out = { version: 3, nodes: c.nodes, connections: c.connections, frames: c.frames, groups: c.groups, folders: c.folders }; Object.keys(api.ext).forEach(function (k) { if (api.ext[k].save) out[k] = api.ext[k].save(); }); return out; };   // statuses are never saved
     api.isOpen = function () { return open; };
     function walk(g, labels, fn) { g.nodes.forEach(function (n) { fn(n, labels); if (n.config && n.config.sub) walk(n.config.sub, labels.concat(n.label), fn); }); }

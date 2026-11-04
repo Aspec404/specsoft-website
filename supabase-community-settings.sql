@@ -2034,13 +2034,14 @@ end;
 $$;
 
 -- --------------------------------------------------------------------------
--- 12. Storage for the community picture + banner (public bucket, 2 MB, images only)
---     Only people who may edit the community profile can write into its own folder.
+-- 12. Storage for the community picture + banner and chat backgrounds
+--     GIFs and short videos are allowed for motion backgrounds; the upload path
+--     still respects the community manage-permission check.
 -- --------------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('community-assets', 'community-assets', true, 2097152, array['image/webp', 'image/jpeg', 'image/png'])
+values ('community-assets', 'community-assets', true, 41943040, array['image/webp', 'image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/webm'])
 on conflict (id) do update
-set public = true, file_size_limit = 2097152, allowed_mime_types = array['image/webp', 'image/jpeg', 'image/png'];
+set public = true, file_size_limit = 41943040, allowed_mime_types = array['image/webp', 'image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/webm'];
 
 drop policy if exists "community assets are public" on storage.objects;
 create policy "community assets are public"

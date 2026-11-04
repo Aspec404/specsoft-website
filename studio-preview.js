@@ -12,7 +12,7 @@
     var G = window.StudioGraph, MAX_DOC = 5 * 1024 * 1024, MAX_LOGS = 1000, RATE = 100, BEAT_LIMIT = 5000;
     var LEVELS = { log: 'info', info: 'info', debug: 'info', warn: 'warn', error: 'error' };
     var CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; worker-src blob:";
-    var P = window.StudioPreview = {}, ui = {}, st = { hostOrigin: '', doc: '', sent: false, running: false, token: '', frame: null, logs: 0, errors: 0, win: [], warned: 0, beat: 0, wd: 0, map: [], timer: 0 };
+    var P = window.StudioPreview = {}, ui = {}, st = { seq: 0, hostOrigin: '', doc: '', sent: false, running: false, token: '', frame: null, logs: 0, errors: 0, win: [], warned: 0, beat: 0, wd: 0, map: [], timer: 0 };
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
     function bridge(K) {                                 // runs INSIDE the preview page (stringified): reports logs, errors and a heartbeat
@@ -32,21 +32,24 @@
     }
 
     /* Turns a saved/draft graph into one page. Pure function (no DOM), so it can be tested. */
-    P.assemble = function (g) {
+    P.assemble = function (g, assets) {
+        assets = assets || { images: {}, texts: {} };
+        function sub(code) { return code.replace(/asset:([A-Za-z0-9._-]{1,60})/g, function (m, n) { return Object.prototype.hasOwnProperty.call(assets.images, n) ? assets.images[n] : m; }); }      // asset:logo.png becomes a data: address
         var files = [];
         (function walk(list, path) {
             (Array.isArray(list) ? list : []).forEach(function (n) {
                 if (!n || n.enabled === false) return;
                 var c = n.config || {};
-                if (n.type === 'script' && (c.lang === 'html' || c.lang === 'css' || c.lang === 'pagejs')) files.push({ id: n.id, label: path + n.label, lang: c.lang, code: String(c.code || '') });
+                if (n.type === 'script' && (c.lang === 'html' || c.lang === 'css' || c.lang === 'pagejs')) files.push({ id: n.id, label: path + n.label, lang: c.lang, code: sub(String(c.code || '')) });
                 if (n.type === 'branch' && c.sub) walk(c.sub.nodes, path + n.label + ' / ');
             });
         })(g && g.nodes, '');
         var css = files.filter(function (f) { return f.lang === 'css'; }).map(function (f) { return f.code; }).join('\n');
         var html = files.filter(function (f) { return f.lang === 'html'; }).map(function (f) { return f.code.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?\s*refresh[^>]*>/gi, ''); }).join('\n');
         var js = files.filter(function (f) { return f.lang === 'pagejs'; });
+        var prelude = '<script>window.studioAsset=function(n){var a=' + JSON.stringify(assets.texts).replace(/</g, '\\u003c') + ';return Object.prototype.hasOwnProperty.call(a,n)?a[n]:null};<\/script>';
         var parts = ['<!DOCTYPE html>', '<html><head><meta charset="UTF-8">', '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">',
-            '<script>(' + bridge.toString() + ')("__STUDIO_TOKEN__")<\/script>', '<style>', css, '</style></head><body>', html], map = [], line = 1;
+            '<script>(' + bridge.toString() + ')("__STUDIO_TOKEN__")<\/script>', prelude, '<style>', css, '</style></head><body>', html], map = [], line = 1;
         parts.forEach(function (p) { line += p.split('\n').length; });
         js.forEach(function (f) { parts.push('<script>'); line++; map.push({ id: f.id, label: f.label, start: line, count: f.code.split('\n').length }); parts.push(f.code); line += f.code.split('\n').length; parts.push('<\/script>'); line++; });
         parts.push('</body></html>');
@@ -96,19 +99,26 @@
         });
     }
     P.stop = function (quiet) {
-        clearInterval(st.wd); clearTimeout(st.timer); window.removeEventListener('message', onMsg);
+        st.seq++; clearInterval(st.wd); clearTimeout(st.timer); window.removeEventListener('message', onMsg);
         if (st.frame) { st.frame.remove(); st.frame = null; }
         var was = st.running; st.running = false; st.token = ''; buttons();
         if (ui.empty) ui.empty.hidden = false;
         if (!quiet) { status('Stopped'); if (was) G.log('warn', 'preview', 'Preview stopped'); } else status();
     };
-    P.run = function () {
-        P.stop(true);
+    P.run = async function () {
+        P.stop(true); var seq = st.seq;
         if (!G.isOpen()) { G.log('warn', 'preview', 'Open a project first'); return; }
         if (P.beforeRun) P.beforeRun();                    // Studio keeps a recovery copy of your draft before every run
         var g = sourceGraph(); if (!g) return;
         var a = P.assemble(g); info(a);
         if (!a.hasHtml) { G.log('warn', 'preview', 'Nothing to show yet: add an HTML file (Code Editor, New, HTML)'); status('Add an HTML file'); return; }
+        if (window.StudioAssets) {                       // images and text files from the Assets page are put straight into the page
+            try {
+                var refs = StudioAssets.refs(a.files);
+                if (refs.any) { status('Loading assets...'); var ld = await StudioAssets.load(refs); if (seq !== st.seq) return; ld.notes.forEach(function (m) { G.log('warn', 'preview', m); }); a = P.assemble(g, ld); info(a); }
+            } catch (e) { if (seq !== st.seq) return; G.log('warn', 'preview', 'Assets could not be loaded: ' + String((e && e.message) || e).slice(0, 200)); }
+        }
+        if (seq !== st.seq) return;
         if (a.size > MAX_DOC) { G.log('error', 'preview', 'The page is too large to preview (' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, max ' + (MAX_DOC / (1024 * 1024)).toFixed(2) + ' MB)'); return; }
         st.token = token(); st.logs = 0; st.errors = 0; st.win = []; st.warned = 0; st.map = a.map; st.beat = Date.now();
         var f = document.createElement('iframe'), host = window.STUDIO_PREVIEW_HOST || '';

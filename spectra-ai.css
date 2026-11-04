@@ -265,11 +265,11 @@
 
 
 /* ---- v2: chat item menu (3 dots / right-click), rename, pinned, naming shimmer ---- */
-.sa-item .sa-dots{display:grid;place-items:center;flex:0 0 auto;width:26px;height:26px;padding:0;border-radius:7px;opacity:0;transition:opacity .15s,background .15s}
-.sa-item:hover .sa-dots,.sa-item.on .sa-dots,.sa-item.menu .sa-dots{opacity:1}
-.sa-item .sa-dots:hover{background:var(--sa-acc-dim,var(--accent-dim))}
-.sa-dots .sa-fi{width:16px;height:16px}
-@media (hover:none){.sa-item .sa-dots{opacity:1}}
+.sa-item .sa-more{display:grid;place-items:center;flex:0 0 auto;width:26px;height:26px;padding:0;border-radius:7px;opacity:0;transition:opacity .15s,background .15s}
+.sa-item:hover .sa-more,.sa-item.on .sa-more,.sa-item.menu .sa-more{opacity:1}
+.sa-item .sa-more:hover{background:var(--sa-acc-dim,var(--accent-dim))}
+.sa-more .sa-fi{width:16px;height:16px}
+@media (hover:none){.sa-item .sa-more{opacity:1}}
 .sa-item>.sa-fi{width:13px;height:13px;flex:0 0 auto;opacity:.6}
 .sa-item.naming span{animation:saNaming 1.1s ease-in-out infinite}
 @keyframes saNaming{50%{opacity:.35}}
@@ -286,3 +286,35 @@
 .sa-msg.user .sa-imgs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .sa-msg.user .sa-imgs img{display:block;max-width:180px;max-height:180px;border-radius:12px;object-fit:cover}
 .sa-ac .sa-th{width:22px;height:22px;flex:0 0 auto;border-radius:6px;object-fit:cover}
+
+/* ---- v3: Windows 11 (Fluent 3D) emoji ---- */
+.sa-emo{display:inline-block;width:1.3em;height:1.3em;margin:0 .06em;vertical-align:-.28em;user-select:none;-webkit-user-drag:none}
+
+/* ---- v4: code blocks (highlighting, line numbers, wrap, collapse) ---- */
+.sa-code pre{padding:12px 0}
+.sa-code code{display:block;min-width:max-content;padding:0 14px;tab-size:2}
+.sa-code.wrap code{min-width:0;white-space:pre-wrap;word-break:break-word}
+.sa-code.ln code{counter-reset:l}
+.sa-code.ln .l::before{counter-increment:l;content:counter(l);display:inline-block;width:2.2em;margin-right:14px;text-align:right;color:var(--sa-ink3,var(--text-tertiary));opacity:.55;user-select:none}
+.sa-code-h button.on{border-color:var(--sa-acc,var(--accent));color:var(--sa-ink,var(--text-primary))}
+.sa-code-h button.ok{border-color:#8fdc8f;color:#8fdc8f}
+.sa-msg:not(.live) .sa-code.long:not(.open) pre{max-height:460px;overflow:hidden}
+.sa-ex{display:block;width:100%;padding:8px;border:0;border-top:1px solid var(--sa-line,var(--border-subtle));background:var(--code-header-bg);color:var(--sa-ink2,var(--text-secondary));font:11px var(--font-mono);letter-spacing:1px;cursor:pointer}
+.sa-ex:hover{color:var(--sa-ink,var(--text-primary))}
+.sa-msg.live .sa-ex{display:none}
+.t-c{color:#6f7682;font-style:italic}
+.t-s{color:#a5d6a7}
+.t-n{color:#f0c674}
+.t-k{color:#c3a6ff}
+.t-b{color:#7fc4ff}
+.t-f{color:#8fd0ff}
+.t-t{color:#ffb38a}
+.t-p{color:#9bd0ff}
+.t-v{color:#ffd19a}
+.t-add{color:#8fdc8f;background:rgba(80,200,80,.1)}
+.t-del{color:#ff8f8f;background:rgba(255,80,80,.1)}
+/* ---- v4: LaTeX (KaTeX) ---- */
+.sa-math.d{display:block;margin:10px 0;overflow-x:auto;overflow-y:hidden;text-align:center}
+.sa-math .katex{font-size:1.08em}
+.sa-math .katex-display{margin:0}
+.sa-math.pending,.sa-math.bad{font-family:var(--font-mono);font-size:.92em;opacity:.7}

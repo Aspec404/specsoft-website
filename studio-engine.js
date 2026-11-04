@@ -253,7 +253,7 @@
         var run = ctx.run, grp = ctx.grp, c = n.config, code = String(c.code || '');
         if (!code.trim()) { ev(run, 'warn', 'has no code, nothing to run', n); return Promise.resolve(undefined); }
         var input = {};
-        (ctx.ups[n.id] || []).forEach(function (f) { var u = ctx.byId[f]; if (u && u.label in grp.results) input[u.label] = grp.results[u.label]; });
+        flatUps(ctx, n.id, {}).forEach(function (f) { var u = ctx.byId[f]; if (u && u.label in grp.results) input[u.label] = grp.results[u.label]; });
         return new Promise(function (resolve, reject) {
             var token = newToken(), ms = c.timeout || 5000, finished = false, timer, readyT;
             var frame = document.createElement('iframe');
@@ -336,6 +336,7 @@
         var run = ctx.run, grp = ctx.grp;
         try {
             await Promise.all(ups); await gate(run, grp);
+            if (n.type === 'reroute') { setS(run, n, 'done'); return; }                  // a reroute is a wire joint: the signal passes straight through, with no delay
             var t0 = run.startAt[n.id];
             if (t0 > 0 && clockNow(run) < t0) { ev(run, 'info', 'waiting for its timeline start (' + t0 + ' ms)', n); await waitClock(run, grp, t0); await gate(run, grp); }
             var wev = n.config && n.config.waitEvent;
@@ -421,6 +422,28 @@
 
     /* ---- triggers: a Trigger node listens (Timer, Event or Error). Each time it fires, the nodes wired after it run as a fresh "wave" ---- */
     function isTrig(n) { return n.type === 'trigger'; }
+    function flatUps(ctx, id, seen) {                    // the nodes feeding this one, looking THROUGH reroute nodes (a reroute is only a wire joint)
+        var out = [];
+        (ctx.ups[id] || []).forEach(function (f) { var u = ctx.byId[f]; if (u && u.type === 'reroute') { if (!seen[f]) { seen[f] = 1; flatUps(ctx, f, seen).forEach(function (x) { out.push(x); }); } } else out.push(f); });
+        return out;
+    }
+    /* Signal range: with a range set (Project Settings), a wire longer than the range (output dot to input dot, in canvas px) carries no signal.
+       A node whose wires are ALL cut, and anything reachable only through it, never runs. Reroute nodes relay the signal hop by hop. Pure function. */
+    function reach(graph, range, src) {
+        var out = { cut: [], unreachable: [] }; if (!(range > 0)) return out;
+        var by = {}, incoming = {}, live = {}, seen = {}, q = [];
+        graph.nodes.forEach(function (n) { by[n.id] = n; }); (src || []).forEach(function (s) { by[s.id] = s; });
+        graph.connections.forEach(function (c) {
+            var a = by[c.from], b = by[c.to]; if (!a || !b) return; incoming[c.to] = (incoming[c.to] || 0) + 1;
+            var aw = a.type === 'reroute' ? 18 : 148, ah = a.type === 'reroute' ? 18 : 52, bh = b.type === 'reroute' ? 18 : 52;
+            var dx = (b.x || 0) - ((a.x || 0) + aw), dy = ((b.y || 0) + bh / 2) - ((a.y || 0) + ah / 2), len = Math.sqrt(dx * dx + dy * dy);
+            if (len > range) out.cut.push({ from: c.from, to: c.to, len: Math.round(len) }); else (live[c.from] = live[c.from] || []).push(c.to);
+        });
+        graph.nodes.forEach(function (n) { if (!incoming[n.id]) { seen[n.id] = true; q.push(n.id); } }); (src || []).forEach(function (s) { seen[s.id] = true; q.push(s.id); });
+        while (q.length) { var f = q.pop(); (live[f] || []).forEach(function (t) { if (!seen[t]) { seen[t] = true; q.push(t); } }); }
+        graph.nodes.forEach(function (n) { if (!seen[n.id]) out.unreachable.push(n.id); });
+        return out;
+    }
     function isGate(n) { return n.type === 'flow' && ['counter', 'loop', 'sequence', 'random'].indexOf((n.config || {}).fKind) > -1; }      // flow nodes that own the nodes wired after them
     function wake(run) { run.idleW.splice(0).forEach(function (w) { w(); }); }
     function reactionOf(graph, t) {                      // everything downstream of a trigger, and the connections among those nodes
@@ -586,6 +609,15 @@
     function execGraph(run, grp, graph, depth, opts) {
         opts = opts || {};
         var full = opts.full || graph, trigs = [], flows = {}, skip = {}, cut = false;
+        if (!opts.wave && run.range > 0) {               // signal range: cut the wires that are too long and leave out what can no longer be reached
+            var rr = reach(graph, run.range);
+            if (rr.cut.length || rr.unreachable.length) {
+                var by0 = {}, gone = {}, cutSet = {}; graph.nodes.forEach(function (n) { by0[n.id] = n; });
+                rr.cut.forEach(function (x) { cutSet[x.from + '|' + x.to] = 1; if (!run.cutLogged[x.from + '|' + x.to]) { run.cutLogged[x.from + '|' + x.to] = 1; ev(run, 'warn', 'wire ' + by0[x.from].label + ' to ' + by0[x.to].label + ' is ' + x.len + ' px long, longer than the signal range (' + run.range + ' px): no signal. Add reroute nodes between them.', by0[x.to]); } });
+                rr.unreachable.forEach(function (id) { gone[id] = 1; var n = by0[id]; if (n && n.enabled) { setS(run, n, 'skipped'); ev(run, 'warn', 'cannot be reached: every wire into it is out of range, so it did not run', n); } });
+                graph = { nodes: graph.nodes.filter(function (n) { return !gone[n.id]; }), connections: graph.connections.filter(function (c) { return !gone[c.from] && !gone[c.to] && !cutSet[c.from + '|' + c.to]; }) };
+            }
+        }
         graph.nodes.forEach(function (n) {               // triggers and flow nodes own the nodes wired after them: those run as waves, not as part of the main flow
             var r;
             if (isTrig(n) && !opts.wave) { r = reactionOf(graph, n); trigs.push({ n: n, r: r }); skip[n.id] = 1; }
@@ -631,6 +663,7 @@
         var run = cur = { id: ++seq, status: 'running', startedAt: Date.now(), endedAt: 0, events: [], logN: 0, paused: false, cancelled: false, ended: false, hadError: false,
             st: {}, waiters: [], gseq: 0, execs: 0, spawns: 0, bg: [], stack: [], root: null,
             startAt: {}, blocked: {}, fired: {}, evWait: {}, evOn: {}, flow: {}, world: null, col: [], mainDone: false, armed: 0, armK: { timer: 0, event: 0, error: 0, collision: 0, pickup: 0 }, disarms: [], waves: 0, idleW: [], sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
+        run.range = Math.max(0, Math.min(5000, +(g.settings && g.settings.range) || 0)); run.cutLogged = {};
         run.root = mkGroup(run, 'root', null); setupTimeline(run, g); initWorld(run);
         ev(run, 'info', 'Run ' + run.id + ' started (' + g.nodes.length + ' nodes)');
         execGraph(run, run.root, g, 0).then(function () { run.mainDone = true; return settle(run); }).then(
@@ -646,6 +679,7 @@
         if (!active() || cur.status !== 'paused') return;
         cur.clockStart = Date.now(); cur.paused = false; cur.status = 'running'; cur.waiters.splice(0).forEach(function (w) { w(); }); ev(cur, 'ok', 'Run ' + cur.id + ' resumed'); refresh();
     };
+    E.reach = reach;
     E.world = function () {                              // read-only snapshot for the Stage tab (the last run's world stays readable after it ends)
         var r = cur; if (!r || !r.world) return null; var w = r.world;
         return { run: r.id, ended: !!r.ended, t: clockNow(r), hits: w.hits, touching: Object.keys(w.pairs), flash: w.flash.slice(),

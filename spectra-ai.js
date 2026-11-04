@@ -91,15 +91,129 @@ function showGreeting() {
   const iv = setInterval(() => { b.textContent = t.slice(0, ++i); if (i >= t.length) clearInterval(iv); }, 28);
 }
 
+/* ---- Windows 11 (Fluent 3D) emoji: uses emoji-data.js, the same list as chats. Anything not in the list stays a normal emoji ---- */
+const EMO = (() => {
+  const E = window.SPEC_EMOJI; if (!E || !E.list) return null;
+  const m = new Map(), slug = r => (r[4] || r[1]).toLowerCase().replace(/[^a-z0-9 -]/g, '').trim().replace(/\s+/g, '-');
+  E.list.forEach(r => { const ch = String.fromCodePoint(...r[0].split('-').map(h => parseInt(h, 16))), u = E.base + slug(r) + '_' + r[0] + '.png'; m.set(ch, u); m.set(ch.replace(/\uFE0F/g, ''), u); });
+  return m;
+})();
+const EMO_RX = /[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|[\u{1F3FB}-\u{1F3FF}])?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*/gu;
+function emo(ch) {
+  if (!EMO || (!/\p{Emoji_Presentation}/u.test(ch) && !/[\uFE0F\u200D\u20E3]/.test(ch))) return null; // plain text symbols like ® or ™ stay as text
+  return EMO.get(ch) || EMO.get(ch.replace(/\uFE0F/g, '')) || null;
+}
+const emojiHtml = h => EMO ? h.replace(EMO_RX, ch => { const u = emo(ch); return u ? '<img class="sa-emo" src="' + u + '" alt="' + ch + '" draggable="false">' : ch; }) : h;
+function emojiNodes(t) {
+  const f = document.createDocumentFragment(); let last = 0;
+  if (EMO) t.replace(EMO_RX, (ch, i) => {
+    const u = emo(ch); if (!u) return ch;
+    if (i > last) f.appendChild(document.createTextNode(t.slice(last, i)));
+    const im = document.createElement('img'); im.className = 'sa-emo'; im.src = u; im.alt = ch; im.draggable = false; f.appendChild(im); last = i + ch.length; return ch;
+  });
+  if (last < t.length) f.appendChild(document.createTextNode(t.slice(last)));
+  return f;
+}
+
+/* ---- Code blocks: tiny built-in syntax highlighter (no libraries) ---- */
+const W = s => new Set(s.split(' '));
+const HLX = {
+  lua: { kw: W('and break do else elseif end false for function goto if in local nil not or repeat return then true until while continue export type'), bi: W('print warn error assert pairs ipairs next select tostring tonumber typeof require pcall xpcall spawn delay wait task game workspace script Instance Vector3 Vector2 CFrame Color3 UDim2 UDim Enum math string table os coroutine Players RunService TweenService ReplicatedStorage ServerStorage'), lc: '--', bc: ['--[[', ']]'], ls: ['[[', ']]'], q: '"\'' },
+  js: { kw: W('if else for while do switch case break continue return function var let const new class extends super this typeof instanceof in of delete void yield async await try catch finally throw import export from default static get set null undefined true false interface type enum implements readonly public private protected abstract declare namespace as'), bi: W('console window document Math JSON Object Array Promise Map Set Date String Number Boolean Error parseInt parseFloat setTimeout setInterval fetch require module exports'), lc: '//', bc: ['/*', '*/'], q: '"\'`' },
+  py: { kw: W('and as assert async await break class continue def del elif else except False finally for from global if import in is lambda None nonlocal not or pass raise return True try while with yield self'), bi: W('print len range str int float list dict set tuple open input enumerate zip map filter sorted sum min max abs isinstance super type'), lc: '#', tq: 1, q: '"\'' },
+  sh: { kw: W('if then else elif fi for while do done case esac function in return exit export local'), bi: W('echo cd ls cat grep sed awk npm npx node git supabase curl chmod mkdir rm cp mv sudo source pip python netlify'), lc: '#', q: '"\'', dollar: 1 },
+  sql: { ci: 1, kw: W('select from where insert into values update set delete create table alter drop index primary key foreign references not null default unique and or join left right inner outer on group by order having limit offset as distinct union all exists in like between is policy enable row level security function returns language begin end if then else case when cascade add column constraint check using with to for returning'), bi: W('count sum avg min max now coalesce auth uid int integer bigint text uuid boolean timestamptz timestamp date jsonb json varchar serial'), lc: '--', bc: ['/*', '*/'], q: '\'"' },
+  json: { kw: W('true false null'), q: '"', json: 1 },
+  css: { kw: W('important'), bc: ['/*', '*/'], q: '"\'', css: 1, prop: 1 },
+  yaml: { kw: W('true false null yes no'), lc: '#', q: '"\'', prop: 1 },
+  html: { kw: W(''), q: '"\'', html: 1 },
+  c: { kw: W('if else for while do switch case break continue return struct union enum typedef static const volatile extern sizeof class public private protected namespace using template typename virtual override new delete this nullptr true false auto void int char float double long short unsigned signed bool include define'), bi: W('printf scanf malloc free std cout cin endl string vector map'), lc: '//', bc: ['/*', '*/'], q: '"\'' },
+  cs: { kw: W('if else for foreach while do switch case break continue return class struct interface enum namespace using public private protected internal static readonly const new this base null true false void int string bool float double var async await try catch finally throw override virtual abstract sealed get set in out ref is as'), bi: W('Console List Dictionary Task Debug Math'), lc: '//', bc: ['/*', '*/'], q: '"\'' },
+  java: { kw: W('if else for while do switch case break continue return class interface enum extends implements package import public private protected static final abstract new this super null true false void int long double float boolean char byte short try catch finally throw throws synchronized instanceof'), bi: W('System String List Map ArrayList HashMap Math Object'), lc: '//', bc: ['/*', '*/'], q: '"\'' },
+  go: { kw: W('if else for range switch case break continue return func package import type struct interface map chan go defer select var const nil true false fallthrough goto default'), bi: W('fmt make len cap append panic recover string int bool error byte rune float64'), lc: '//', bc: ['/*', '*/'], q: '"\'`' },
+  rs: { kw: W('if else for while loop match break continue return fn let mut const static struct enum impl trait pub use mod crate self super where as in ref move dyn async await unsafe extern type true false'), bi: W('println vec String Vec Option Some None Result Ok Err Box'), lc: '//', bc: ['/*', '*/'], q: '"' },
+  php: { kw: W('if else elseif for foreach while do switch case break continue return function class extends implements interface namespace use public private protected static new echo null true false try catch finally throw as'), bi: W('array isset empty count strlen print_r var_dump'), lc: '//', bc: ['/*', '*/'], q: '"\'', dollar: 1 }
+};
+const HLA = { javascript: 'js', jsx: 'js', mjs: 'js', node: 'js', ts: 'js', typescript: 'js', tsx: 'js', py: 'py', python: 'py', luau: 'lua', lua: 'lua', sh: 'sh', bash: 'sh', shell: 'sh', zsh: 'sh', console: 'sh', htm: 'html', xml: 'html', svg: 'html', scss: 'css', jsonc: 'json', postgres: 'sql', pgsql: 'sql', 'c++': 'c', cpp: 'c', h: 'c', hpp: 'c', cc: 'c', csharp: 'cs', 'c#': 'cs', golang: 'go', rust: 'rs', yml: 'yaml', patch: 'diff' };
+const HLN = { js: 'JavaScript', javascript: 'JavaScript', ts: 'TypeScript', typescript: 'TypeScript', tsx: 'TSX', jsx: 'JSX', py: 'Python', python: 'Python', lua: 'Lua', luau: 'Luau', sh: 'Shell', bash: 'Bash', shell: 'Shell', html: 'HTML', css: 'CSS', scss: 'SCSS', json: 'JSON', sql: 'SQL', c: 'C', cpp: 'C++', 'c++': 'C++', cs: 'C#', csharp: 'C#', 'c#': 'C#', java: 'Java', go: 'Go', rust: 'Rust', rs: 'Rust', php: 'PHP', yaml: 'YAML', yml: 'YAML', xml: 'XML', diff: 'Diff', md: 'Markdown', markdown: 'Markdown', text: 'Text', txt: 'Text', plaintext: 'Text' };
+function hl(code, lang) {
+  const n = code.length;
+  if (n > 20000) return esc(code);
+  if (lang === 'diff') return code.split('\n').map(l => { const c = l[0] === '+' && l.slice(0, 3) !== '+++' ? 'add' : l[0] === '-' && l.slice(0, 3) !== '---' ? 'del' : l.slice(0, 2) === '@@' ? 'k' : ''; return c && l ? '<span class="t-' + c + '">' + esc(l) + '</span>' : esc(l); }).join('\n');
+  const L = HLX[lang]; if (!L) return esc(code);
+  let out = '', i = 0, inTag = false;
+  const put = (cls, s) => s.split('\n').forEach((x, k) => { if (k) out += '\n'; if (x) out += cls ? '<span class="t-' + cls + '">' + esc(x) + '</span>' : esc(x); });
+  const span = (open, close, cls) => { let j = code.indexOf(close, i + open.length); j = j < 0 ? n : j + close.length; put(cls, code.slice(i, j)); i = j; };
+  while (i < n) {
+    const c = code[i];
+    if (L.bc && code.startsWith(L.bc[0], i)) { span(L.bc[0], L.bc[1], 'c'); continue; }
+    if (L.lc && code.startsWith(L.lc, i)) { let j = code.indexOf('\n', i); if (j < 0) j = n; put('c', code.slice(i, j)); i = j; continue; }
+    if (L.html) {
+      if (code.startsWith('<!--', i)) { span('<!--', '-->', 'c'); continue; }
+      if (!inTag) { const m = /^<\/?[A-Za-z][\w:-]*/.exec(code.slice(i, i + 80)); if (m) { put('k', m[0]); i += m[0].length; inTag = true; continue; } put('', c); i++; continue; }
+      if (c === '>' || code.startsWith('/>', i)) { const g = c === '>' ? '>' : '/>'; put('k', g); i += g.length; inTag = false; continue; }
+    }
+    if (L.ls && code.startsWith(L.ls[0], i)) { span(L.ls[0], L.ls[1], 's'); continue; }
+    if (L.tq && (c === '"' || c === "'") && code.startsWith(c + c + c, i)) { span(c + c + c, c + c + c, 's'); continue; }
+    if (L.q.indexOf(c) > -1) {
+      let j = i + 1;
+      while (j < n && code[j] !== c && !(code[j] === '\n' && c !== '`')) { if (code[j] === '\\') j++; j++; }
+      if (j > n) j = n; if (code[j] === c) j++;
+      const key = L.json && /^\s*:/.test(code.slice(j, j + 30));
+      put(key ? 'p' : 's', code.slice(i, j)); i = j; continue;
+    }
+    if (L.dollar && c === '$') { const m = /^\$(?:\{[^}\n]*\}|[A-Za-z_]\w*|[0-9@#?*!$-])/.exec(code.slice(i, i + 80)); if (m) { put('v', m[0]); i += m[0].length; continue; } }
+    if (L.css && c === '#') { const m = /^#[0-9a-fA-F]{3,8}\b/.exec(code.slice(i, i + 12)); if (m) { put('n', m[0]); i += m[0].length; continue; } }
+    if ((c >= '0' && c <= '9') || (c === '.' && code[i + 1] >= '0' && code[i + 1] <= '9')) { const m = /^(?:0[xX][0-9a-fA-F_]+|\d[\d_]*\.?\d*(?:[eE][+-]?\d+)?|\.\d+)/.exec(code.slice(i, i + 40)); if (m) { put('n', m[0]); i += m[0].length; continue; } }
+    const m = (L.css ? /^[A-Za-z_@-][\w-]*/ : /^[A-Za-z_$][\w$]*/).exec(code.slice(i, i + 80));
+    if (m) {
+      const w = m[0], lw = L.ci ? w.toLowerCase() : w, after = code.slice(i + w.length, i + w.length + 40);
+      const cls = L.html ? (inTag ? 'p' : '') : L.kw.has(lw) ? 'k' : L.bi && L.bi.has(w) ? 'b' : L.prop && /^\s*:(?!:)/.test(after) ? 'p' : /^\s*\(/.test(after) ? 'f' : /^[A-Z][A-Za-z0-9_]/.test(w) ? 't' : '';
+      put(cls, w); i += w.length; continue;
+    }
+    put('', c); i++;
+  }
+  return out;
+}
+function codeBlock(p) {
+  const nl = p.indexOf('\n'), lang = (nl > -1 ? p.slice(0, nl) : '').trim(), code = (nl > -1 ? p.slice(nl + 1) : p).replace(/\n$/, '');
+  const key = lang.toLowerCase(), n = code.split('\n').length;
+  const body = hl(code, HLA[key] || key).split('\n').map((l, k, a) => '<span class="l">' + l + (k < a.length - 1 ? '\n' : '') + '</span>').join('');
+  return '<div class="sa-code' + (n > 3 ? ' ln' : '') + (n > 24 ? ' long' : '') + '"><div class="sa-code-h"><span>' + esc(HLN[key] || lang || 'code') + '</span><span><button class="sa-wr" type="button">WRAP</button><button class="sa-cc" type="button">COPY</button><button class="sa-sv" type="button">SAVE</button></span></div><pre><code>' + body + '</code></pre>' + (n > 24 ? '<button class="sa-ex" type="button" data-n="' + n + '">Show all ' + n + ' lines</button>' : '') + '</div>';
+}
+
+/* ---- Math: LaTeX through KaTeX (loaded from cdnjs only when a message actually has math) ---- */
+const KATEX = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/', mcache = new Map(); let kState = 0;
+function loadKatex() {
+  if (kState) return; kState = 1;
+  const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = KATEX + 'katex.min.css'; document.head.appendChild(l);
+  const s = document.createElement('script'); s.src = KATEX + 'katex.min.js'; s.async = true;
+  s.onload = () => { kState = 2; $$('.sa-math.pending').forEach(el => { el.outerHTML = mathHtml(el.textContent, el.classList.contains('d')); }); };
+  s.onerror = () => { kState = 3; };
+  document.head.appendChild(s);
+}
+function mathHtml(tex, disp) {
+  tex = String(tex).trim(); const cls = 'sa-math' + (disp ? ' d' : '');
+  if (!tex || tex.length > 800) return '<span class="' + cls + ' bad">' + esc(tex) + '</span>';
+  const k = (disp ? 'D' : 'I') + tex; if (mcache.has(k)) return mcache.get(k);
+  if (!window.katex) { if (kState < 2) loadKatex(); return '<span class="' + cls + (kState === 3 ? ' bad' : ' pending') + '">' + esc(tex) + '</span>'; }
+  let h; try { h = '<span class="' + cls + '">' + window.katex.renderToString(tex, { displayMode: !!disp, throwOnError: false, strict: 'ignore', trust: false, maxExpand: 1000 }) + '</span>'; } catch (e) { h = '<span class="' + cls + ' bad">' + esc(tex) + '</span>'; }
+  mcache.set(k, h); return h;
+}
+
 /* ---- Markdown ---- */
 function md(t) {
   return t.split('```').map((p, i) => {
-    if (i % 2) {
-      const nl = p.indexOf('\n'), lang = nl > -1 ? p.slice(0, nl).trim() : '', code = nl > -1 ? p.slice(nl + 1) : p;
-      return '<div class="sa-code"><div class="sa-code-h"><span>' + esc(lang || 'code') + '</span><span><button class="sa-cc" type="button">COPY</button><button class="sa-sv" type="button">SAVE</button></span></div><pre><code>' + esc(code.replace(/\n$/, '')) + '</code></pre></div>';
-    }
-    return esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
-      .replace(/^(?:- |\* )(.+)$/gm, '<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>' + m.replace(/\n/g, '') + '</ul>').replace(/\n/g, '<br>');
+    if (i % 2) return codeBlock(p);
+    const M = [], keep = (tex, d) => { M.push([tex, d]); return '\uE000' + (M.length - 1) + '\uE001'; };
+    p = p.split(/(`[^`\n]+`)/).map((x, k) => k % 2 ? x : x
+      .replace(/\$\$([\s\S]+?)\$\$/g, (m, a) => keep(a, 1))
+      .replace(/\\\[([\s\S]+?)\\\]/g, (m, a) => keep(a, 1))
+      .replace(/\\\(([\s\S]+?)\\\)/g, (m, a) => keep(a, 0))
+      .replace(/(^|[^\\$\d])\$([^\s$](?:[^$\n]*[^\s$])?)\$(?![\d$])/g, (m, a, b) => a + keep(b, 0))).join('');
+    return emojiHtml(esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+      .replace(/^(?:- |\* )(.+)$/gm, '<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>' + m.replace(/\n/g, '') + '</ul>').replace(/\n/g, '<br>'))
+      .replace(/(<br>)?\uE000(\d+)\uE001(<br>)?/g, (m, b1, k, b2) => M[k][1] ? mathHtml(M[k][0], 1) : (b1 || '') + mathHtml(M[k][0], 0) + (b2 || ''));
   }).join('');
 }
 
@@ -114,7 +228,7 @@ function msgEl(m, last) {
       m._imgs.forEach(u => { const im = document.createElement('img'); im.src = u; im.alt = 'attached image'; g.appendChild(im); });
       b.appendChild(g); tx = tx.replace(/\n🖼 [^\n]*/, '');
     }
-    b.appendChild(document.createTextNode(tx)); return d;
+    b.appendChild(emojiNodes(tx)); return d;
   }
   d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div><div class="sa-act">' +
     '<button data-a="copy" title="Copy">' + ico('copy') + '</button><button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
@@ -141,10 +255,10 @@ function renderList() {
       inp.onblur = () => fin(true); inp.onclick = e => e.stopPropagation();
       L.appendChild(it); setTimeout(() => { inp.focus(); inp.select(); }, 0); return;
     }
-    it.innerHTML = (c.pin ? ico('pin') : '') + '<span></span><button class="sa-dots" type="button" aria-label="Chat options">' + ico('more') + '</button>';
+    it.innerHTML = (c.pin ? ico('pin') : '') + '<span></span><button class="sa-more" type="button" aria-label="Chat options">' + ico('more') + '</button>';
     const sp = it.querySelector('span'); sp.textContent = c.title;
     if (justTitled.has(c)) { justTitled.delete(c); const full = c.title; let i = 0; sp.textContent = ''; const iv = setInterval(() => { sp.textContent = full.slice(0, ++i); if (i >= full.length) clearInterval(iv); }, 32); }
-    it.onclick = e => { const dt = e.target.closest('.sa-dots'); if (dt) { e.stopPropagation(); return chatMenu(c, dt.getBoundingClientRect(), it); } if (!busy) openChat(c); };
+    it.onclick = e => { const dt = e.target.closest('.sa-more'); if (dt) { e.stopPropagation(); return chatMenu(c, dt.getBoundingClientRect(), it); } if (!busy) openChat(c); };
     it.oncontextmenu = e => { e.preventDefault(); chatMenu(c, { x: e.clientX, y: e.clientY }, it); };
     L.appendChild(it);
   };
@@ -217,6 +331,30 @@ async function autoTitle(c) {
 /* ---- Backend ---- */
 const DEMOS = [[/specsoft/i, "[mood:joy]**SPECSOFT®** is an independent software and game dev brand.\n\n- Software and game dev\n- Roblox developers\n- Anime and creatives"], [/code|debounce|lua|script/i, "[mood:smug]Here you go:\n\n```javascript\nfunction debounce(fn, wait = 300) {\n  let t;\n  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); };\n}\n```"]];
 const demo = q => (DEMOS.find(d => d[0].test(q)) || [0, "[mood:sparkle]Demo mode is on, so I'm using scripted replies. Once the backend is connected, I'll answer anything. **Spectra online.**"])[1];
+/* ---- Error messages: first person, funny, and they say what actually broke ---- */
+const ERR = {
+  LOGIN: "**Login required** 🔐 I don't talk to strangers, and you're a stranger rn. **Log in** and we're best friends again.",
+  DAILY: "**Usage limit reached** 😭 you used up all your messages for today. My energy refills at midnight UTC. Come back tomorrow, I'll miss you!",
+  RATE: "**Slow down, speedy** 🏎️ you're sending messages faster than I can blink. Give me a minute to catch my breath.",
+  TRAFFIC: "**System traffic** 🚦 my brain is stuck in rush hour, everyone's talking to the robots at once. Try again in a sec!",
+  BADGW: "**502 Bad Gateway** 💀 the server I rely on just ghosted me mid-sentence. Not you, not me, the pipes. Try again in a moment.",
+  TIMEOUT: "**Timed out** ⏳ I thought so hard I forgot to answer. Hit regenerate or ask me again!",
+  OFFLINE: "**No connection** 📡 I can't reach my brain. Are you offline? Check your internet and try again.",
+  SERVER: "**500 Server error** 🔧 something's cursed on my end and I can't fix it myself. The SPECSOFT team needs to take a look.",
+  MISSING: "**404 Brain not found** 🧠 I can't find my own brain, it might not be deployed yet. Tell the SPECSOFT team!",
+  IMG: "**Image problem** 🖼️ that image is too big or not supported. Try a smaller JPG, PNG or WebP.",
+  FAIL: "**My brain is offline** 😵 something broke and I'm not sure what. Try again in a bit."
+};
+function errCode(st, tx, hasImg) {
+  if (st === 401) return 'LOGIN';
+  if (st === 429) return /^daily/.test(tx) ? 'DAILY' : 'RATE';
+  if (st === 413 || (st === 400 && hasImg)) return 'IMG';
+  if (st === 404) return 'MISSING';
+  if (st === 408 || st === 504) return 'TIMEOUT';
+  if (st === 502 || st === 503) { if (st === 503 || /->\s*(429|503)|high demand|UNAVAILABLE|overload/i.test(tx)) return 'TRAFFIC'; if (/timeout/i.test(tx)) return 'TIMEOUT'; return 'BADGW'; }
+  if (st >= 500) return 'SERVER';
+  return 'FAIL';
+}
 async function ask(h, onTok, signal) {
   let url, hd = { 'Content-Type': 'application/json' }, body;
   if (backend() === 'direct') {
@@ -237,11 +375,7 @@ async function ask(h, onTok, signal) {
     body = { messages: h, persona: persona().id, think: modes().think, nick: nm, hour: new Date().getHours() }; if (imgs.length) body.images = imgs;
   }
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
-  if (!r.ok || !r.body) {
-    if (r.status === 429) { const tx = await r.text().catch(() => ''); throw new Error(/^daily/.test(tx) ? 'DAILY' : 'RATE'); }
-    if (r.status === 413 || (r.status === 400 && body.images)) throw new Error('IMG');
-    throw new Error(r.status === 401 ? 'LOGIN' : 'FAIL');
-  }
+  if (!r.ok || !r.body) { const tx = await r.text().catch(() => ''); throw new Error(errCode(r.status, tx, !!body.images)); }
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
   for (; ;) {
     const { done, value } = await rd.read(); if (done) return;
@@ -292,17 +426,20 @@ async function sendMsg(t) {
   if (backend() === 'demo') { const txt = demo(t); let i = 0; timer = setInterval(() => { onTok(txt.slice(i, i += 3)); if (i >= txt.length) { clearInterval(timer); timer = null; end(); } }, 16); return; }
   ctrl = new AbortController();
   try { await ask(h, onTok, ctrl.signal); end(); }
-  catch (e) { if (e.name === 'AbortError') end(); else end(e.message === 'LOGIN' ? 'You need to **log in** to chat with Spectra.' : e.message === 'RATE' ? 'Slow down a bit, try again in a minute.' : e.message === 'IMG' ? "That image is too big or not supported 😭 try a smaller JPG, PNG or WebP." : e.message === 'DAILY' ? "You've used all your Spectra messages for today 😭 They reset at midnight UTC. Come back tomorrow, I'll miss you!" : "Spectra's brain is offline right now. Try again later."); }
+  catch (e) { if (e.name === 'AbortError') end(); else end(ERR[e.message] || (e instanceof TypeError ? ERR.OFFLINE : ERR.FAIL)); }
 }
 function stop() { if (timer) { clearInterval(timer); timer = null; end(); } else if (ctrl) ctrl.abort(); }
 
 /* ---- Message actions ---- */
+msgsEl.addEventListener('error', e => { const t = e.target; if (t && t.classList && t.classList.contains('sa-emo')) t.replaceWith(document.createTextNode(t.alt)); }, true);
 msgsEl.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.classList.contains('sa-wr')) { b.closest('.sa-code').classList.toggle('wrap'); b.classList.toggle('on'); return; }
+  if (b.classList.contains('sa-ex')) { const bx = b.closest('.sa-code'); bx.classList.toggle('open'); b.textContent = bx.classList.contains('open') ? 'Collapse' : 'Show all ' + b.dataset.n + ' lines'; return; }
   const w = b.closest('.sa-msg'); const i = [...msgsEl.children].indexOf(w); const m = cur && cur.messages[i];
   if (b.classList.contains('sa-cc') || b.classList.contains('sa-sv')) {
     const box = b.closest('.sa-code'), code = box.querySelector('code').textContent;
-    if (b.classList.contains('sa-cc')) return copy(code);
+    if (b.classList.contains('sa-cc')) { copy(code); b.textContent = 'COPIED'; b.classList.add('ok'); setTimeout(() => { b.textContent = 'COPY'; b.classList.remove('ok'); }, 1400); return; }
     const a = LS('sa.assets', []); a.unshift({ lang: box.querySelector('.sa-code-h span').textContent, code, t: Date.now() }); SS('sa.assets', a.slice(0, 60)); return toast('Saved to Assets');
   }
   const a = b.dataset.a; if (!a || !m) return;

@@ -81,7 +81,6 @@
         var m = String(err && err.message || '');
         for (var k in ERR) if (Object.prototype.hasOwnProperty.call(ERR, k) && m.indexOf(k) >= 0) return ERR[k];
         if (/chat_(community|roles?|member|mod|my_perms|members|bans)/.test(m) && /(schema cache|does not exist|could not find)/i.test(m)) return 'Run supabase-community-settings.sql in your Supabase SQL Editor first.';
-        if (/chat_(my|shared)_bg_save|chat_bg_get|background/.test(m) && /(does not exist|could not find|function .*bg|not allowed|bad_path|permission|null value)/i.test(m)) return 'The current chat background RPC is not accepting that media type yet. Keep it to GIF/image or update the Supabase background SQL for MP4/WebM support.';
         return H().friendly(err);
     }
     function ico(name, cls) {
@@ -1195,39 +1194,28 @@
         var b = document.getElementById('csxBgBtn'), cur = H() && H().S.current;
         if (b) b.hidden = !canBgHere(cur);
     }
-    function bgMediaKind(url, fallback) {
-        var s = String(url || '');
-        if (fallback === 'video') return 'video';
-        if (!s) return 'image';
-        if (/\.(?:mp4|webm)(?:$|[?#])/i.test(s) || /^data:video\//i.test(s)) return 'video';
-        return 'image';
-    }
-    function setLayer(node, url, s, kind) {
-        var media = kind || bgMediaKind(url, null);
-        var img = node.querySelector('.csx-bg-image') || document.createElement('div');
-        var video = node.querySelector('.csx-bg-video') || document.createElement('video');
-        if (!img.parentNode) node.appendChild(img);
-        if (!video.parentNode) node.appendChild(video);
-        img.className = 'csx-bg-image';
-        video.className = 'csx-bg-video';
-        video.loop = true; video.muted = true; video.autoplay = true; video.playsInline = true;
-        video.setAttribute('playsinline', ''); video.setAttribute('muted', ''); video.setAttribute('loop', '');
-        video.setAttribute('aria-hidden', 'true');
-        node.classList.toggle('is-video', media === 'video');
-        node.style.setProperty('--csx-img', media === 'image' && url ? 'url("' + String(url).replace(/"/g, '%22') + '")' : 'none');
-        node.style.setProperty('--csx-op', String(((s && s.opacity != null) ? s.opacity : BG_DEF.opacity) / 100));
-        node.style.setProperty('--csx-blur', ((s && s.blur != null) ? s.blur : BG_DEF.blur) + 'px');
-        node.style.setProperty('--csx-dim', String(((s && s.dim != null) ? s.dim : BG_DEF.dim) / 100));
-        if (media === 'video') {
-            img.style.backgroundImage = 'none';
-            var vUrl = String(url || '');
-            if (!vUrl) { video.removeAttribute('src'); video.load(); }
-            else if (video.getAttribute('src') !== vUrl) { video.src = vUrl; }
-            video.play().catch(function () { /* autoplay may be blocked */ });
-        } else {
-            video.removeAttribute('src'); video.load();
-            img.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, '%22') + '")' : 'none';
-        }
+    function isVideoPath(p) { return /\.(?:mp4|webm)(?:\?.*)?$/i.test(String(p || '')); }
+    // a background is a picture (CSS), or a looping muted video (MP4 / WebM). GIFs are just pictures that move.
+    function setLayer(node, url, s, video) {
+        node.style.setProperty('--csx-img', url && !video ? 'url("' + String(url).replace(/"/g, '%22') + '")' : 'none');
+        node.style.setProperty('--csx-op', String((s.opacity == null ? BG_DEF.opacity : s.opacity) / 100));
+        node.style.setProperty('--csx-blur', (s.blur == null ? BG_DEF.blur : s.blur) + 'px');
+        node.style.setProperty('--csx-dim', String((s.dim == null ? BG_DEF.dim : s.dim) / 100));
+        var v = node.querySelector('video.csx-bg-video');
+        if (url && video) {
+            if (!v) {
+                v = document.createElement('video');
+                v.className = 'csx-bg-video';
+                v.muted = true; v.defaultMuted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+                v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
+                v.disablePictureInPicture = true; v.tabIndex = -1;
+                node.insertBefore(v, node.firstChild);
+            }
+            if (v.getAttribute('data-src') !== url) { v.setAttribute('data-src', url); v.src = url; }
+            var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;   // people who asked for less motion get a still frame
+            if (calm) v.pause();
+            else { var pr = v.play(); if (pr && pr.catch) pr.catch(function () { /* the browser will start it later */ }); }
+        } else if (v) { v.pause(); v.removeAttribute('src'); v.removeAttribute('data-src'); v.load(); v.remove(); }
     }
     function bgLayer() {
         var convo = document.getElementById('chConvo');
@@ -1251,8 +1239,8 @@
         }
         syncBgBtn();
         var url = s && bgUrl(s.path, kind, rk);
-        if (!url) { convo.classList.remove('has-csx-bg'); return; }
-        setLayer(l, url, s, bgMediaKind(url, null));
+        if (!url) { convo.classList.remove('has-csx-bg'); setLayer(l, null, {}, false); return; }
+        setLayer(l, url, s, isVideoPath(s.path));
         convo.classList.add('has-csx-bg');
     }
     function bgUnsub() {
@@ -1306,23 +1294,9 @@
         paintBg();
     }
 
-    function bgFileMeta(file) {
-        var type = (file && file.type) || '';
-        if (/^video\//i.test(type) || /\.(?:mp4|webm)(?:$|[?#])/i.test(file && file.name || '')) return { kind: 'video', allow: 'video/mp4,video/webm' };
-        if (/^image\/gif$/i.test(type)) return { kind: 'image', allow: 'image/gif' };
-        return { kind: 'image', allow: 'image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm' };
-    }
     async function resizeFit(file, max) {
-        var meta = bgFileMeta(file);
-        if (meta.kind === 'video') {
-            if (file.size > 40 * 1024 * 1024) throw new Error('That video is too big (40 MB max).');
-            return { blob: file, kind: 'video' };
-        }
-        if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) throw new Error('Pick a PNG, JPG, WebP, GIF or MP4/WebM video.');
-        if (file.type === 'image/gif' || file.type === 'image/webp' || file.type === 'image/png' || file.type === 'image/jpeg') {
-            if (file.size > 15 * 1024 * 1024) throw new Error('That image is too big (15 MB max).');
-            if (file.type === 'image/gif') return { blob: file, kind: 'image' };
-        }
+        if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) throw new Error('Pick a PNG, JPG, WebP or GIF image.');
+        if (file.size > 15 * 1024 * 1024) throw new Error('That image is too big (15 MB max).');
         var bmp = await loadBitmap(file);
         var sc = Math.min(1, max / Math.max(bmp.width, bmp.height));
         var c = document.createElement('canvas');
@@ -1333,7 +1307,21 @@
         var blob = await new Promise(function (r) { c.toBlob(r, 'image/webp', 0.82); });
         if (!blob || blob.type !== 'image/webp') blob = await new Promise(function (r) { c.toBlob(r, 'image/jpeg', 0.85); });
         if (!blob) throw new Error('Could not read that image.');
-        return { blob: blob, kind: 'image' };
+        return blob;
+    }
+
+    async function prepBg(file) {
+        var t = (file.type || '').toLowerCase();
+        if (t === 'video/mp4' || t === 'video/webm') {
+            if (file.size > 15 * 1024 * 1024) throw new Error('Videos must be 15 MB or smaller.');
+            return { blob: file, video: true, ext: t === 'video/webm' ? '.webm' : '.mp4', type: t };
+        }
+        if (t === 'image/gif') {
+            if (file.size > 8 * 1024 * 1024) throw new Error('GIFs must be 8 MB or smaller.');
+            return { blob: file, video: false, ext: '.gif', type: 'image/gif' };
+        }
+        var blob = await resizeFit(file, 1600);
+        return { blob: blob, video: false, ext: blob.type === 'image/webp' ? '.webp' : '.jpg', type: blob.type };
     }
 
     function slider(label, min, max, unit, val, onInput) {
@@ -1360,7 +1348,8 @@
                 el('div', { class: 'csx-bgmsg' }, el('b', { text: 'Sam' }), 'can you read this part?')));
         var layer = prev.firstChild;
         function url() { return st.clear ? null : (st.pending ? st.pending.url : bgUrl(st.path, kind, room.kind)); }
-        function paint() { setLayer(layer, url(), st, st.pending ? (st.pending.kind || bgMediaKind(url(), null)) : bgMediaKind(url(), null)); prev.classList.toggle('is-empty', !url()); }
+        function isVid() { return st.clear ? false : (st.pending ? !!st.pending.video : isVideoPath(st.path)); }
+        function paint() { setLayer(layer, url(), st, isVid()); prev.classList.toggle('is-empty', !url()); }
 
         var sOp = slider('Opacity', 5, 100, '%', st.opacity, function (v) { st.opacity = v; paint(); });
         var sBl = slider('Blur', 0, 20, 'px', st.blur, function (v) { st.blur = v; paint(); });
@@ -1373,9 +1362,9 @@
                 var file = f.files && f.files[0];
                 if (!file) return;
                 try {
-                    var prepared = await resizeFit(file, 1600);
+                    var prep = await prepBg(file);
                     if (st.pending) URL.revokeObjectURL(st.pending.url);
-                    st.pending = { blob: prepared.blob, url: URL.createObjectURL(prepared.blob), kind: prepared.kind || 'image' };
+                    st.pending = { blob: prep.blob, url: URL.createObjectURL(prep.blob), video: prep.video, ext: prep.ext, type: prep.type };
                     st.clear = false; say(m, ''); paint();
                 } catch (err) { say(m, err.message || 'Could not use that image.'); }
             });
@@ -1394,14 +1383,9 @@
             var uid = H().S.me.id, newPath = null, bucket = bgBucket(kind, room.kind);
             try {
                 if (st.pending) {
-                    var type = st.pending.blob.type || '';
-                    var ext = '.jpg';
-                    if (type === 'image/webp') ext = '.webp';
-                    else if (type === 'image/gif') ext = '.gif';
-                    else if (type === 'video/webm') ext = '.webm';
-                    else if (/^video\//i.test(type)) ext = '.mp4';
+                    var ext = st.pending.ext;
                     newPath = kind === 'community' && room.kind === 'community' ? room.room_id + '/bg-' + Date.now() + ext : uid + '/' + room.room_id + '-' + (kind === 'community' ? 'shared-' : '') + Date.now() + ext;
-                    ok(await H().sb.storage.from(bucket).upload(newPath, st.pending.blob, { contentType: type || 'application/octet-stream', cacheControl: '31536000' }));
+                    ok(await H().sb.storage.from(bucket).upload(newPath, st.pending.blob, { contentType: st.pending.type, cacheControl: '31536000' }));
                 }
                 var args = kind === 'community'
                     ? { p_room: room.room_id, p_path: newPath, p_opacity: st.opacity, p_blur: st.blur, p_dim: st.dim, p_clear: st.clear }
@@ -1425,8 +1409,8 @@
             el('p', { class: 'ch-help', text: kind === 'community' ? (room.kind === 'dm' ? 'Both of you see this background, and either of you can change it.' : 'Everybody in this chat sees this background.') : 'Only you see this background. The other people in the chat do not.' }),
             m, prev,
             el('div', { class: 'csx-btnrow' },
-                btn('Choose image', 'ch-btn--ghost ch-btn--sm', pick),
-                btn('Remove image', 'ch-btn--ghost ch-btn--sm', function () { if (st.pending) URL.revokeObjectURL(st.pending.url); st.pending = null; st.clear = true; paint(); }),
+                btn('Choose image / GIF / MP4', 'ch-btn--ghost ch-btn--sm', pick),
+                btn('Remove', 'ch-btn--ghost ch-btn--sm', function () { if (st.pending) URL.revokeObjectURL(st.pending.url); st.pending = null; st.clear = true; paint(); }),
                 btn('Reset sliders', 'ch-btn--ghost ch-btn--sm', function () {
                     st.opacity = BG_DEF.opacity; st.blur = BG_DEF.blur; st.dim = BG_DEF.dim;
                     sOp.set(st.opacity); sBl.set(st.blur); sDm.set(st.dim); paint();
