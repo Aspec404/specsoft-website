@@ -39,7 +39,8 @@ const PERSONAS = [
 const persona = () => PERSONAS.find(x => x.id === LS('sa.persona', 'spectra')) || PERSONAS[0];
 
 let chats = LS('sa.chats', []), cur = null, busy = false, ctrl = null, timer = null, mood = '', pokes = 0, idle, typing;
-const save = () => SS('sa.chats', chats.slice(0, 40));
+const save = () => { const kept = new Set(chats.filter(c => c.pin || c.lib)); chats.filter(c => !kept.has(c)).slice(0, 40).forEach(c => kept.add(c)); SS('sa.chats', chats.filter(c => kept.has(c))); };
+let renaming = null; const justTitled = new Set(), naming = new Set();
 const msgsEl = $('#saMsgs'), scrollEl = $('#saScroll'), input = $('#saInput'), sendBtn = $('#saSend'), app = $('#saApp');
 const down = () => { scrollEl.scrollTop = scrollEl.scrollHeight; };
 const toast = t => { const e = $('#saToast'); e.textContent = t; e.classList.add('on'); setTimeout(() => e.classList.remove('on'), 2200); };
@@ -106,7 +107,15 @@ function md(t) {
 function msgEl(m, last) {
   const d = document.createElement('div');
   d.className = 'sa-msg ' + (m.role === 'user' ? 'user' : 'ai') + (m.err ? ' err' : '') + (last ? ' last' : '');
-  if (m.role === 'user') { d.innerHTML = '<div class="sa-b"></div>'; d.firstChild.textContent = m.show || m.content; return d; }
+  if (m.role === 'user') {
+    d.innerHTML = '<div class="sa-b"></div>'; const b = d.firstChild; let tx = m.show || m.content;
+    if (m._imgs && m._imgs.length) {
+      const g = document.createElement('div'); g.className = 'sa-imgs';
+      m._imgs.forEach(u => { const im = document.createElement('img'); im.src = u; im.alt = 'attached image'; g.appendChild(im); });
+      b.appendChild(g); tx = tx.replace(/\n🖼 [^\n]*/, '');
+    }
+    b.appendChild(document.createTextNode(tx)); return d;
+  }
   d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div><div class="sa-act">' +
     '<button data-a="copy" title="Copy">' + ico('copy') + '</button><button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
     '<div class="sa-pop"><button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
@@ -119,21 +128,91 @@ function renderChat() {
 }
 function renderList() {
   const L = $('#saList'); L.innerHTML = '';
-  if (!chats.length) { L.innerHTML = '<div class="sa-empty">No chats yet</div>'; return; }
+  const vis = chats.filter(c => !c.arch);
+  if (!vis.length) { L.innerHTML = '<div class="sa-empty">' + (chats.length ? 'Everything is archived' : 'No chats yet') + '</div>'; return; }
   const d0 = new Date().setHours(0, 0, 0, 0); let g = '';
-  chats.forEach(c => {
-    const t = c.t >= d0 ? 'Today' : c.t >= d0 - 864e5 ? 'Yesterday' : 'Earlier';
-    if (t !== g) { g = t; L.insertAdjacentHTML('beforeend', '<div class="sa-label">' + t + '</div>'); }
-    const it = document.createElement('div'); it.className = 'sa-item' + (c === cur ? ' on' : '');
-    it.innerHTML = '<span></span><button aria-label="Delete chat">×</button>'; it.firstChild.textContent = c.title;
-    it.onclick = e => {
-      if (e.target.tagName === 'BUTTON') { chats = chats.filter(x => x !== c); if (cur === c) cur = null; save(); renderList(); renderChat(); return; }
-      if (!busy) openChat(c);
-    };
+  const label = t => L.insertAdjacentHTML('beforeend', '<div class="sa-label">' + t + '</div>');
+  const add = c => {
+    const it = document.createElement('div'); it.className = 'sa-item' + (c === cur ? ' on' : '') + (naming.has(c) ? ' naming' : '');
+    if (c === renaming) {
+      it.innerHTML = '<input class="sa-rn" maxlength="40" aria-label="Rename chat">'; const inp = it.firstChild; inp.value = c.title; let done = false;
+      const fin = ok => { if (done) return; done = true; renaming = null; if (ok) { const v = inp.value.trim().slice(0, 40); if (v) { c.title = v; c.renamed = true; save(); } } renderList(); };
+      inp.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') fin(true); else if (e.key === 'Escape') fin(false); };
+      inp.onblur = () => fin(true); inp.onclick = e => e.stopPropagation();
+      L.appendChild(it); setTimeout(() => { inp.focus(); inp.select(); }, 0); return;
+    }
+    it.innerHTML = (c.pin ? ico('pin') : '') + '<span></span><button class="sa-dots" type="button" aria-label="Chat options">' + ico('more') + '</button>';
+    const sp = it.querySelector('span'); sp.textContent = c.title;
+    if (justTitled.has(c)) { justTitled.delete(c); const full = c.title; let i = 0; sp.textContent = ''; const iv = setInterval(() => { sp.textContent = full.slice(0, ++i); if (i >= full.length) clearInterval(iv); }, 32); }
+    it.onclick = e => { const dt = e.target.closest('.sa-dots'); if (dt) { e.stopPropagation(); return chatMenu(c, dt.getBoundingClientRect(), it); } if (!busy) openChat(c); };
+    it.oncontextmenu = e => { e.preventDefault(); chatMenu(c, { x: e.clientX, y: e.clientY }, it); };
     L.appendChild(it);
-  });
+  };
+  const pinned = vis.filter(c => c.pin), rest = vis.filter(c => !c.pin);
+  if (pinned.length) { label('Pinned'); pinned.forEach(add); g = 'Pinned'; }
+  rest.forEach(c => { const t = c.t >= d0 ? 'Today' : c.t >= d0 - 864e5 ? 'Yesterday' : 'Earlier'; if (t !== g) { g = t; label(t); } add(c); });
 }
 function openChat(c) { cur = c; renderList(); renderChat(); app.classList.remove('drawer'); }
+
+/* ---- Chat item menu: 3 dots on hover, or right-click. Pin / Rename / Library / Archive / Delete ---- */
+let cm = null;
+function closeMenu() { if (cm) { cm.remove(); cm = null; } $$('.sa-item.menu').forEach(x => x.classList.remove('menu')); }
+function chatMenu(c, a, it) {
+  closeMenu(); if (it) it.classList.add('menu');
+  cm = document.createElement('div'); cm.className = 'sa-cmenu';
+  const items = [['pin', 'pin', c.pin ? 'Unpin' : 'Pin'], ['rename', 'pen', 'Rename Convo'], ['lib', 'folder', c.lib ? 'Remove from Library' : 'Add to Library'], ['arch', 'archive', c.arch ? 'Unarchive Convo' : 'Archive Convo'], null, ['del', 'trash', 'Delete', 1]];
+  cm.innerHTML = items.map(x => x ? '<button type="button" data-k="' + x[0] + '"' + (x[3] ? ' class="danger"' : '') + '>' + ico(x[1]) + '<span>' + x[2] + '</span></button>' : '<div class="sa-sep"></div>').join('');
+  document.body.appendChild(cm);
+  const w = cm.offsetWidth, h = cm.offsetHeight, x = a.x !== undefined ? a.x : a.left, y = a.y !== undefined ? a.y : a.bottom + 4;
+  cm.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + 'px'; cm.style.top = Math.max(8, Math.min(y, innerHeight - h - 8)) + 'px';
+  cm.onclick = e => {
+    e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k;
+    if (k === 'del' && !b.dataset.sure) { b.dataset.sure = 1; b.querySelector('span').textContent = 'Click again to delete'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.querySelector('span').textContent = 'Delete'; } }, 3000); return; }
+    closeMenu();
+    if (k === 'pin') { c.pin = !c.pin; save(); renderList(); }
+    else if (k === 'rename') { renaming = c; renderList(); }
+    else if (k === 'lib') { c.lib = !c.lib; save(); toast(c.lib ? 'Added to Library' : 'Removed from Library'); }
+    else if (k === 'arch') { c.arch = !c.arch; save(); if (c.arch && cur === c) { if (busy) stop(); cur = null; renderChat(); showGreeting(); } renderList(); toast(c.arch ? 'Archived. Find it in Library' : 'Unarchived'); }
+    else if (k === 'del') { if (cur === c && busy) stop(); chats = chats.filter(x => x !== c); if (cur === c) { cur = null; renderChat(); showGreeting(); } save(); renderList(); toast('Chat deleted'); }
+  };
+}
+document.addEventListener('click', closeMenu); addEventListener('resize', closeMenu); $('#saList').addEventListener('scroll', closeMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+
+/* ---- Images: shrink before sending (max 1280px JPEG) so uploads stay small and fast ---- */
+function shrink(src) {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => {
+      let w = im.naturalWidth, h = im.naturalHeight; const k = Math.min(1, 1280 / Math.max(w, h)); w = Math.round(w * k); h = Math.round(h * k);
+      const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(im, 0, 0, w, h);
+      let q = .82, out = c.toDataURL('image/jpeg', q);
+      while (out.length > 1.1e6 && q > .4) { q -= .12; out = c.toDataURL('image/jpeg', q); }
+      out.length > 1.2e6 ? rej(new Error('big')) : res(out);
+    };
+    im.onerror = () => rej(new Error('bad')); im.src = src;
+  });
+}
+
+/* ---- Supabase request + AI chat titles ("hi bro" becomes "Simple Greeting") ---- */
+async function sbReq() {
+  const sb = window.getSupabaseClient && window.getSupabaseClient(); const s = sb && (await sb.auth.getSession()).data.session;
+  if (!s) throw new Error('LOGIN');
+  return { url: window.SPECSOFT_CONFIG.SUPABASE_URL + '/functions/v1/spectra-chat', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token, apikey: window.SPECSOFT_CONFIG.SUPABASE_ANON_KEY } };
+}
+async function autoTitle(c) {
+  if (backend() !== 'supabase' || c.renamed || c.titled) return;
+  const u = c.messages.find(m => m.role === 'user'), a = c.messages.find(m => m.role === 'assistant' && !m.err && m.content);
+  if (!u || !a) return;
+  c.titled = true; naming.add(c); renderList();
+  try {
+    const q = await sbReq();
+    const r = await fetch(q.url, { method: 'POST', headers: q.headers, body: JSON.stringify({ mode: 'title', user: (u.show || u.content).split(/\n(?:🖼|📎)/)[0].slice(0, 400), assistant: a.content.slice(0, 300) }) });
+    const j = r.ok ? await r.json() : null, t = j && typeof j.title === 'string' ? j.title.trim().slice(0, 40) : '';
+    if (t && !c.renamed) { c.title = t; justTitled.add(c); }
+  } catch (e) { }
+  naming.delete(c); save(); renderList();
+}
 
 /* ---- Backend ---- */
 const DEMOS = [[/specsoft/i, "[mood:joy]**SPECSOFT®** is an independent software and game dev brand.\n\n- Software and game dev\n- Roblox developers\n- Anime and creatives"], [/code|debounce|lua|script/i, "[mood:smug]Here you go:\n\n```javascript\nfunction debounce(fn, wait = 300) {\n  let t;\n  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); };\n}\n```"]];
@@ -153,13 +232,14 @@ async function ask(h, onTok, signal) {
     const sb = window.getSupabaseClient && window.getSupabaseClient(); const s = sb && (await sb.auth.getSession()).data.session;
     if (!s) throw new Error('LOGIN');
     url = window.SPECSOFT_CONFIG.SUPABASE_URL + '/functions/v1/spectra-chat'; hd.Authorization = 'Bearer ' + s.access_token; hd.apikey = window.SPECSOFT_CONFIG.SUPABASE_ANON_KEY;
-    if (pendingImgs.length) toast('Images need the 9Router vision setup'); pendingImgs = [];
+    const imgs = pendingImgs; pendingImgs = [];
     const nm = (CFG().nick || (($('[data-user-name]') || {}).textContent || '')).trim().slice(0, 20);
-    body = { messages: h, persona: persona().id, think: modes().think, nick: nm, hour: new Date().getHours() };
+    body = { messages: h, persona: persona().id, think: modes().think, nick: nm, hour: new Date().getHours() }; if (imgs.length) body.images = imgs;
   }
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
   if (!r.ok || !r.body) {
     if (r.status === 429) { const tx = await r.text().catch(() => ''); throw new Error(/^daily/.test(tx) ? 'DAILY' : 'RATE'); }
+    if (r.status === 413 || (r.status === 400 && body.images)) throw new Error('IMG');
     throw new Error(r.status === 401 ? 'LOGIN' : 'FAIL');
   }
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -181,7 +261,7 @@ function setDev() {
 /* ---- Sending ---- */
 const setBusy = b => { busy = b; sendBtn.classList.toggle('stop', b); sendBtn.setAttribute('aria-label', b ? 'Stop' : 'Send'); };
 async function sendMsg(t) {
-  t = (t || '').trim(); if (!t && atts.length) return toast('Add a message with your attachment'); if (!t || busy) return;
+  t = (t || '').trim(); if (!t && atts.some(a => a.kind === 'image')) t = 'What do you think of this?'; if (!t && atts.length) return toast('Add a message with your attachment'); if (!t || busy) return;
   if (t === '/dev') { input.value = ''; setDev(); return; }
   if (!cur) { cur = { title: t.slice(0, 34), t: Date.now(), messages: [] }; chats.unshift(cur); }
   else { cur.t = Date.now(); chats = [cur, ...chats.filter(c => c !== cur)]; }
@@ -189,8 +269,11 @@ async function sendMsg(t) {
   pendingImgs = im.map(a => a.data);
   const cleanT = sanitizeSpecsoftLinks(t);
   const full = cleanT + tx.map(a => '\n\n[Attached: ' + a.name + ']\n```\n' + a.data + '\n```').join('');
-  const show = atts.length ? cleanT + '\n' + atts.map(a => '📎 ' + a.name).join('  ') : cleanT;
-  cur.messages.push({ role: 'user', content: sanitizeSpecsoftLinks(full), show: sanitizeSpecsoftLinks(show) }); atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
+  const imN = im.map(a => a.name).join('  '), fN = tx.map(a => a.name).join('  ');
+  const show = cleanT + (imN ? '\n🖼 ' + imN : '') + (fN ? '\n📎 ' + fN : '');
+  const um = { role: 'user', content: sanitizeSpecsoftLinks(full), show: sanitizeSpecsoftLinks(show) };
+  if (im.length) Object.defineProperty(um, '_imgs', { value: im.map(a => a.data), enumerable: false, writable: true });
+  cur.messages.push(um); const chat = cur; atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
   input.value = ''; input.style.height = 'auto'; renderList(); renderChat(); setBusy(true); setMood('thinking');
   const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>';
   const onTok = x => {
@@ -203,13 +286,13 @@ async function sendMsg(t) {
   const end = err => {
     setBusy(false); ctrl = null;
     if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else setMood(mm || 'joy');
-    save(); renderChat();
+    save(); renderChat(); if (!err && ai.content) autoTitle(chat);
   };
   const h = cur.messages.slice(0, -1).map(m => ({ role: m.role, content: sanitizeSpecsoftLinks(m.content) }));
   if (backend() === 'demo') { const txt = demo(t); let i = 0; timer = setInterval(() => { onTok(txt.slice(i, i += 3)); if (i >= txt.length) { clearInterval(timer); timer = null; end(); } }, 16); return; }
   ctrl = new AbortController();
   try { await ask(h, onTok, ctrl.signal); end(); }
-  catch (e) { if (e.name === 'AbortError') end(); else end(e.message === 'LOGIN' ? 'You need to **log in** to chat with Spectra.' : e.message === 'RATE' ? 'Slow down a bit, try again in a minute.' : e.message === 'DAILY' ? "You've used all your Spectra messages for today 😭 They reset at midnight UTC. Come back tomorrow, I'll miss you!" : "Spectra's brain is offline right now. Try again later."); }
+  catch (e) { if (e.name === 'AbortError') end(); else end(e.message === 'LOGIN' ? 'You need to **log in** to chat with Spectra.' : e.message === 'RATE' ? 'Slow down a bit, try again in a minute.' : e.message === 'IMG' ? "That image is too big or not supported 😭 try a smaller JPG, PNG or WebP." : e.message === 'DAILY' ? "You've used all your Spectra messages for today 😭 They reset at midnight UTC. Come back tomorrow, I'll miss you!" : "Spectra's brain is offline right now. Try again later."); }
 }
 function stop() { if (timer) { clearInterval(timer); timer = null; end(); } else if (ctrl) ctrl.abort(); }
 
@@ -225,9 +308,9 @@ msgsEl.addEventListener('click', e => {
   const a = b.dataset.a; if (!a || !m) return;
   if (a === 'copy') copy(m.content);
   else if (a === 'up' || a === 'down') { m.fb = m.fb === a ? null : a; save(); $$('.sa-pop.open').forEach(p => p.classList.remove('open')); const bs = w.querySelectorAll('[data-a=up],[data-a=down]'); bs[0].classList.toggle('on', m.fb === 'up'); bs[1].classList.toggle('on', m.fb === 'down'); if (m.fb) setMood(m.fb === 'up' ? 'love' : 'sad'); }
-  else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; cur.messages.pop(); const u = cur.messages.pop(); sendMsg(u.content); }
+  else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; cur.messages.pop(); const u = cur.messages.pop(); if (u._imgs && u._imgs.length) atts = u._imgs.map((d, k) => ({ kind: 'image', name: 'image ' + (k + 1), data: d })); sendMsg(u.content); }
   else if (a === 'more') b.parentNode.querySelector('.sa-pop').classList.toggle('open');
-  else if (a === 'branch') { const c = { title: 'Branch: ' + cur.title, t: Date.now(), messages: cur.messages.slice(0, i + 1).map(x => ({ ...x })) }; chats.unshift(c); save(); openChat(c); toast('Branched into a new chat'); }
+  else if (a === 'branch') { const c = { title: 'Branch: ' + cur.title, t: Date.now(), titled: true, messages: cur.messages.slice(0, i + 1).map(x => ({ ...x })) }; chats.unshift(c); save(); openChat(c); toast('Branched into a new chat'); }
   else toast(a === 'share' ? 'Share links come with the Supabase table (next phase)' : 'Legal reports come with the reports update (next phase)');
 });
 document.addEventListener('click', e => { if (!e.target.closest('.sa-pop') && !e.target.closest('[data-a=more]')) $$('.sa-pop.open').forEach(p => p.classList.remove('open')); });
@@ -240,6 +323,10 @@ function fill() {
     chats.filter(c => !q || c.title.toLowerCase().includes(q) || c.messages.some(m => m.content.toLowerCase().includes(q))).slice(0, 20).forEach(c => {
       const d = document.createElement('div'); d.className = 'sa-res'; d.textContent = c.title; d.onclick = () => { modal.classList.remove('on'); openChat(c); }; res.appendChild(d);
     });
+  } else if (modal.dataset.k === 'l') {
+    const m = c => !q || c.title.toLowerCase().includes(q);
+    const grp = (name, list, kind) => { if (!list.length) return; res.insertAdjacentHTML('beforeend', '<div class="sa-label">' + name + '</div>'); list.forEach(c => { const d = document.createElement('div'); d.className = 'sa-res'; d.innerHTML = '<button data-lb="' + kind + '">' + (kind === 'arch' ? 'UNARCHIVE' : 'REMOVE') + '</button><span></span>'; d.lastChild.textContent = c.title; d._c = c; res.appendChild(d); }); };
+    grp('Saved', chats.filter(c => c.lib && !c.arch && m(c)), 'lib'); grp('Archived', chats.filter(c => c.arch && m(c)), 'arch');
   } else {
     LS('sa.assets', []).forEach((a, i) => {
       if (q && !(a.lang + a.code).toLowerCase().includes(q)) return;
@@ -249,12 +336,17 @@ function fill() {
   }
   if (!res.children.length) res.innerHTML = '<div class="sa-empty">Nothing here yet.</div>';
 }
-function openModal(k) { modal.dataset.k = k; modal.classList.add('on'); qEl.value = ''; qEl.placeholder = k === 's' ? 'Search your chats...' : 'Saved code (use SAVE on any code block)'; fill(); qEl.focus(); }
+function openModal(k) { modal.dataset.k = k; modal.classList.add('on'); qEl.value = ''; qEl.placeholder = k === 's' ? 'Search your chats...' : k === 'l' ? 'Search your library...' : 'Saved code (use SAVE on any code block)'; fill(); qEl.focus(); }
 res.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return; const a = LS('sa.assets', []);
   if (b.dataset.c) copy(a[b.dataset.c].code); if (b.dataset.x) { a.splice(b.dataset.x, 1); SS('sa.assets', a); fill(); }
 });
 qEl.addEventListener('input', fill);
+res.addEventListener('click', e => {
+  if (modal.dataset.k !== 'l') return; const row = e.target.closest('.sa-res'); if (!row || !row._c) return; const c = row._c, b = e.target.closest('button[data-lb]');
+  if (b) { if (b.dataset.lb === 'arch') c.arch = false; else c.lib = false; save(); renderList(); fill(); return; }
+  modal.classList.remove('on'); if (!busy) openChat(c);
+});
 modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('on'); });
 
 /* ---- Wiring ---- */
@@ -264,11 +356,15 @@ input.addEventListener('input', () => {
   input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px';
   if (!busy) { setMood('confused'); clearTimeout(typing); typing = setTimeout(() => setMood('sparkle'), 2500); }
 });
+input.addEventListener('paste', e => {
+  const fs = [...((e.clipboardData && e.clipboardData.files) || [])].filter(f => /^image\/(jpeg|png|webp|gif)$/.test(f.type)); if (!fs.length) return; e.preventDefault();
+  fs.forEach(f => { const r = new FileReader(); r.onload = () => shrink(r.result).then(d => addAtt({ kind: 'image', name: f.name || 'pasted image.jpg', data: d })).catch(() => toast('Could not read that image')); r.readAsDataURL(f); });
+});
 $('#saNew').onclick = () => { if (busy) stop(); cur = null; renderList(); renderChat(); showGreeting(); app.classList.remove('drawer'); input.focus(); };
 $('#saSearch').onclick = () => openModal('s'); $('#saAssets').onclick = () => openModal('a');
 $('#saCollapse').onclick = () => SS('sa.min', app.classList.toggle('min')); $('#saBurger').onclick = () => app.classList.toggle('drawer');
 $$('.sa-sug').forEach(b => b.onclick = () => b.dataset.p ? sendMsg(b.dataset.p) : input.focus());
-$('#saLibrary').onclick = () => openModal('a'); // Library = saved code and files
+$('#saLibrary').onclick = () => openModal('l'); // Library = saved + archived chats (Assets = saved code)
 scrollEl.addEventListener('click', () => app.classList.remove('drawer'));
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openModal('s'); }
@@ -279,7 +375,7 @@ document.addEventListener('keydown', e => {
 const pBtn = $('#saPersona'), pMenu = $('#saPMenu'), setM = $('#saSet'), nick = $('#saNick'), ex = $('#saExpr'), ty = $('#saTyping');
 const drawP = () => { pBtn.title = 'Tools · ' + persona().n; pBtn.setAttribute('aria-label', 'Tools and persona: ' + persona().n); pBtn.classList.toggle('alt', persona().id !== 'spectra'); };
 const attEl = $('#saAtt'), fileIn = $('#saFile');
-const TOOLS = [['file', 'clip', 'Attach file'], ['shot', 'shot', 'Take a screenshot'], ['asset', 'cube', 'Upload from Assets'], ['search', 'globe', 'Web search', 1], ['think', 'brain', 'Deep reasoning'], ['research', 'radar', 'Deep research', 1]];
+const TOOLS = [['file', 'clip', 'Attach image or file'], ['shot', 'shot', 'Take a screenshot'], ['asset', 'cube', 'Upload from Assets'], ['search', 'globe', 'Web search', 1], ['think', 'brain', 'Deep reasoning'], ['research', 'radar', 'Deep research', 1]];
 function drawMenu(sub) {
   const m = modes();
   pMenu.innerHTML = sub
@@ -288,17 +384,17 @@ function drawMenu(sub) {
 }
 function drawAtt() {
   attEl.innerHTML = (modes().think ? '<span class="sa-ac mode">' + ico('brain') + '<span>Deep reasoning</span><button data-m="think" aria-label="Turn off">×</button></span>' : '') +
-    atts.map((a, i) => '<span class="sa-ac">' + ico(a.kind === 'image' ? 'shot' : 'clip') + '<span>' + esc(a.name) + '</span><button data-x="' + i + '" aria-label="Remove">×</button></span>').join('');
+    atts.map((a, i) => '<span class="sa-ac">' + (a.kind === 'image' ? '<img class="sa-th" src="' + a.data + '" alt="">' : ico('clip')) + '<span>' + esc(a.name) + '</span><button data-x="' + i + '" aria-label="Remove">×</button></span>').join('');
   attEl.hidden = !attEl.innerHTML;
 }
-const addAtt = a => { if (atts.length >= 5) return toast('Max 5 attachments'); atts.push(a); drawAtt(); };
+const addAtt = a => { if (atts.length >= 5) return toast('Max 5 attachments'); if (a.kind === 'image' && atts.filter(x => x.kind === 'image').length >= 3) return toast('Max 3 images per message'); atts.push(a); drawAtt(); };
 attEl.onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.m) SS('sa.modes', { ...modes(), think: false }); else atts.splice(+b.dataset.x, 1); drawAtt(); };
 fileIn.onchange = () => {
   [...fileIn.files].forEach(f => {
-    const img = f.type.indexOf('image/') === 0;
+    const img = f.type.indexOf('image/') === 0; if (img && !/^image\/(jpeg|png|webp|gif)$/.test(f.type)) return toast(f.name + ': use JPG, PNG, WebP or GIF');
     if (!img && !/\.(txt|md|json|js|ts|py|lua|luau|html|css|csv|xml|ya?ml|java|c|cpp|cs|sql|sh|log)$/i.test(f.name)) return toast(f.name + ': unsupported file type');
-    if (f.size > (img ? 4e6 : 2e5)) return toast(f.name + ' is too big');
-    const r = new FileReader(); r.onload = () => addAtt({ kind: img ? 'image' : 'text', name: f.name, data: r.result });
+    if (f.size > (img ? 15e6 : 2e5)) return toast(f.name + ' is too big');
+    const r = new FileReader(); r.onload = () => img ? shrink(r.result).then(d => addAtt({ kind: 'image', name: f.name, data: d })).catch(() => toast(f.name + ': could not read that image')) : addAtt({ kind: 'text', name: f.name, data: r.result });
     if (img) r.readAsDataURL(f); else r.readAsText(f);
   });
   fileIn.value = '';
@@ -309,7 +405,7 @@ async function screenshot() {
     const s = await navigator.mediaDevices.getDisplayMedia({ video: true }), v = document.createElement('video');
     v.srcObject = s; v.muted = true; await v.play(); await new Promise(r => setTimeout(r, 250));
     const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
-    s.getTracks().forEach(t => t.stop()); addAtt({ kind: 'image', name: 'screenshot.jpg', data: c.toDataURL('image/jpeg', .85) });
+    s.getTracks().forEach(t => t.stop()); shrink(c.toDataURL('image/jpeg', .9)).then(d => addAtt({ kind: 'image', name: 'screenshot.jpg', data: d })).catch(() => toast('Could not use that screenshot'));
   } catch (e) { toast('Screenshot cancelled'); }
 }
 function tool(t) {

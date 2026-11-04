@@ -32,8 +32,8 @@
 
     /* ---- graph model ---- */
     function ens(g) { g.frames = g.frames || []; g.groups = g.groups || []; g.folders = g.folders || []; return g; }
-    function flowText(n) { var c = n.config, k = c.fKind; return 'flow, ' + (k === 'counter' ? 'counter' + (c.cMode === 'count' ? '' : ' ' + c.cMode + ' ' + c.cN) : k === 'loop' ? 'loop x' + c.lN : k === 'sequence' ? 'sequence' : k === 'random' ? 'randomizer' : k === 'reset' ? 'reset node' : 'spawn node'); }
-    function trigText(n) { var c = n.config; return 'trigger, ' + (c.tKind === 'event' ? 'on event ' + (c.tEvent || '?') : c.tKind === 'error' ? 'on error' : (c.tRepeat === false ? 'once after ' : 'every ') + c.tMs + ' ms'); }
+    function flowText(n) { var c = n.config, k = c.fKind; return 'flow, ' + (k === 'counter' ? 'counter' + (c.cMode === 'count' ? '' : ' ' + c.cMode + ' ' + c.cN) : k === 'loop' ? 'loop x' + c.lN : k === 'sequence' ? 'sequence' : k === 'random' ? 'randomizer' : k === 'move' ? 'move ' + (c.mGroup ? 'group ' + c.mGroup : '') + ' to ' + (c.mRel ? '+' : '') + c.mX + ', ' + c.mY : k === 'fade' ? 'fade to ' + c.fTo : k === 'reset' ? 'reset node' : 'spawn node'); }
+    function trigText(n) { var c = n.config; return 'trigger, ' + (c.tKind === 'event' ? 'on event ' + (c.tEvent || '?') : c.tKind === 'collision' ? 'on collision' + (c.tTag ? ' with ' + c.tTag : '') : c.tKind === 'pickup' ? 'pick up ' + (c.tTag || 'items') : c.tKind === 'error' ? 'on error' : (c.tRepeat === false ? 'once after ' : 'every ') + c.tMs + ' ms'); }
     function dw(n) { return n.type === 'reroute' ? RW : W; }
     function dh(n) { return n.type === 'reroute' ? RW : H; }
     function byId(id) { for (var i = 0; i < G.nodes.length; i++) if (G.nodes[i].id === id) return G.nodes[i]; return null; }
@@ -287,8 +287,10 @@
     document.addEventListener('keyup', function (e) { if (e.key === ' ') space = false; });
 
     /* ---- Phase 4: node config, branches, script editor ---- */
-    function trigDefaults() { return { tKind: 'timer', tMs: 1000, tRepeat: true, tMax: 20, tEvent: '' }; }
-    function flowDefaults() { return { fKind: 'counter', cMode: 'reach', cN: 3, cStart: 0, cReset: false, lN: 3, lGap: 0, qGap: 0, weights: {}, rTarget: '*', sTarget: '', sN: 1 }; }
+    function fnum(v, lo, hi, d) { v = +v; return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v * 100) / 100)) : d; }
+    function bodyDefaults(n) { return { on: true, x: Math.round(n.x || 0), y: Math.round(n.y || 0), w: 40, h: 40, role: 'block', tag: '', a: 1 }; }
+    function trigDefaults() { return { tKind: 'timer', tMs: 1000, tRepeat: true, tMax: 20, tEvent: '', tBody: '', tTag: '', tAll: false, tOn: 'enter' }; }
+    function flowDefaults() { return { fKind: 'counter', cMode: 'reach', cN: 3, cStart: 0, cReset: false, lN: 3, lGap: 0, qGap: 0, weights: {}, rTarget: '*', sTarget: '', sN: 1, rBodies: false, mTarget: '', mGroup: '', mX: 0, mY: 0, mRel: true, mMs: 1000, mEase: 'inout', mStop: 'pass', fTo: 0 }; }
     var MAX_DEPTH = 5, MAX_TEXT = 5 * 1024 * 1024, TYPES = ['basic', 'script', 'branch', 'database', 'trigger', 'flow', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs'];
     var TEMPLATE = "// input = results of the nodes connected into this one\nstudio.log('Hello from a script node');\nawait studio.delay(500);\nreturn { ok: true };";
     var TEMPLATES = { javascript: TEMPLATE, html: '<!-- HTML for your project -->\n<h1>Hello from SPECSOFT Studio</h1>', css: '/* CSS for your project */\nbody { font-family: sans-serif; }',
@@ -310,12 +312,17 @@
             var cfg = { aDelay: clamp(c.aDelay, 0, 600000, 0), eDelay: clamp(c.eDelay, 0, 600000, 0), oDelay: clamp(c.oDelay, 0, 600000, 0), unit: c.unit === 's' ? 's' : 'ms',
                 timeout: clamp(c.timeout, 100, 30000, 5000), mode: c.mode === 'independent' ? 'independent' : 'inline', code: type === 'script' ? String(c.code || '').slice(0, MAX_TEXT) : '', lang: LANGS.indexOf(c.lang) > -1 ? c.lang : 'javascript',
                 sql: type === 'database' ? String(c.sql || '').slice(0, MAX_TEXT) : '', waitEvent: /^[A-Za-z0-9_-]{1,20}$/.test(c.waitEvent || '') ? c.waitEvent : '' };
-            if (type === 'trigger') { cfg.tKind = ['timer', 'event', 'error'].indexOf(c.tKind) > -1 ? c.tKind : 'timer'; cfg.tMs = clamp(c.tMs, 50, 600000, 1000); cfg.tRepeat = c.tRepeat !== false; cfg.tMax = clamp(c.tMax, 1, 200, 20); cfg.tEvent = /^[A-Za-z0-9_-]{1,20}$/.test(c.tEvent || '') ? c.tEvent : ''; }
+            if (c.body && typeof c.body === 'object' && c.body.on === true && type !== 'trigger' && type !== 'flow' && type !== 'reroute') {
+                var bo = c.body; cfg.body = { on: true, x: fnum(bo.x, -100000, 100000, 0), y: fnum(bo.y, -100000, 100000, 0), w: fnum(bo.w, 1, 100000, 40), h: fnum(bo.h, 1, 100000, 40), role: ['block', 'activator', 'item'].indexOf(bo.role) > -1 ? bo.role : 'block', tag: /^[A-Za-z0-9_-]{0,20}$/.test(bo.tag || '') ? (bo.tag || '') : '', a: fnum(bo.a, 0, 1, 1) };
+            }
+            if (type === 'trigger') { cfg.tKind = ['timer', 'event', 'error', 'collision', 'pickup'].indexOf(c.tKind) > -1 ? c.tKind : 'timer'; cfg.tMs = clamp(c.tMs, 50, 600000, 1000); cfg.tRepeat = c.tRepeat !== false; cfg.tMax = clamp(c.tMax, 1, 200, 20); cfg.tEvent = /^[A-Za-z0-9_-]{1,20}$/.test(c.tEvent || '') ? c.tEvent : ''; cfg.tBody = String(c.tBody || '').slice(0, 80); cfg.tTag = /^[A-Za-z0-9_-]{0,20}$/.test(c.tTag || '') ? (c.tTag || '') : ''; cfg.tAll = c.tAll === true; cfg.tOn = c.tOn === 'exit' ? 'exit' : 'enter'; }
             if (type === 'flow') {
                 var wts = {}; if (c.weights && typeof c.weights === 'object') Object.keys(c.weights).slice(0, 50).forEach(function (k) { wts[String(k).slice(0, 80)] = clamp(c.weights[k], 0, 100, 1); });
-                cfg.fKind = ['counter', 'loop', 'sequence', 'random', 'reset', 'spawn'].indexOf(c.fKind) > -1 ? c.fKind : 'counter'; cfg.cMode = ['reach', 'every', 'until', 'count'].indexOf(c.cMode) > -1 ? c.cMode : 'reach';
+                cfg.fKind = ['counter', 'loop', 'sequence', 'random', 'reset', 'spawn', 'move', 'fade'].indexOf(c.fKind) > -1 ? c.fKind : 'counter'; cfg.cMode = ['reach', 'every', 'until', 'count'].indexOf(c.cMode) > -1 ? c.cMode : 'reach';
                 cfg.cN = clamp(c.cN, 1, 100000, 3); cfg.cStart = clamp(c.cStart, 0, 100000, 0); cfg.cReset = c.cReset === true; cfg.lN = clamp(c.lN, 1, 100, 3); cfg.lGap = clamp(c.lGap, 0, 60000, 0); cfg.qGap = clamp(c.qGap, 0, 60000, 0);
                 cfg.weights = wts; cfg.rTarget = c.rTarget === '*' ? '*' : String(c.rTarget || '*').slice(0, 80); cfg.sTarget = String(c.sTarget || '').slice(0, 80); cfg.sN = clamp(c.sN, 1, 10, 1);
+                cfg.rBodies = c.rBodies === true; cfg.mTarget = String(c.mTarget || '').slice(0, 80); cfg.mGroup = /^[A-Za-z0-9_-]{0,20}$/.test(c.mGroup || '') ? (c.mGroup || '') : ''; cfg.mX = fnum(c.mX, -100000, 100000, 0); cfg.mY = fnum(c.mY, -100000, 100000, 0); cfg.mRel = c.mRel !== false;
+                cfg.mMs = clamp(c.mMs, 0, 600000, 1000); cfg.mEase = ['linear', 'in', 'out', 'inout'].indexOf(c.mEase) > -1 ? c.mEase : 'inout'; cfg.mStop = c.mStop === 'stop' ? 'stop' : 'pass'; cfg.fTo = fnum(c.fTo, 0, 1, 0);
             }
             if (type === 'branch') cfg.sub = depth < MAX_DEPTH ? cleanGraph(c.sub, depth + 1) : { nodes: [], connections: [], frames: [], groups: [], folders: [] };
             return { id: String(n.id), label: String(n.label || 'N').slice(0, 20), type: type, x: num(n.x), y: num(n.y), enabled: n.enabled !== false, status: 'idle',
@@ -468,7 +475,7 @@
         var c = n.config;
         function pick(label, opts, cur, fn) { var s = document.createElement('select'); s.setAttribute('aria-label', label); opts.forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (x[0] === cur) o.selected = true; s.appendChild(o); }); s.addEventListener('change', function () { fn(s.value); }); row(dl, label, s); }
         function nr(label, key, lo, hi, step) { var i = document.createElement('input'); i.type = 'number'; i.min = lo; i.max = hi; i.step = step || 1; i.value = c[key]; i.setAttribute('aria-label', label); i.addEventListener('input', function () { var v = parseFloat(i.value); if (!isFinite(v)) return; c[key] = clamp(v, lo, hi, c[key]); api.onChange(); }); row(dl, label, i); }
-        pick('Kind', [['counter', 'Counter'], ['loop', 'Loop'], ['sequence', 'Sequence'], ['random', 'Randomizer'], ['reset', 'Reset Node'], ['spawn', 'Spawn Node']], c.fKind, function (v) { c.fKind = v; api.onChange(); renderProps(); });
+        pick('Kind', [['counter', 'Counter'], ['loop', 'Loop'], ['sequence', 'Sequence'], ['random', 'Randomizer'], ['reset', 'Reset Node'], ['spawn', 'Spawn Node'], ['move', 'Move'], ['fade', 'Fade']], c.fKind, function (v) { c.fKind = v; api.onChange(); renderProps(); });
         if (c.fKind === 'counter') {
             pick('Mode', [['reach', 'Pass when it reaches N'], ['every', 'Pass every Nth time'], ['until', 'Pass the first N times'], ['count', 'Always pass (just count)']], c.cMode, function (v) { c.cMode = v; api.onChange(); renderProps(); });
             if (c.cMode !== 'count') nr('N', 'cN', 1, 100000); nr('Start at', 'cStart', 0, 100000);
@@ -485,6 +492,22 @@
             if (!Object.keys(seen).length) row(dl, 'Weights', document.createTextNode('Connect this node to two or more nodes to pick between.'));
         } else if (c.fKind === 'reset') {
             pick('Reset', [['*', 'All counters']].concat(G.nodes.filter(function (x) { return x.type === 'flow' && x.config.fKind === 'counter' && x.id !== n.id; }).map(function (x) { return [x.id, x.label]; })), c.rTarget, function (v) { c.rTarget = v; api.onChange(); });
+            var rb = document.createElement('input'); rb.type = 'checkbox'; rb.checked = c.rBodies === true; rb.setAttribute('aria-label', 'Also put bodies back');
+            rb.addEventListener('change', function () { c.rBodies = rb.checked; api.onChange(); }); row(dl, 'Also put bodies back at their start', rb);
+        } else if (c.fKind === 'move' || c.fKind === 'fade') {
+            var bl2 = G.nodes.filter(function (x) { return x.config.body && x.config.body.on; }).map(function (x) { return [x.id, x.label]; });
+            pick('Target body', [['', bl2.length ? 'choose a body' : 'no body in this graph']].concat(bl2), c.mTarget, function (v) { c.mTarget = v; api.onChange(); });
+            var gi = document.createElement('input'); gi.type = 'text'; gi.maxLength = 20; gi.value = c.mGroup || ''; gi.placeholder = 'none'; gi.setAttribute('aria-label', 'Or a whole group by tag');
+            gi.addEventListener('change', function () { c.mGroup = /^[A-Za-z0-9_-]{0,20}$/.test(gi.value) ? gi.value : ''; gi.value = c.mGroup; api.onChange(); }); row(dl, 'Or a whole group (tag)', gi);
+            function fr(label, key, lo, hi) { var i = document.createElement('input'); i.type = 'number'; i.step = 'any'; i.min = lo; i.max = hi; i.value = c[key]; i.setAttribute('aria-label', label); i.addEventListener('input', function () { var v = parseFloat(i.value); if (!isFinite(v)) return; c[key] = fnum(v, lo, hi, c[key]); api.onChange(); }); row(dl, label, i); }
+            if (c.fKind === 'move') {
+                fr('X', 'mX', -100000, 100000); fr('Y', 'mY', -100000, 100000);
+                var rl = document.createElement('input'); rl.type = 'checkbox'; rl.checked = c.mRel !== false; rl.setAttribute('aria-label', 'Relative to where it is now');
+                rl.addEventListener('change', function () { c.mRel = rl.checked; api.onChange(); }); row(dl, 'Relative to where it is now', rl);
+            } else fr('Fade to (0 to 1)', 'fTo', 0, 1);
+            nr('Duration (ms)', 'mMs', 0, 600000, 50);
+            pick('Easing', [['linear', 'Linear'], ['in', 'Ease in'], ['out', 'Ease out'], ['inout', 'Ease in and out']], c.mEase, function (v) { c.mEase = v; api.onChange(); });
+            if (c.fKind === 'move') pick('On touching another body', [['pass', 'Keep moving'], ['stop', 'Stop at the first touch']], c.mStop, function (v) { c.mStop = v; api.onChange(); });
         } else if (c.fKind === 'spawn') {
             var bl = G.nodes.filter(function (x) { return x.type === 'branch'; }).map(function (x) { return [x.id, x.label]; });
             pick('Branch to spawn', [['', bl.length ? 'choose a branch' : 'no branch in this graph']].concat(bl), c.sTarget, function (v) { c.sTarget = v; api.onChange(); });
@@ -493,7 +516,7 @@
     }
     function trigProps(dl, n) {                           // Trigger nodes: what fires them and how often
         var c = n.config, k = document.createElement('select'); k.setAttribute('aria-label', 'Trigger kind');
-        [['timer', 'Timer'], ['event', 'On Event'], ['error', 'On Error']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (c.tKind === x[0]) o.selected = true; k.appendChild(o); });
+        [['timer', 'Timer'], ['event', 'On Event'], ['error', 'On Error'], ['collision', 'Collision'], ['pickup', 'Pickup']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (c.tKind === x[0]) o.selected = true; k.appendChild(o); });
         k.addEventListener('change', function () { c.tKind = k.value; api.onChange(); renderProps(); });
         row(dl, 'Fires on', k);
         if (c.tKind === 'timer') {
@@ -506,12 +529,43 @@
             var en = document.createElement('input'); en.type = 'text'; en.maxLength = 20; en.value = c.tEvent || ''; en.placeholder = 'event name'; en.setAttribute('aria-label', 'Event name');
             en.addEventListener('change', function () { c.tEvent = /^[A-Za-z0-9_-]{1,20}$/.test(en.value) ? en.value : ''; en.value = c.tEvent; api.onChange(); }); row(dl, 'Event name', en);
         }
+        if (c.tKind === 'collision' || c.tKind === 'pickup') {
+            var bl = G.nodes.filter(function (x) { return x.config.body && x.config.body.on; }).map(function (x) { return [x.id, x.label + ' (' + x.config.body.role + ')']; });
+            var bs = document.createElement('select'); bs.setAttribute('aria-label', c.tKind === 'pickup' ? 'Body that picks up' : 'Body to watch');
+            [['', bl.length ? 'choose a body' : 'no body in this graph']].concat(bl).forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (c.tBody === x[0]) o.selected = true; bs.appendChild(o); });
+            bs.addEventListener('change', function () { c.tBody = bs.value; api.onChange(); }); row(dl, c.tKind === 'pickup' ? 'Picks up' : 'Watches', bs);
+            var tg = document.createElement('input'); tg.type = 'text'; tg.maxLength = 20; tg.value = c.tTag || ''; tg.placeholder = 'any'; tg.setAttribute('aria-label', 'Tag of the bodies it reacts to');
+            tg.addEventListener('change', function () { c.tTag = /^[A-Za-z0-9_-]{0,20}$/.test(tg.value) ? tg.value : ''; tg.value = c.tTag; api.onChange(); }); row(dl, 'Only tag', tg);
+            if (c.tKind === 'collision') {
+                var on = document.createElement('select'); on.setAttribute('aria-label', 'Fire when');
+                [['enter', 'It starts touching'], ['exit', 'It stops touching']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (c.tOn === x[0]) o.selected = true; on.appendChild(o); });
+                on.addEventListener('change', function () { c.tOn = on.value; api.onChange(); }); row(dl, 'Fires when', on);
+            }
+            var al = document.createElement('input'); al.type = 'checkbox'; al.checked = c.tAll === true; al.setAttribute('aria-label', 'Only after touching all of them');
+            al.addEventListener('change', function () { c.tAll = al.checked; api.onChange(); }); row(dl, 'Only after touching ALL', al);
+        }
         var mx = document.createElement('input'); mx.type = 'number'; mx.min = 1; mx.max = 200; mx.value = c.tMax; mx.setAttribute('aria-label', 'Maximum fires');
         mx.addEventListener('input', function () { var v = parseFloat(mx.value); if (!isFinite(v)) return; c.tMax = clamp(v, 1, 200, 20); api.onChange(); }); row(dl, 'Max fires', mx);
+    }
+    function bodyProps(dl, n) {                           // the world: any ordinary node can have a body (position, size, role, tag)
+        var b = n.config.body, on = document.createElement('input'); on.type = 'checkbox'; on.checked = !!(b && b.on); on.setAttribute('aria-label', 'Has a body');
+        on.addEventListener('change', function () { n.config.body = on.checked ? Object.assign(bodyDefaults(n), n.config.body || {}, { on: true }) : Object.assign({}, n.config.body || {}, { on: false }); api.onChange(); renderProps(); });
+        row(dl, 'Has a body (world)', on); if (!(b && b.on)) return;
+        function fr(label, key, lo, hi) { var i = document.createElement('input'); i.type = 'number'; i.step = 'any'; i.min = lo; i.max = hi; i.value = b[key]; i.setAttribute('aria-label', label); i.addEventListener('input', function () { var v = parseFloat(i.value); if (!isFinite(v)) return; b[key] = fnum(v, lo, hi, b[key]); api.onChange(); }); row(dl, label, i); }
+        fr('Centre X', 'x', -100000, 100000); fr('Centre Y', 'y', -100000, 100000); fr('Width', 'w', 1, 100000); fr('Height', 'h', 1, 100000);
+        var ro = document.createElement('select'); ro.setAttribute('aria-label', 'Role');
+        [['block', 'Block (solid)'], ['activator', 'Activator'], ['item', 'Item (to pick up)']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (b.role === x[0]) o.selected = true; ro.appendChild(o); });
+        ro.addEventListener('change', function () { b.role = ro.value; api.onChange(); }); row(dl, 'Role', ro);
+        var tg = document.createElement('input'); tg.type = 'text'; tg.maxLength = 20; tg.value = b.tag || ''; tg.placeholder = 'none'; tg.setAttribute('aria-label', 'Tag (group)');
+        tg.addEventListener('change', function () { b.tag = /^[A-Za-z0-9_-]{0,20}$/.test(tg.value) ? tg.value : ''; tg.value = b.tag; api.onChange(); }); row(dl, 'Tag (group)', tg);
+        fr('Opacity (0 to 1)', 'a', 0, 1);
     }
     function extraProps(dl, n) {
         if (n.type === 'trigger') { trigProps(dl, n); return; }
         if (n.type === 'flow') { flowProps(dl, n); return; }
+        baseProps(dl, n); if (n.type !== 'reroute') bodyProps(dl, n);
+    }
+    function baseProps(dl, n) {
         var u = document.createElement('select'); u.setAttribute('aria-label', 'Time unit');
         [['ms', 'milliseconds'], ['s', 'seconds']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; if (n.config.unit === x[0]) o.selected = true; u.appendChild(o); });
         u.addEventListener('change', function () { n.config.unit = u.value; api.onChange(); renderProps(); });

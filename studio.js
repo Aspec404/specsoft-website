@@ -111,7 +111,7 @@
         $('stClear').addEventListener('click', function () { $('stLog').textContent = ''; });
         $('stFilter').addEventListener('change', function () { $('stLog').dataset.f = this.value; });
         $('stLog').addEventListener('click', function (e) { var r = e.target.closest('div[data-node]'); if (r) StudioGraph.select(r.dataset.node); });
-        var PANELS = { log: 'stLog', hist: 'stHist', time: 'stTime', data: 'stData' };
+        var PANELS = { log: 'stLog', hist: 'stHist', time: 'stTime', stage: 'stStage', data: 'stData' };
         Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
             b.addEventListener('click', function () {
                 Object.keys(PANELS).forEach(function (k) { $(PANELS[k]).hidden = k !== b.dataset.tab; });

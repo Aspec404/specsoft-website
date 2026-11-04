@@ -113,6 +113,7 @@
         if (run.ended || run.paused) return;
         var now = clockNow(run);
         while (run.sched.length && run.sched[0].t <= now) { var it = run.sched.shift(); try { it.fn(); } catch (e) { run.hadError = true; ev(run, 'error', 'timeline failed: ' + msg(e)); } }
+        stepWorld(run);
         if (window.StudioTimeline) StudioTimeline.setPlayhead(now);
     }
     function finishExtras(run, status) {
@@ -352,6 +353,72 @@
             throw e;
         }
     }
+    /* ---- the world: bodies (any node can have one), tweens (Move / Fade on the run clock), swept collision, and what feeds the Collision and Pickup triggers ---- */
+    var MAX_BODIES = 100, MAX_TWEENS = 100, CHECKS = 20000;
+    function ease(k, p) { return k === 'in' ? p * p : k === 'out' ? 1 - (1 - p) * (1 - p) : k === 'inout' ? (p < 0.5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p)) : p; }
+    function bodyOf(n) { var b = (n.config || {}).body; return b && b.on ? { id: n.id, label: n.label, x: +b.x || 0, y: +b.y || 0, w: Math.max(1, +b.w || 40), h: Math.max(1, +b.h || 40), role: b.role || 'block', tag: b.tag || '', a: b.a === undefined ? 1 : +b.a, alive: true } : null; }
+    function overlap(p, q) { return Math.abs(p.x - q.x) * 2 < p.w + q.w && Math.abs(p.y - q.y) * 2 < p.h + q.h; }      // centre based; touching edges do not count
+    function pairKey(p, q) { return p.id < q.id ? p.id + '|' + q.id : q.id + '|' + p.id; }
+    function scanAll(run) {                              // bodies that overlap right now are "already touching": they fire nothing until they separate and meet again
+        var w = run.world; w.pairs = {};
+        w.order.forEach(function (i, ix) { var p = w.bodies[i]; if (!p.alive) return; for (var j = ix + 1; j < w.order.length; j++) { var q = w.bodies[w.order[j]]; if (q.alive && overlap(p, q)) w.pairs[pairKey(p, q)] = true; } });
+    }
+    function initWorld(run) {
+        var w = run.world = { bodies: {}, order: [], tweens: [], pairs: {}, flash: [], hits: 0, checks: 0 }, n = 0;
+        Object.keys(run.nodes).forEach(function (id) {
+            var nd = run.nodes[id]; if (!nd.enabled) return; var b = bodyOf(nd); if (!b) return;
+            if (++n > MAX_BODIES) { if (n === MAX_BODIES + 1) ev(run, 'warn', 'only the first ' + MAX_BODIES + ' bodies are used'); return; }
+            w.bodies[id] = b; w.order.push(id);
+        });
+        scanAll(run);
+    }
+    function resetWorld(run) {
+        var w = run.world; w.tweens.slice().forEach(function (t) { finishTween(run, t, 'reset'); });
+        w.order.forEach(function (id) { var nb = bodyOf(run.nodes[id]); if (nb) w.bodies[id] = nb; });
+        scanAll(run); run.col.forEach(function (L) { L.touched = {}; });
+    }
+    function dispatch(run, type, p, q) {
+        var w = run.world; w.hits++; w.flash.push({ a: p.id, b: q.id, t: Date.now(), type: type }); if (w.flash.length > 30) w.flash.shift();
+        ev(run, 'info', 'touch ' + type + ': ' + p.label + ' and ' + q.label);
+        run.col.slice().forEach(function (L) { var o = L.body === p.id ? q : L.body === q.id ? p : null; if (o) L.fn(o, type); });
+    }
+    function placeCheck(run, b, x, y, tw) {              // put a body at x,y and update who it touches; true when it should stop here
+        var w = run.world, stop = false; b.x = x; b.y = y;
+        w.order.forEach(function (id) {
+            if (id === b.id || !b.alive) return; var o = w.bodies[id]; if (!o.alive) return;
+            if (++w.checks > CHECKS) return;
+            var key = pairKey(b, o), was = !!w.pairs[key], now = overlap(b, o);
+            if (now && !was) { w.pairs[key] = true; dispatch(run, 'enter', b, o); if (tw && tw.stop && o.role !== 'item' && b.role !== 'item' && o.alive) { stop = true; tw.hitWith = o.label; } }
+            else if (!now && was) { delete w.pairs[key]; dispatch(run, 'exit', b, o); }
+        });
+        return stop;
+    }
+    function moveBody(run, tw, b, nx, ny) {              // the whole path is checked in steps of half the body size, so a fast move cannot skip through a body
+        var sx = b.x, sy = b.y, dx = nx - sx, dy = ny - sy, dist = Math.sqrt(dx * dx + dy * dy), step = Math.max(1, Math.min(b.w, b.h) / 2), n = Math.min(200, Math.max(1, Math.ceil(dist / step)));
+        for (var i = 1; i <= n; i++) { if (placeCheck(run, b, sx + dx * i / n, sy + dy * i / n, tw)) { tw.stopped = true; return; } if (!b.alive) return; }
+    }
+    function finishTween(run, tw, why) { var w = run.world, i = w.tweens.indexOf(tw); if (i > -1) w.tweens.splice(i, 1); tw.why = why; if (tw.done) tw.done(); }
+    function stepWorld(run) {
+        var w = run.world; if (!w || !w.tweens.length) return; var now = clockNow(run); w.checks = 0;
+        w.tweens.slice().forEach(function (tw) {
+            var b = w.bodies[tw.id]; if (!b || !b.alive) return finishTween(run, tw, 'gone');
+            var p = tw.ms <= 0 ? 1 : Math.min(1, Math.max(0, (now - tw.t0) / tw.ms)), k = ease(tw.ease, p);
+            if (tw.prop === 'a') b.a = tw.from + (tw.to - tw.from) * k; else moveBody(run, tw, b, tw.fx + (tw.tx - tw.fx) * k, tw.fy + (tw.ty - tw.fy) * k);
+            if (tw.stopped) finishTween(run, tw, 'hit'); else if (p >= 1) finishTween(run, tw, 'done');
+        });
+        if (w.checks > CHECKS) { run.hadError = true; ev(run, 'error', 'too many collision checks in one step: movement was stopped'); w.tweens.slice().forEach(function (t) { finishTween(run, t, 'budget'); }); }
+    }
+    function tweenAwait(cx, tws) {                       // resolves when every tween is finished; Stop removes them
+        var run = cx.run, grp = cx.grp, w = run.world;
+        return Promise.all(tws.map(function (tw) {
+            w.tweens.slice().forEach(function (old) { if (old.id === tw.id && old.prop === tw.prop) finishTween(run, old, 'replaced'); });
+            return new Promise(function (res, rej) {
+                var k = function () { var i = w.tweens.indexOf(tw); if (i > -1) w.tweens.splice(i, 1); grp.killers.delete(k); rej(CANCEL); };
+                grp.killers.add(k); tw.done = function () { grp.killers.delete(k); res(tw); }; w.tweens.push(tw);
+            });
+        }));
+    }
+
     /* ---- triggers: a Trigger node listens (Timer, Event or Error). Each time it fires, the nodes wired after it run as a fresh "wave" ---- */
     function isTrig(n) { return n.type === 'trigger'; }
     function isGate(n) { return n.type === 'flow' && ['counter', 'loop', 'sequence', 'random'].indexOf((n.config || {}).fKind) > -1; }      // flow nodes that own the nodes wired after them
@@ -377,12 +444,13 @@
         }).then(function () { wg.done = true; run.waves--; wake(run); });
     }
     function armTrigger(ctx, tn, react) {
-        var run = ctx.run, grp = ctx.grp, c = tn.config || {}, kind = ['timer', 'event', 'error'].indexOf(c.tKind) > -1 ? c.tKind : 'timer', max = Math.max(1, Math.min(200, c.tMax || 20)), fires = 0, off = false, it = null, hand = null;
+        var run = ctx.run, grp = ctx.grp, c = tn.config || {}, kind = ['timer', 'event', 'error', 'collision', 'pickup'].indexOf(c.tKind) > -1 ? c.tKind : 'timer', max = Math.max(1, Math.min(200, c.tMax || 20)), fires = 0, off = false, it = null, hand = null;
         function disarm(final) {
             if (off) return; off = true; run.armed--; run.armK[kind]--; grp.killers.delete(k);
             if (it) { var i = run.sched.indexOf(it); if (i > -1) run.sched.splice(i, 1); it = null; }
             if (kind === 'event') { var l = run.evOn[c.tEvent] || [], j = l.indexOf(hand); if (j > -1) l.splice(j, 1); }
             if (kind === 'error') { var m = ctx.onError.indexOf(hand); if (m > -1) ctx.onError.splice(m, 1); }
+            if (kind === 'collision' || kind === 'pickup') { var q = run.col.indexOf(hand); if (q > -1) run.col.splice(q, 1); }
             if (final) setS(run, tn, 'done');
             wake(run);
         }
@@ -399,11 +467,26 @@
         if (kind === 'event') {
             if (!/^[A-Za-z0-9_-]{1,20}$/.test(c.tEvent || '')) { ev(run, 'warn', 'has no valid event name, so it never fires', tn); disarm(true); return; }
             hand = function () { fire({ event: c.tEvent }); }; (run.evOn[c.tEvent] = run.evOn[c.tEvent] || []).push(hand); ev(run, 'info', 'listening for event "' + c.tEvent + '"', tn);
+        } else if (kind === 'collision' || kind === 'pickup') {
+            var wd = run.world, ab = wd && wd.bodies[c.tBody], L = { body: c.tBody || '', tag: c.tTag || '', pick: kind === 'pickup', on: kind === 'pickup' ? 'enter' : (c.tOn === 'exit' ? 'exit' : 'enter'), all: c.tAll === true, touched: {} };
+            if (!ab) { ev(run, 'warn', 'needs a body to watch: turn on "Has a body" on a node and choose it here, so it never fires', tn); disarm(true); return; }
+            L.fn = function (o, type) {
+                if (type !== L.on || !o.alive || (L.tag && o.tag !== L.tag) || (L.pick ? o.role !== 'item' : o.role === 'item')) return;
+                var me = wd.bodies[L.body];
+                if (L.pick) { o.alive = false; Object.keys(wd.pairs).forEach(function (key) { if (key.split('|').indexOf(o.id) > -1) delete wd.pairs[key]; }); ev(run, 'info', 'picked up ' + o.label, tn); }
+                if (L.all) {
+                    L.touched[o.id] = true;
+                    var need = wd.order.filter(function (id) { var b = wd.bodies[id]; return id !== L.body && (L.pick ? b.role === 'item' : b.role !== 'item') && (!L.tag || b.tag === L.tag); });
+                    if (!need.every(function (id) { return L.touched[id]; })) return; L.touched = {};
+                }
+                fire({ body: me.label, other: o.label, tag: o.tag, event: type });
+            };
+            hand = L; run.col.push(L); ev(run, 'info', 'watching ' + ab.label + ' for ' + (kind === 'pickup' ? 'pickups' : 'collisions') + (L.tag ? ' (tag "' + L.tag + '")' : ''), tn);
         } else if (kind === 'error') {
             hand = function (info) { fire(info); }; ctx.onError.push(hand); ev(run, 'info', 'listening for errors in this graph', tn);
         } else { next(); ev(run, 'info', 'timer armed: ' + (c.tRepeat === false ? 'once after ' : 'every ') + Math.max(50, c.tMs || 1000) + ' ms', tn); }
     }
-    function alive(run) { return run.waves > 0 || run.armK.timer > 0 || (run.armK.event > 0 && run.sched.length > 0); }      // On Error triggers never keep a run alive; On Event ones only while something could still fire the event
+    function alive(run) { return run.waves > 0 || run.armK.timer > 0 || (run.world && run.world.tweens.length > 0) || (run.armK.event > 0 && run.sched.length > 0); }      // On Error triggers never keep a run alive; On Event ones only while something could still fire the event
     async function settle(run) {                         // the run ends when the main flow, every wave and every background branch are done and nothing could still fire a trigger
         var told = false;
         for (;;) {
@@ -438,7 +521,22 @@
         if (k === 'reset') {
             var tg = c.rTarget || '*', hit = 0;
             Object.keys(run.flow).forEach(function (id) { var t = run.nodes[id]; if ((tg === '*' || id === tg) && t && t.type === 'flow' && (t.config || {}).fKind === 'counter') { run.flow[id].count = (t.config || {}).cStart || 0; hit++; } });
-            ev(run, 'info', 'reset ' + hit + ' counter(s)', n); return { reset: hit };
+            if (c.rBodies) resetWorld(run);
+            ev(run, 'info', 'reset ' + hit + ' counter(s)' + (c.rBodies ? ' and all bodies' : ''), n); return { reset: hit };
+        }
+        if (k === 'move' || k === 'fade') {
+            var wd = run.world, ids = c.mGroup ? wd.order.filter(function (id) { return wd.bodies[id].alive && wd.bodies[id].tag === c.mGroup; }) : (c.mTarget && wd.bodies[c.mTarget] && wd.bodies[c.mTarget].alive ? [c.mTarget] : []);
+            if (!ids.length) { ev(run, 'warn', k + ': nothing to ' + k + ' (choose a body that has "Has a body" turned on, or a group tag that exists)', n); return { moved: 0 }; }
+            if (wd.tweens.length + ids.length > MAX_TWEENS) throw new Error('Too many movements at once (max ' + MAX_TWEENS + ')');
+            var t0 = clockNow(run), ms = Math.max(0, c.mMs || 0);
+            var tws = ids.map(function (id) {
+                var b = wd.bodies[id];
+                if (k === 'fade') return { id: id, prop: 'a', from: b.a, to: Math.max(0, Math.min(1, +c.fTo || 0)), ms: ms, ease: c.mEase || 'inout', t0: t0 };
+                return { id: id, prop: 'xy', fx: b.x, fy: b.y, tx: c.mRel === false ? (+c.mX || 0) : b.x + (+c.mX || 0), ty: c.mRel === false ? (+c.mY || 0) : b.y + (+c.mY || 0), ms: ms, ease: c.mEase || 'inout', t0: t0, stop: c.mStop === 'stop' };
+            });
+            ev(run, 'info', k + ' ' + ids.length + ' bod' + (ids.length === 1 ? 'y' : 'ies') + (ms ? ' over ' + ms + ' ms' : ''), n);
+            var fin = await tweenAwait(cx, tws), f0 = wd.bodies[ids[0]], hitT = fin.filter(function (t) { return t.why === 'hit'; })[0];
+            return { moved: ids.length, x: f0.x, y: f0.y, alpha: f0.a, hit: hitT ? hitT.hitWith : null };
         }
         if (k === 'spawn') {
             var t2 = run.nodes[c.sTarget], cnt = Math.max(1, Math.min(10, c.sN || 1)), made = 0;
@@ -532,8 +630,8 @@
         G.resetStatus();
         var run = cur = { id: ++seq, status: 'running', startedAt: Date.now(), endedAt: 0, events: [], logN: 0, paused: false, cancelled: false, ended: false, hadError: false,
             st: {}, waiters: [], gseq: 0, execs: 0, spawns: 0, bg: [], stack: [], root: null,
-            startAt: {}, blocked: {}, fired: {}, evWait: {}, evOn: {}, flow: {}, mainDone: false, armed: 0, armK: { timer: 0, event: 0, error: 0 }, disarms: [], waves: 0, idleW: [], sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
-        run.root = mkGroup(run, 'root', null); setupTimeline(run, g);
+            startAt: {}, blocked: {}, fired: {}, evWait: {}, evOn: {}, flow: {}, world: null, col: [], mainDone: false, armed: 0, armK: { timer: 0, event: 0, error: 0, collision: 0, pickup: 0 }, disarms: [], waves: 0, idleW: [], sched: [], active: {}, nodes: {}, ctxs: {}, db: null, dbChanged: false, clockAcc: 0, clockStart: Date.now(), tickId: 0, tl: null };
+        run.root = mkGroup(run, 'root', null); setupTimeline(run, g); initWorld(run);
         ev(run, 'info', 'Run ' + run.id + ' started (' + g.nodes.length + ' nodes)');
         execGraph(run, run.root, g, 0).then(function () { run.mainDone = true; return settle(run); }).then(
             function () { finalize(run, 'done'); },
@@ -547,6 +645,11 @@
     E.resume = function () {
         if (!active() || cur.status !== 'paused') return;
         cur.clockStart = Date.now(); cur.paused = false; cur.status = 'running'; cur.waiters.splice(0).forEach(function (w) { w(); }); ev(cur, 'ok', 'Run ' + cur.id + ' resumed'); refresh();
+    };
+    E.world = function () {                              // read-only snapshot for the Stage tab (the last run's world stays readable after it ends)
+        var r = cur; if (!r || !r.world) return null; var w = r.world;
+        return { run: r.id, ended: !!r.ended, t: clockNow(r), hits: w.hits, touching: Object.keys(w.pairs), flash: w.flash.slice(),
+            bodies: w.order.map(function (id) { var b = w.bodies[id]; return { id: b.id, label: b.label, x: b.x, y: b.y, w: b.w, h: b.h, role: b.role, tag: b.tag, a: b.a, alive: b.alive }; }) };
     };
     E.stop = function () {
         if (!active()) return; var r = cur;

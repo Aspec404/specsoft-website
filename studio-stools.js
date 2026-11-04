@@ -434,6 +434,13 @@
             c.nodes.forEach(function (n) { if (byLabel[n.label]) dup[n.label] = 1; else byLabel[n.label] = n; });
             Object.keys(dup).forEach(function (l) { report('warn', where + l + ': more than one node has this label. Scripts find nodes by label, so only the first can be reached.', byLabel[l].id); });
             if (!topoOk(c)) report('error', (where || 'Root graph: ') + 'contains a loop, so it cannot run.', null);
+            (function () {                                         // bodies that already overlap at the start fire nothing until they separate and meet again
+                var bs = c.nodes.filter(function (q) { return q.config && q.config.body && q.config.body.on; });
+                for (var i = 0; i < bs.length; i++) for (var j = i + 1; j < bs.length; j++) {
+                    var p = bs[i].config.body, q = bs[j].config.body;
+                    if (Math.abs(p.x - q.x) * 2 < p.w + q.w && Math.abs(p.y - q.y) * 2 < p.h + q.h) report('info', where + bs[i].label + ' and ' + bs[j].label + ' overlap at the start, so touching each other fires nothing until they separate and meet again.', null);
+                }
+            })();
             c.nodes.filter(function (t) { return t.type === 'trigger' || (t.type === 'flow' && ['counter', 'loop', 'sequence', 'random'].indexOf((t.config || {}).fKind) > -1); }).forEach(function (t) {      // a node that reacts to a trigger or a flow node cannot also be fed from the main flow
                 var seen = {}, st = [t.id], bad = {}; seen[t.id] = 1;
                 while (st.length) { var f = st.pop(); c.connections.forEach(function (x) { if (x.from === f && !seen[x.to]) { seen[x.to] = 1; st.push(x.to); } }); }
@@ -448,12 +455,22 @@
                     if (['counter', 'loop', 'sequence', 'random'].indexOf(fk) > -1 && !fouts.length) report('warn', name + ': nothing is wired after this ' + fk + ' node, so it has nothing to control.', n.id);
                     if (fk === 'random' && fouts.length) { var tot = 0; fouts.forEach(function (x) { tot += cf.weights && Object.prototype.hasOwnProperty.call(cf.weights, x.to) ? cf.weights[x.to] : 1; }); if (fouts.length < 2) report('warn', name + ': a randomizer needs at least two nodes after it to pick from.', n.id); if (tot <= 0) report('error', name + ': every weight is 0, so it can never pick anything.', n.id); }
                     if (fk === 'reset' && cf.rTarget && cf.rTarget !== '*' && !c.nodes.some(function (q) { return q.id === cf.rTarget; })) report('warn', name + ': the counter it resets was not found at this level.', n.id);
+                    if (fk === 'move' || fk === 'fade') {
+                        var mb = c.nodes.filter(function (q) { return q.id === cf.mTarget; })[0];
+                        if (cf.mGroup) { if (!c.nodes.some(function (q) { var b = q.config && q.config.body; return b && b.on && b.tag === cf.mGroup; })) report('warn', name + ': no body with tag "' + cf.mGroup + '" exists at this level.', n.id); }
+                        else if (!mb || !(mb.config.body && mb.config.body.on)) report('error', name + ': choose a body to ' + fk + ' (turn on "Has a body" on a node first), or a group tag.', n.id);
+                    }
                     if (fk === 'spawn') { var tb = c.nodes.filter(function (q) { return q.id === cf.sTarget; })[0]; if (!tb || tb.type !== 'branch') report('error', name + ': choose a branch node to spawn.', n.id); }
                 }
                 if (n.type === 'trigger') {
                     if (ins) report('error', name + ': a trigger has no input. Remove the connection going into it.', n.id);
                     if (!outs) report('warn', name + ': this trigger is not wired to anything, so nothing happens when it fires.', n.id);
                     if (cf.tKind === 'event') { if (!/^[A-Za-z0-9_-]{1,20}$/.test(cf.tEvent || '')) report('warn', name + ': choose an event name (letters, digits, - and _ only).', n.id); else if (!emitted[cf.tEvent]) report('warn', name + ': listens for event "' + cf.tEvent + '" but no script or timeline marker fires it.', n.id); }
+                    if (cf.tKind === 'collision' || cf.tKind === 'pickup') {
+                        var ab = c.nodes.filter(function (q) { return q.id === cf.tBody; })[0];
+                        if (!ab || !(ab.config.body && ab.config.body.on)) report('error', name + ': choose the body that ' + (cf.tKind === 'pickup' ? 'picks things up' : 'is watched') + ' (turn on "Has a body" on a node first).', n.id);
+                        else if (!c.nodes.some(function (q) { var b = q.config && q.config.body; return b && b.on && q.id !== ab.id && (!cf.tTag || b.tag === cf.tTag) && (cf.tKind === 'pickup' ? b.role === 'item' : b.role !== 'item'); })) report('warn', name + ': no ' + (cf.tKind === 'pickup' ? 'item' : 'other') + ' body' + (cf.tTag ? ' with tag "' + cf.tTag + '"' : '') + ' exists at this level, so it can never fire.', n.id);
+                    }
                     if (cf.tKind === 'timer' && cf.tRepeat !== false && cf.tMs < 250) report('info', name + ': a timer under 250 ms uses up its ' + cf.tMax + ' fires quickly.', n.id);
                     return;
                 }

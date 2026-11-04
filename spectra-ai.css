@@ -262,3 +262,27 @@
 .sa-ac span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sa-ac button{border:0;background:none;color:inherit;font-size:15px;line-height:1;cursor:pointer}
 .sa-ac.mode{color:var(--sa-ink,var(--text-primary));border-color:var(--sa-acc,var(--accent))}
+
+
+/* ---- v2: chat item menu (3 dots / right-click), rename, pinned, naming shimmer ---- */
+.sa-item .sa-dots{display:grid;place-items:center;flex:0 0 auto;width:26px;height:26px;padding:0;border-radius:7px;opacity:0;transition:opacity .15s,background .15s}
+.sa-item:hover .sa-dots,.sa-item.on .sa-dots,.sa-item.menu .sa-dots{opacity:1}
+.sa-item .sa-dots:hover{background:var(--sa-acc-dim,var(--accent-dim))}
+.sa-dots .sa-fi{width:16px;height:16px}
+@media (hover:none){.sa-item .sa-dots{opacity:1}}
+.sa-item>.sa-fi{width:13px;height:13px;flex:0 0 auto;opacity:.6}
+.sa-item.naming span{animation:saNaming 1.1s ease-in-out infinite}
+@keyframes saNaming{50%{opacity:.35}}
+.sa-rn{flex:1;min-width:0;padding:4px 8px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:6px;background:none;color:var(--sa-ink,var(--text-primary));font:13px var(--font-sans);outline:0}
+.sa-cmenu{position:fixed;z-index:400;min-width:200px;padding:6px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:12px;background:var(--sa-glass-hi,#161616);-webkit-backdrop-filter:var(--sa-blur);backdrop-filter:var(--sa-blur);box-shadow:var(--sa-shine),0 18px 60px rgba(0,0,0,.5)}
+.sa-cmenu button{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:0;border-radius:8px;background:none;text-align:left;font:12.5px var(--font-sans);color:var(--sa-ink2,var(--text-secondary));cursor:pointer}
+.sa-cmenu button:hover{background:var(--sa-acc-dim,var(--accent-dim));color:var(--sa-ink,var(--text-primary))}
+.sa-cmenu button.danger{color:#ff6b6b}
+.sa-cmenu button.danger:hover{background:rgba(255,80,80,.12)}
+.sa-cmenu .sa-fi{width:17px;height:17px}
+.sa-cmenu .sa-sep{height:1px;margin:5px 4px;background:var(--sa-line,var(--border-subtle))}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.sa-cmenu{background:#161616}}
+/* ---- v2: images in messages and attachment chips ---- */
+.sa-msg.user .sa-imgs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.sa-msg.user .sa-imgs img{display:block;max-width:180px;max-height:180px;border-radius:12px;object-fit:cover}
+.sa-ac .sa-th{width:22px;height:22px;flex:0 0 auto;border-radius:6px;object-fit:cover}

@@ -89,6 +89,7 @@
                         <button type="button" role="tab" aria-selected="true" data-tab="log">Console</button>
                         <button type="button" role="tab" aria-selected="false" data-tab="hist">Debugger</button>
                         <button type="button" role="tab" aria-selected="false" data-tab="time">Timeline</button>
+                        <button type="button" role="tab" aria-selected="false" data-tab="stage">Stage</button>
                         <button type="button" role="tab" aria-selected="false" data-tab="data">Database</button>
                         <select id="stFilter" class="st-filter" aria-label="Filter console"><option value="">All messages</option><option value="ok">Success</option><option value="info">Info</option><option value="warn">Warnings</option><option value="error">Errors</option></select>
                         <button type="button" class="st-link" id="stClear">Clear</button>
@@ -96,6 +97,7 @@
                     <div class="st-log st-panel" id="stLog" role="log" aria-live="polite"></div>
                     <div class="st-log st-panel st-hist" id="stHist" hidden></div>
                     <div class="st-panel st-time" id="stTime" hidden></div>
+                    <div class="st-panel st-stage" id="stStage" hidden></div>
                     <div class="st-panel st-data" id="stData" hidden></div>
                 </div>
             </section>
@@ -117,6 +119,7 @@
     <script src="studio-sql.js"></script>
     <script src="studio-data.js"></script>
     <script src="studio-timeline.js"></script>
+    <script src="studio-stage.js"></script>
     <script src="studio-engine.js"></script>
     <script src="studio-preview.js"></script>
     <script src="studio-shell.js"></script>

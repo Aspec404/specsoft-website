@@ -1177,9 +1177,22 @@
     var BGD = null, BG = { room: null, data: null, token: 0, sub: null, subRoom: null };
     var BG_DEF = { opacity: 35, blur: 0, dim: 25 };
 
-    function bgUrl(path, kind) {
+    function bgBucket(kind, roomKind) { return kind === 'community' && roomKind === 'community' ? BUCKET : BG_ME; }
+    function bgUrl(path, kind, roomKind) {
         if (!path) return null;
-        try { return H().sb.storage.from(kind === 'community' ? BUCKET : BG_ME).getPublicUrl(path).data.publicUrl; } catch (e) { return null; }
+        try { return H().sb.storage.from(bgBucket(kind, roomKind)).getPublicUrl(path).data.publicUrl; } catch (e) { return null; }
+    }
+    // who may make a background here? communities: only people who edit the profile. DMs + groups: everybody for "mine".
+    function canBgHere(room) { return !!room && (room.kind !== 'community' || !!(SP && SP.can && SP.can('manage_community', room))); }
+    function canShareHere(room) {
+        if (!room) return false;
+        if (room.kind === 'community') return !!(SP && SP.can && SP.can('manage_community', room));
+        if (room.kind === 'dm') return true;
+        return room.role === 'owner' || room.role === 'admin';
+    }
+    function syncBgBtn() {
+        var b = document.getElementById('csxBgBtn'), cur = H() && H().S.current;
+        if (b) b.hidden = !canBgHere(cur);
     }
     function setLayer(node, url, s) {
         node.style.setProperty('--csx-img', url ? 'url("' + String(url).replace(/"/g, '%22') + '")' : 'none');
@@ -1201,12 +1214,14 @@
     function paintBg() {
         var convo = document.getElementById('chConvo'), l = bgLayer();
         if (!convo || !l) return;
+        var cur = H().S.current, rk = cur && cur.kind, mineOk = canBgHere(cur);
         var d = BG.data, s = null, kind = null;
         if (d) {
-            if (d.mine && d.mine.path) { s = d.mine; kind = 'mine'; }
-            else if (d.community && !(d.mine && d.mine.hide_community)) { s = d.community; kind = 'community'; }
+            if (mineOk && d.mine && d.mine.path) { s = d.mine; kind = 'mine'; }
+            else if (d.community && !(mineOk && d.mine && d.mine.hide_community)) { s = d.community; kind = 'community'; }
         }
-        var url = s && bgUrl(s.path, kind);
+        syncBgBtn();
+        var url = s && bgUrl(s.path, kind, rk);
         if (!url) { convo.classList.remove('has-csx-bg'); return; }
         setLayer(l, url, s);
         convo.classList.add('has-csx-bg');
@@ -1226,7 +1241,7 @@
         } catch (e) { if (tok === BG.token) BG.data = null; }        // SQL not run yet: no backgrounds
         if (tok !== BG.token) return;
         paintBg();
-        if (room.kind === 'community' && BG.data && BG.subRoom !== room.room_id) {
+        if (BG.data && BG.subRoom !== room.room_id) {
             bgUnsub();
             try {
                 BG.subRoom = room.room_id;
@@ -1247,6 +1262,7 @@
             if (r) openBgDialog(r);
         } }, ico('image'));
         box.insertBefore(b, document.getElementById('chMembersBtn') || box.firstChild);
+        syncBgBtn();
     }
     function onOpen(room) {
         if (!room) return;
@@ -1300,7 +1316,7 @@
                 el('div', { class: 'csx-bgmsg is-me' }, 'looks good, bro 🔥'),
                 el('div', { class: 'csx-bgmsg' }, el('b', { text: 'Sam' }), 'can you read this part?')));
         var layer = prev.firstChild;
-        function url() { return st.clear ? null : (st.pending ? st.pending.url : bgUrl(st.path, kind)); }
+        function url() { return st.clear ? null : (st.pending ? st.pending.url : bgUrl(st.path, kind, room.kind)); }
         function paint() { setLayer(layer, url(), st); prev.classList.toggle('is-empty', !url()); }
 
         var sOp = slider('Opacity', 5, 100, '%', st.opacity, function (v) { st.opacity = v; paint(); });
@@ -1324,7 +1340,7 @@
         }
 
         var hideCb = null;
-        if (kind === 'mine' && room.kind === 'community') {
+        if (kind === 'mine') {
             hideCb = el('input', { type: 'checkbox', checked: st.hide });
             hideCb.addEventListener('change', function () { st.hide = hideCb.checked; });
         }
@@ -1332,17 +1348,17 @@
         var save = btn('Save', '', async function () {
             say(m, '');
             H().setLoading(save, true);
-            var uid = H().S.me.id, newPath = null, bucket = kind === 'community' ? BUCKET : BG_ME;
+            var uid = H().S.me.id, newPath = null, bucket = bgBucket(kind, room.kind);
             try {
                 if (st.pending) {
                     var ext = st.pending.blob.type === 'image/webp' ? '.webp' : '.jpg';
-                    newPath = kind === 'community' ? room.room_id + '/bg-' + Date.now() + ext : uid + '/' + room.room_id + '-' + Date.now() + ext;
+                    newPath = kind === 'community' && room.kind === 'community' ? room.room_id + '/bg-' + Date.now() + ext : uid + '/' + room.room_id + '-' + (kind === 'community' ? 'shared-' : '') + Date.now() + ext;
                     ok(await H().sb.storage.from(bucket).upload(newPath, st.pending.blob, { contentType: st.pending.blob.type, cacheControl: '31536000' }));
                 }
                 var args = kind === 'community'
                     ? { p_room: room.room_id, p_path: newPath, p_opacity: st.opacity, p_blur: st.blur, p_dim: st.dim, p_clear: st.clear }
                     : { p_room: room.room_id, p_path: newPath, p_opacity: st.opacity, p_blur: st.blur, p_dim: st.dim, p_hide: st.hide, p_clear: st.clear };
-                try { ok(await rpc(kind === 'community' ? 'chat_community_bg_save' : 'chat_my_bg_save', args)); }
+                try { ok(await rpc(kind === 'community' ? 'chat_shared_bg_save' : 'chat_my_bg_save', args)); }
                 catch (err) { if (newPath) { try { await H().sb.storage.from(bucket).remove([newPath]); } catch (e) { /* ignore */ } } throw err; }
                 if ((newPath || st.clear) && st.path) { try { await H().sb.storage.from(bucket).remove([st.path]); } catch (e) { /* best effort */ } }
                 var nextPath = st.clear ? null : (newPath || st.path);
@@ -1358,7 +1374,7 @@
 
         var wrap = el('div', { class: 'csx-bgedit' },
             tabs || null,
-            el('p', { class: 'ch-help', text: kind === 'community' ? 'Everybody in this community sees this background.' : 'Only you see this background. The other people in the chat do not.' }),
+            el('p', { class: 'ch-help', text: kind === 'community' ? (room.kind === 'dm' ? 'Both of you see this background, and either of you can change it.' : 'Everybody in this chat sees this background.') : 'Only you see this background. The other people in the chat do not.' }),
             m, prev,
             el('div', { class: 'csx-btnrow' },
                 btn('Choose image', 'ch-btn--ghost ch-btn--sm', pick),
@@ -1368,7 +1384,7 @@
                     sOp.set(st.opacity); sBl.set(st.blur); sDm.set(st.dim); paint();
                 })),
             sOp.node, sBl.node, sDm.node,
-            hideCb ? el('label', { class: 'ch-check' }, hideCb, el('span', { class: 'ch-box', 'aria-hidden': 'true' }), el('span', { text: 'Hide the community background (just for me)' })) : null,
+            hideCb ? el('label', { class: 'ch-check' }, hideCb, el('span', { class: 'ch-box', 'aria-hidden': 'true' }), el('span', { text: 'Hide the shared background (just for me)' })) : null,
             el('div', { class: 'csx-btnrow' }, save));
         paint();
         return wrap;
@@ -1389,15 +1405,16 @@
             BGD.addEventListener('click', function (e) { if (e.target === BGD) BGD.close(); });
         }
         var body = BGD.querySelector('#csxBgBody');
-        var canCommunity = room.kind === 'community' && !!(SP && SP.can && SP.can('manage_community', room));
-        var tab = startTab === 'community' && canCommunity ? 'community' : 'mine';
+        if (!canBgHere(room)) { H().toast('Only people who can edit the community can change its background.'); return; }
+        var canCommunity = canShareHere(room);
+        var tab = startTab === 'community' && canCommunity ? 'community' : (room.kind === 'community' && canCommunity && !(BG.data && BG.data.mine) ? 'community' : 'mine');
         function draw() {
             body.textContent = '';
             var tabs = null;
             if (canCommunity) {
                 tabs = el('div', { class: 'csx-seg csx-seg--tabs', role: 'tablist' },
                     el('button', { type: 'button', role: 'tab', class: tab === 'mine' ? 'is-on' : '', 'aria-selected': String(tab === 'mine'), onclick: function () { tab = 'mine'; draw(); } }, 'My background'),
-                    el('button', { type: 'button', role: 'tab', class: tab === 'community' ? 'is-on' : '', 'aria-selected': String(tab === 'community'), onclick: function () { tab = 'community'; draw(); } }, 'For everyone'));
+                    el('button', { type: 'button', role: 'tab', class: tab === 'community' ? 'is-on' : '', 'aria-selected': String(tab === 'community'), onclick: function () { tab = 'community'; draw(); } }, 'Shared with everyone'));
             }
             body.appendChild(bgEditor(room, tab, tabs));
         }
