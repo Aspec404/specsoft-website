@@ -236,11 +236,19 @@ img.ch-art--img { display: block; width: 46px; height: 46px; padding: 0; }
 /* ----- chat background (community or personal) ----- */
 .csx-bg { display: none; position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .has-csx-bg > .csx-bg { display: block; }
-.csx-bg::before, .csx-bgprev-layer::before {
-    content: ''; position: absolute; inset: calc(var(--csx-blur, 0px) * -2);
+.csx-bg .csx-bg-image, .csx-bgprev-layer .csx-bg-image {
+    position: absolute; inset: calc(var(--csx-blur, 0px) * -2);
     background: var(--csx-img, none) center / cover no-repeat;
     opacity: var(--csx-op, 0.35); filter: blur(var(--csx-blur, 0px));
 }
+.csx-bg .csx-bg-video, .csx-bgprev-layer .csx-bg-video {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    opacity: var(--csx-op, 0.35); filter: blur(var(--csx-blur, 0px));
+    display: none;
+}
+.csx-bg.is-video .csx-bg-video, .csx-bgprev-layer.is-video .csx-bg-video { display: block; }
+.csx-bg:not(.is-video) .csx-bg-image, .csx-bgprev-layer:not(.is-video) .csx-bg-image { display: block; }
+.csx-bg.is-video .csx-bg-image, .csx-bgprev-layer.is-video .csx-bg-image { display: none; }
 .csx-bg::after, .csx-bgprev-layer::after { content: ''; position: absolute; inset: 0; background: var(--bg-base); opacity: var(--csx-dim, 0.25); }
 .has-csx-bg > .ch-feed { position: relative; z-index: 1; }
 .has-csx-bg > .ch-typing { position: relative; z-index: 2; }

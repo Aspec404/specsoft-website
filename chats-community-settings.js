@@ -1194,11 +1194,39 @@
         var b = document.getElementById('csxBgBtn'), cur = H() && H().S.current;
         if (b) b.hidden = !canBgHere(cur);
     }
-    function setLayer(node, url, s) {
-        node.style.setProperty('--csx-img', url ? 'url("' + String(url).replace(/"/g, '%22') + '")' : 'none');
-        node.style.setProperty('--csx-op', String((s.opacity == null ? BG_DEF.opacity : s.opacity) / 100));
-        node.style.setProperty('--csx-blur', (s.blur == null ? BG_DEF.blur : s.blur) + 'px');
-        node.style.setProperty('--csx-dim', String((s.dim == null ? BG_DEF.dim : s.dim) / 100));
+    function bgMediaKind(url, fallback) {
+        var s = String(url || '');
+        if (fallback === 'video') return 'video';
+        if (!s) return 'image';
+        if (/\.(?:mp4|webm)(?:$|[?#])/i.test(s) || /^data:video\//i.test(s)) return 'video';
+        return 'image';
+    }
+    function setLayer(node, url, s, kind) {
+        var media = kind || bgMediaKind(url, null);
+        var img = node.querySelector('.csx-bg-image') || document.createElement('div');
+        var video = node.querySelector('.csx-bg-video') || document.createElement('video');
+        if (!img.parentNode) node.appendChild(img);
+        if (!video.parentNode) node.appendChild(video);
+        img.className = 'csx-bg-image';
+        video.className = 'csx-bg-video';
+        video.loop = true; video.muted = true; video.autoplay = true; video.playsInline = true;
+        video.setAttribute('playsinline', ''); video.setAttribute('muted', ''); video.setAttribute('loop', '');
+        video.setAttribute('aria-hidden', 'true');
+        node.classList.toggle('is-video', media === 'video');
+        node.style.setProperty('--csx-img', media === 'image' && url ? 'url("' + String(url).replace(/"/g, '%22') + '")' : 'none');
+        node.style.setProperty('--csx-op', String(((s && s.opacity != null) ? s.opacity : BG_DEF.opacity) / 100));
+        node.style.setProperty('--csx-blur', ((s && s.blur != null) ? s.blur : BG_DEF.blur) + 'px');
+        node.style.setProperty('--csx-dim', String(((s && s.dim != null) ? s.dim : BG_DEF.dim) / 100));
+        if (media === 'video') {
+            img.style.backgroundImage = 'none';
+            var vUrl = String(url || '');
+            if (!vUrl) { video.removeAttribute('src'); video.load(); }
+            else if (video.getAttribute('src') !== vUrl) { video.src = vUrl; }
+            video.play().catch(function () { /* autoplay may be blocked */ });
+        } else {
+            video.removeAttribute('src'); video.load();
+            img.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, '%22') + '")' : 'none';
+        }
     }
     function bgLayer() {
         var convo = document.getElementById('chConvo');
@@ -1223,7 +1251,7 @@
         syncBgBtn();
         var url = s && bgUrl(s.path, kind, rk);
         if (!url) { convo.classList.remove('has-csx-bg'); return; }
-        setLayer(l, url, s);
+        setLayer(l, url, s, bgMediaKind(url, null));
         convo.classList.add('has-csx-bg');
     }
     function bgUnsub() {
@@ -1277,9 +1305,23 @@
         paintBg();
     }
 
+    function bgFileMeta(file) {
+        var type = (file && file.type) || '';
+        if (/^video\//i.test(type) || /\.(?:mp4|webm)(?:$|[?#])/i.test(file && file.name || '')) return { kind: 'video', allow: 'video/mp4,video/webm' };
+        if (/^image\/gif$/i.test(type)) return { kind: 'image', allow: 'image/gif' };
+        return { kind: 'image', allow: 'image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm' };
+    }
     async function resizeFit(file, max) {
-        if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) throw new Error('Pick a PNG, JPG, WebP or GIF image.');
-        if (file.size > 15 * 1024 * 1024) throw new Error('That image is too big (15 MB max).');
+        var meta = bgFileMeta(file);
+        if (meta.kind === 'video') {
+            if (file.size > 40 * 1024 * 1024) throw new Error('That video is too big (40 MB max).');
+            return { blob: file, kind: 'video' };
+        }
+        if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) throw new Error('Pick a PNG, JPG, WebP, GIF or MP4/WebM video.');
+        if (file.type === 'image/gif' || file.type === 'image/webp' || file.type === 'image/png' || file.type === 'image/jpeg') {
+            if (file.size > 15 * 1024 * 1024) throw new Error('That image is too big (15 MB max).');
+            if (file.type === 'image/gif') return { blob: file, kind: 'image' };
+        }
         var bmp = await loadBitmap(file);
         var sc = Math.min(1, max / Math.max(bmp.width, bmp.height));
         var c = document.createElement('canvas');
@@ -1290,7 +1332,7 @@
         var blob = await new Promise(function (r) { c.toBlob(r, 'image/webp', 0.82); });
         if (!blob || blob.type !== 'image/webp') blob = await new Promise(function (r) { c.toBlob(r, 'image/jpeg', 0.85); });
         if (!blob) throw new Error('Could not read that image.');
-        return blob;
+        return { blob: blob, kind: 'image' };
     }
 
     function slider(label, min, max, unit, val, onInput) {
@@ -1317,7 +1359,7 @@
                 el('div', { class: 'csx-bgmsg' }, el('b', { text: 'Sam' }), 'can you read this part?')));
         var layer = prev.firstChild;
         function url() { return st.clear ? null : (st.pending ? st.pending.url : bgUrl(st.path, kind, room.kind)); }
-        function paint() { setLayer(layer, url(), st); prev.classList.toggle('is-empty', !url()); }
+        function paint() { setLayer(layer, url(), st, st.pending ? (st.pending.kind || bgMediaKind(url(), null)) : bgMediaKind(url(), null)); prev.classList.toggle('is-empty', !url()); }
 
         var sOp = slider('Opacity', 5, 100, '%', st.opacity, function (v) { st.opacity = v; paint(); });
         var sBl = slider('Blur', 0, 20, 'px', st.blur, function (v) { st.blur = v; paint(); });
@@ -1325,14 +1367,14 @@
 
         function pick() {
             var f = document.createElement('input');
-            f.type = 'file'; f.accept = 'image/png,image/jpeg,image/webp,image/gif';
+            f.type = 'file'; f.accept = 'image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm';
             f.addEventListener('change', async function () {
                 var file = f.files && f.files[0];
                 if (!file) return;
                 try {
-                    var blob = await resizeFit(file, 1600);
+                    var prepared = await resizeFit(file, 1600);
                     if (st.pending) URL.revokeObjectURL(st.pending.url);
-                    st.pending = { blob: blob, url: URL.createObjectURL(blob) };
+                    st.pending = { blob: prepared.blob, url: URL.createObjectURL(prepared.blob), kind: prepared.kind || 'image' };
                     st.clear = false; say(m, ''); paint();
                 } catch (err) { say(m, err.message || 'Could not use that image.'); }
             });
@@ -1351,9 +1393,14 @@
             var uid = H().S.me.id, newPath = null, bucket = bgBucket(kind, room.kind);
             try {
                 if (st.pending) {
-                    var ext = st.pending.blob.type === 'image/webp' ? '.webp' : '.jpg';
+                    var type = st.pending.blob.type || '';
+                    var ext = '.jpg';
+                    if (type === 'image/webp') ext = '.webp';
+                    else if (type === 'image/gif') ext = '.gif';
+                    else if (type === 'video/webm') ext = '.webm';
+                    else if (/^video\//i.test(type)) ext = '.mp4';
                     newPath = kind === 'community' && room.kind === 'community' ? room.room_id + '/bg-' + Date.now() + ext : uid + '/' + room.room_id + '-' + (kind === 'community' ? 'shared-' : '') + Date.now() + ext;
-                    ok(await H().sb.storage.from(bucket).upload(newPath, st.pending.blob, { contentType: st.pending.blob.type, cacheControl: '31536000' }));
+                    ok(await H().sb.storage.from(bucket).upload(newPath, st.pending.blob, { contentType: type || 'application/octet-stream', cacheControl: '31536000' }));
                 }
                 var args = kind === 'community'
                     ? { p_room: room.room_id, p_path: newPath, p_opacity: st.opacity, p_blur: st.blur, p_dim: st.dim, p_clear: st.clear }
