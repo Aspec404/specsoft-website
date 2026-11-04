@@ -81,6 +81,7 @@
         var m = String(err && err.message || '');
         for (var k in ERR) if (Object.prototype.hasOwnProperty.call(ERR, k) && m.indexOf(k) >= 0) return ERR[k];
         if (/chat_(community|roles?|member|mod|my_perms|members|bans)/.test(m) && /(schema cache|does not exist|could not find)/i.test(m)) return 'Run supabase-community-settings.sql in your Supabase SQL Editor first.';
+        if (/chat_(my|shared)_bg_save|chat_bg_get|background/.test(m) && /(does not exist|could not find|function .*bg|not allowed|bad_path|permission|null value)/i.test(m)) return 'The current chat background RPC is not accepting that media type yet. Keep it to GIF/image or update the Supabase background SQL for MP4/WebM support.';
         return H().friendly(err);
     }
     function ico(name, cls) {
