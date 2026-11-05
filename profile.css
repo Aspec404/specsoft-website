@@ -159,7 +159,7 @@ body.pf-custom-bg .crosshair {
     background: linear-gradient(135deg, var(--pf-top-grad) 0%, var(--pf-bottom-grad) 100%);
     border: 1px solid var(--border-subtle);
     border-radius: 16px;
-    overflow: hidden;
+    overflow: visible;   /* profile frames can be bigger than the avatar, so the header must not clip them */
     padding-bottom: 22px;
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 18px 32px rgba(0,0,0,0.22);
 }
@@ -178,6 +178,7 @@ body.pf-custom-bg .crosshair {
 
 .pf-banner {
     position: relative;
+    border-radius: 15px 15px 0 0;
     height: 200px;
     background-color: var(--bg-card-hover);
     border-bottom: 1px solid var(--border-subtle);
@@ -1928,3 +1929,96 @@ a.pd-cmt-name:hover { text-decoration: underline; text-underline-offset: 3px; }
     .pf-eng, .pf-menu-item { transition: none; }
 }
 /* END project-social-css */
+
+/* ==========================================================================
+   LEVEL, XP AND PROFILE FRAMES  (Phase 6)
+   ========================================================================== */
+.pf-level-badge {
+    position: absolute;
+    left: 2px;
+    bottom: 2px;
+    z-index: 4;
+    min-width: 34px;
+    padding: 3px 9px;
+    border: 2px solid var(--bg-card);
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--pf-accent), var(--pf-accent-2));
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    line-height: 1.4;
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.pf-xp {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-top: 12px;
+    padding: 16px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+}
+.pf-profile.pf-profile--bg-image .pf-xp { backdrop-filter: blur(2px); }
+
+.pf-xp-lv {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 2px;
+    width: 76px;
+    height: 76px;
+    border: 2px solid var(--pf-accent);
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--pf-accent) 22%, transparent), transparent 70%);
+    box-shadow: 0 0 22px color-mix(in srgb, var(--pf-accent) 35%, transparent);
+}
+.pf-xp-lv-label { color: var(--text-secondary); font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.6px; }
+.pf-xp-lv strong { font-size: 28px; font-weight: 400; letter-spacing: -1px; line-height: 1; }
+
+.pf-xp-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+.pf-xp-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 14px; }
+.pf-xp-row strong { font-size: 19px; font-weight: 400; letter-spacing: -0.4px; }
+.pf-xp-row span { color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+.pf-xp-bar { height: 10px; border-radius: 99px; background: var(--border-subtle); overflow: hidden; }
+.pf-xp-bar i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--pf-accent), var(--pf-accent-2));
+    transition: width 0.5s ease;
+}
+.pf-xp-facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+/* frame picker */
+.pf-frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; padding: 18px 6px 8px; }
+.pf-frame-opt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 8px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.pf-frame-opt:hover { border-color: var(--border-hover); }
+.pf-frame-opt.is-on { border-color: var(--pf-accent); background: color-mix(in srgb, var(--pf-accent) 12%, transparent); }
+.pf-frame-prev { position: relative; display: block; }
+.pf-frame-name { font-size: 12px; text-align: center; overflow-wrap: anywhere; }
+a.pf-btn { display: inline-flex; align-items: center; text-decoration: none; }
+
+@media (max-width: 560px) {
+    .pf-xp { flex-direction: column; align-items: stretch; }
+    .pf-xp-lv { align-self: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { .pf-xp-bar i { transition: none; } }

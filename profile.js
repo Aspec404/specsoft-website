@@ -609,8 +609,12 @@
                     framed(avatarEl({ name: name, avatar: safeHttps(p.avatar_url) || '' }), p.id),
                     el('span', { class: 'pf-follow-text' },
                         el('span', { class: 'pf-follow-name', text: name }),
-                        el('span', { class: 'pf-follow-sub', text: '@' + p.username })));
+                        el('span', { class: 'pf-follow-sub', 'data-lv-for': p.id, text: '@' + p.username })));
                 box.appendChild(item);
+            });
+            levelsFor(rows.map(function (p) { return p.id; })).then(function (lv) {
+                if (!lv) return;
+                box.querySelectorAll('[data-lv-for]').forEach(function (n) { n.textContent += ' · LV ' + (lv.get(n.getAttribute('data-lv-for')) || 1); });
             });
             if (!rows.length) {
                 box.appendChild(el('p', { class: 'pf-empty-list', text: 'No public profiles found.' }));
@@ -707,6 +711,132 @@
         }
     }
 
+    /* ----------------------------------------------------------------------
+       5b. LEVEL, XP AND PROFILE FRAMES  (supabase-store-quests.sql + supabase-profile-xp.sql + xp.js)
+       ---------------------------------------------------------------------- */
+    const nf = function (n) { return Number(n || 0).toLocaleString('en-US'); };
+
+    // level, XP, rank for the member whose profile this is (stays hidden if the SQL is not installed)
+    async function loadXp() {
+        state.xp = null;
+        try {
+            const r = await sb.rpc('profile_xp', { p_user: state.profile.id });
+            if (!r.error && r.data) state.xp = r.data;
+        } catch (e) { /* not installed yet: the XP card just stays hidden */ }
+    }
+
+    function renderXp() {
+        const box = $('pfXp'), x = state.xp;
+        box.hidden = !x;
+        const wrap = $('pfAvatarWrap');
+        let badge = wrap ? wrap.querySelector('.pf-level-badge') : null;
+        if (!x) { if (badge) badge.remove(); return; }
+
+        const pct = Math.max(0, Math.min(100, Number(x.pct) || 0));
+        $('pfXpLevel').textContent = String(x.level);
+        $('pfXpTotal').textContent = nf(x.xp) + ' XP';
+        $('pfXpNext').textContent = nf(x.into) + ' / ' + nf(x.need) + ' XP to level ' + (Number(x.level) + 1);
+        $('pfXpFill').style.width = pct + '%';
+        $('pfXpBar').setAttribute('aria-valuenow', String(pct));
+
+        const facts = $('pfXpFacts');
+        facts.textContent = '';
+        if (x.rank) facts.appendChild(el('li', { class: 'pf-chip', title: 'Position by XP among all members', text: 'RANK #' + nf(x.rank) }));
+        facts.appendChild(el('li', { class: 'pf-chip', text: nf(x.quests_done) + ' QUESTS DONE' }));
+        facts.appendChild(el('li', { class: 'pf-chip', text: nf(x.items_owned) + ' STORE ITEMS' }));
+
+        if (wrap) {
+            if (!badge) { badge = el('span', { class: 'pf-level-badge' }); wrap.appendChild(badge); }
+            badge.textContent = 'LV ' + x.level;
+            badge.title = 'Level ' + x.level;
+        }
+    }
+
+    // your own card moves while you stay on the page (xp.js pings once a minute)
+    window.addEventListener('xp:update', function (e) {
+        if (!state.isOwner || !state.xp || !e.detail) return;
+        state.xp = Object.assign({}, state.xp, e.detail);
+        renderXp();
+    });
+
+    // levels of many members at once (member cards, follow lists); null when the SQL is not installed
+    const levelCache = new Map();
+    async function levelsFor(ids) {
+        const need = ids.filter(function (id) { return !levelCache.has(id); });
+        if (need.length) {
+            try {
+                const r = await sb.rpc('xp_levels', { p_ids: need.slice(0, 200) });
+                if (r.error) return null;
+                (r.data || []).forEach(function (row) { levelCache.set(row.user_id, row.lvl); });
+                need.forEach(function (id) { if (!levelCache.has(id)) levelCache.set(id, 1); });   // no XP row yet = level 1
+            } catch (e) { return null; }
+        }
+        return levelCache;
+    }
+
+    // pick which owned frame you wear
+    let equipBusy = false;
+    async function openFrames() {
+        if (!state.isOwner || !state.me) return;
+        const box = $('frList'), help = $('frHelp');
+        box.textContent = '';
+        help.textContent = 'Loading your frames...';
+        openDlg($('frDlg'));
+        try {
+            const [own, eq] = await Promise.all([
+                sb.from('store_purchases').select('item_id').eq('user_id', state.me.id),
+                sb.from('user_equipped').select('frame_item').eq('user_id', state.me.id).maybeSingle()
+            ]);
+            if (own.error) throw own.error;
+            const ids = Array.from(new Set((own.data || []).map(function (r) { return r.item_id; })));
+            let frames = [];
+            if (ids.length) {
+                const it = await sb.from('store_items').select('id,name,frame_data').in('id', ids).eq('category', 'frame').order('sort', { ascending: true });
+                if (it.error) throw it.error;
+                frames = it.data || [];
+            }
+            const current = eq && !eq.error && eq.data ? eq.data.frame_item : null;
+            const name = state.profile.display_name || state.profile.username;
+            const mine = safeHttps(state.profile.avatar_url) || '';
+
+            const option = function (id, label, frameData) {
+                const av = avatarEl({ name: name, avatar: mine });
+                if (frameData && window.SpecFrames) window.SpecFrames.apply(av, frameData);
+                const on = (id || null) === (current || null);
+                const b = el('button', {
+                    type: 'button', class: 'pf-frame-opt' + (on ? ' is-on' : ''), role: 'radio', 'aria-checked': String(on),
+                    onclick: function () { equipFrame(id, b); }
+                }, el('span', { class: 'pf-frame-prev', style: '--sp-size:64px' }, av), el('span', { class: 'pf-frame-name', text: label }));
+                return b;
+            };
+            box.appendChild(option(null, 'No frame', null));
+            frames.forEach(function (f) { box.appendChild(option(f.id, f.name, f.frame_data)); });
+            help.textContent = frames.length ? 'Pick one to wear it everywhere: chats, profile and the store.' : 'You do not own any frames yet. Get some in the Store.';
+        } catch (err) {
+            help.textContent = friendly(err);
+        }
+    }
+
+    async function equipFrame(id, btn) {
+        if (equipBusy) return;
+        equipBusy = true;
+        try {
+            const r = await sb.rpc('store_equip', { p_item: id });
+            if (r.error) throw r.error;
+            if (window.SpecFrames) window.SpecFrames.setMine(state.me.id, r.data && r.data.frame ? r.data.frame : null);
+            $('frList').querySelectorAll('.pf-frame-opt').forEach(function (o) {
+                const on = o === btn;
+                o.classList.toggle('is-on', on);
+                o.setAttribute('aria-checked', String(on));
+            });
+            toast(id ? 'Frame equipped' : 'Frame removed');
+        } catch (err) {
+            toast(friendly(err));
+        } finally {
+            equipBusy = false;
+        }
+    }
+
     function renderProfile() {
         const p = state.profile;
         state.isOwner = !!(state.me && state.me.id === p.id);
@@ -757,6 +887,7 @@
         actions.textContent = '';
         if (state.isOwner) {
             actions.appendChild(el('button', { type: 'button', class: 'pf-btn', onclick: openEdit }, icon('pencil'), 'Edit profile'));
+            actions.appendChild(el('button', { type: 'button', class: 'pf-btn pf-btn--ghost', onclick: openFrames }, 'Frame'));
         } else if (state.me) {
             actions.appendChild(el('button', {
                 type: 'button',
@@ -819,6 +950,7 @@
         if (!(p.skills || []).length) skills.appendChild(el('li', { text: state.isOwner ? 'Add your tech stack from Edit profile' : 'Nothing listed yet' }));
 
         renderStats();
+        renderXp();
         renderRings();
         renderProjects();
         renderReposts();
@@ -1676,7 +1808,7 @@ async function loadReposts() {
         const box = $('pfMembers');
         const empty = $('pfMembersEmpty');
         q = (q || '').trim().replace(/^@/, '');
-        let query = sb.from('profiles').select('username,display_name,avatar_url,headline');
+        let query = sb.from('profiles').select('id,username,display_name,avatar_url,headline');
         if (q) query = query.ilike('username', '%' + escapeLike(q) + '%');
 
         const res = await query.order('created_at', { ascending: false }).limit(12);
@@ -1690,10 +1822,16 @@ async function loadReposts() {
         (res.data || []).forEach(function (m) {
             const name = m.display_name || m.username;
             box.appendChild(el('a', { class: 'pf-member', href: 'profile.html?u=' + encodeURIComponent(m.username) },
-                avatarEl({ name: name, avatar: safeHttps(m.avatar_url) || '' }),
+                framed(avatarEl({ name: name, avatar: safeHttps(m.avatar_url) || '' }), m.id),
                 el('span', { class: 'pf-member-text' },
                     el('span', { class: 'pf-member-name', text: name }),
-                    el('span', { class: 'pf-member-sub', text: '@' + m.username }))));
+                    el('span', { class: 'pf-member-sub', 'data-lv-for': m.id, text: '@' + m.username }))));
+        });
+        levelsFor((res.data || []).map(function (m) { return m.id; })).then(function (lv) {
+            if (!lv) return;
+            box.querySelectorAll('[data-lv-for]').forEach(function (n) {
+                if (n.textContent.indexOf(' · LV ') < 0) n.textContent += ' · LV ' + (lv.get(n.getAttribute('data-lv-for')) || 1);
+            });
         });
 
         empty.hidden = (res.data || []).length > 0;
@@ -2299,6 +2437,7 @@ async function loadReposts() {
 
             await loadContent();
             await loadFollowMeta();
+            await loadXp();
             renderProfile();
             openHashProject();
             loadMembers('');

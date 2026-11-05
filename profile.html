@@ -93,6 +93,16 @@
                 <!-- stats -->
                 <div class="pf-stats" id="pfStats"></div>
 
+                <!-- level + XP -->
+                <section class="pf-xp" id="pfXp" aria-label="Level and XP" hidden>
+                    <div class="pf-xp-lv"><span class="pf-xp-lv-label">LEVEL</span><strong id="pfXpLevel">1</strong></div>
+                    <div class="pf-xp-main">
+                        <div class="pf-xp-row"><strong id="pfXpTotal">0 XP</strong><span id="pfXpNext"></span></div>
+                        <div class="pf-xp-bar" id="pfXpBar" role="progressbar" aria-label="Progress to the next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="pfXpFill"></i></div>
+                        <ul class="pf-xp-facts" id="pfXpFacts"></ul>
+                    </div>
+                </section>
+
                 <!-- highlights -->
                 <section class="pf-section" aria-labelledby="pfHlTitle">
                     <h2 class="pf-h2" id="pfHlTitle">HIGHLIGHTS</h2>
@@ -492,6 +502,22 @@
         </footer>
     </dialog>
 
+    <!-- CHOOSE A PROFILE FRAME (owner only) -->
+    <dialog class="pf-dlg pf-dlg--small" id="frDlg" aria-labelledby="frTitle">
+        <header class="pf-dlg-head">
+            <h2 id="frTitle">Profile frame</h2>
+            <button type="button" class="pf-x" data-close aria-label="Close"></button>
+        </header>
+        <div class="pf-dlg-body">
+            <div class="pf-frames" id="frList" role="radiogroup" aria-label="Your frames"></div>
+            <p class="pf-help" id="frHelp"></p>
+        </div>
+        <footer class="pf-dlg-foot">
+            <a class="pf-btn pf-btn--ghost" href="store.html#items">Get more in the Store</a>
+            <button type="button" class="pf-btn pf-btn--ghost" data-close>Close</button>
+        </footer>
+    </dialog>
+
     <div class="pf-toast" id="pfToast" role="status" aria-live="polite"></div>
 
     <!-- Supabase client (pinned version) -->
@@ -502,6 +528,8 @@
     <!-- roles.js: badges + online heartbeat + account standing banner -->
     <script src="roles.js"></script>
     <script src="avatar-frames.js"></script>
+    <!-- xp.js: 1 XP for every 3 minutes you are active, and counts the "open your profile" quest -->
+    <script src="xp.js" data-visit="profile" defer></script>
     <!-- main.js builds the sidebar + top bar. profile.js goes AFTER it. -->
     <script src="main.js?v=2"></script>
     <script src="profile.js"></script>

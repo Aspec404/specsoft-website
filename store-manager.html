@@ -94,6 +94,11 @@
         .sm-multi { display: grid; gap: 2px; max-height: 190px; overflow: auto; padding: 8px 10px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; }
         .sm-multi .sm-check { min-height: 30px; }
         .sm-warn { margin-bottom: 12px; padding: 10px 14px; border: 1px solid #f2a516; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+        .fd-tl input[type=range] { flex: 1; min-width: 140px; accent-color: var(--accent); }
+        .fd-tl output { min-width: 48px; font-family: var(--font-mono); font-size: 12px; text-align: right; }
+        .fd-imgrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .fd-thumb { width: 84px; height: 84px; object-fit: contain; border: 1px solid var(--border-subtle); border-radius: 10px; background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
+        .fd-empty { display: grid; place-items: center; width: 84px; height: 84px; border: 1px dashed var(--border-hover); border-radius: 10px; color: var(--text-tertiary); font-size: 11px; text-align: center; }
         .sm-badge--easy { color: #23a55a; border-color: #23a55a; }
         .sm-badge--medium { color: #3b9cff; border-color: #3b9cff; }
         .sm-badge--hard { color: #a66bff; border-color: #a66bff; }
@@ -247,9 +252,9 @@
             { key: 'name', label: 'Name', required: true },
             { key: 'emoji', label: 'Emoji (used when there is no image)', nullable: true, placeholder: '🎁' },
             { key: 'description', label: 'Description', type: 'textarea', wide: true, max: 240, nullable: true },
-            { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS ring)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['badge', 'Badge'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
+            { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS and/or image)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['badge', 'Badge'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
             { key: 'emote_name', label: 'Emote code (Emote category only)', nullable: true, placeholder: 'pepe_happy', hint: 'Letters, numbers and _ + -. Members use it as :pepe_happy:. Needs an Image URL. Do not reuse a built-in emoji name.' },
-            { key: 'frame_design', label: 'Frame design (Frame category only)', type: 'frame', wide: true, hint: 'Opens the designer: up to 4 layers, shapes, colors and motion, with a live preview.' },
+            { key: 'frame_design', label: 'Frame design (Frame category only)', type: 'frame', wide: true, hint: 'Opens the designer: upload a GIF / PNG / WebP image, add up to 4 CSS layers, pick shapes, colors and motion, with a live preview.' },
             { key: 'bundle_items', label: 'Bundle contents (Bundle category only). Pick 2 or more', type: 'multi', wide: true, options: [] },
             { key: 'rarity', label: 'Rarity', type: 'select', options: [['common', 'Common'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary']] },
             { key: 'price', label: 'Price (APEX Credits)', type: 'number', required: true },
@@ -282,7 +287,7 @@
         function itemErr(e) {
             var msg = String(e && e.message || e);
             if (/emote_name_key|duplicate/i.test(msg)) return new Error('That emote code is already used.');
-            if (/frame_rules/.test(msg)) return new Error('Frames need a valid style, two colors, and one per person.');
+            if (/frame_rules/.test(msg)) return new Error('This frame is not valid (one per person). If it uses an image, run supabase-store-frames-images.sql first.');
             if (/bundle_rules/.test(msg)) return new Error('Bundles can only hold normal items (no bundles inside bundles).');
             if (/emote_rules|category_check/.test(msg)) return new Error('Run supabase-store-emotes.sql and supabase-store-frames.sql first, then try again.');
             return e;
@@ -537,8 +542,9 @@
         }
 
         /* FRAME DESIGNER START */
-        var LT = [['ring', 'Solid ring'], ['gradient', 'Gradient ring'], ['dashed', 'Dashed ring'], ['dotted', 'Dotted ring'], ['glow', 'Soft glow'], ['dots', 'Orbiting dots'], ['sparkles', 'Sparkles'], ['ripple', 'Ripple waves']];
-        var MAXC = { ring: 1, dashed: 1, dotted: 1, ripple: 1, glow: 2, gradient: 5, dots: 5, sparkles: 5 };
+        var LT = [['ring', 'Solid ring'], ['gradient', 'Gradient ring'], ['dashed', 'Dashed ring'], ['dotted', 'Dotted ring'], ['glow', 'Soft glow'], ['dots', 'Orbiting dots'], ['sparkles', 'Sparkles'], ['ripple', 'Ripple waves'],
+            ['lightning', 'Lightning (Lab)'], ['hearts', 'Floating hearts (Lab)'], ['stars', 'Rising stars (Lab)'], ['snow', 'Snowfall (Lab)'], ['shimmer', 'Shimmer sweep (Lab)'], ['glitch', 'Glitch (Lab)']];
+        var MAXC = { ring: 1, dashed: 1, dotted: 1, ripple: 1, glow: 2, gradient: 5, dots: 5, sparkles: 5, lightning: 3, hearts: 5, stars: 5, snow: 3, shimmer: 2, glitch: 3 };
         var SPIN = ['width', 'gap', 'opacity', 'speed', 'dir', 'pulse', 'pulseSpeed', 'flicker', 'delay'];
         var SHOW = {
             ring: ['width', 'gap', 'opacity', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
@@ -547,10 +553,24 @@
             glow: ['width', 'blur', 'gap', 'opacity', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
             dots: ['size', 'count', 'gap', 'opacity', 'speed', 'dir', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
             sparkles: ['size', 'count', 'gap', 'opacity', 'speed', 'dir', 'pulseSpeed', 'flicker', 'delay'],
-            ripple: ['width', 'gap', 'opacity', 'speed', 'size', 'count', 'delay']
+            ripple: ['width', 'gap', 'opacity', 'speed', 'size', 'count', 'delay'],
+            lightning: ['size', 'count', 'gap', 'opacity', 'speed', 'delay'],
+            hearts: ['size', 'count', 'gap', 'opacity', 'speed', 'blur', 'delay'],
+            stars: ['size', 'count', 'gap', 'opacity', 'speed', 'blur', 'delay'],
+            snow: ['size', 'count', 'gap', 'opacity', 'speed', 'blur', 'delay'],
+            shimmer: ['opacity', 'arc', 'speed', 'delay'],
+            glitch: ['width', 'gap', 'opacity', 'speed', 'flicker', 'delay']
         };
-        var CTL = { width: ['Thickness', 0.5], gap: ['Gap from avatar', 0.5], opacity: ['Opacity', 1], speed: ['Seconds per turn (0 = still)', 0.5], pulse: ['Pulse strength', 1], pulseSpeed: ['Pulse seconds', 0.1], flicker: ['Flicker', 1], count: ['Count', 1], size: ['Size', 0.5], arc: ['Gradient length (%)', 1], blur: ['Glow size', 1], delay: ['Start delay (seconds)', 0.1] };
-        var LBL = { glow: { width: 'Glow spread' }, sparkles: { pulseSpeed: 'Twinkle seconds' }, ripple: { speed: 'Seconds per wave', size: 'Spread', count: 'Waves (1 to 3)' } };
+        // every effect can also cycle through all the colors
+        Object.keys(SHOW).forEach(function (k) { SHOW[k] = SHOW[k].concat(['hue']); });
+        var CTL = { width: ['Thickness', 0.5], gap: ['Gap from avatar', 0.5], opacity: ['Opacity', 1], speed: ['Seconds per turn (0 = still)', 0.5], pulse: ['Pulse strength', 1], pulseSpeed: ['Pulse seconds', 0.1], flicker: ['Flicker', 1], count: ['Count', 1], size: ['Size', 0.5], arc: ['Gradient length (%)', 1], blur: ['Glow size', 1], delay: ['Start delay (seconds)', 0.1], hue: ['Rainbow color cycle (seconds, 0 = off)', 1] };
+        var LBL = { glow: { width: 'Glow spread' }, sparkles: { pulseSpeed: 'Twinkle seconds' }, ripple: { speed: 'Seconds per wave', size: 'Spread', count: 'Waves (1 to 3)' },
+            lightning: { size: 'Bolt size', gap: 'Distance from avatar', speed: 'Seconds between flashes' },
+            hearts: { size: 'Heart size', speed: 'Seconds per drift', blur: 'Drift distance' },
+            stars: { size: 'Star size', speed: 'Seconds per drift', blur: 'Drift distance' },
+            snow: { size: 'Flake size', speed: 'Seconds per fall', blur: 'Fall distance' },
+            shimmer: { arc: 'Shine width (%)', speed: 'Seconds per sweep' },
+            glitch: { width: 'Ring thickness', speed: 'Seconds per glitch burst' } };
 
         function hsl(h, s, l) {
             s /= 100; l /= 100;
@@ -560,32 +580,117 @@
         }
         function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
         function rnd(a, b, step) { var v = a + Math.random() * (b - a); return step ? Math.round(v / step) * step : v; }
+        var LABPOOL = ['lightning', 'hearts', 'stars', 'snow', 'shimmer'];
+        var LABTUNE = {
+            lightning: function () { return { size: rnd(4, 8, 0.5), count: Math.round(rnd(3, 6)), gap: rnd(2, 5, 0.5), speed: rnd(2, 4, 0.5) }; },
+            hearts: function () { return { size: rnd(4, 7, 0.5), count: Math.round(rnd(4, 8)), gap: rnd(1, 4, 0.5), speed: rnd(2.5, 5, 0.5), blur: rnd(10, 18, 1) }; },
+            stars: function () { return { size: rnd(4, 7, 0.5), count: Math.round(rnd(4, 8)), gap: rnd(1, 4, 0.5), speed: rnd(2.5, 5, 0.5), blur: rnd(10, 18, 1) }; },
+            snow: function () { return { size: rnd(2, 4, 0.5), count: Math.round(rnd(6, 10)), gap: rnd(0, 3, 0.5), speed: rnd(3, 6, 0.5), blur: rnd(12, 20, 1) }; },
+            shimmer: function () { return { opacity: rnd(35, 60, 5), speed: rnd(3, 6, 0.5), arc: pick([40, 50, 60]) }; }
+        };
         function randomFrame() {
             var h = Math.floor(Math.random() * 360), n = 1 + Math.floor(Math.random() * 3), layers = [];
             var pal = [hsl(h, 85, 60), hsl((h + 40 + Math.random() * 60) % 360, 85, 62), hsl((h + 180) % 360, 80, 65)];
             var shape = Math.random() < 0.7 ? 'circle' : pick(['squircle', 'rounded', 'petal', 'blob']);
             for (var i = 0; i < n; i++) {
-                var type = i === 0 ? pick(['gradient', 'gradient', 'ring', 'dashed', 'dotted']) : pick(['gradient', 'glow', 'dots', 'sparkles', 'ripple', 'ring', 'dotted']);
-                var cols = type === 'glow' ? pal.slice(0, 2) : (type === 'gradient' || type === 'dots' || type === 'sparkles') ? pal.slice(0, 2 + Math.floor(Math.random() * 2)) : [pal[i % 3]];
+                var type = i === 0 ? pick(['gradient', 'gradient', 'ring', 'dashed', 'dotted']) : pick(['gradient', 'glow', 'dots', 'sparkles', 'ripple', 'ring', 'dotted'].concat(layers.some(function (x) { return LABTUNE[x.type]; }) ? [] : LABPOOL));
+                var cols = type === 'glow' ? pal.slice(0, 2) : (type === 'gradient' || type === 'dots' || type === 'sparkles') ? pal.slice(0, 2 + Math.floor(Math.random() * 2)) : (type === 'lightning' || type === 'hearts' || type === 'stars' || type === 'snow') ? pal.slice(0, 3) : type === 'shimmer' ? ['#ffffff'] : [pal[i % 3]];
                 layers.push({ type: type, colors: cols, width: rnd(2, 7, 0.5), gap: rnd(0, 8, 0.5) + i * 1.5, opacity: rnd(60, 100, 5), speed: rnd(2, 12, 0.5), dir: Math.random() < 0.5 ? 1 : -1,
-                    pulse: Math.random() < 0.3 ? rnd(10, 40, 5) : 0, pulseSpeed: rnd(1.2, 3.5, 0.1), flicker: Math.random() < 0.2 ? rnd(20, 60, 5) : 0, count: Math.round(rnd(4, 10)), size: rnd(3, 8, 0.5), arc: pick([40, 55, 70, 100]), blur: rnd(6, 18, 1), delay: 0 });
+                    pulse: Math.random() < 0.3 ? rnd(10, 40, 5) : 0, pulseSpeed: rnd(1.2, 3.5, 0.1), flicker: Math.random() < 0.2 ? rnd(20, 60, 5) : 0, count: Math.round(rnd(4, 10)), size: rnd(3, 8, 0.5), arc: pick([40, 55, 70, 100]), blur: rnd(6, 18, 1), delay: 0, hue: 0, blend: 'normal' });
+                if (LABTUNE[type]) Object.assign(layers[layers.length - 1], LABTUNE[type]());
             }
             return window.SpecFrames.clean({ v: 2, shape: shape, avatarShape: shape !== 'circle' && Math.random() < 0.5, layers: layers });
         }
         function newLayer() { return window.SpecFrames.clean({ v: 2, layers: [{ type: 'ring', colors: ['#38bdf8'] }] }).layers[0]; }
         function typeName(t) { return (LT.filter(function (x) { return x[0] === t; })[0] || [0, t])[1]; }
 
+        /* image frames: upload to the public "store-frames" bucket */
+        function imageSize(file) {
+            return new Promise(function (res, rej) {
+                var u = URL.createObjectURL(file), im = new Image();
+                im.onload = function () { URL.revokeObjectURL(u); res({ w: im.naturalWidth, h: im.naturalHeight }); };
+                im.onerror = function () { URL.revokeObjectURL(u); rej(new Error('That file is not a readable image.')); };
+                im.src = u;
+            });
+        }
+        async function uploadFrameImage(file) {
+            var EXT = { 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }, ext = EXT[file.type];
+            if (!ext) throw new Error('Use a PNG, GIF or WebP image.');
+            if (file.size > 3 * 1024 * 1024) throw new Error('That file is over 3 MB. Shrink it, or lower the frame rate or size of the GIF.');
+            var d = await imageSize(file);
+            if (d.w < 64 || d.h < 64) throw new Error('The image is too small. Use at least 64 x 64 pixels (512 x 512 is ideal).');
+            if (d.w > 1024 || d.h > 1024) throw new Error('The image is too big. Use at most 1024 x 1024 pixels (512 x 512 is ideal).');
+            var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+            var path = 'frames/' + id + '.' + ext;
+            var r = await sb.storage.from('store-frames').upload(path, file, { contentType: file.type, cacheControl: '31536000', upsert: false });
+            if (r.error) throw r.error;
+            return sb.storage.from('store-frames').getPublicUrl(path).data.publicUrl;
+        }
+        function uploadMsg(e) {
+            var m = String((e && e.message) || e);
+            if (/bucket not found/i.test(m)) return 'The store-frames bucket does not exist yet. Run supabase-store-frames-images.sql in Supabase.';
+            if (/row-level security|not authorized|unauthorized|permission/i.test(m)) return 'Upload blocked. Run supabase-store-frames-images.sql and make sure this account is a store admin.';
+            if (/mime|not supported|invalid/i.test(m) && /type|mime/i.test(m)) return 'The server only accepts PNG, GIF and WebP.';
+            return m;
+        }
+        var IMGCTL = [['scale', 'Size (1 = same as the avatar)', 0.5, 3, 0.05], ['x', 'Move left / right (%)', -50, 50, 1], ['y', 'Move up / down (%)', -50, 50, 1], ['rot', 'Rotate (degrees)', -180, 180, 1]];
+
         function openDesigner(initial, done) {
             var SF = window.SpecFrames, dlg = $('dlgFrame'), body = $('frameBody');
             if (!SF) { toast('avatar-frames.js is missing from this page.', true); return; }
-            var D = { f: JSON.parse(JSON.stringify(SF.toV2(initial) || SF.TEMPLATES[0].frame)), sel: 0, light: false };
+            var D = { f: JSON.parse(JSON.stringify(SF.toV2(initial) || SF.TEMPLATES[0].frame)), sel: 0, light: false, paused: false, t: 0 };
             var avs = [];
-            function paint() { avs.forEach(function (a) { SF.apply(a, D.f); }); }
+            function syncAnim() {
+                if (!D.paused) return;
+                avs.forEach(function (a) { if (a.getAnimations) a.getAnimations({ subtree: true }).forEach(function (an) { try { an.pause(); an.currentTime = D.t * 1000; } catch (e) { /* ignore */ } }); });
+            }
+            function paint() { avs.forEach(function (a) { SF.apply(a, D.f); }); syncAnim(); }
+
+            function imageCard() {
+                var im = D.f.image, card = el('div', { class: 'fd-ctl', style: 'margin-bottom:12px' });
+                var file = el('input', { type: 'file', accept: 'image/png,image/gif,image/webp', hidden: true });
+                var label = im ? 'Replace image' : 'Upload image (PNG, GIF, WebP)';
+                var up = el('button', { type: 'button', class: 'sm-btn sm-btn--sm' + (im ? '' : ' sm-btn--primary'), text: label, onclick: function () { file.click(); } });
+                file.onchange = async function () {
+                    var f = file.files && file.files[0]; file.value = '';
+                    if (!f) return;
+                    up.disabled = true; up.textContent = 'Uploading...';
+                    try {
+                        var src = await uploadFrameImage(f);
+                        var keep = D.f.image || { scale: 1.35, x: 0, y: 0, rot: 0 };
+                        var next = JSON.parse(JSON.stringify(D.f));
+                        next.v = 3; next.image = { src: src, scale: keep.scale, x: keep.x, y: keep.y, rot: keep.rot };
+                        if (!SF.clean(next)) throw new Error('That image address is not on this project storage. Check SUPABASE_URL in supabase-config.js.');
+                        D.f = next; toast('Image uploaded'); render();
+                    } catch (e) { toast(uploadMsg(e), true); up.disabled = false; up.textContent = label; }
+                };
+                var top = el('div', { class: 'fd-imgrow' });
+                if (im) {
+                    var th = el('img', { class: 'fd-thumb', alt: '' }); th.src = im.src; top.appendChild(th);
+                } else top.appendChild(el('div', { class: 'fd-empty', text: 'No image' }));
+                var side = el('div', null,
+                    el('div', { class: 'sm-note', style: 'margin-bottom:8px', text: 'Transparent PNG, GIF or WebP. Square works best (512 x 512), max 3 MB. Keep the middle see-through so the avatar shows. Big or long GIFs make chats heavy.' }),
+                    el('div', { class: 'fd-bar', style: 'margin:0' }, up,
+                        im ? el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Remove image', onclick: function () {
+                            delete D.f.image; D.f.v = 2; if (!D.f.layers.length) D.f.layers.push(newLayer()); D.sel = 0; render();
+                        } }) : null),
+                    file);
+                top.appendChild(side);
+                card.appendChild(el('div', { class: 'fd-s fd-wide' }, el('label', null, 'Image overlay'), top));
+                if (im) IMGCTL.forEach(function (c) {
+                    var k = c[0], out = el('output', { text: String(im[k]) });
+                    var rng = el('input', { type: 'range', min: String(c[2]), max: String(c[3]), step: String(c[4]), value: String(im[k]), 'aria-label': c[1] });
+                    rng.oninput = function () { D.f.image[k] = Number(rng.value); out.textContent = rng.value; paint(); };
+                    card.appendChild(el('div', { class: 'fd-s' }, el('label', null, c[1], out), rng));
+                });
+                return card;
+            }
 
             function render() {
                 body.textContent = '';
                 avs = [];
                 if (D.sel >= D.f.layers.length) D.sel = D.f.layers.length - 1;
+                if (D.sel < 0) D.sel = 0;
                 var l = D.f.layers[D.sel], wrap = el('div', { class: 'fd' });
                 wrap.appendChild(el('h3', { text: 'Frame designer' }));
 
@@ -596,6 +701,19 @@
                 });
                 wrap.appendChild(stage);
 
+                var pb = el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.paused ? 'Play' : 'Pause' });
+                var tl = el('input', { type: 'range', min: '0', max: '12', step: '0.05', value: String(D.t), 'aria-label': 'Scrub the animation timeline' });
+                var tlOut = el('output', { text: D.t.toFixed(2) + 's' });
+                pb.onclick = function () {
+                    if (!D.paused) {
+                        var an = avs[0] && avs[0].getAnimations ? avs[0].getAnimations({ subtree: true })[0] : null;
+                        D.t = an && an.currentTime != null ? (Number(an.currentTime) / 1000) % 12 : 0; D.paused = true;
+                    } else D.paused = false;
+                    render();
+                };
+                tl.oninput = function () { D.t = Number(tl.value); tlOut.textContent = D.t.toFixed(2) + 's'; if (!D.paused) { D.paused = true; pb.textContent = 'Play'; } syncAnim(); };
+                wrap.appendChild(el('div', { class: 'fd-bar fd-tl' }, el('span', { class: 'sm-note', text: 'Timeline (CSS effects; GIFs keep playing)' }), pb, tl, tlOut));
+
                 var tpl = el('select', { 'aria-label': 'Template' }, el('option', { value: '', text: 'Start from a template' }), SF.TEMPLATES.map(function (t, i) { return el('option', { value: String(i), text: t.name }); }));
                 tpl.onchange = function () { if (tpl.value === '') return; D.f = JSON.parse(JSON.stringify(SF.TEMPLATES[Number(tpl.value)].frame)); D.sel = 0; render(); };
                 var shape = el('select', { 'aria-label': 'Frame shape' }, SF.SHAPES.map(function (s) { return el('option', { value: s, text: 'Shape: ' + s }); }));
@@ -604,7 +722,7 @@
                 wrap.appendChild(el('div', { class: 'fd-bar' }, tpl, shape,
                     el('label', { class: 'sm-check' }, follow, 'Avatar follows shape'),
                     el('span', { class: 'fd-sep' }),
-                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Randomize', onclick: function () { D.f = randomFrame() || D.f; D.sel = 0; render(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Randomize', onclick: function () { var keep = D.f.image, nf = randomFrame(); if (nf) { D.f = nf; if (keep) { D.f.v = 3; D.f.image = keep; } } D.sel = 0; render(); } }),
                     el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.light ? 'Dark preview' : 'Light preview', onclick: function () { D.light = !D.light; render(); } }),
                     el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Copy JSON', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(JSON.stringify(SF.clean(D.f))); toast('Frame JSON copied'); } }),
                     el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Paste JSON', onclick: function () {
@@ -612,21 +730,27 @@
                         try { var f = SF.toV2(JSON.parse(t)); if (!f) throw new Error('bad'); D.f = f; D.sel = 0; render(); } catch (e) { toast('That is not a valid frame.', true); }
                     } })));
 
+                wrap.appendChild(imageCard());
+
                 var tabs = el('div', { class: 'fd-tabs' });
                 D.f.layers.forEach(function (ly, i) { tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm' + (i === D.sel ? ' is-on' : ''), text: (i + 1) + '. ' + typeName(ly.type), onclick: function () { D.sel = i; render(); } })); });
                 if (D.f.layers.length < 4) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Add layer', onclick: function () { D.f.layers.push(newLayer()); D.sel = D.f.layers.length - 1; render(); } }));
                 tabs.appendChild(el('span', { class: 'fd-sep' }));
-                if (D.f.layers.length < 4) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Duplicate', onclick: function () { D.f.layers.splice(D.sel + 1, 0, JSON.parse(JSON.stringify(l))); D.sel++; render(); } }));
-                tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Up', disabled: D.sel === 0, onclick: function () { var a = D.f.layers; a.splice(D.sel - 1, 0, a.splice(D.sel, 1)[0]); D.sel--; render(); } }));
-                tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Down', disabled: D.sel === D.f.layers.length - 1, onclick: function () { var a = D.f.layers; a.splice(D.sel + 1, 0, a.splice(D.sel, 1)[0]); D.sel++; render(); } }));
-                tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete layer', disabled: D.f.layers.length < 2, onclick: function () { D.f.layers.splice(D.sel, 1); render(); } }));
+                if (l && D.f.layers.length < 4) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Duplicate', onclick: function () { D.f.layers.splice(D.sel + 1, 0, JSON.parse(JSON.stringify(l))); D.sel++; render(); } }));
+                if (l) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Up', disabled: D.sel === 0, onclick: function () { var a = D.f.layers; a.splice(D.sel - 1, 0, a.splice(D.sel, 1)[0]); D.sel--; render(); } }));
+                if (l) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Down', disabled: D.sel === D.f.layers.length - 1, onclick: function () { var a = D.f.layers; a.splice(D.sel + 1, 0, a.splice(D.sel, 1)[0]); D.sel++; render(); } }));
+                if (l) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete layer', disabled: D.f.layers.length < (D.f.image ? 1 : 2), onclick: function () { D.f.layers.splice(D.sel, 1); render(); } }));
                 wrap.appendChild(tabs);
 
+                if (l) {
                 var ctl = el('div', { class: 'fd-ctl' });
                 var type = el('select', { 'aria-label': 'Layer type' }, LT.map(function (t) { return el('option', { value: t[0], text: t[1] }); }));
                 type.value = l.type;
                 type.onchange = function () { l.type = type.value; l.colors = l.colors.slice(0, MAXC[l.type]); render(); };
                 ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Layer type'), type));
+                var blend = el('select', { 'aria-label': 'Blend mode' }, (SF.BLENDS || ['normal']).map(function (b) { return el('option', { value: b, text: b }); }));
+                blend.value = l.blend || 'normal'; blend.onchange = function () { l.blend = blend.value; paint(); };
+                ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Blend with the other layers'), blend));
 
                 var cr = el('div', { class: 'fd-colors' });
                 l.colors.forEach(function (col, i) {
@@ -650,6 +774,7 @@
                     ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, (LBL[l.type] && LBL[l.type][k]) || CTL[k][0], out), rng));
                 });
                 wrap.appendChild(ctl);
+                } else wrap.appendChild(el('p', { class: 'sm-note', text: 'No CSS layers: only the image shows. Add a layer for a ring or glow around it.' }));
 
                 wrap.appendChild(el('div', { class: 'sm-dlg-foot' },
                     el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { dlg.close(); } }),

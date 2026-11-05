@@ -47,9 +47,10 @@
         var css = files.filter(function (f) { return f.lang === 'css'; }).map(function (f) { return f.code; }).join('\n');
         var html = files.filter(function (f) { return f.lang === 'html'; }).map(function (f) { return f.code.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?\s*refresh[^>]*>/gi, ''); }).join('\n');
         var js = files.filter(function (f) { return f.lang === 'pagejs'; });
+        var libScripts = (assets.libs || []).map(function (l) { return '<script>' + String(l.code).replace(/<\/script/gi, '<\\/script') + '<\/script>'; });      // libraries run before the page's own scripts
         var prelude = '<script>window.studioAsset=function(n){var a=' + JSON.stringify(assets.texts).replace(/</g, '\\u003c') + ';return Object.prototype.hasOwnProperty.call(a,n)?a[n]:null};<\/script>';
         var parts = ['<!DOCTYPE html>', '<html><head><meta charset="UTF-8">', '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">',
-            '<script>(' + bridge.toString() + ')("__STUDIO_TOKEN__")<\/script>', prelude, '<style>', css, '</style></head><body>', html], map = [], line = 1;
+            '<script>(' + bridge.toString() + ')("__STUDIO_TOKEN__")<\/script>', prelude].concat(libScripts, ['<style>', css, '</style></head><body>', html]), map = [], line = 1;
         parts.forEach(function (p) { line += p.split('\n').length; });
         js.forEach(function (f) { parts.push('<script>'); line++; map.push({ id: f.id, label: f.label, start: line, count: f.code.split('\n').length }); parts.push(f.code); line += f.code.split('\n').length; parts.push('<\/script>'); line++; });
         parts.push('</body></html>');
@@ -117,6 +118,12 @@
                 var refs = StudioAssets.refs(a.files);
                 if (refs.any) { status('Loading assets...'); var ld = await StudioAssets.load(refs); if (seq !== st.seq) return; ld.notes.forEach(function (m) { G.log('warn', 'preview', m); }); a = P.assemble(g, ld); info(a); }
             } catch (e) { if (seq !== st.seq) return; G.log('warn', 'preview', 'Assets could not be loaded: ' + String((e && e.message) || e).slice(0, 200)); }
+        }
+        if (window.StudioLibs && StudioLibs.enabled().length) {                         // vetted libraries (Dependencies page) are put into the page too
+            try {
+                var lb = await StudioLibs.load(); if (seq !== st.seq) return; lb.notes.forEach(function (m) { G.log('warn', 'preview', m); });
+                if (lb.libs.length) { a = P.assemble(g, { images: (ld && ld.images) || {}, texts: (ld && ld.texts) || {}, libs: lb.libs }); info(a); }
+            } catch (e) { if (seq !== st.seq) return; G.log('warn', 'preview', 'Libraries could not be loaded: ' + String((e && e.message) || e).slice(0, 200)); }
         }
         if (seq !== st.seq) return;
         if (a.size > MAX_DOC) { G.log('error', 'preview', 'The page is too large to preview (' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, max ' + (MAX_DOC / (1024 * 1024)).toFixed(2) + ' MB)'); return; }
