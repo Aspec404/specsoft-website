@@ -2377,3 +2377,19 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
     -webkit-touch-callout: none;
     user-drag: none;
 }
+
+/* ---- emoji picker: category tabs, recently used, all Windows 11 emoji ---- */
+.ch-emoji-search { position: sticky; top: -10px; z-index: 3; margin: -10px -12px 2px; padding: 10px 12px 4px; background: var(--bg-card); }
+.ch-emoji-search .ch-field { margin-bottom: 6px; }
+.ch-emoji-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; border-bottom: 1px solid var(--border-subtle); }
+.ch-emoji-tabs::-webkit-scrollbar { display: none; }
+.ch-emoji-tab { flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 30px; padding: 0; background: none; border: 0; border-radius: 8px; cursor: pointer; }
+.ch-emoji-tab:hover, .ch-emoji-tab:focus-visible { background: var(--accent-dim); }
+.ch-emoji-tabico { display: grid; place-items: center; width: 20px; height: 20px; font-size: 16px; line-height: 1; opacity: 0.85; }
+.ch-emoji-tab:hover .ch-emoji-tabico { opacity: 1; }
+.ch-emoji-tabico .ch-fl-img { width: 20px; height: 20px; }
+.ch-emoji-cat { scroll-margin-top: 74px; }
+.ch-emoji-cat--row { display: flex; align-items: center; justify-content: space-between; }
+.ch-emoji-clear { padding: 2px 8px; background: none; border: 0; border-radius: 6px; color: var(--text-secondary); font: inherit; font-size: 11px; letter-spacing: 0; cursor: pointer; }
+.ch-emoji-clear:hover { color: var(--text-primary); background: var(--accent-dim); }
+@media (prefers-reduced-motion: reduce) { .ch-emoji-tab { transition: none; } }

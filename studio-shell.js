@@ -57,7 +57,7 @@
     });
 
     /* ---- Explorer tree: branches and nodes of the open project ---- */
-    function ext(n) { return n.type === 'database' ? '.sql' : n.type === 'script' ? (n.lang === 'html' ? '.html' : n.lang === 'css' ? '.css' : n.lang === 'pagejs' ? '.page.js' : '.js') : ''; }
+    function ext(n) { return n.type === 'database' ? '.sql' : n.type === 'script' ? (n.lang === 'html' ? '.html' : n.lang === 'css' ? '.css' : n.lang === 'pagejs' ? '.page.js' : n.lang === 'json' ? '.json' : '.js') : ''; }
     function treeList(list) {
         var ul = el('ul', 'tr');
         list.forEach(function (n) {
@@ -80,16 +80,22 @@
     G.openCode = function (id) { codeSel = id; S.setView('code'); };
 
     /* ---- Code Editor view ---- */
-    function codeExt(c) { return c.type === 'database' ? '.sql' : c.lang === 'html' ? '.html' : c.lang === 'css' ? '.css' : c.lang === 'pagejs' ? '.page.js' : '.js'; }
+    function codeExt(c) { return c.type === 'database' ? '.sql' : c.lang === 'html' ? '.html' : c.lang === 'css' ? '.css' : c.lang === 'pagejs' ? '.page.js' : c.lang === 'json' ? '.json' : '.js'; }
     function runCode(id) {                                // Run (or Ctrl+Enter) in the Code Editor: JavaScript and SQL run alone and print to the Console; page files open the Preview
         var n = G.node(id); if (!n) return;
         if (n.type === 'database' || (n.type === 'script' && n.config.lang === 'javascript')) { if (window.StudioSTools && StudioSTools.runFile) StudioSTools.runFile(id); else G.log('warn', 'run', 'Run needs studio-stools.js'); }
+        else if (n.type === 'script' && n.config.lang === 'json') {      // JSON: check it here and print the parsed value to the Console
+            if (!String(n.config.code || '').trim()) { G.log('warn', 'script', n.label + ' has no JSON', id); return; }
+            var jr = G.parseJson(n.config.code);
+            if (!jr.ok) { G.log('error', 'script', n.label + ' is not valid JSON: ' + jr.error, id); return; }
+            var js = JSON.stringify(jr.value); G.log('ok', 'script', n.label + ' is valid JSON: ' + (js.length > 2000 ? js.slice(0, 2000) + ' ...' : js), id);
+        }
         else { S.setView('preview'); if (window.StudioPreview) StudioPreview.run(); }
     }
     function buildCode() {
         var root = $('stCode'); ui.list = el('div', 'cv-files'); ui.edit = el('div', 'cv-edit');
         var head = el('div', 'cv-new'); head.appendChild(el('span', '', 'New'));
-        [['js', 'JS'], ['html', 'HTML'], ['css', 'CSS'], ['sql', 'SQL']].forEach(function (k) {
+        [['js', 'JS'], ['html', 'HTML'], ['css', 'CSS'], ['json', 'JSON'], ['sql', 'SQL']].forEach(function (k) {
             var b = el('button', 'st-btn', k[1]); b.type = 'button'; b.title = 'New ' + k[1] + ' file';
             b.addEventListener('click', function () { var id = G.createCode(k[0]); if (!id) { G.log('warn', 'studio', 'Open a project first (or the node limit was reached)'); return; } codeSel = id; renderCodeList(); renderEditor(); });
             head.appendChild(b);
@@ -115,7 +121,7 @@
         var db = n.type === 'database', lang = db ? 'sql' : n.config.lang, bar = el('div', 'cv-bar');
         bar.appendChild(el('strong', '', n.label + codeExt({ type: n.type, lang: n.config.lang })));
         if (!db) {
-            var sel = el('select'); sel.setAttribute('aria-label', 'Language'); ['javascript', 'html', 'css', 'pagejs'].forEach(function (x) { var o = el('option', '', x === 'pagejs' ? 'javascript (page)' : x); o.value = x; if (x === lang) o.selected = true; sel.appendChild(o); });
+            var sel = el('select'); sel.setAttribute('aria-label', 'Language'); ['javascript', 'html', 'css', 'pagejs', 'json'].forEach(function (x) { var o = el('option', '', x === 'pagejs' ? 'javascript (page)' : x); o.value = x; if (x === lang) o.selected = true; sel.appendChild(o); });
             sel.addEventListener('change', function () { G.setLang(n.id, sel.value); renderCodeList(); renderEditor(); }); bar.appendChild(sel);
         }
         if (lang === 'javascript') {
@@ -123,7 +129,7 @@
             tl.addEventListener('change', function () { var v = +tl.value; n.config.timeout = isFinite(v) ? Math.min(30000, Math.max(100, Math.round(v))) : 5000; tl.value = n.config.timeout; G.onChange(); });
             var l = el('label', 'cv-lim'); l.appendChild(el('span', '', 'Time limit (ms)')); l.appendChild(tl); bar.appendChild(l);
         }
-        var runB = el('button', 'st-btn', lang === 'javascript' || db ? 'Run' : 'Run in Preview'); runB.type = 'button'; runB.title = (lang === 'javascript' || db ? 'Run this file alone and list its output in the Console' : 'Open the Preview and run it') + ' (Ctrl+Enter)';
+        var runB = el('button', 'st-btn', lang === 'javascript' || db ? 'Run' : lang === 'json' ? 'Check JSON' : 'Run in Preview'); runB.type = 'button'; runB.title = (lang === 'javascript' || db ? 'Run this file alone and list its output in the Console' : lang === 'json' ? 'Check that this is valid JSON and print it in the Console' : 'Open the Preview and run it') + ' (Ctrl+Enter)';
         runB.addEventListener('click', function () { runCode(n.id); }); bar.appendChild(runB);
         var sp = el('button', 'st-btn', split ? 'Hide live preview' : 'Live preview'); sp.type = 'button'; sp.title = 'Show the Preview next to the editor (turn on Auto-refresh to see changes as you type)';
         sp.addEventListener('click', function () { split = !split; $('stCode').classList.toggle('split', split); $('cvPv').hidden = !split; sp.textContent = split ? 'Hide live preview' : 'Live preview'; if (split) StudioPreview.mount($('cvPv')); else StudioPreview.stop(true); });
@@ -132,6 +138,7 @@
         ui.edit.appendChild(bar);
         var note = db ? 'Runs against the project database. Changes are kept only when the run finishes successfully.'
             : lang === 'pagejs' ? 'Runs INSIDE the Preview page, not in the graph. Use console.log and normal browser code. No network access.'
+            : lang === 'json' ? 'Plain data, never run as code. When a run reaches this file, the parsed value becomes its output for the nodes after it (100 KB max). Invalid JSON stops the run with the line number.'
             : lang === 'javascript' ? 'Runs in a sandbox. Use await, return a value, and studio.log, studio.sql, studio.value, studio.emit and more (see Documentation).'
             : 'HTML and CSS files output their content when a run reaches them. The Preview (Phase 6) will assemble them into a page.';
         ui.edit.appendChild(el('p', 'cv-note', note));
@@ -158,7 +165,7 @@
         ['Triggers', ['A Trigger node has no input. Wire it to what should happen each time it fires, and use Validate to check the wiring.', 'Timer: fires after a delay or every N ms (50 ms minimum). On Event: fires each time studio.emit("name") or a timeline marker fires that event. On Error: when a node in the same graph fails, the run keeps going, the nodes after that node are skipped, and the error (message, node) goes to the trigger.', 'While a trigger is armed the run keeps listening until you press Stop. Each trigger stops itself after its Max fires (default 20, up to 200). Scripts after a trigger read its details from input.<TriggerLabel> (trigger, count, plus event, or message and node).', 'Stop while the run is only waiting for triggers (nothing is running) counts as finished, so database changes are kept. Stop while nodes are running cancels the run.']],
         ['Flow nodes', ['Flow nodes sit in the middle of a graph and decide what runs after them. The nodes wired after a Counter, Loop, Sequence or Randomizer belong to it, so feed them only from that node (Validate checks this).', 'Counter: counts how often it is reached (also across trigger fires) and passes on when its rule says so. Loop: runs the nodes after it N times, one run after the other (max 100). Sequence: runs the nodes after it one at a time, top to bottom on the canvas. Randomizer: picks ONE of the nodes after it by weight (0 = never).', 'Reset Node sets counters back to their start value. Spawn Node starts extra copies of a branch (shares the 25 spawns per run limit). Scripts after a flow node read input.<FlowLabel> (count, index, chosen, node).']],
         ['World', ['Give a node a body (Properties, Has a body): its centre X and Y, a width and height, a role and an optional tag. Roles: Block (solid), Activator, Item (something to pick up). These numbers are separate from where the node sits on the canvas. The Stage tab shows the bodies live while a run is going.', 'Move and Fade are Flow nodes. They tween one body, or a whole group by tag, on the run clock, so Pause freezes them. Move can stop at the first touch. The path is checked in small steps, so a fast move cannot skip through a body.', 'Collision trigger: fires when the chosen body starts touching another body (optionally with a tag), or stops touching. "Only after touching ALL" waits until it has touched every body with that tag. Pickup trigger: the same, but the touched Item is removed. Bodies that already overlap when a run starts fire nothing until they separate and meet again. Reset Node can put bodies back at their start. Limits: 100 bodies, 100 movements at once.']],
-        ['Assets', ['Assets page: upload images (png, jpg, gif, webp, up to 5 MB each) and text files (txt, json, csv, md, js, css, html) for this project. Limits: 60 files and 20 MB per project. They are private to you.', 'In HTML, CSS and Page JS files write asset:name.png wherever an image address goes. In Page JS, studioAsset("data.json") returns a text asset as a string. The Preview loads only the assets your files mention (images up to 2 MB, text up to 500 KB each). Assets are not part of published releases yet.']],
+        ['Assets', ['Assets page: upload images (png, jpg, gif, webp, up to 5 MB each) and text files (txt, json, csv, md, js, css, html) for this project. Limits: 60 files and 20 MB per project. They are private to you.', 'In HTML, CSS and Page JS files write asset:name.png wherever an image address goes. In Page JS, studioAsset("data.json") returns a text asset as a string. The Preview loads only the assets your files mention (images up to 2 MB, text up to 1 MB each). Assets are not part of published releases yet.']],
         ['Signal range and reroutes', ['Project Settings has a Signal range in px (0 = off). When it is set, a wire longer than the range, measured from the output dot to the input dot, carries no signal: the node at its end, and anything reachable only through it, will not run. Those wires and nodes are drawn in red and Validate lists them.', 'A reroute node is a wire joint: put reroute nodes between far-apart nodes so every hop is within range. A reroute passes the signal on instantly, and scripts after it still read the inputs from before it.']],
         ['Limits', ['200 nodes per graph, 5 branch levels, 500 node runs per run, 25 spawns per run.', 'Scripts: 200,000 characters per file (a paste that is too big is offered a split, never cut silently), 30 s max, 100 KB output. Database: 10 tables, 2,000 rows per table, 200 KB. Project: 500 KB to save, 450 KB to publish a copy.']]
     ];

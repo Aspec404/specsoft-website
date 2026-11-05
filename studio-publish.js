@@ -160,7 +160,7 @@
     }
 
     /* =================== PUBLISH =================== */
-    function ext(n) { var c = n.config || {}; return n.type === 'database' ? '.sql' : c.lang === 'html' ? '.html' : c.lang === 'css' ? '.css' : c.lang === 'pagejs' ? '.page.js' : '.js'; }
+    function ext(n) { var c = n.config || {}; return n.type === 'database' ? '.sql' : c.lang === 'html' ? '.html' : c.lang === 'css' ? '.css' : c.lang === 'pagejs' ? '.page.js' : c.lang === 'json' ? '.json' : '.js'; }
     X.collectFiles = function (g) {                      // for "Source code" releases: every code file, as plain text
         var out = [], total = 0;
         (function walk(c, path) { ((c && c.nodes) || []).forEach(function (n) {

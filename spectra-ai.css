@@ -318,3 +318,49 @@
 .sa-math .katex{font-size:1.08em}
 .sa-math .katex-display{margin:0}
 .sa-math.pending,.sa-math.bad{font-family:var(--font-mono);font-size:.92em;opacity:.7}
+
+/* ---- v5: LaTeX sizing (bigger on PC) and hold-to-copy ---- */
+.sa-math{-webkit-touch-callout:none;cursor:copy;border-radius:8px;transition:background .15s,box-shadow .15s}
+.sa-math:hover{background:var(--sa-acc-dim,var(--accent-dim))}
+.sa-math.copied{background:var(--sa-acc-dim,var(--accent-dim));box-shadow:0 0 0 1px var(--sa-acc,var(--accent))}
+@media (hover:none){.sa-math{user-select:none;-webkit-user-select:none}}
+@media (min-width:900px){
+  .sa-math .katex{font-size:1.22em}
+  .sa-math.d{padding:6px 0}
+  .sa-math.d .katex{font-size:1.5em}
+}
+@media (min-width:1500px){
+  .sa-math .katex{font-size:1.3em}
+  .sa-math.d .katex{font-size:1.65em}
+}
+
+/* ---- v6: chat formatting (headings, quotes, lists, tables, spoilers, subtext) ---- */
+.sa-ut{white-space:normal}
+.sa-b .sa-p{margin:0 0 .65em}
+.sa-b .sa-p:last-child{margin-bottom:0}
+.sa-b .sa-h{margin:.95em 0 .4em;line-height:1.25;font-weight:700}
+.sa-b .sa-h:first-child{margin-top:0}
+.sa-b h1.sa-h{font-size:1.6em}
+.sa-b h2.sa-h{font-size:1.34em}
+.sa-b h3.sa-h{font-size:1.14em}
+.sa-b h4.sa-h{font-size:1em;opacity:.85}
+.sa-b .sa-subt{margin:.3em 0;font-size:.78em;opacity:.55}
+.sa-b .sa-q{margin:.6em 0;padding:.3em 0 .3em 14px;border-left:3px solid rgba(128,128,128,.55)}
+.sa-b .sa-q>:last-child{margin-bottom:0}
+.sa-b .sa-hx{margin:.9em 0;border:0;border-top:1px solid rgba(128,128,128,.4)}
+.sa-b ul,.sa-b ol{margin:.4em 0;padding-left:1.5em}
+.sa-b li{margin:.15em 0}
+.sa-b ul ul,.sa-b ol ol,.sa-b ul ol,.sa-b ol ul{margin:.15em 0}
+.sa-b s{opacity:.7}
+.sa-b u{text-underline-offset:3px}
+.sa-b a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.sa-b a:hover{opacity:.75}
+.sa-spoiler{padding:0 3px;border-radius:5px;cursor:pointer;transition:background .15s,color .15s}
+.sa-spoiler:not(.on){background:rgba(128,128,128,.6);color:transparent;user-select:none}
+.sa-spoiler:not(.on) *{color:transparent}
+.sa-spoiler:not(.on) img{opacity:0}
+.sa-spoiler.on{background:rgba(128,128,128,.2)}
+.sa-tbl{margin:.6em 0;overflow-x:auto}
+.sa-tbl table{border-collapse:collapse;font-size:.92em}
+.sa-tbl th,.sa-tbl td{padding:6px 12px;border:1px solid rgba(128,128,128,.35);text-align:left}
+.sa-tbl th{background:rgba(128,128,128,.14);font-weight:600}

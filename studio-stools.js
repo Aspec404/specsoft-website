@@ -484,6 +484,7 @@
                         while ((mA = rxA.exec(code)) && Object.keys(seenA).length < 10) { var an = mA[1] || mA[2]; if (!seenA[an] && !Object.prototype.hasOwnProperty.call(kn, an)) { seenA[an] = 1; report('warn', name + ': uses the asset "' + an + '" but it is not in this project Assets.', n.id); } }
                     }
                     if (cf.lang === 'html') externalRefs(code).forEach(function (x) { report('warn', name + ': the ' + x.kind + ' "' + x.url + '" will not load in the Preview (' + (x.remote ? 'the Preview has no network access' : 'it is a file on your computer, not part of the project') + '). Paste its ' + (x.kind === 'script' ? 'code into a JavaScript (page) file' : 'rules into a CSS file') + ' and delete this line.', n.id); });
+                    if (cf.lang === 'json') { var jr = G.parseJson(code); if (!jr.ok) report('error', name + ': invalid JSON: ' + jr.error, n.id); return; }
                     if (cf.lang !== 'javascript') return;
                     if (AF && !evalOff) { try { new AF('studio', 'input', code); } catch (e) { if (e && e.name === 'EvalError') evalOff = true; else report('error', name + ': ' + (e.name || 'Error') + ': ' + String(e.message).slice(0, 160), n.id); } }
                     var re = /studio\.(runNode|result|enableNode|disableNode|spawnBranch|stopGroup)\(\s*["'`]([^"'`]{1,40})["'`]/g, m;
@@ -618,12 +619,12 @@
         var n = G.node(id); if (!n || (n.type !== 'script' && n.type !== 'database')) return say('warn', 'run', 'Pick a JavaScript or SQL file to run it on its own.');
         if (!hasE('spawn')) return say('warn', 'run', 'Run needs the updated studio-engine.js (Phase 7a).');
         if (E.isActive()) return say('warn', 'run', 'A run is already active. Stop it first.');
-        if (n.type === 'script' && n.config.lang !== 'javascript') return say('info', 'run', 'HTML, CSS and page JavaScript run in the Preview, not here.');
+        if (n.type === 'script' && n.config.lang !== 'javascript' && n.config.lang !== 'json') return say('info', 'run', 'HTML, CSS and page JavaScript run in the Preview, not here.');
         var c = JSON.parse(JSON.stringify(n)); c.status = 'idle'; c.enabled = true; c.group = null; c.folder = null;
         var g = { version: 3, nodes: [c], connections: [], frames: [], groups: [], folders: [], timeline: { duration: 10000, tracks: [] } };
         if (G.ext.db && G.ext.db.save) g.db = G.ext.db.save();
         maybeClear(); showConsole();
-        say('info', 'output', '> Running ' + n.label + (n.type === 'database' ? '.sql' : '.js') + ' on its own', id);
+        say('info', 'output', '> Running ' + n.label + (n.type === 'database' ? '.sql' : n.config.lang === 'json' ? '.json' : '.js') + ' on its own', id);
         E.start({ graph: g });
     }
     window.StudioSTools = { runFile: runFile, clearIfWanted: maybeClear };

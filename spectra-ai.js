@@ -193,27 +193,81 @@ function loadKatex() {
   document.head.appendChild(s);
 }
 function mathHtml(tex, disp) {
-  tex = String(tex).trim(); const cls = 'sa-math' + (disp ? ' d' : '');
-  if (!tex || tex.length > 800) return '<span class="' + cls + ' bad">' + esc(tex) + '</span>';
+  tex = String(tex).trim(); const cls = 'sa-math' + (disp ? ' d' : ''), at = ' data-tex="' + esc(tex) + '" title="Hold to copy the LaTeX"';
+  if (!tex || tex.length > 800) return '<span class="' + cls + ' bad"' + at + '>' + esc(tex) + '</span>';
   const k = (disp ? 'D' : 'I') + tex; if (mcache.has(k)) return mcache.get(k);
-  if (!window.katex) { if (kState < 2) loadKatex(); return '<span class="' + cls + (kState === 3 ? ' bad' : ' pending') + '">' + esc(tex) + '</span>'; }
-  let h; try { h = '<span class="' + cls + '">' + window.katex.renderToString(tex, { displayMode: !!disp, throwOnError: false, strict: 'ignore', trust: false, maxExpand: 1000 }) + '</span>'; } catch (e) { h = '<span class="' + cls + ' bad">' + esc(tex) + '</span>'; }
+  if (!window.katex) { if (kState < 2) loadKatex(); return '<span class="' + cls + (kState === 3 ? ' bad' : ' pending') + '"' + at + '>' + esc(tex) + '</span>'; }
+  let h; try { h = '<span class="' + cls + '"' + at + '>' + window.katex.renderToString(tex, { displayMode: !!disp, throwOnError: false, strict: 'ignore', trust: false, maxExpand: 1000 }) + '</span>'; } catch (e) { h = '<span class="' + cls + ' bad"' + at + '>' + esc(tex) + '</span>'; }
   mcache.set(k, h); return h;
 }
 
 /* ---- Markdown ---- */
+/* ---- Chat formatting (Discord style): headings, quotes, lists, tables, spoilers, links, bold/italic/underline/strike ---- */
+function inl(src) {
+  const C = [], K = [];
+  let h = esc(src.replace(/`([^`\n]+)`/g, (m, c) => '\uE002' + (C.push(c) - 1) + '\uE003'));
+  const link = (u, t) => '\uE004' + (K.push('<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + t + '</a>') - 1) + '\uE005';
+  h = h.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)\uE000-\uE005]+)\)/g, (m, t, u) => link(u, t))
+    .replace(/(^|[\s(])(https?:\/\/[^\s<\uE000-\uE005]*[^\s<.,;:!?)\]'"\uE000-\uE005])/g, (m, a, u) => a + link(u, u));
+  h = h.replace(/\*\*\*(\S(?:[^\n]*?\S)?)\*\*\*/g, '<b><i>$1</i></b>')
+    .replace(/\*\*(\S(?:[^\n]*?\S)?)\*\*/g, '<b>$1</b>')
+    .replace(/__(\S(?:[^\n]*?\S)?)__/g, '<u>$1</u>')
+    .replace(/(^|[^\w*])\*(\S(?:[^*\n]*?\S)?)\*(?![\w*])/g, '$1<i>$2</i>')
+    .replace(/(^|[^\w])_(\S(?:[^_\n]*?\S)?)_(?!\w)/g, '$1<i>$2</i>')
+    .replace(/~~(\S(?:[^\n]*?\S)?)~~/g, '<s>$1</s>')
+    .replace(/\|\|(\S(?:[^\n]*?\S)?)\|\|/g, '<span class="sa-spoiler" tabindex="0">$1</span>');
+  return emojiHtml(h).replace(/\uE004(\d+)\uE005/g, (m, k) => K[k]).replace(/\uE002(\d+)\uE003/g, (m, k) => '<code>' + esc(C[k]) + '</code>');
+}
+function renderList(items) {
+  let out = '', st = [];
+  for (const it of items) {
+    while (st.length && it.ind < st[st.length - 1].ind) out += '</li></' + st.pop().t + '>';
+    const top = st[st.length - 1];
+    if (!top || it.ind > top.ind) { out += '<' + it.t + (it.t === 'ol' && it.num && +it.num !== 1 ? ' start="' + (+it.num) + '"' : '') + '><li>'; st.push({ t: it.t, ind: it.ind }); } else out += '</li><li>';
+    out += it.html;
+  }
+  while (st.length) out += '</li></' + st.pop().t + '>';
+  return out;
+}
+function blocks(p) {
+  const L = p.split('\n'), out = [], para = []; let i = 0, m;
+  const flush = () => { if (para.length) { out.push('<p class="sa-p">' + para.map(inl).join('<br>') + '</p>'); para.length = 0; } };
+  const cells = r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+  while (i < L.length) {
+    const ln = L[i], s = ln.trim();
+    if (!s) { flush(); i++; continue; }
+    if (/^\uE000\d+\uE001$/.test(s)) { flush(); out.push(s); i++; continue; }
+    if ((m = /^(#{1,4})\s+(.+)$/.exec(s))) { flush(); out.push('<h' + m[1].length + ' class="sa-h">' + inl(m[2]) + '</h' + m[1].length + '>'); i++; continue; }
+    if ((m = /^-#\s+(.+)$/.exec(s))) { flush(); out.push('<div class="sa-subt">' + inl(m[1]) + '</div>'); i++; continue; }
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(s)) { flush(); out.push('<hr class="sa-hx">'); i++; continue; }
+    if ((m = /^>>>\s?(.*)$/.exec(s))) { flush(); out.push('<blockquote class="sa-q">' + blocks([m[1]].concat(L.slice(i + 1)).join('\n')) + '</blockquote>'); i = L.length; continue; }
+    if (s[0] === '>') { flush(); const q = []; while (i < L.length && /^\s*>/.test(L[i]) && !/^\s*>>>/.test(L[i])) { q.push(L[i].replace(/^\s*>\s?/, '')); i++; } out.push('<blockquote class="sa-q">' + blocks(q.join('\n')) + '</blockquote>'); continue; }
+    if (s[0] === '|' && i + 1 < L.length && L[i + 1].indexOf('|') > -1 && /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/.test(L[i + 1])) {
+      flush(); const head = cells(L[i]), al = cells(L[i + 1]).map(c => /^:-+:$/.test(c) ? 'center' : /-+:$/.test(c) ? 'right' : ''), rows = []; let j = i + 2;
+      while (j < L.length && L[j].trim() && L[j].indexOf('|') > -1) rows.push(cells(L[j++]));
+      const td = (t, k, tag) => '<' + tag + (al[k] ? ' style="text-align:' + al[k] + '"' : '') + '>' + inl(t) + '</' + tag + '>';
+      out.push('<div class="sa-tbl"><table><thead><tr>' + head.map((c, k) => td(c, k, 'th')).join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + head.map((_, k) => td(r[k] || '', k, 'td')).join('') + '</tr>').join('') + '</tbody></table></div>');
+      i = j; continue;
+    }
+    if (/^(\s*)([-*+]|\d{1,3}[.)])\s+\S/.test(ln)) {
+      flush(); const items = [];
+      while (i < L.length && (m = /^(\s*)([-*+]|(\d{1,3})[.)])\s+(.*)$/.exec(L[i]))) { items.push({ ind: m[1].replace(/\t/g, '    ').length, t: m[3] ? 'ol' : 'ul', num: m[3], html: inl(m[4]) }); i++; }
+      out.push(renderList(items)); continue;
+    }
+    para.push(ln); i++;
+  }
+  flush(); return out.join('');
+}
 function md(t) {
-  return t.split('```').map((p, i) => {
+  return t.replace(/[\uE000-\uE005]/g, '').split('```').map((p, i) => {
     if (i % 2) return codeBlock(p);
-    const M = [], keep = (tex, d) => { M.push([tex, d]); return '\uE000' + (M.length - 1) + '\uE001'; };
+    const M = [], keep = (tex, d, src) => { tex = tex.replace(/\uE000(\d+)\uE001/g, (x, k) => M[k][2]); M.push([tex, d, src]); return '\uE000' + (M.length - 1) + '\uE001'; };
     p = p.split(/(`[^`\n]+`)/).map((x, k) => k % 2 ? x : x
-      .replace(/\$\$([\s\S]+?)\$\$/g, (m, a) => keep(a, 1))
-      .replace(/\\\[([\s\S]+?)\\\]/g, (m, a) => keep(a, 1))
-      .replace(/\\\(([\s\S]+?)\\\)/g, (m, a) => keep(a, 0))
-      .replace(/(^|[^\\$\d])\$([^\s$](?:[^$\n]*[^\s$])?)\$(?![\d$])/g, (m, a, b) => a + keep(b, 0))).join('');
-    return emojiHtml(esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
-      .replace(/^(?:- |\* )(.+)$/gm, '<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>' + m.replace(/\n/g, '') + '</ul>').replace(/\n/g, '<br>'))
-      .replace(/(<br>)?\uE000(\d+)\uE001(<br>)?/g, (m, b1, k, b2) => M[k][1] ? mathHtml(M[k][0], 1) : (b1 || '') + mathHtml(M[k][0], 0) + (b2 || ''));
+      .replace(/\$\$([\s\S]+?)\$\$/g, (m, a) => keep(a, 1, m))
+      .replace(/\\\[([\s\S]+?)\\\]/g, (m, a) => keep(a, 1, m))
+      .replace(/\\\(([\s\S]+?)\\\)/g, (m, a) => keep(a, 0, m))
+      .replace(/(^|[^\\$\d])\$([^\s$](?:[^$\n]*[^\s$])?)\$(?![\d$])/g, (m, a, b) => a + keep(b, 0, m.slice(a.length)))).join('');
+    return blocks(p).replace(/\uE000(\d+)\uE001/g, (m, k) => mathHtml(M[k][0], M[k][1]));
   }).join('');
 }
 
@@ -228,7 +282,7 @@ function msgEl(m, last) {
       m._imgs.forEach(u => { const im = document.createElement('img'); im.src = u; im.alt = 'attached image'; g.appendChild(im); });
       b.appendChild(g); tx = tx.replace(/\n🖼 [^\n]*/, '');
     }
-    b.appendChild(emojiNodes(tx)); return d;
+    const ut = document.createElement('div'); ut.className = 'sa-ut'; ut.innerHTML = md(tx); b.appendChild(ut); return d;
   }
   d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div><div class="sa-act">' +
     '<button data-a="copy" title="Copy">' + ico('copy') + '</button><button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
@@ -432,7 +486,20 @@ function stop() { if (timer) { clearInterval(timer); timer = null; end(); } else
 
 /* ---- Message actions ---- */
 msgsEl.addEventListener('error', e => { const t = e.target; if (t && t.classList && t.classList.contains('sa-emo')) t.replaceWith(document.createTextNode(t.alt)); }, true);
+/* hold a formula (about half a second) to copy its LaTeX code */
+let hold = 0, hp = null;
+const unhold = () => { clearTimeout(hold); hold = 0; };
+msgsEl.addEventListener('pointerdown', e => {
+  const m = e.target.closest && e.target.closest('.sa-math'); if (!m || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  unhold(); hp = [e.clientX, e.clientY];
+  hold = setTimeout(() => { hold = 0; copy(m.dataset.tex || m.textContent, 'LaTeX copied!'); m.classList.add('copied'); setTimeout(() => m.classList.remove('copied'), 650); }, 500);
+});
+msgsEl.addEventListener('pointermove', e => { if (hold && hp && Math.hypot(e.clientX - hp[0], e.clientY - hp[1]) > 10) unhold(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => msgsEl.addEventListener(t, unhold, true));
+msgsEl.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.sa-math') && matchMedia('(hover: none)').matches) e.preventDefault(); });
+msgsEl.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('sa-spoiler')) { e.preventDefault(); e.target.classList.toggle('on'); } });
 msgsEl.addEventListener('click', e => {
+  const sp = e.target.closest('.sa-spoiler'); if (sp) { sp.classList.toggle('on'); return; }
   const b = e.target.closest('button'); if (!b) return;
   if (b.classList.contains('sa-wr')) { b.closest('.sa-code').classList.toggle('wrap'); b.classList.toggle('on'); return; }
   if (b.classList.contains('sa-ex')) { const bx = b.closest('.sa-code'); bx.classList.toggle('open'); b.textContent = bx.classList.contains('open') ? 'Collapse' : 'Show all ' + b.dataset.n + ' lines'; return; }

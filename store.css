@@ -485,3 +485,54 @@ body.light-mode .st-pip.is-done .apex-ico { filter: none; }
     max-height: none;
     object-fit: cover;
 }
+
+/* ==========================================================================
+   XP bar + Quests  (needs supabase-store-quests.sql and xp.js)
+   ========================================================================== */
+.st-xp { margin-top: 14px; width: min(100%, 380px); }
+.st-xp-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 7px; font-size: 12.5px; }
+.st-xp-lvl { display: inline-flex; align-items: center; gap: 9px; color: var(--text-secondary); font-family: var(--font-mono); font-size: 12px; }
+.st-lv { padding: 2px 9px; background: var(--accent); border-radius: 999px; color: var(--bg-base); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+.st-xp-next { color: var(--text-tertiary); font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+.st-xp-bar { height: 8px; border-radius: 99px; background: var(--border-subtle); overflow: hidden; }
+.st-xp-bar i { display: block; width: 0; height: 100%; background: var(--accent); border-radius: inherit; box-shadow: 0 0 12px var(--accent-glow, var(--accent-dim)); transition: width 0.5s ease; }
+.st-xp .st-help { margin-top: 8px; color: var(--text-tertiary); }
+
+.st-chip { display: inline-flex; align-items: center; gap: 8px; }
+.st-qdot { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; background: var(--st-legendary); border-radius: 99px; color: #000; font-family: var(--font-mono); font-size: 11px; font-weight: 700; line-height: 1; }
+
+.st-quests { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--st-gap); }
+.st-quest {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    padding: clamp(16px, 2.2vw, 22px);
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--st-radius);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.st-quest.is-ready { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.st-quest.is-claimed { opacity: 0.55; }
+.st-quest-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.st-quest-num { color: var(--text-secondary); font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.st-quest h3 { font-size: 16.5px; font-weight: 600; letter-spacing: -0.2px; }
+.st-quest p { flex: 1 1 auto; color: var(--text-secondary); font-size: 13.5px; line-height: 1.55; }
+.st-quest .st-meter { margin: 4px 0 2px; }
+.st-quest.is-ready .st-meter i, .st-quest.is-claimed .st-meter i { background: var(--st-ok); }
+.st-quest-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 4px; }
+.st-quest-foot .st-btn { min-height: 34px; padding: 0 16px; }
+
+.st-qtag { padding: 2px 10px; border: 1px solid var(--border-hover); border-radius: 999px; color: var(--text-secondary); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.3px; }
+.st-qtag--easy { color: var(--st-ok); border-color: var(--st-ok); }
+.st-qtag--medium { color: var(--st-rare); border-color: var(--st-rare); }
+.st-qtag--hard { color: var(--st-epic); border-color: var(--st-epic); }
+
+.st-rewards { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.st-reward { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.st-reward .apex-ico { width: 16px; height: 16px; }
+.st-reward--xp { color: var(--st-epic); }
+
+@media (max-width: 900px) { .st-quests { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .st-quest, .st-xp-bar i { transition: none; } }

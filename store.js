@@ -1,6 +1,7 @@
 /* ==========================================================================
    SPECSOFT® — Store (store.js)
    Needs: supabase-config.js, supabase-store.sql (run once), apex-credits.js
+   Quests + XP also need supabase-store-quests.sql and xp.js
    ========================================================================== */
 (function () {
     'use strict';
@@ -14,7 +15,8 @@
         user: null, wallet: null, items: [], featured: [], settings: null, packs: [], owned: [],
         cat: 'all', q: '', buying: null, busy: false,
         bundles: {}, equipped: null, me: null,
-        tx: [], txMore: false, txBefore: null, txFilter: 'all', txBusy: false, txReady: false, pendingSend: null, receipt: null
+        tx: [], txMore: false, txBefore: null, txFilter: 'all', txBusy: false, txReady: false, pendingSend: null, receipt: null,
+        quests: null, questTab: 'normal', questBusy: false, questErr: '', questReloadAt: 0, skew: 0, xp: null
     };
 
     var CATS = [['all', 'All'], ['bundle', 'Bundles'], ['frame', 'Frames'], ['emote', 'Emotes'], ['badge', 'Badges'], ['theme', 'Themes'], ['boost', 'Boosts'], ['cosmetic', 'Cosmetics'], ['misc', 'Misc']];
@@ -37,7 +39,11 @@
         account_too_new: 'Your account is too new to send credits yet.',
         receipt_not_found: 'No receipt with that number.',
         already_own_all: 'You already own everything in this bundle.',
-        not_owned: 'You need to own that frame first.'
+        not_owned: 'You need to own that frame first.',
+        quest_not_done: 'That quest is not finished yet.',
+        quest_already_claimed: 'You already claimed that quest.',
+        quest_expired: 'That board just refreshed. Check the new quests.',
+        quest_unavailable: 'That quest is not available anymore.'
     };
 
     /* ---------- tiny helpers ---------- */
@@ -73,6 +79,7 @@
         var m = String((err && (err.message || err.hint || err.details)) || err || '');
         var keys = Object.keys(ERR);
         for (var i = 0; i < keys.length; i++) if (m.indexOf(keys[i]) >= 0) return ERR[keys[i]];
+        if (/quest_board|quest_claim|xp_ping|xp_status|quest_defs|user_xp/i.test(m)) return 'Quests are not set up yet. Run supabase-store-quests.sql in Supabase.';
         if (/relation .* does not exist|function .* does not exist|schema cache/i.test(m)) return 'The store is not set up yet. Run supabase-store.sql in Supabase.';
         return 'Something went wrong. Try again in a moment.';
     }
@@ -341,6 +348,7 @@
         if (next) $('stClockN').textContent = timeLeft(next);
         document.querySelectorAll('[data-ends]').forEach(function (n) { n.textContent = timeLeft(n.getAttribute('data-ends')) + ' left'; });
         if (S.user) $('stReset').textContent = 'Resets in ' + timeLeft(new Date(Date.now() + nextResetMs()).toISOString());
+        paintQuestClock();
     }
 
     function paintChips() {
@@ -393,6 +401,7 @@
         var c = S.settings || {};
         var rows = [
             ['Check in daily', '+' + (c.daily_amount || 3) + ' credits a day. ' + (c.streak_every ? 'Every ' + c.streak_every + ' days in a row adds +' + (c.streak_bonus || 0) + ' more.' : '')],
+            ['Finish quests', 'Every board has 3 quests that pay credits and XP. New normal quests arrive every ' + (c.quest_normal_hours || 5) + ' hours, plus daily and weekly boards.'],
             ['Redeem event codes', 'Codes drop during events, giveaways and in the community. Enter them under Daily check-in.'],
             ['Top up', 'Need something now? Buy a credit pack. Packs never expire.']
         ];
@@ -640,6 +649,132 @@
         $('stTxMore').hidden = !S.txMore;
     }
 
+    /* ---------- XP + quests ---------- */
+    var QKINDS = [['normal', 'Normal'], ['daily', 'Daily'], ['weekly', 'Weekly']];
+    var DIFF = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+
+    function paintXp() {
+        var box = $('stXp'), x = S.xp;
+        box.hidden = !(S.user && x);
+        if (box.hidden) return;
+        var pct = Math.max(0, Math.min(100, Number(x.pct) || 0));
+        $('stXpLv').textContent = 'LV ' + x.level;
+        $('stXpTotal').textContent = fmt(x.xp) + ' XP';
+        $('stXpNext').textContent = fmt(x.into) + ' / ' + fmt(x.need) + ' to level ' + (Number(x.level) + 1);
+        $('stXpFill').style.width = pct + '%';
+        $('stXpBar').setAttribute('aria-valuenow', String(pct));
+        var per = Number((S.settings || {}).xp_seconds_per_xp) || 180, cap = Number(x.day_cap) || 0;
+        var mins = Math.round(per / 60 * 10) / 10;
+        $('stXpHelp').textContent = 'Earn 1 XP for every ' + mins + ' minutes you are active here.' +
+            (cap > 0 ? ' Time on site today: ' + fmt(x.day_xp) + ' / ' + fmt(cap) + ' XP. Quest XP is not limited.' : '');
+    }
+
+    function setXp(info, quiet) {
+        if (!info) return;
+        var prev = S.xp;
+        S.xp = info;
+        if (!quiet && prev && Number(info.level) > Number(prev.level)) toast('Level up! You are now level ' + info.level + '.');
+        paintXp();
+    }
+
+    async function loadQuests() {
+        S.questErr = '';
+        if (!S.user) { S.quests = null; S.xp = null; paintQuests(); paintXp(); return; }
+        try {
+            var r = await sb.rpc('quest_board');
+            if (r.error) throw r.error;
+            S.quests = (r.data && r.data.boards) || null;
+            S.skew = r.data && r.data.now ? new Date(r.data.now).getTime() - Date.now() : 0;
+            if (r.data) setXp(r.data.xp, true);
+        } catch (err) { S.quests = null; S.xp = null; S.questErr = friendly(err); }
+        S.questReloadAt = Date.now();
+        paintQuests(); paintXp();
+    }
+
+    function readyCount(kind) {
+        var b = S.quests && S.quests[kind];
+        return b ? (b.quests || []).filter(function (q) { return q.done && !q.claimed; }).length : 0;
+    }
+
+    function questCard(q) {
+        var target = Math.max(1, Number(q.target) || 1);
+        var pct = Math.max(0, Math.min(100, Math.round((Number(q.progress) || 0) / target * 100)));
+        var canClaim = !!(q.done && !q.claimed);
+        var unit = q.metric === 'online_minutes' ? ' min' : (q.metric === 'spend_credits' ? ' AC' : '');
+        var fill = el('i'); fill.style.width = pct + '%';
+        var btn = el('button', {
+            type: 'button', class: 'st-btn' + (canClaim ? ' st-btn--primary' : ''), disabled: !canClaim || S.questBusy,
+            text: q.claimed ? 'Claimed' : (q.done ? 'Claim' : 'In progress'),
+            onclick: function () { claimQuest(q.id); }
+        });
+        return el('article', { class: 'st-quest' + (q.claimed ? ' is-claimed' : (q.done ? ' is-ready' : '')) },
+            el('div', { class: 'st-quest-top' },
+                el('span', { class: 'st-qtag st-qtag--' + q.difficulty, text: DIFF[q.difficulty] || q.difficulty }),
+                el('span', { class: 'st-quest-num', text: fmt(q.progress) + ' / ' + fmt(q.target) + unit })),
+            el('h3', { text: q.title }),
+            q.description ? el('p', { text: q.description }) : null,
+            el('div', { class: 'st-meter' }, fill),
+            el('div', { class: 'st-quest-foot' },
+                el('div', { class: 'st-rewards' },
+                    Number(q.reward_ac) > 0 ? el('span', { class: 'st-reward', title: 'APEX Credits' }, '+' + fmt(q.reward_ac), apexIcon()) : null,
+                    Number(q.reward_xp) > 0 ? el('span', { class: 'st-reward st-reward--xp', title: 'XP', text: '+' + fmt(q.reward_xp) + ' XP' }) : null),
+                btn));
+    }
+
+    function paintQuests() {
+        var tabs = $('stQuestTabs'), box = $('stQuests');
+        tabs.textContent = ''; box.textContent = '';
+        $('stQuestGuest').hidden = !!S.user;
+        tabs.hidden = !(S.user && S.quests);
+        if (!S.user) { $('stQuestClock').hidden = true; return; }
+        if (!S.quests) {
+            $('stQuestClock').hidden = true;
+            box.appendChild(el('div', { class: 'st-empty', text: S.questErr || 'Loading quests...' }));
+            return;
+        }
+        QKINDS.forEach(function (k) {
+            var n = readyCount(k[0]);
+            tabs.appendChild(el('button', { type: 'button', class: 'st-chip', role: 'tab', 'aria-selected': String(S.questTab === k[0]), onclick: function () { S.questTab = k[0]; paintQuests(); } },
+                k[1], n ? el('span', { class: 'st-qdot', text: String(n), title: n + ' ready to claim' }) : null));
+        });
+        var list = (S.quests[S.questTab] && S.quests[S.questTab].quests) || [];
+        if (!list.length) box.appendChild(el('div', { class: 'st-empty', text: 'No quests on this board right now. Check back soon.' }));
+        list.forEach(function (q) { box.appendChild(questCard(q)); });
+        paintQuestClock();
+    }
+
+    function paintQuestClock() {
+        var clock = $('stQuestClock'), b = S.user && S.quests && S.quests[S.questTab];
+        clock.hidden = !(b && b.ends_at);
+        if (clock.hidden) return;
+        var left = new Date(b.ends_at).getTime() - (Date.now() + S.skew);
+        $('stQuestClockN').textContent = left <= 0 ? 'now' : timeLeft(new Date(Date.now() + left).toISOString());
+        // the board rotated while the page was open: fetch the new one (at most every 15 seconds)
+        if (left <= 0 && !S.questBusy && Date.now() - S.questReloadAt > 15000) loadQuests();
+    }
+
+    async function claimQuest(id) {
+        if (S.questBusy || !S.user) return;
+        S.questBusy = true; paintQuests();
+        try {
+            var r = await sb.rpc('quest_claim', { p_quest: id });
+            if (r.error) throw r.error;
+            var d = r.data, prev = S.xp;
+            Object.keys(S.quests || {}).forEach(function (k) { ((S.quests[k] || {}).quests || []).forEach(function (q) { if (q.id === id) q.claimed = true; }); });
+            if (S.wallet) S.wallet.lifetime = Number(S.wallet.lifetime || 0) + Number(d.reward_ac || 0);
+            S.questReloadAt = Date.now();
+            setXp(d.xp, true);
+            if (window.SpecXP) window.SpecXP.set(d.xp);
+            setBalance(Number(d.balance));
+            var bits = [];
+            if (Number(d.reward_ac) > 0) bits.push('+' + fmt(d.reward_ac) + ' APEX Credits');
+            if (Number(d.reward_xp) > 0) bits.push('+' + fmt(d.reward_xp) + ' XP');
+            var up = prev && d.xp && Number(d.xp.level) > Number(prev.level);
+            toast('Quest complete: ' + (bits.join(', ') || d.quest) + (up ? '. Level up! You are level ' + d.xp.level + '.' : ''));
+        } catch (err) { toast(friendly(err), true); await loadQuests(); }
+        finally { S.questBusy = false; paintQuests(); }
+    }
+
     /* ---------- start ---------- */
     function wire() {
         $('stTheme').addEventListener('click', function () {
@@ -661,7 +796,12 @@
         $('stBuy').addEventListener('click', function (e) { if (e.target === $('stBuy')) $('stBuy').close(); });
         var t; $('stSearch').addEventListener('input', function (e) { var v = e.target.value; clearTimeout(t); t = setTimeout(function () { S.q = v.trim(); paintGrid(); }, 150); });
         setInterval(paintClock, 1000);
-        sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT' || ev === 'SIGNED_IN') { loadUser().then(function () { paintWallet(); paintAll(); }); } });
+        // xp.js pings once a minute: when it answers, refresh the quest progress too (at most every 20 seconds)
+        if (window.SpecXP) window.SpecXP.onChange(function (i) {
+            setXp(i);
+            if (S.user && !S.questBusy && Date.now() - S.questReloadAt > 20000) loadQuests();
+        });
+        sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT' || ev === 'SIGNED_IN') { loadUser().then(function () { paintWallet(); paintAll(); loadQuests(); }); } });
     }
 
     async function start() {
@@ -679,6 +819,7 @@
         }
         if (S.user && window.SpecFrames) { var mine = S.items.find(function (i) { return i.id === S.equipped; }); window.SpecFrames.setMine(S.user.id, mine ? mine.frame_data : null); }
         paintWallet(); paintChips(); paintGrid(); paintFeatured(); paintPacks(); paintEarn(); paintOwned();
+        paintQuests(); loadQuests();
         if (S.user) loadTx(true);
         if (window.ApexCredits && S.wallet) window.ApexCredits.set(Number(S.wallet.balance));
         if (location.hash) { try { var t2 = document.querySelector(location.hash); if (t2 && t2.scrollIntoView) t2.scrollIntoView(); } catch (e3) { /* odd hash */ } }

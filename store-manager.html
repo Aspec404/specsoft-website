@@ -93,6 +93,11 @@
         .sm-pv-stage { padding: 12px; }
         .sm-multi { display: grid; gap: 2px; max-height: 190px; overflow: auto; padding: 8px 10px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; }
         .sm-multi .sm-check { min-height: 30px; }
+        .sm-warn { margin-bottom: 12px; padding: 10px 14px; border: 1px solid #f2a516; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+        .sm-badge--easy { color: #23a55a; border-color: #23a55a; }
+        .sm-badge--medium { color: #3b9cff; border-color: #3b9cff; }
+        .sm-badge--hard { color: #a66bff; border-color: #a66bff; }
+        .sm-result { margin-top: 12px; padding: 12px 14px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 10px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
         @media (max-width: 640px) { .sm-row { grid-template-columns: 40px 1fr; } .sm-actions { grid-column: 1 / -1; justify-content: flex-start; } .sm-thumb { width: 40px; height: 40px; } }
     </style>
 </head>
@@ -126,8 +131,8 @@
         var sb = window.getSupabaseClient ? window.getSupabaseClient()
             : ((window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY) ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null);
         var $ = function (id) { return document.getElementById(id); };
-        var S = { tab: 'items', items: [], packs: [], codes: [], settings: null, featured: [], sales: [], names: {}, q: '' };
-        var TABS = [['items', 'Items'], ['featured', 'Featured'], ['packs', 'Credit packs'], ['codes', 'Codes'], ['credits', 'Credits & economy'], ['sales', 'Sales']];
+        var S = { tab: 'items', items: [], packs: [], codes: [], settings: null, featured: [], sales: [], names: {}, q: '', qKind: 'normal', rtok: 0 };
+        var TABS = [['items', 'Items'], ['featured', 'Featured'], ['packs', 'Credit packs'], ['codes', 'Codes'], ['credits', 'Credits & economy'], ['quests', 'Quests'], ['xp', 'XP & levels'], ['sales', 'Sales']];
 
         /* ---------- helpers ---------- */
         function el(tag, props) {
@@ -142,7 +147,7 @@
         }
         var tt;
         function toast(m, bad) { var t = $('toast'); t.textContent = m; t.classList.toggle('is-bad', !!bad); t.classList.add('is-on'); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove('is-on'); }, 3200); }
-        function fail(e) { var m = String(e && e.message || e); toast(/user_not_found/.test(m) ? 'No member with that username.' : /not_admin/.test(m) ? 'You are not a store admin.' : m, true); }
+        function fail(e) { var m = String(e && e.message || e); toast(/user_not_found/.test(m) ? 'No member with that username.' : /not_admin/.test(m) ? 'You are not a store admin.' : /bad_amount/.test(m) ? 'Enter a whole number that is not 0.' : /quest_admin|store_admin_grant_xp|store_admin_xp_lookup|xp_log/.test(m) ? 'Run supabase-store-quests.sql and then supabase-store-xp-admin.sql in Supabase.' : m, true); }
         function fmt(n) { return (Number(n) || 0).toLocaleString('en-US'); }
         function when(iso) { return iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : ''; }
         function toLocalInput(iso) { if (!iso) return ''; var d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }
@@ -660,12 +665,242 @@
         }
         /* FRAME DESIGNER END */
 
+        /* ---------- QUESTS (task manager) ---------- */
+        var QKINDS = [['normal', 'Normal'], ['daily', 'Daily'], ['weekly', 'Weekly']];
+        var QDIFF = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+        var QMETRICS = [
+            ['online_minutes', 'Minutes spent on the site', '⏱️'],
+            ['daily_checkin', 'Daily check-ins', '✅'],
+            ['send_messages', 'Chat messages sent', '💬'],
+            ['buy_item', 'Items bought in the store', '🛍️'],
+            ['spend_credits', 'APEX Credits spent in the store', '💰'],
+            ['equip_frame', 'Frames equipped', '🖼️'],
+            ['visit_store', 'Open the Store (target is always 1)', '👀'],
+            ['visit_profile', 'Open the Profile (target is always 1)', '🙂'],
+            ['visit_chats', 'Open Chats (target is always 1)', '📨'],
+            ['send_credits', 'Send credits to someone (easy to farm, use small rewards)', '💸'],
+            ['redeem_code', 'Redeem a code (easy to farm, use small rewards)', '🎟️']
+        ];
+        function metricInfo(k) {
+            for (var i = 0; i < QMETRICS.length; i++) if (QMETRICS[i][0] === k) return { label: QMETRICS[i][1], icon: QMETRICS[i][2] };
+            return { label: k, icon: '❔' };
+        }
+        var QUEST_FIELDS = [
+            { key: 'kind', label: 'Board', type: 'select', options: QKINDS },
+            { key: 'difficulty', label: 'Difficulty', type: 'select', options: [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']], hint: 'A board shows one easy, one medium and one hard quest when it can.' },
+            { key: 'title', label: 'Title (max 60 characters)', required: true, wide: true, placeholder: 'Hang out' },
+            { key: 'description', label: 'Description (tell members what to do)', type: 'textarea', wide: true, max: 160, nullable: true },
+            { key: 'metric', label: 'What it counts', type: 'select', wide: true, options: QMETRICS.map(function (m) { return [m[0], m[2] + ' ' + m[1]]; }), hint: 'Progress is counted automatically. "Open ..." quests always have a target of 1.' },
+            { key: 'target', label: 'Target amount', type: 'number', required: true },
+            { key: 'reward_ac', label: 'Reward: APEX Credits', type: 'number', required: true },
+            { key: 'reward_xp', label: 'Reward: XP', type: 'number', required: true },
+            { key: 'sort', label: 'Sort order', type: 'number' },
+            { key: 'active', label: 'Active (can appear on boards)', type: 'checkbox', wide: true }
+        ];
+        function clampInt(v, lo, hi) { v = Math.floor(Number(v)); if (!isFinite(v)) v = lo; return Math.min(hi, Math.max(lo, v)); }
+        function questPayload(o) {
+            var title = String(o.title || '').trim();
+            if (!title) throw new Error('Give the quest a title.');
+            if (title.length > 60) throw new Error('The title can be at most 60 characters.');
+            var target = clampInt(o.target, 1, 100000);
+            if (String(o.metric).indexOf('visit_') === 0) target = 1;
+            return { kind: o.kind, title: title, description: String(o.description || '').trim().slice(0, 160), metric: o.metric, target: target,
+                reward_ac: clampInt(o.reward_ac, 0, 100000), reward_xp: clampInt(o.reward_xp, 0, 100000), difficulty: o.difficulty,
+                sort: clampInt(o.sort, -100000, 100000), active: !!o.active };
+        }
+        function editQuest(q, asCopy) {
+            var isNew = !q || asCopy;
+            var base = q
+                ? { kind: q.kind, difficulty: q.difficulty, title: asCopy ? q.title + ' (copy)' : q.title, description: q.description, metric: q.metric, target: q.target, reward_ac: q.reward_ac, reward_xp: q.reward_xp, sort: q.sort, active: q.active }
+                : { kind: S.qKind, difficulty: 'easy', metric: 'online_minutes', target: 5, reward_ac: 3, reward_xp: 5, sort: 0, active: true };
+            openForm({ title: isNew ? 'New quest' : 'Edit ' + q.title, fields: QUEST_FIELDS, values: base,
+                onSave: async function (o) {
+                    var row = questPayload(o);
+                    var r = await (isNew ? sb.from('quest_defs').insert(row) : sb.from('quest_defs').update(row).eq('id', q.id));
+                    if (r.error) throw r.error;
+                    S.qKind = row.kind; toast('Quest saved'); await reload();
+                } });
+        }
+        function boardPay(list, st) {
+            // what one full board (one quest per difficulty) pays on average
+            var ac = 0, xp = 0;
+            ['easy', 'medium', 'hard'].forEach(function (d) {
+                var g = list.filter(function (q) { return q.active && q.difficulty === d; });
+                if (!g.length) return;
+                ac += g.reduce(function (a, q) { return a + q.reward_ac; }, 0) / g.length;
+                xp += g.reduce(function (a, q) { return a + q.reward_xp; }, 0) / g.length;
+            });
+            return { ac: Math.round(ac), xp: Math.round(xp) };
+        }
+        async function renderQuests(root) {
+            var tok = S.rtok;
+            root.appendChild(el('div', { class: 'sm-note', text: 'Loading quests...' }));
+            var r = await Promise.all([
+                sb.from('quest_defs').select('*').order('sort', { ascending: true }).order('created_at', { ascending: true }),
+                sb.rpc('quest_admin_live'),
+                sb.rpc('quest_admin_stats')
+            ]);
+            if (tok !== S.rtok) return;
+            root.textContent = '';
+            if (r[0].error) return root.appendChild(el('div', { class: 'sm-empty', text: 'Quests are not set up yet. Run supabase-store-quests.sql, then supabase-store-xp-admin.sql, in the Supabase SQL Editor.' }));
+            var all = r[0].data || [], st = S.settings || {};
+            var live = {}, ends = {}, stats = {};
+            if (!r[1].error) (r[1].data || []).forEach(function (x) { live[x.quest_id] = x.kind; ends[x.kind] = x.ends_at; });
+            if (!r[2].error) (r[2].data || []).forEach(function (x) { stats[x.quest_id] = x; });
+            var adminSql = !r[1].error;
+
+            var claims7 = 0, claimsAll = 0;
+            Object.keys(stats).forEach(function (k) { claims7 += Number(stats[k].claims_7d) || 0; claimsAll += Number(stats[k].claims) || 0; });
+            root.appendChild(el('div', { class: 'sm-stats' },
+                el('div', { class: 'sm-stat' }, el('strong', { text: String(all.filter(function (q) { return q.active; }).length) }), el('span', { text: 'Active quests' })),
+                el('div', { class: 'sm-stat' }, el('strong', { text: fmt(claims7) }), el('span', { text: 'Quests claimed, last 7 days' })),
+                el('div', { class: 'sm-stat' }, el('strong', { text: fmt(claimsAll) }), el('span', { text: 'Quests claimed, all time' }))));
+
+            root.appendChild(el('div', { class: 'sm-bar' },
+                el('button', { class: 'sm-btn sm-btn--primary', text: 'New quest', onclick: function () { editQuest(null); } }),
+                el('button', { class: 'sm-btn', text: 'Refresh normal board now', disabled: !adminSql, onclick: async function () {
+                    if (!confirmIt('Start a fresh NORMAL board right now? Everyone gets a new set of 3 quests and the timer restarts. Progress on the old normal board is lost.')) return;
+                    await saveSettings({ quest_epoch: new Date().toISOString() }).catch(fail);
+                } }),
+                el('button', { class: 'sm-btn', text: 'Shuffle all boards', disabled: !adminSql, onclick: async function () {
+                    if (!confirmIt('Re-pick the quests on the normal, daily and weekly boards? Progress already made on quests that come back is kept.')) return;
+                    await saveSettings({ quest_seed: ((Number(st.quest_seed) || 0) + 1) % 1000000 }).catch(fail);
+                } })));
+            if (!adminSql) root.appendChild(el('div', { class: 'sm-warn', text: 'Run supabase-store-xp-admin.sql to unlock the LIVE badges, claim counts and the two board buttons.' }));
+
+            var tabs = el('nav', { class: 'sm-tabs', role: 'tablist', 'aria-label': 'Quest boards' });
+            QKINDS.forEach(function (k) {
+                var n = all.filter(function (q) { return q.kind === k[0] && q.active; }).length;
+                tabs.appendChild(el('button', { class: 'sm-tab', role: 'tab', 'aria-selected': String(S.qKind === k[0]), text: k[1] + ' (' + n + ')', onclick: function () { S.qKind = k[0]; render(); } }));
+            });
+            root.appendChild(tabs);
+
+            var list = all.filter(function (q) { return q.kind === S.qKind; });
+            var active = list.filter(function (q) { return q.active; });
+            var pay = boardPay(list, st);
+            var line = (S.qKind === 'normal' ? 'New board every ' + (st.quest_normal_hours || 5) + ' hours.' : S.qKind === 'daily' ? 'New board every day at midnight UTC.' : 'New board every Monday at midnight UTC.') +
+                (ends[S.qKind] ? ' Current board ends ' + when(ends[S.qKind]) + '.' : '') +
+                ' A full board pays about ' + fmt(pay.ac) + ' credits + ' + fmt(pay.xp) + ' XP.' +
+                (S.qKind === 'normal' ? ' That is about ' + fmt(Math.round(pay.ac * 24 / (st.quest_normal_hours || 5))) + ' credits a day if someone clears every board.' : '');
+            root.appendChild(el('p', { class: 'sm-note', style: 'margin-bottom:12px', text: line }));
+
+            if (active.length < 3) root.appendChild(el('div', { class: 'sm-warn', text: 'Only ' + active.length + ' active quest' + (active.length === 1 ? '' : 's') + ' on this board, so members will see fewer than 3. Add more.' }));
+            else {
+                var missing = ['easy', 'medium', 'hard'].filter(function (d) { return !active.some(function (q) { return q.difficulty === d; }); });
+                if (missing.length) root.appendChild(el('div', { class: 'sm-warn', text: 'No active ' + missing.join(' or ') + ' quest here, so a slot is filled from the other difficulties.' }));
+            }
+
+            var box = el('div', { class: 'sm-list' });
+            if (!list.length) box.appendChild(el('div', { class: 'sm-empty', text: 'No ' + S.qKind + ' quests yet.' }));
+            list.forEach(function (q) {
+                var m = metricInfo(q.metric), sx = stats[q.id];
+                box.appendChild(el('div', { class: 'sm-row' + (q.active ? '' : ' is-off') },
+                    el('div', { class: 'sm-thumb', text: m.icon }),
+                    el('div', { class: 'sm-main' },
+                        el('strong', { text: q.title }),
+                        el('div', { class: 'sm-meta' },
+                            el('span', { class: 'sm-badge sm-badge--' + q.difficulty, text: QDIFF[q.difficulty] || q.difficulty }),
+                            live[q.id] ? el('span', { class: 'sm-badge sm-badge--live', text: 'LIVE NOW' }) : null,
+                            el('span', { text: fmt(q.target) + ' · ' + m.label + ' · +' + fmt(q.reward_ac) + ' credits · +' + fmt(q.reward_xp) + ' XP' + (sx ? ' · claimed ' + fmt(sx.claims) + ' (7d: ' + fmt(sx.claims_7d) + ')' : '') + (q.active ? '' : ' · off') })),
+                        q.description ? el('div', { class: 'sm-note', style: 'margin-top:4px', text: q.description }) : null),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Edit', onclick: function () { editQuest(q); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Copy', onclick: function () { editQuest(q, true); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: q.active ? 'Turn off' : 'Turn on', onclick: async function () { var u = await sb.from('quest_defs').update({ active: !q.active }).eq('id', q.id); if (u.error) return fail(u.error); reload(); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete "' + q.title + '"? Its progress and claim history are deleted too. Turn it off instead to keep them.')) return; var d = await sb.from('quest_defs').delete().eq('id', q.id); if (d.error) return fail(d.error); reload(); } }))));
+            });
+            root.appendChild(box);
+        }
+
+        /* ---------- XP & LEVELS ---------- */
+        async function renderXp(root) {
+            var tok = S.rtok, st = S.settings || {};
+            var per = Number(st.xp_seconds_per_xp) || 180;
+
+            var user = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'xUser' });
+            var amt = el('input', { type: 'number', placeholder: '50 or -20', id: 'xAmt' });
+            var why = el('input', { type: 'text', placeholder: 'Event winner, bug report, correction...', id: 'xWhy', maxlength: '80' });
+            var out = el('div', { class: 'sm-result', hidden: true });
+            function showInfo(d, prefix) {
+                var x = d.xp || {};
+                out.hidden = false;
+                out.textContent = (prefix || '') + '@' + d.username + ' · level ' + x.level + ' · ' + fmt(x.xp) + ' XP (' + fmt(x.into) + ' / ' + fmt(x.need) + ' to the next level)' +
+                    (d.balance != null ? ' · ' + fmt(d.balance) + ' credits' : '') + ' · time-on-site XP today ' + fmt(x.day_xp) + (Number(x.day_cap) > 0 ? ' / ' + fmt(x.day_cap) : '');
+            }
+            var look = el('button', { class: 'sm-btn', type: 'button', text: 'Look up', onclick: async function () {
+                if (!user.value.trim()) return toast('Enter a username.', true);
+                look.disabled = true;
+                try { var r = await sb.rpc('store_admin_xp_lookup', { p_username: user.value.trim() }); if (r.error) throw r.error; showInfo(r.data); } catch (e) { fail(e); } finally { look.disabled = false; }
+            } });
+            var go = el('button', { class: 'sm-btn sm-btn--primary', type: 'button', text: 'Apply', onclick: async function () {
+                var n = Math.trunc(Number(amt.value));
+                if (!user.value.trim() || !n) return toast('Enter a username and an amount.', true);
+                if (!confirmIt((n > 0 ? 'Give ' : 'Remove ') + fmt(Math.abs(n)) + ' XP ' + (n > 0 ? 'to ' : 'from ') + user.value.trim() + '?')) return;
+                go.disabled = true;
+                try {
+                    var r = await sb.rpc('store_admin_grant_xp', { p_username: user.value.trim(), p_amount: n, p_reason: why.value.trim() });
+                    if (r.error) throw r.error;
+                    toast('@' + r.data.username + ' is now level ' + r.data.xp.level + ' with ' + fmt(r.data.xp.xp) + ' XP');
+                    showInfo(r.data, 'Done: ');
+                    amt.value = ''; why.value = '';
+                    loadLog();
+                } catch (e) { fail(e); } finally { go.disabled = false; }
+            } });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Give or remove XP' }),
+                el('p', { class: 'sm-note', text: 'Use it for event winners, rewards or fixes. A minus number removes XP (never below 0). Positive grants also send the member a notice when your notices table exists. Every change is logged below.' }),
+                el('div', { class: 'sm-form', style: 'margin-top:12px' },
+                    el('div', { class: 'sm-field' }, el('label', { for: 'xUser', text: 'Username' }), user),
+                    el('div', { class: 'sm-field' }, el('label', { for: 'xAmt', text: 'XP amount' }), amt),
+                    el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'xWhy', text: 'Reason (saved in the log)' }), why)),
+                el('div', { class: 'sm-dlg-foot' }, look, go),
+                out));
+
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'XP settings' }),
+                el('p', { class: 'sm-note', text: '1 XP for every ' + (Math.round(per / 60 * 10) / 10) + ' minutes of activity · ' + (Number(st.xp_daily_cap) > 0 ? 'max ' + fmt(st.xp_daily_cap) + ' XP a day from time on site' : 'no daily cap') + ' · normal quests refresh every ' + (st.quest_normal_hours || 5) + ' hours. Quest XP never counts toward the daily cap.' }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit XP settings', onclick: function () {
+                    openForm({ title: 'XP settings', values: st, fields: [
+                        { key: 'xp_seconds_per_xp', label: 'Seconds of activity per 1 XP', type: 'number', required: true, hint: '30 to 3600. 180 = 1 XP every 3 minutes.' },
+                        { key: 'xp_daily_cap', label: 'Max XP per day from time on site', type: 'number', required: true, hint: '0 = no limit. Stops idle tabs from farming.' },
+                        { key: 'quest_normal_hours', label: 'Normal board refreshes every (hours)', type: 'number', required: true, hint: '1 to 48.' }],
+                        onSave: function (o) { return saveSettings({ xp_seconds_per_xp: clampInt(o.xp_seconds_per_xp, 30, 3600), xp_daily_cap: clampInt(o.xp_daily_cap, 0, 100000), quest_normal_hours: clampInt(o.quest_normal_hours, 1, 48) }); } });
+                } }))));
+
+            var lad = el('div', { class: 'sm-stats' });
+            [2, 3, 4, 5, 7, 10, 15, 20].forEach(function (L) {
+                var need = 20 * (L - 1) * (L - 1), hours = need * per / 3600;
+                lad.appendChild(el('div', { class: 'sm-stat' }, el('strong', { text: 'Level ' + L }), el('span', { text: fmt(need) + ' XP · about ' + (hours < 10 ? Math.round(hours * 10) / 10 : Math.round(hours)) + 'h online' })));
+            });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Level ladder' }),
+                el('p', { class: 'sm-note', text: 'Level n starts at 20 × (n − 1)² XP. The hours show how long it takes with time on site alone, at your current rate and before quests.', style: 'margin-bottom:12px' }), lad));
+
+            var logBox = el('div', { class: 'sm-list' });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Recent XP changes by staff' }), logBox));
+            async function loadLog() {
+                var r = await sb.from('xp_log').select('*').order('created_at', { ascending: false }).limit(20);
+                if (tok !== S.rtok) return;
+                logBox.textContent = '';
+                if (r.error) return logBox.appendChild(el('div', { class: 'sm-empty', text: 'Run supabase-store-xp-admin.sql to keep a log of XP changes.' }));
+                var rows = r.data || [];
+                if (!rows.length) return logBox.appendChild(el('div', { class: 'sm-empty', text: 'No XP grants yet.' }));
+                var ids = Array.from(new Set(rows.map(function (x) { return x.user_id; })));
+                var p = await sb.from('profiles').select('id,username,display_name').in('id', ids);
+                (p.data || []).forEach(function (u) { S.names[u.id] = u.display_name || u.username; });
+                if (tok !== S.rtok) return;
+                rows.forEach(function (x) {
+                    logBox.appendChild(el('div', { class: 'sm-row' }, el('div', { class: 'sm-thumb', text: Number(x.delta) > 0 ? '⭐' : '➖' }),
+                        el('div', { class: 'sm-main' }, el('strong', { text: S.names[x.user_id] || x.user_id.slice(0, 8) }),
+                            el('div', { class: 'sm-meta', text: (Number(x.delta) > 0 ? '+' : '') + fmt(x.delta) + ' XP · ' + x.reason + ' · ' + when(x.created_at) }))));
+                });
+            }
+            loadLog();
+        }
+
         /* ---------- shell ---------- */
         function render() {
             var tabs = $('tabs'); tabs.textContent = '';
             TABS.forEach(function (t) { tabs.appendChild(el('button', { class: 'sm-tab', role: 'tab', 'aria-selected': String(S.tab === t[0]), text: t[1], onclick: function () { S.tab = t[0]; render(); } })); });
-            var v = $('view'); v.textContent = '';
-            ({ items: renderItems, featured: renderFeatured, packs: renderPacks, codes: renderCodes, credits: renderCredits, sales: renderSales })[S.tab](v);
+            var v = $('view'); v.textContent = ''; S.rtok = (S.rtok || 0) + 1;
+            ({ items: renderItems, featured: renderFeatured, packs: renderPacks, codes: renderCodes, credits: renderCredits, quests: renderQuests, xp: renderXp, sales: renderSales })[S.tab](v);
         }
 
         async function start() {

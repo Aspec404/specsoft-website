@@ -7,10 +7,10 @@
 (function () {
     'use strict';
     if (window.__STUDIO_BLOCKED) return;                 // blocked device: do nothing (see studio-guard.js)
-    var G = window.StudioGraph, BUCKET = 'studio-assets', MAX_FILE = 5000000, MAX_IMG = 2000000, MAX_TXT = 500000, MAX_COUNT = 60, MAX_TOTAL = 20000000, NAME = /^[A-Za-z0-9._-]{1,60}$/;
+    var G = window.StudioGraph, BUCKET = 'studio-assets', MAX_FILE = 5000000, MAX_IMG = 2000000, MAX_TXT = 1000000, MAX_COUNT = 60, MAX_TOTAL = 20000000, NAME = /^[A-Za-z0-9._-]{1,60}$/;
     var KINDS = { png: ['image/png', 'image'], jpg: ['image/jpeg', 'image'], jpeg: ['image/jpeg', 'image'], gif: ['image/gif', 'image'], webp: ['image/webp', 'image'],
         txt: ['text/plain', 'text'], json: ['text/plain', 'text'], csv: ['text/plain', 'text'], md: ['text/plain', 'text'], js: ['text/plain', 'text'], css: ['text/plain', 'text'], html: ['text/plain', 'text'] };
-    var A = window.StudioAssets = {}, st = { pid: null, list: null, error: '', busy: false, msg: '' }, cache = {}, thumbs = {}, ui = {};
+    var A = window.StudioAssets = {}, st = { pid: null, list: null, error: '', busy: false, msg: '', draft: { name: '', text: '' } }, cache = {}, thumbs = {}, ui = {};
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
     function log(sev, msg) { if (G && G.log) G.log(sev, 'assets', msg); }
     function fmt(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? Math.round(n / 1e3) + ' KB' : n + ' B'; }
@@ -115,7 +115,7 @@
     function draw() {
         var host = ui.host; if (!host) return; host.textContent = '';
         var w = el('div', 'pg as'); w.appendChild(el('h1', '', 'Assets'));
-        w.appendChild(el('p', 'pg-lead', 'Images and text files for this project, kept private to you. In HTML, CSS and Page JS write asset:name.png wherever an image address goes. In Page JS, studioAsset("data.json") gives you a text file as a string. The Preview only loads the assets your files mention. Assets are not part of published releases yet.'));
+        w.appendChild(el('p', 'pg-lead', 'Images and text files for this project, kept private to you. In HTML, CSS and Page JS write asset:name.png wherever an image address goes. In Page JS, studioAsset("data.json") gives you a text file as a string. You can also paste code or text into the box below instead of uploading a file. The Preview only loads the assets your files mention. Assets are not part of published releases yet.'));
         if (!ctx()) { w.appendChild(el('p', 'pg-lead', 'Open a project to manage its assets.')); host.appendChild(w); return; }
         if (st.error) { var er = el('p', 'as-msg', st.error); er.setAttribute('role', 'alert'); w.appendChild(er); host.appendChild(w); return; }
         var list = st.list || [], total = list.reduce(function (s, a) { return s + a.size; }, 0);
@@ -129,6 +129,14 @@
         drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
         drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer && e.dataTransfer.files) go(e.dataTransfer.files); });
         w.appendChild(drop);
+        var pb = el('div', 'as-paste'); pb.appendChild(el('strong', '', 'Or paste text or code'));
+        var nm = el('input'); nm.type = 'text'; nm.maxLength = 60; nm.placeholder = 'Name, like helper.js or data.json'; nm.value = st.draft.name; nm.setAttribute('aria-label', 'Name for the new text asset');
+        nm.addEventListener('input', function () { st.draft.name = nm.value; });
+        var ta = el('textarea'); ta.rows = 8; ta.spellcheck = false; ta.placeholder = 'Paste your code or text here. Best for small snippets: for a big library, upload the file instead.'; ta.value = st.draft.text; ta.setAttribute('aria-label', 'Text for the new asset');
+        ta.addEventListener('input', function () { st.draft.text = ta.value; });
+        [nm, ta].forEach(function (x) { x.style.display = 'block'; x.style.width = '100%'; x.style.boxSizing = 'border-box'; x.style.margin = '6px 0'; x.style.padding = '6px'; x.style.background = 'transparent'; x.style.color = 'inherit'; x.style.border = '1px solid rgba(255,255,255,.25)'; x.style.font = 'inherit'; }); ta.style.fontFamily = 'monospace'; ta.style.resize = 'vertical';
+        var sv = el('button', 'st-btn', 'Save as asset'); sv.type = 'button'; sv.disabled = st.busy; sv.addEventListener('click', pasteSave);
+        pb.appendChild(nm); pb.appendChild(ta); pb.appendChild(sv); w.appendChild(pb);
         if (st.msg) { var ms = el('p', 'as-msg', st.msg); ms.setAttribute('role', 'status'); w.appendChild(ms); }
         var grid = el('div', 'as-grid');
         if (!list.length) grid.appendChild(el('p', 'pg-lead', 'No assets yet.'));
@@ -147,6 +155,16 @@
     async function go(files) {
         if (st.busy) return; st.busy = true; st.msg = ''; draw();
         try { for (var i = 0; i < files.length && i < 20; i++) { try { await upload(files[i]); } catch (e) { st.msg = friendly(e); } draw(); } }
+        finally { st.busy = false; draw(); }
+    }
+    async function pasteSave() {                         // text typed or pasted into the box becomes a text asset, through the same checks as an uploaded file
+        if (st.busy) return; var name = st.draft.name.trim(), text = st.draft.text;
+        if (!NAME.test(name) || !/\.(txt|json|csv|md|js|css|html)$/i.test(name)) { st.msg = 'Give it a name that ends in .js, .json, .css, .html, .txt, .md or .csv (letters, digits, dot, dash, underscore).'; draw(); return; }
+        if (!text.trim()) { st.msg = 'Paste or type something first.'; draw(); return; }
+        if (new TextEncoder().encode(text).length > MAX_TXT) { st.msg = 'That is over ' + fmt(MAX_TXT) + ', the most a text asset can be for the Preview. Split it, or upload it as a file if it is only stored.'; draw(); return; }
+        st.busy = true; st.msg = ''; draw();
+        try { await upload(new File([text], name, { type: 'text/plain' })); if (!st.msg) st.draft = { name: '', text: '' }; }
+        catch (e) { st.msg = friendly(e); }
         finally { st.busy = false; draw(); }
     }
     async function rename(a) {

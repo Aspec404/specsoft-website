@@ -295,10 +295,11 @@
     function bodyDefaults(n) { return { on: true, x: Math.round(n.x || 0), y: Math.round(n.y || 0), w: 40, h: 40, role: 'block', tag: '', a: 1 }; }
     function trigDefaults() { return { tKind: 'timer', tMs: 1000, tRepeat: true, tMax: 20, tEvent: '', tBody: '', tTag: '', tAll: false, tOn: 'enter' }; }
     function flowDefaults() { return { fKind: 'counter', cMode: 'reach', cN: 3, cStart: 0, cReset: false, lN: 3, lGap: 0, qGap: 0, weights: {}, rTarget: '*', sTarget: '', sN: 1, rBodies: false, mTarget: '', mGroup: '', mX: 0, mY: 0, mRel: true, mMs: 1000, mEase: 'inout', mStop: 'pass', fTo: 0 }; }
-    var MAX_DEPTH = 5, MAX_TEXT = 5 * 1024 * 1024, TYPES = ['basic', 'script', 'branch', 'database', 'trigger', 'flow', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs'];
+    var MAX_DEPTH = 5, MAX_TEXT = 5 * 1024 * 1024, TYPES = ['basic', 'script', 'branch', 'database', 'trigger', 'flow', 'reroute'], LANGS = ['javascript', 'html', 'css', 'pagejs', 'json'];
     var TEMPLATE = "// input = results of the nodes connected into this one\nstudio.log('Hello from a script node');\nawait studio.delay(500);\nreturn { ok: true };";
     var TEMPLATES = { javascript: TEMPLATE, html: '<!-- HTML for your project -->\n<h1>Hello from SPECSOFT Studio</h1>', css: '/* CSS for your project */\nbody { font-family: sans-serif; }',
         pagejs: "// Runs inside the Preview page (not in the graph)\nconsole.log('page ready');\ndocument.body.insertAdjacentHTML('beforeend', '<p>Hello from page JS</p>');" };
+    TEMPLATES.json = '{\n  "hello": "SPECSOFT Studio",\n  "items": [1, 2, 3]\n}';
     var SQL_TEMPLATE = "-- Runs against this project's database\nCREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, text TEXT);\nINSERT INTO notes (text) VALUES ('hello');\nSELECT * FROM notes;";
     var crumbs = document.createElement('nav'); crumbs.className = 'st-crumbs'; crumbs.setAttribute('aria-label', 'Branch path'); crumbs.hidden = true; canvas.appendChild(crumbs);
     function clamp(v, lo, hi, d) { v = +v; return isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; }
@@ -405,6 +406,7 @@
         if (lang === 'html') return paintRe(src, /(<!--[\s\S]*?-->)|("[^"\n]*"|'[^'\n]*')|(<\/?[A-Za-z][\w-]*|\/?>)|(\b[\w-]+(?==))/g, ['c', 's', 'k', 'a']);
         if (lang === 'css') return paintRe(src, /(\/\*[\s\S]*?\*\/)|("[^"\n]*"|'[^'\n]*')|(@[\w-]+)|(#[0-9a-fA-F]{3,8}\b|\b\d+(?:\.\d+)?(?:px|em|rem|%|vh|vw|s|ms|deg)?\b)|([\w-]+(?=\s*:))/g, ['c', 's', 'k', 'n', 'a']);
         if (lang === 'sql') return paintRe(src, /(--[^\n]*)|('(?:[^']|'')*')|\b(select|from|where|and|or|not|insert|into|values|update|set|delete|create|table|drop|if|exists|order|by|asc|desc|limit|offset|like|in|is|null|primary|key|default|as|count|sum|avg|min|max|integer|int|text|real|varchar)\b|(\b\d+(?:\.\d+)?\b)/gi, ['c', 's', 'k', 'n']);
+        if (lang === 'json') return paintRe(src, /("(?:[^"\\\n]|\\.)*"(?=\s*:))|("(?:[^"\\\n]|\\.)*")|\b(true|false|null)\b|(-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)/g, ['a', 's', 'k', 'n']);
         return highlightJs(src);
     }
     /* Code size: MAX_CODE is the per-file limit. A paste that does not fit is never cut silently: the person is asked to split it. */
@@ -631,10 +633,33 @@
     };
     api.createCode = function (kind) {                   // kind: js | html | css | sql
         if (!open || G.nodes.length >= MAX_NODES) return null;
-        var i = G.nodes.length, type = kind === 'sql' ? 'database' : 'script', lang = kind === 'html' ? 'html' : kind === 'css' ? 'css' : 'javascript';
+        var i = G.nodes.length, type = kind === 'sql' ? 'database' : 'script', lang = kind === 'html' ? 'html' : kind === 'css' ? 'css' : kind === 'json' ? 'json' : 'javascript';
         var n = { id: uid(), label: nextLabel('N'), type: type, x: 40 + (i % 5) * 180, y: 40 + Math.floor(i / 5) * 90, enabled: true, status: 'idle', config: defaults(type) };
         n.config.lang = lang; if (type === 'script') n.config.code = TEMPLATES[lang];
         G.nodes.push(n); selOnly(n.id); api.log('ok', 'graph', 'Created ' + n.label + ' (' + kind + ')'); changed(); return n.id;
+    };
+    function jsonErrAt(s) {                              // offset of the first JSON syntax error, or -1 (browsers word their JSON errors differently, so the line number is found here)
+        var i = 0, n = s.length;
+        function ws() { while (i < n && ' \t\n\r'.indexOf(s[i]) > -1) i++; }
+        function fail() { throw i; }
+        function str() { i++; while (i < n) { var c = s[i]; if (c === '"') { i++; return; } if (c === '\\') { i++; if ('"\\/bfnrt'.indexOf(s[i]) > -1) i++; else if (s[i] === 'u' && /^[0-9a-fA-F]{4}$/.test(s.substr(i + 1, 4))) i += 5; else fail(); } else if (c < ' ') fail(); else i++; } fail(); }
+        function val(d) {
+            ws(); if (d > 200) fail(); var c = s[i];
+            if (c === '{') { i++; ws(); if (s[i] === '}') { i++; return; } for (;;) { ws(); if (s[i] !== '"') fail(); str(); ws(); if (s[i] !== ':') fail(); i++; val(d + 1); ws(); if (s[i] === ',') { i++; continue; } if (s[i] === '}') { i++; return; } fail(); } }
+            else if (c === '[') { i++; ws(); if (s[i] === ']') { i++; return; } for (;;) { val(d + 1); ws(); if (s[i] === ',') { i++; continue; } if (s[i] === ']') { i++; return; } fail(); } }
+            else if (c === '"') str();
+            else { var m = /^(?:-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)/.exec(s.slice(i, i + 400)); if (!m) fail(); i += m[0].length; }
+        }
+        try { val(0); ws(); if (i < n) fail(); } catch (e) { if (typeof e === 'number') return e; throw e; }
+        return -1;
+    }
+    api.parseJson = function (text) {                    // JSON files: returns { ok, value } or { ok: false, error } with an approximate line number
+        var s = String(text || '');
+        try { return { ok: true, value: JSON.parse(s) }; }
+        catch (e) {
+            var m = String((e && e.message) || e), p = /position (\d+)/.exec(m), l = /line (\d+)/.exec(m), at = p ? +p[1] : jsonErrAt(s), line = at > -1 ? s.slice(0, at).split('\n').length : l ? +l[1] : 0;
+            return { ok: false, error: m.slice(0, 200) + (line && !l ? ' (line ' + line + ')' : '') };      // some browsers already say "line N" in their message
+        }
     };
     api.setLang = function (id, lang) {
         var n = findAny(id); if (!n || n.type !== 'script' || LANGS.indexOf(lang) < 0) return;

@@ -2679,6 +2679,66 @@
     function flByCode(k) { return FL.ready ? (FL.byCode[String(k).toLowerCase()] || null) : null; }
     function flByChar(ch) { return FL.ready ? (FL.byChar.get(stripVS(ch)) || null) : null; }
 
+    // ----- standard emoji groups for the picker. emoji-data.js has no categories, so they come from the code point. -----
+    const FL_GROUPS = [
+        { key: 'smileys', label: 'Smileys & Emotion', icon: '😀' },
+        { key: 'people', label: 'People & Body', icon: '👋' },
+        { key: 'nature', label: 'Animals & Nature', icon: '🐻' },
+        { key: 'food', label: 'Food & Drink', icon: '🍔' },
+        { key: 'activities', label: 'Activities', icon: '⚽' },
+        { key: 'travel', label: 'Travel & Places', icon: '🚗' },
+        { key: 'objects', label: 'Objects', icon: '💡' },
+        { key: 'symbols', label: 'Symbols', icon: '🔣' },
+        { key: 'flags', label: 'Flags', icon: '🏁' }
+    ];
+    // checked in this order, first match wins. Anything not listed is an object.
+    const FL_RANGES = [
+        ['flags', [[0x1f1e6, 0x1f1ff], [0x1f3f3, 0x1f3f4], [0x1f3c1, 0x1f3c1], [0x1f6a9, 0x1f6a9], [0x1f38c, 0x1f38c]]],
+        ['smileys', [[0x1f600, 0x1f644], [0x1f648, 0x1f64a], [0x1f910, 0x1f915], [0x1f917, 0x1f917], [0x1f920, 0x1f925], [0x1f927, 0x1f92f],
+            [0x1f970, 0x1f976], [0x1f978, 0x1f97a], [0x1f9d0, 0x1f9d0], [0x1f9cc, 0x1f9cc], [0x1fae0, 0x1fae8], [0x1fae9, 0x1faea], [0x263a, 0x263a], [0x2639, 0x2639],
+            [0x2620, 0x2620], [0x1f480, 0x1f480], [0x1f479, 0x1f47b], [0x1f47d, 0x1f47f], [0x1f4a9, 0x1f4a9], [0x1f916, 0x1f916],
+            [0x1f493, 0x1f49f], [0x2763, 0x2764], [0x1f9e1, 0x1f9e1], [0x1f90d, 0x1f90e], [0x1f5a4, 0x1f5a4], [0x1fa75, 0x1fa77],
+            [0x1f48b, 0x1f48c], [0x1f4a2, 0x1f4a6], [0x1f4a8, 0x1f4a8], [0x1f4ab, 0x1f4ad], [0x1f4af, 0x1f4af], [0x1f573, 0x1f573], [0x1f5e8, 0x1f5e8], [0x1f5ef, 0x1f5ef]]],
+        ['people', [[0x1f440, 0x1f450], [0x1f464, 0x1f478], [0x1f47c, 0x1f47c], [0x1f481, 0x1f487], [0x1f48f, 0x1f48f], [0x1f491, 0x1f491], [0x1f4aa, 0x1f4aa],
+            [0x1f385, 0x1f385], [0x1f3c2, 0x1f3c4], [0x1f3c7, 0x1f3c7], [0x1f3ca, 0x1f3cc], [0x1f574, 0x1f575], [0x1f57a, 0x1f57a], [0x1f590, 0x1f590],
+            [0x1f595, 0x1f596], [0x1f5e3, 0x1f5e3], [0x1f645, 0x1f647], [0x1f64b, 0x1f64f], [0x1f6a3, 0x1f6a3], [0x1f6b4, 0x1f6b6], [0x1f6c0, 0x1f6c0], [0x1f6cc, 0x1f6cc],
+            [0x1f90c, 0x1f90c], [0x1f90f, 0x1f90f], [0x1f918, 0x1f91f], [0x1f926, 0x1f926], [0x1f930, 0x1f939], [0x1f93c, 0x1f93e], [0x1f977, 0x1f977],
+            [0x1f9b0, 0x1f9b9], [0x1f9bb, 0x1f9bf], [0x1f9cd, 0x1f9cf], [0x1f9d1, 0x1f9df], [0x1f9e0, 0x1f9e0], [0x1fac0, 0x1fac5], [0x1faf0, 0x1faf8],
+            [0x261d, 0x261d], [0x26f9, 0x26f9], [0x270a, 0x270d]]],
+        ['nature', [[0x1f400, 0x1f43f], [0x1f980, 0x1f9ae], [0x1f331, 0x1f335], [0x1f337, 0x1f33c], [0x1f33e, 0x1f344], [0x1f490, 0x1f490], [0x1f940, 0x1f940],
+            [0x1fab0, 0x1fabf], [0x1face, 0x1facf], [0x1f54a, 0x1f54a], [0x1f577, 0x1f578], [0x1f98b, 0x1f98b], [0x2618, 0x2618], [0x1f3f5, 0x1f3f5]]],
+        ['food', [[0x1f32d, 0x1f32f], [0x1f330, 0x1f330], [0x1f336, 0x1f336], [0x1f33d, 0x1f33d], [0x1f345, 0x1f37f], [0x1f37d, 0x1f37d], [0x1f942, 0x1f944],
+            [0x1f950, 0x1f96f], [0x1f382, 0x1f382], [0x1f3fa, 0x1f3fa], [0x1f9c0, 0x1f9c0], [0x1f9c1, 0x1f9cb], [0x1fad0, 0x1fad9], [0x2615, 0x2615], [0x1f9c2, 0x1f9c2]]],
+        ['activities', [[0x1f383, 0x1f384], [0x1f386, 0x1f38b], [0x1f38d, 0x1f391], [0x1f3a3, 0x1f3a3], [0x1f3a8, 0x1f3a8], [0x1f3aa, 0x1f3ab], [0x1f3ad, 0x1f3b4],
+            [0x1f3bd, 0x1f3c0], [0x1f3c5, 0x1f3c6], [0x1f3c8, 0x1f3c9], [0x1f3cf, 0x1f3d3], [0x1f3f8, 0x1f3f9], [0x1f947, 0x1f94f], [0x1f93a, 0x1f93a], [0x1f93f, 0x1f93f],
+            [0x1f9e9, 0x1f9e9], [0x1f9f8, 0x1f9f8], [0x1f380, 0x1f381], [0x1fa80, 0x1fa86], [0x26bd, 0x26be], [0x26f3, 0x26f3], [0x26f8, 0x26f8], [0x1f0cf, 0x1f0cf], [0x1f004, 0x1f004],
+            [0x1f579, 0x1f579], [0x2728, 0x2728], [0x2660, 0x2660], [0x2663, 0x2663], [0x2665, 0x2666], [0x26f7, 0x26f7], [0x1f396, 0x1f397], [0x1f39f, 0x1f39f]]],
+        ['travel', [[0x1f300, 0x1f30c], [0x1f30d, 0x1f320], [0x1f321, 0x1f321], [0x1f324, 0x1f32c], [0x2600, 0x2604], [0x2614, 0x2614], [0x2744, 0x2744], [0x26a1, 0x26a1],
+            [0x26c4, 0x26c5], [0x26c8, 0x26c8], [0x2b50, 0x2b50], [0x1f525, 0x1f525], [0x1f4a7, 0x1f4a7], [0x1f3d4, 0x1f3df], [0x1f3e0, 0x1f3f0], [0x1f3a0, 0x1f3a2],
+            [0x1f488, 0x1f488], [0x1f5fa, 0x1f5ff], [0x1f680, 0x1f6a8], [0x1f6b2, 0x1f6b2], [0x1f6d1, 0x1f6d1], [0x1f6d5, 0x1f6d7], [0x1f6dd, 0x1f6df], [0x1f6e2, 0x1f6e5],
+            [0x1f6e9, 0x1f6e9], [0x1f6eb, 0x1f6ec], [0x1f6f0, 0x1f6f0], [0x1f6f3, 0x1f6fc], [0x1f9ed, 0x1f9ed], [0x1fa90, 0x1fa90], [0x1f550, 0x1f567], [0x23f0, 0x23f3],
+            [0x231a, 0x231b], [0x1f570, 0x1f570], [0x26e9, 0x26ea], [0x26f0, 0x26f2], [0x26f4, 0x26f5], [0x26fa, 0x26fa], [0x26fd, 0x26fd], [0x2693, 0x2693], [0x2708, 0x2708],
+            [0x1f54b, 0x1f54d], [0x1f3cd, 0x1f3ce], [0x1f492, 0x1f492]]],
+        ['symbols', [[0x23, 0x23], [0x2a, 0x2a], [0x30, 0x39], [0xa9, 0xa9], [0xae, 0xae], [0x203c, 0x203c], [0x2049, 0x2049], [0x2122, 0x2122], [0x2139, 0x2139],
+            [0x2194, 0x21aa], [0x23cf, 0x23cf], [0x23e9, 0x23ec], [0x23f8, 0x23fa], [0x24c2, 0x24c2], [0x25aa, 0x25ab], [0x25b6, 0x25b6], [0x25c0, 0x25c0], [0x25fb, 0x25fe],
+            [0x2611, 0x2611], [0x2622, 0x2623], [0x2626, 0x2626], [0x262a, 0x262a], [0x262e, 0x262f], [0x2638, 0x2638], [0x2640, 0x2642], [0x2648, 0x2653], [0x267b, 0x267b],
+            [0x267e, 0x267f], [0x2695, 0x2695], [0x269b, 0x269c], [0x26a0, 0x26a0], [0x26aa, 0x26ab], [0x26ce, 0x26ce], [0x26d4, 0x26d4], [0x2705, 0x2705], [0x2714, 0x2714],
+            [0x2716, 0x2716], [0x271d, 0x271d], [0x2721, 0x2721], [0x2733, 0x2734], [0x2747, 0x2747], [0x274c, 0x274c], [0x274e, 0x274e], [0x2753, 0x2755], [0x2757, 0x2757],
+            [0x2795, 0x2797], [0x27a1, 0x27a1], [0x27b0, 0x27b0], [0x27bf, 0x27bf], [0x2934, 0x2935], [0x2b05, 0x2b07], [0x2b1b, 0x2b1c], [0x2b55, 0x2b55], [0x3030, 0x3030],
+            [0x303d, 0x303d], [0x3297, 0x3297], [0x3299, 0x3299], [0x1f170, 0x1f171], [0x1f17e, 0x1f17f], [0x1f18e, 0x1f18e], [0x1f191, 0x1f19a], [0x1f201, 0x1f202],
+            [0x1f21a, 0x1f21a], [0x1f22f, 0x1f22f], [0x1f232, 0x1f23a], [0x1f250, 0x1f251], [0x1f4a0, 0x1f4a0], [0x1f4f3, 0x1f4f6], [0x1f500, 0x1f506], [0x1f518, 0x1f524],
+            [0x1f530, 0x1f53d], [0x1f549, 0x1f549], [0x1f54e, 0x1f54e], [0x1f6ab, 0x1f6ab], [0x1f6ad, 0x1f6af], [0x1f6b0, 0x1f6b1], [0x1f6b3, 0x1f6b3], [0x1f6b7, 0x1f6bc],
+            [0x1f6be, 0x1f6be], [0x1f6c2, 0x1f6c5], [0x1f6d0, 0x1f6d0], [0x1f6dc, 0x1f6dc], [0x1f7e0, 0x1f7eb], [0x1f7f0, 0x1f7f0], [0x23ed, 0x23ef], [0x1f52f, 0x1f52f], [0x26a7, 0x26a7]]]
+    ];
+    function flGroupOf(cps) {
+        const cp = cps[0];
+        for (let g = 0; g < FL_RANGES.length; g++) {
+            const rs = FL_RANGES[g][1];
+            for (let i = 0; i < rs.length; i++) if (cp >= rs[i][0] && cp <= rs[i][1]) return FL_RANGES[g][0];
+        }
+        return 'objects';
+    }
+
     function flIndex(data) {
         if (!data || !Array.isArray(data.list)) return false;
         FL.items = []; FL.byCode = Object.create(null); FL.byChar = new Map();
@@ -2690,12 +2750,18 @@
             const tail = (r[4] || flSlug(r[1])) + '_' + cps.map(function (h) { return h.replace(/^0+(?=.)/, ''); }).join('-') + '.png';
             const it = {
                 c: c, n: r[1], codes: codes, key: codes[0] || '', url: data.base + tail,
+                cps: cps.map(function (h) { return parseInt(h, 16); }),
                 hay: (r[1] + ' ' + codes.join(' ').replace(/[_+-]+/g, ' ') + ' ' + (r[3] || '')).toLowerCase()
             };
             FL.items.push(it);
             codes.forEach(function (k) { if (!FL.byCode[k]) FL.byCode[k] = it; });
             FL.byChar.set(stripVS(c), it);
         });
+        // the picker's category sections (codepoint order keeps the faces, hearts, animals... together)
+        FL.groups = Object.create(null);
+        FL_GROUPS.forEach(function (g) { FL.groups[g.key] = []; });
+        FL.items.slice().sort(function (a, b) { return a.cps[0] - b.cps[0] || a.cps.length - b.cps.length || (a.n < b.n ? -1 : 1); })
+            .forEach(function (it) { FL.groups[flGroupOf(it.cps)].push(it); });
         FL.ready = FL.items.length > 0;
         return FL.ready;
     }
@@ -2928,6 +2994,7 @@
         const code = it.custom ? ':' + it.code + ':' : it.ch;
         const url = it.custom ? composerEmojiUrl(it.code) : it.url;
         if (!url) { closeEmojiSuggest(); return; }
+        recentAdd(code);
         const img = makeComposerEmoji(code, url);
         const v = ctx.node.nodeValue, parent = ctx.node.parentNode;
         let after = v.slice(ctx.end);
@@ -3062,20 +3129,100 @@
     }
     window.addEventListener('specseason', function () { try { buildPicker(); } catch (e) { /* picker not ready yet */ } });
 
+    /* ----- recently used (kept in this browser, newest first) ----- */
+    const RECENT_KEY = 'specsoft_emoji_recent_v1', RECENT_MAX = 24;
+    let recentBox = null;
+
+    function recentGet() {
+        try {
+            const a = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+            return Array.isArray(a) ? a.filter(function (s) { return typeof s === 'string' && s && s.length <= 40; }).slice(0, RECENT_MAX) : [];
+        } catch (e) { return []; }
+    }
+    function recentAdd(value) {
+        value = String(value == null ? '' : value).trim();
+        if (!value || value.length > 40) return;
+        try {
+            const next = [value].concat(recentGet().filter(function (x) { return x !== value; })).slice(0, RECENT_MAX);
+            localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+        } catch (e) { /* private mode or full storage: just no history */ }
+    }
+    function recentClear() {
+        try { localStorage.removeItem(RECENT_KEY); } catch (e) { /* ignore */ }
+        paintRecent();
+    }
+    // one button for a remembered value: '😭', ':sob:' or one of your own :emotes:
+    function recentButton(value) {
+        let url = null, label = value, ch = value;
+        const m = /^:([a-z0-9_+-]{1,32}):$/i.exec(value);
+        if (m) {
+            const k = m[1].toLowerCase();
+            if (STORE_EMOTE[k]) {
+                if (!MY_EMOTES.has(k)) return null;                 // an emote you no longer own is not shown
+                url = MY_EMOTES.get(k); label = k; ch = null;
+            } else {
+                const q = resolveQuick(value);
+                if (!q) return null;
+                url = q.url; label = q.label; ch = q.ch;
+                if (!url && !ch) return null;
+            }
+        }
+        const button = el('button', { type: 'button', class: 'ch-emoji-btn' + (url && !ch ? ' is-custom' : ''), 'aria-label': label, title: label, onclick: function () { pickEmoji(value); } });
+        if (url && !ch) {
+            const img = el('img', { src: url, alt: label, loading: 'lazy' });
+            img.onerror = function () { button.disabled = true; };
+            button.appendChild(img);
+        } else if (url) {
+            button.appendChild(makeFluentImg({ url: url, c: ch, key: label }, 'ch-fl-img'));
+        } else fillEmojiBtn(button, ch);
+        return button;
+    }
+    function paintRecent() {
+        if (!recentBox) return;
+        recentBox.textContent = '';
+        const list = recentGet();
+        recentBox.appendChild(el('div', { class: 'ch-emoji-cat ch-emoji-cat--row' },
+            el('span', { text: 'RECENTLY USED' }),
+            list.length ? el('button', { type: 'button', class: 'ch-emoji-clear', onclick: recentClear }, 'Clear') : null));
+        const grid = el('div', { class: 'ch-emoji-grid' });
+        list.forEach(function (v) { const b = recentButton(v); if (b) grid.appendChild(b); });
+        if (!grid.children.length) { recentBox.appendChild(el('p', { class: 'ch-emoji-empty', text: 'Emoji you use show up here.' })); return; }
+        recentBox.appendChild(grid);
+    }
+
+    // small icon for a category tab (the Windows 11 picture when we have it)
+    function tabIcon(ch) {
+        const it = flByChar(ch);
+        const wrap = el('span', { class: 'ch-emoji-tabico', 'aria-hidden': 'true' });
+        if (it) wrap.appendChild(makeFluentImg(it, 'ch-fl-img')); else wrap.textContent = ch;
+        return wrap;
+    }
+    const TAB_ICON = { emoticons: '😀', people: '👋', things: '🎮', symbols: '✅', 'meme emojis': '😭' };
+
     function buildPicker() {
         const box = $('chEmoji');
         const search = ensurePickSearch();
         const hadFocus = document.activeElement === search;
         box.textContent = '';
-        box.appendChild(el('div', { class: 'ch-emoji-search' }, search));
+        const tabs = el('div', { class: 'ch-emoji-tabs', role: 'toolbar', 'aria-label': 'Emoji categories' });
+        box.appendChild(el('div', { class: 'ch-emoji-search' }, search, tabs));
         pickResults = el('div', { class: 'ch-emoji-results', hidden: true });
         pickMain = el('div', { class: 'ch-emoji-main' });
         box.appendChild(pickResults);
         box.appendChild(pickMain);
+        const secs = [];                                       // one entry per section: the tabs jump to them
+        recentBox = el('div', { class: 'ch-emoji-recent' });
+        pickMain.appendChild(recentBox);
+        secs.push({ label: 'Recently used', icon: '🕒', node: recentBox });
+        paintRecent();
+        const mineAt = pickMain.children.length;
         appendMyEmotes(pickMain);
+        secs.push({ label: 'My emotes', icon: '⭐', node: pickMain.children[mineAt] });
         appendSeasonal(pickMain);
         Object.keys(EMOJI).forEach(function (cat) {
-            pickMain.appendChild(el('div', { class: 'ch-emoji-cat', text: cat.toUpperCase() }));
+            const catHead = el('div', { class: 'ch-emoji-cat', text: cat.toUpperCase() });
+            pickMain.appendChild(catHead);
+            secs.push({ label: cat, icon: TAB_ICON[cat.toLowerCase()] || '✨', node: catHead });
             const grid = el('div', { class: 'ch-emoji-grid' });
             EMOJI[cat].forEach(function (entry) {
                 const custom = typeof entry === 'object' && entry !== null;
@@ -3091,11 +3238,40 @@
             });
             pickMain.appendChild(grid);
         });
+        // every standard emoji, as Windows 11 (Fluent 3D) pictures, in categories
+        if (FL.ready && FL.groups) {
+            FL_GROUPS.forEach(function (g) {
+                const items = FL.groups[g.key];
+                if (!items || !items.length) return;
+                const head = el('div', { class: 'ch-emoji-cat', text: g.label.toUpperCase() });
+                pickMain.appendChild(head);
+                secs.push({ label: g.label, icon: g.icon, node: head });
+                const grid = el('div', { class: 'ch-emoji-grid' });
+                items.forEach(function (it) {
+                    const b = el('button', { type: 'button', class: 'ch-emoji-btn', 'aria-label': it.n, title: it.n, onclick: function () { pickEmoji(it.c); } });
+                    b.appendChild(makeFluentImg(it, 'ch-fl-img'));
+                    grid.appendChild(b);
+                });
+                pickMain.appendChild(grid);
+            });
+        }
+        secs.forEach(function (s) {
+            if (!s.node) return;
+            tabs.appendChild(el('button', {
+                type: 'button', class: 'ch-emoji-tab', title: s.label, 'aria-label': s.label,
+                onclick: function () {
+                    if (search.value) { search.value = ''; runPickerSearch(); }
+                    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    s.node.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+                }
+            }, tabIcon(s.icon)));
+        });
         if (search.value.trim()) runPickerSearch();
         if (hadFocus) search.focus();
     }
 
     function pickEmoji(e) {
+        recentAdd(e);
         if (S.pickerFor) {
             const m = S.byId.get(S.pickerFor);
             S.pickerFor = null;
@@ -3115,6 +3291,8 @@
         box.hidden = open;
         $('chEmojiBtn').setAttribute('aria-expanded', String(!box.hidden));
         if (!box.hidden) {
+            paintRecent();
+            box.scrollTop = 0;
             refreshEmotes(false);                            // pick up emotes just bought in the store
             if (pickSearch && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) pickSearch.focus();
         }

@@ -311,7 +311,11 @@
             if (c.aDelay) { ev(run, 'info', 'activation delay ' + c.aDelay + ' ms', n); await sleep(grp, c.aDelay, ctl); await gate(run, grp, ctl); }
             setS(run, n, 'running'); ev(run, 'info', 'started', n);
             if (c.eDelay) { ev(run, 'info', 'execution delay ' + c.eDelay + ' ms', n); await sleep(grp, c.eDelay, ctl); await gate(run, grp, ctl); }
-            if (n.type === 'script') out = (c.lang === 'html' || c.lang === 'css' || c.lang === 'pagejs') ? cleanOut({ lang: c.lang, content: String(c.code || '') }) : await runScript(cx, n);
+            if (n.type === 'script' && c.lang === 'json') {                          // JSON file: parsed in the page (JSON.parse never runs code), its value is the node's output
+                if (!String(c.code || '').trim()) ev(run, 'warn', 'has no JSON, nothing to output', n);
+                else { var jr = G.parseJson(c.code); if (!jr.ok) throw new Error('Invalid JSON: ' + jr.error); out = cleanOut(jr.value); }
+            }
+            else if (n.type === 'script') out = (c.lang === 'html' || c.lang === 'css' || c.lang === 'pagejs') ? cleanOut({ lang: c.lang, content: String(c.code || '') }) : await runScript(cx, n);
             else if (n.type === 'database') out = runSql(run, n);
             else if (n.type === 'flow') out = await runFlow(cx, n);
             else if (n.type === 'branch') {
@@ -322,7 +326,7 @@
             await gate(run, grp, ctl);
             if (c.oDelay) { ev(run, 'info', 'holding output ' + c.oDelay + ' ms', n); await sleep(grp, c.oDelay, ctl); await gate(run, grp, ctl); }
             if (out !== undefined) grp.results[n.label] = out;
-            if (out !== undefined && (n.type === 'database' || (n.type === 'script' && c.lang === 'javascript'))) {      // the value a script returns (or the rows a SQL node selects) is part of its output
+            if (out !== undefined && (n.type === 'database' || (n.type === 'script' && (c.lang === 'javascript' || c.lang === 'json')))) {      // the value a script returns (or the rows a SQL node selects) is part of its output
                 var shown = JSON.stringify(out); G.log('info', 'output', 'returned ' + (Array.isArray(out) ? out.length + ' item(s): ' : '') + (shown.length > 2000 ? shown.slice(0, 2000) + ' ...' : shown), n.id);
             }
             setS(run, n, stopped ? 'stopped' : 'done');

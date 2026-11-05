@@ -34,6 +34,7 @@
             <span class="st-brand">SPECSOFT<sup>®</sup> <em>Store</em></span>
 
             <nav class="st-links" aria-label="Store sections">
+                <a href="#quests">Quests</a>
                 <a href="#featured">Featured</a>
                 <a href="#items">Items</a>
                 <a href="#credits">Get credits</a>
@@ -71,6 +72,14 @@
                     </div>
                     <p class="st-guest" id="stGuest" hidden>Sign in to see your balance, claim daily credits and buy items. <a href="login.html">Sign in</a></p>
                     <p class="st-lifetime" id="stLifetime" hidden></p>
+                    <div class="st-xp" id="stXp" hidden>
+                        <div class="st-xp-top">
+                            <span class="st-xp-lvl"><b class="st-lv" id="stXpLv">LV 1</b><span id="stXpTotal">0 XP</span></span>
+                            <span class="st-xp-next" id="stXpNext"></span>
+                        </div>
+                        <div class="st-xp-bar" id="stXpBar" role="progressbar" aria-label="Level progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="stXpFill"></i></div>
+                        <p class="st-help" id="stXpHelp"></p>
+                    </div>
                 </div>
 
                 <div class="st-daily" id="stDaily">
@@ -90,6 +99,23 @@
                         </div>
                     </form>
                 </div>
+            </section>
+
+            <!-- ================= QUESTS ================= -->
+            <section class="st-section" id="quests" aria-labelledby="stQuestTitle">
+                <header class="st-sechead">
+                    <div>
+                        <h2 id="stQuestTitle">Quests</h2>
+                        <p class="st-sub">Three quests on every board. Finish them for APEX Credits and XP, then claim them before the board refreshes.</p>
+                    </div>
+                    <div class="st-clock" id="stQuestClock" hidden>
+                        <span>New quests in</span>
+                        <strong id="stQuestClockN">--</strong>
+                    </div>
+                </header>
+                <div class="st-chips" id="stQuestTabs" role="tablist" aria-label="Quest boards"></div>
+                <div class="st-quests" id="stQuests" aria-live="polite"></div>
+                <p class="st-guest" id="stQuestGuest" hidden>Sign in to see your quests and earn XP. <a href="login.html">Sign in</a></p>
             </section>
 
             <!-- ================= FEATURED ================= -->
@@ -253,6 +279,7 @@
     <script src="supabase-config.js"></script>
     <script src="chat-notify.js" defer></script>
     <script src="apex-credits.js"></script>
+    <script src="xp.js" data-visit="store" defer></script>
     <script src="avatar-frames.js"></script>
     <script src="store.js"></script>
     <script src="cursor.js" defer></script>

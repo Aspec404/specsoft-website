@@ -1,7 +1,7 @@
 /* SPECSOFT® Studio, PHASE 6: secure Preview.
    Builds ONE page from your enabled files (in Explorer order): HTML files go in the body, CSS files in a <style>,
    "JavaScript (page)" files run inside the page. Graph-logic JavaScript does NOT go into the page.
-   SECURITY: the page runs in <iframe sandbox="allow-scripts"> (opaque origin: no cookies, no storage, no access to
+   SECURITY: The page runs in <iframe sandbox="allow-scripts allow-pointer-lock"> (pointer lock lets 3D games capture the mouse; opaque origin: no cookies, no storage, no access to
    Studio or your Supabase session, no popups, no top navigation) with a Content-Security-Policy that blocks ALL
    network access, remote images/scripts/fonts, frames, objects and form posts. Only data: and blob: sources work.
    Messages from the page are accepted only from that frame, with a secret token, and are validated, size-capped
@@ -125,7 +125,7 @@
         try { st.hostOrigin = host ? new URL(host, location.href).origin : ''; } catch (e) { st.hostOrigin = ''; host = ''; }
         st.sent = false; st.doc = ''; f.setAttribute('allow', ''); f.setAttribute('title', 'Preview'); f.referrerPolicy = 'no-referrer';
         if (host) { st.doc = a.doc(st.token); f.src = host + (host.indexOf('?') > -1 ? '&' : '?') + 'parent=' + encodeURIComponent(location.origin); }   // the host page adds the sandbox
-        else { f.setAttribute('sandbox', 'allow-scripts'); f.srcdoc = a.doc(st.token); }
+        else { f.setAttribute('sandbox', 'allow-scripts allow-pointer-lock'); f.srcdoc = a.doc(st.token); }
         st.frame = f; st.running = true; window.addEventListener('message', onMsg);
         ui.host.appendChild(f); ui.empty.hidden = true; buttons(); status();
         G.log('info', 'preview', 'Preview started (' + a.files.length + ' file(s), ' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, ' + (ui.source.value === 'saved' ? 'last saved version' : 'current draft') + ')');
