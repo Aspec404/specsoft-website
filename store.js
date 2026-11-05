@@ -20,7 +20,7 @@
     };
 
     var CATS = [['all', 'All'], ['bundle', 'Bundles'], ['frame', 'Frames'], ['emote', 'Emotes'], ['badge', 'Badges'], ['theme', 'Themes'], ['boost', 'Boosts'], ['cosmetic', 'Cosmetics'], ['misc', 'Misc']];
-    var RARITY = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+    var RARITY = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', legacy: 'Legacy', mythic: 'Mythic' };
     var ERR = {
         not_signed_in: 'Sign in to do that.',
         not_enough_credits: 'You do not have enough APEX Credits for that.',

@@ -8,16 +8,22 @@
     --st-gap: clamp(14px, 2vw, 22px);
     --st-radius: 14px;
     --st-common: var(--text-tertiary);
+    --st-uncommon: #f1f3f5;
     --st-rare: #3b9cff;
     --st-epic: #a66bff;
-    --st-legendary: #f2a516;
+    --st-legendary: #facc15;
+    --st-legacy: #ff7a1a;
+    --st-mythic: #ef2b3a;
     --st-ok: #23a55a;
     --st-bad: #f23f43;
 }
 body.light-mode.st-body {
+    --st-uncommon: #8b95a3;
     --st-rare: #1f74d6;
     --st-epic: #7f3fe0;
-    --st-legendary: #b97800;
+    --st-legendary: #b58a00;
+    --st-legacy: #d9590b;
+    --st-mythic: #d1202e;
     --st-ok: #178a45;
     --st-bad: #d1272b;
 }
@@ -242,9 +248,12 @@ body.light-mode .st-pip.is-done .apex-ico { filter: none; }
     transition: border-color 0.25s ease, transform 0.25s ease;
 }
 .st-card:hover { border-color: var(--rar); transform: translateY(-3px); }
+.st-card.is-uncommon { --rar: var(--st-uncommon); }
 .st-card.is-rare { --rar: var(--st-rare); }
 .st-card.is-epic { --rar: var(--st-epic); }
 .st-card.is-legendary { --rar: var(--st-legendary); }
+.st-card.is-legacy { --rar: var(--st-legacy); }
+.st-card.is-mythic { --rar: var(--st-mythic); box-shadow: 0 0 22px -8px var(--st-mythic); }
 
 .st-card-media {
     position: relative;
@@ -335,7 +344,7 @@ body.light-mode .st-pip.is-done .apex-ico { filter: none; }
 /* ---------------- owned ---------------- */
 .st-owned { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .st-own { --rar: var(--st-common); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 10px 14px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; }
-.st-own.is-rare { --rar: var(--st-rare); } .st-own.is-epic { --rar: var(--st-epic); } .st-own.is-legendary { --rar: var(--st-legendary); }
+.st-own.is-uncommon { --rar: var(--st-uncommon); } .st-own.is-rare { --rar: var(--st-rare); } .st-own.is-epic { --rar: var(--st-epic); } .st-own.is-legendary { --rar: var(--st-legendary); } .st-own.is-legacy { --rar: var(--st-legacy); } .st-own.is-mythic { --rar: var(--st-mythic); }
 .st-own-ico { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--rar) 26%, transparent), transparent 70%); font-size: 34px; }
 .st-own-ico img { max-width: 80%; max-height: 80%; }
 .st-own strong { font-size: 13px; font-weight: 600; }
