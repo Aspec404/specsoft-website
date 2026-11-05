@@ -287,7 +287,7 @@
         function itemErr(e) {
             var msg = String(e && e.message || e);
             if (/emote_name_key|duplicate/i.test(msg)) return new Error('That emote code is already used.');
-            if (/frame_rules/.test(msg)) return new Error('This frame is not valid (one per person). If it uses an image, run supabase-store-frames-images.sql first.');
+            if (/frame_rules/.test(msg)) return new Error('The database rejected this frame. Run supabase-store-frames-10mb.sql in Supabase (it reinstalls the newest frame validator: image frames + Frame Lab effects), then try again.');
             if (/bundle_rules/.test(msg)) return new Error('Bundles can only hold normal items (no bundles inside bundles).');
             if (/emote_rules|category_check/.test(msg)) return new Error('Run supabase-store-emotes.sql and supabase-store-frames.sql first, then try again.');
             return e;
@@ -613,24 +613,32 @@
                 im.src = u;
             });
         }
+        var FRAME_MAX_MB = 10, FRAME_MAX_PX = 2048;
         async function uploadFrameImage(file) {
-            var EXT = { 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }, ext = EXT[file.type];
-            if (!ext) throw new Error('Use a PNG, GIF or WebP image.');
-            if (file.size > 3 * 1024 * 1024) throw new Error('That file is over 3 MB. Shrink it, or lower the frame rate or size of the GIF.');
+            var EXT = { 'image/png': 'png', 'image/apng': 'png', 'image/x-png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }, MIME = { png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+            var ext = EXT[String(file.type || '').toLowerCase()];
+            if (!ext) { var m = /\.(png|gif|webp)$/i.exec(file.name || ''); if (m) ext = m[1].toLowerCase(); }   // some browsers / systems leave file.type empty
+            if (!ext) throw new Error('Use a PNG, GIF or WebP image (JPG has no see-through background, so it cannot be a frame).');
+            var type = MIME[ext];
+            if (file.size > FRAME_MAX_MB * 1024 * 1024) throw new Error('That file is ' + (file.size / 1048576).toFixed(1) + ' MB. The limit is ' + FRAME_MAX_MB + ' MB. Shrink it, or lower the frame rate or size of the GIF.');
             var d = await imageSize(file);
             if (d.w < 64 || d.h < 64) throw new Error('The image is too small. Use at least 64 x 64 pixels (512 x 512 is ideal).');
-            if (d.w > 1024 || d.h > 1024) throw new Error('The image is too big. Use at most 1024 x 1024 pixels (512 x 512 is ideal).');
+            if (d.w > FRAME_MAX_PX || d.h > FRAME_MAX_PX) throw new Error('The image is too big (' + d.w + ' x ' + d.h + '). Use at most ' + FRAME_MAX_PX + ' x ' + FRAME_MAX_PX + ' pixels (512 x 512 is ideal).');
             var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
             var path = 'frames/' + id + '.' + ext;
-            var r = await sb.storage.from('store-frames').upload(path, file, { contentType: file.type, cacheControl: '31536000', upsert: false });
+            // re-wrap so the upload always carries a correct content type, even when the browser reported none
+            var blob = file.type === type ? file : new Blob([file], { type: type });
+            var r = await sb.storage.from('store-frames').upload(path, blob, { contentType: type, cacheControl: '31536000', upsert: false });
             if (r.error) throw r.error;
             return sb.storage.from('store-frames').getPublicUrl(path).data.publicUrl;
         }
         function uploadMsg(e) {
-            var m = String((e && e.message) || e);
-            if (/bucket not found/i.test(m)) return 'The store-frames bucket does not exist yet. Run supabase-store-frames-images.sql in Supabase.';
-            if (/row-level security|not authorized|unauthorized|permission/i.test(m)) return 'Upload blocked. Run supabase-store-frames-images.sql and make sure this account is a store admin.';
-            if (/mime|not supported|invalid/i.test(m) && /type|mime/i.test(m)) return 'The server only accepts PNG, GIF and WebP.';
+            var m = String((e && (e.message || e.error)) || e), code = String((e && (e.statusCode || e.status)) || '');
+            if (/bucket not found/i.test(m)) return 'The store-frames bucket does not exist yet. Run supabase-store-frames-10mb.sql in Supabase.';
+            if (/exceeded the maximum allowed size|payload too large|too large/i.test(m) || code === '413') return 'The server rejected the size. Run supabase-store-frames-10mb.sql in Supabase (it raises the bucket limit to 10 MB). If it still fails, raise the global limit in Supabase > Storage > Settings.';
+            if (/row-level security|not authorized|unauthorized|permission|violates/i.test(m) || code === '403') return 'Upload blocked. Run supabase-store-frames-10mb.sql and make sure you are signed in with a store admin account.';
+            if (/mime|not supported|unsupported/i.test(m)) return 'The server only accepts PNG, GIF and WebP. Run supabase-store-frames-10mb.sql if this file is one of those.';
+            if (/failed to fetch|networkerror|load failed/i.test(m)) return 'Network error while uploading. Check your connection and try again.';
             return m;
         }
         var IMGCTL = [['scale', 'Size (1 = same as the avatar)', 0.5, 3, 0.05], ['x', 'Move left / right (%)', -50, 50, 1], ['y', 'Move up / down (%)', -50, 50, 1], ['rot', 'Rotate (degrees)', -180, 180, 1]];
@@ -669,7 +677,7 @@
                     var th = el('img', { class: 'fd-thumb', alt: '' }); th.src = im.src; top.appendChild(th);
                 } else top.appendChild(el('div', { class: 'fd-empty', text: 'No image' }));
                 var side = el('div', null,
-                    el('div', { class: 'sm-note', style: 'margin-bottom:8px', text: 'Transparent PNG, GIF or WebP. Square works best (512 x 512), max 3 MB. Keep the middle see-through so the avatar shows. Big or long GIFs make chats heavy.' }),
+                    el('div', { class: 'sm-note', style: 'margin-bottom:8px', text: 'Transparent PNG, GIF or WebP. Square works best (512 x 512), max 10 MB. Keep the middle see-through so the avatar shows. Big or long GIFs make chats heavy.' }),
                     el('div', { class: 'fd-bar', style: 'margin:0' }, up,
                         im ? el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Remove image', onclick: function () {
                             delete D.f.image; D.f.v = 2; if (!D.f.layers.length) D.f.layers.push(newLayer()); D.sel = 0; render();
