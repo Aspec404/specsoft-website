@@ -545,3 +545,10 @@ body.light-mode .st-pip.is-done .apex-ico { filter: none; }
 
 @media (max-width: 900px) { .st-quests { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .st-quest, .st-xp-bar i { transition: none; } }
+
+/* ---------- titles ---------- */
+.st-title-art { display: inline-flex; align-items: center; justify-content: center; max-width: 100%; overflow: hidden; line-height: 1.3; padding: 4px 2px; }
+.st-title-art .spt { margin-left: 0; }
+.st-card--title .st-card-media { overflow: hidden; }
+.st-own--title .st-own-ico { width: 100%; height: 64px; border-radius: 12px; }
+.st-bundle-cell .st-title-art { padding: 0; }

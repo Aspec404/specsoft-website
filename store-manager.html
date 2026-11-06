@@ -87,6 +87,14 @@
         .fd-colors input[type=color] { width: 40px; height: 34px; padding: 0; background: none; border: 1px solid var(--border-hover); border-radius: 8px; cursor: pointer; }
         .fd-x { width: 22px; height: 22px; margin-left: -4px; padding: 0; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 50%; color: var(--text-secondary); line-height: 1; cursor: pointer; }
         .fd-wide { grid-column: 1 / -1; }
+        .fd-stage--col { flex-direction: column; gap: 10px; }
+        .sm-titlerow { display: flex; align-items: center; justify-content: center; gap: 2px; color: #f2f2f2; }
+        .fd-stage.is-light .sm-titlerow { color: #111; }
+        .sm-titleslot { display: inline-flex; }
+        .sm-titlepv { display: inline-flex; align-items: center; min-height: 40px; padding: 6px 14px; font-size: 18px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 10px; color: var(--text-primary); }
+        .sm-titlepv .spt { margin-left: 0; }
+        .sm-thumb--title { width: auto; min-width: 46px; max-width: 120px; padding: 0 6px; font-size: 10px; }
+        .sm-thumb--title .spt { margin-left: 0; }
         .sm-pv { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px; margin-bottom: 14px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 12px; }
         .sm-pv[hidden] { display: none; }
         .sm-pv-note { font-size: 12px; color: var(--text-secondary); }
@@ -124,11 +132,13 @@
 
     <dialog class="sm-dlg" id="dlg"><form id="dlgForm" novalidate></form></dialog>
     <dialog class="sm-dlg sm-dlg--wide" id="dlgFrame" aria-label="Frame designer"><div id="frameBody"></div></dialog>
+    <dialog class="sm-dlg sm-dlg--wide" id="dlgTitle" aria-label="Title editor"><div id="titleBody"></div></dialog>
     <div class="sm-toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
     <script src="supabase-config.js"></script>
     <script src="avatar-frames.js"></script>
+    <script src="name-titles.js"></script>
     <script>
     (function () {
         'use strict';
@@ -178,6 +188,15 @@
                     input.appendChild(el('button', { type: 'button', class: 'sm-btn', text: 'Open frame designer', onclick: function () { openDesigner(input._frame, function (fr) { input._frame = fr; paintF(); }); } }));
                     paintF();
                 }
+                else if (f.type === 'title') {
+                    input = el('div', { class: 'sm-framefield' });
+                    input._title = v || null;
+                    var tpv = el('span', { class: 'sm-titlepv' });
+                    var paintT = function () { if (window.SpecTitles) window.SpecTitles.apply(tpv, input._title); if (!tpv.firstChild) tpv.textContent = 'No title yet'; };
+                    input.appendChild(tpv);
+                    input.appendChild(el('button', { type: 'button', class: 'sm-btn', text: 'Open title editor', onclick: function () { openTitleEditor(input._title, function (t) { input._title = t; paintT(); }); } }));
+                    paintT();
+                }
                 else if (f.type === 'multi') input = el('div', { class: 'sm-multi' }, f.options.length ? f.options.map(function (o) {
                     var cb = el('input', { type: 'checkbox', value: o[0] });
                     if ((v || []).indexOf(o[0]) >= 0) cb.checked = true;
@@ -187,7 +206,7 @@
                 else input = el('input', { type: f.type === 'datetime' ? 'datetime-local' : (f.type || 'text'), min: f.type === 'number' ? '0' : null, placeholder: f.placeholder || null, autocomplete: 'off' });
                 if (f.type === 'checkbox') input.checked = !!v;
                 else if (f.type === 'datetime') input.value = toLocalInput(v);
-                else if (f.type !== 'multi' && f.type !== 'frame') input.value = v == null ? '' : v;
+                else if (f.type !== 'multi' && f.type !== 'frame' && f.type !== 'title') input.value = v == null ? '' : v;
                 inputs[f.key] = input;
                 var box = el('div', { class: 'sm-field' + (f.wide ? ' sm-wide' : '') });
                 if (f.type === 'checkbox') box.appendChild(el('label', { class: 'sm-check' }, input, f.label));
@@ -212,6 +231,7 @@
                 for (var i = 0; i < opt.fields.length; i++) {
                     var f = opt.fields[i], inp = inputs[f.key], val;
                     if (f.type === 'frame') val = inp._frame;
+                    else if (f.type === 'title') val = inp._title;
                     else if (f.type === 'multi') val = Array.from(inp.querySelectorAll('input:checked')).map(function (x) { return x.value; });
                     else if (f.type === 'checkbox') val = inp.checked;
                     else if (f.type === 'number') val = f.nullable ? numOrNull(inp.value) : (inp.value === '' ? null : Number(inp.value));
@@ -252,9 +272,10 @@
             { key: 'name', label: 'Name', required: true },
             { key: 'emoji', label: 'Emoji (used when there is no image)', nullable: true, placeholder: '🎁' },
             { key: 'description', label: 'Description', type: 'textarea', wide: true, max: 240, nullable: true },
-            { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS and/or image)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['badge', 'Badge'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
+            { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS and/or image)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['title', 'Title (styled text next to the name)'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
             { key: 'emote_name', label: 'Emote code (Emote category only)', nullable: true, placeholder: 'pepe_happy', hint: 'Letters, numbers and _ + -. Members use it as :pepe_happy:. Needs an Image URL. Do not reuse a built-in emoji name.' },
             { key: 'frame_design', label: 'Frame design (Frame category only)', type: 'frame', wide: true, hint: 'Opens the designer: upload a GIF / PNG / WebP image, add up to 4 CSS layers, pick shapes, colors and motion, with a live preview.' },
+            { key: 'title_design', label: 'Title design (Title category only)', type: 'title', wide: true, hint: 'Opens the editor: text, font, gradient colors, glow, animation and decorations, with a live preview. It shows next to the member name in chats and on their profile.' },
             { key: 'bundle_items', label: 'Bundle contents (Bundle category only). Pick 2 or more', type: 'multi', wide: true, options: [] },
             { key: 'rarity', label: 'Rarity', type: 'select', options: [['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary'], ['legacy', 'Legacy'], ['mythic', 'Mythic']] },
             { key: 'price', label: 'Price (APEX Credits)', type: 'number', required: true },
@@ -271,23 +292,30 @@
             if (isEmote && !code) throw new Error('Emotes need a code like pepe_happy.');
             if (isEmote && !/^https:\/\//i.test(o.image_url || '')) throw new Error('Emotes need an https image URL.');
             if (isEmote) o.per_user_limit = 1;
-            var isFrame = o.category === 'frame', isBundle = o.category === 'bundle', frame = null;
+            var isFrame = o.category === 'frame', isBundle = o.category === 'bundle', isTitle = o.category === 'title', frame = null, title = null;
             if (isFrame) {
                 frame = window.SpecFrames ? window.SpecFrames.clean(o.frame_design) : null;
                 if (!frame) throw new Error('Design the frame first: press Open frame designer.');
+                o.per_user_limit = 1;
+            }
+            if (isTitle) {
+                title = window.SpecTitles ? window.SpecTitles.clean(o.title_design) : null;
+                if (!title) throw new Error('Design the title first: press Open title editor.');
                 o.per_user_limit = 1;
             }
             if (isBundle) {
                 if ((o.bundle_items || []).length < 2) throw new Error('Pick at least 2 items for a bundle.');
                 o.per_user_limit = 1;
             }
-            return { frame_data: frame, emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
+            return { frame_data: frame, title_data: title, emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
                 per_user_limit: o.per_user_limit == null ? null : Math.max(1, o.per_user_limit), sort: Math.floor(o.sort || 0), image_url: o.image_url, in_rotation: o.in_rotation, active: o.active };
         }
         function itemErr(e) {
             var msg = String(e && e.message || e);
             if (/emote_name_key|duplicate/i.test(msg)) return new Error('That emote code is already used.');
             if (/frame_rules/.test(msg)) return new Error('The database rejected this frame. Run supabase-store-frames-10mb.sql in Supabase (it reinstalls the newest frame validator: image frames + Frame Lab effects), then try again.');
+            if (/title_rules/.test(msg)) return new Error('The database rejected this title. Run supabase-store-titles.sql in Supabase, then try again.');
+            if (/title_data/.test(msg) && /column|schema/i.test(msg)) return new Error('Run supabase-store-titles.sql in Supabase first (it adds the title_data column).');
             if (/bundle_rules/.test(msg)) return new Error('Bundles can only hold normal items (no bundles inside bundles).');
             if (/emote_rules|category_check/.test(msg)) return new Error('Run supabase-store-emotes.sql and supabase-store-frames.sql first, then try again.');
             return e;
@@ -302,9 +330,9 @@
             var fields = ITEM_FIELDS.map(function (f) {
                 return f.key !== 'bundle_items' ? f : Object.assign({}, f, { options: S.items.filter(function (i) { return i.category !== 'bundle' && (!it || i.id !== it.id); }).map(function (i) { return [i.id, i.name + ' (' + fmt(i.price) + ')']; }) });
             });
-            var base = { frame_design: it ? it.frame_data : (window.SpecFrames ? window.SpecFrames.TEMPLATES[0].frame : null), bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
+            var base = { title_design: it ? it.title_data : (window.SpecTitles ? window.SpecTitles.TEMPLATES[0].title : null), frame_design: it ? it.frame_data : (window.SpecFrames ? window.SpecFrames.TEMPLATES[0].frame : null), bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
             openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: fields,
-                values: Object.assign({}, it || { category: 'badge', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' }, base),
+                values: Object.assign({}, it || { category: 'title', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' }, base),
                 onSave: async function (o) {
                     var row = itemPayload(o);
                     var r = await (isNew ? sb.from('store_items').insert(row).select('id').single() : sb.from('store_items').update(row).eq('id', it.id).select('id').single());
@@ -352,6 +380,8 @@
                     thumb.style.overflow = 'visible';
                     var fav = el('span', { class: 'sp-avatar', style: '--sp-size:26px', text: 'A' });
                     window.SpecFrames.apply(fav, it.frame_data); thumb.appendChild(fav);
+                } else if (it.category === 'title' && it.title_data && window.SpecTitles) {
+                    thumb.className = 'sm-thumb sm-thumb--title'; window.SpecTitles.apply(thumb, it.title_data);
                 } else if (/^https:\/\//i.test(it.image_url || '')) thumb.appendChild(el('img', { src: it.image_url, alt: '', referrerpolicy: 'no-referrer' })); else thumb.textContent = it.emoji || '🎁';
                 box.appendChild(el('div', { class: 'sm-row' + (it.active ? '' : ' is-off') },
                     thumb,
@@ -797,6 +827,113 @@
             if (!dlg.open) dlg.showModal();
         }
         /* FRAME DESIGNER END */
+
+        /* ---------- TITLE EDITOR ---------- */
+        function openTitleEditor(initial, done) {
+            var ST = window.SpecTitles, dlg = $('dlgTitle'), body = $('titleBody');
+            if (!ST) { toast('name-titles.js is missing from this page.', true); return; }
+            var D = { f: JSON.parse(JSON.stringify(ST.clean(initial) || ST.TEMPLATES[0].title)), light: false };
+            var slots = [];
+            function paint() { slots.forEach(function (s) { ST.apply(s, D.f); }); }
+
+            function slider(label, key, step) {
+                var lim = ST.LIMITS[key], out = el('output', { text: String(D.f[key]) });
+                var rng = el('input', { type: 'range', min: String(lim[0]), max: String(lim[1]), step: String(step), value: String(D.f[key]), 'aria-label': label });
+                rng.oninput = function () { D.f[key] = Number(rng.value); out.textContent = rng.value; paint(); };
+                return el('div', { class: 'fd-s' }, el('label', null, label, out), rng);
+            }
+            function pick(label, key, opts, after) {
+                var s = el('select', { 'aria-label': label }, opts.map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+                s.value = String(D.f[key] == null ? '' : D.f[key]);
+                s.onchange = function () { D.f[key] = key === 'weight' ? Number(s.value) : s.value; if (after) after(); paint(); };
+                return el('div', { class: 'fd-s' }, el('label', null, label), s);
+            }
+            function check(label, key) {
+                var c = el('input', { type: 'checkbox' }); c.checked = !!D.f[key];
+                c.onchange = function () { D.f[key] = c.checked; paint(); };
+                return el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, c, label));
+            }
+
+            function render() {
+                body.textContent = ''; slots = [];
+                var wrap = el('div', { class: 'fd' });
+                wrap.appendChild(el('h3', { text: 'Title editor' }));
+
+                var stage = el('div', { class: 'fd-stage fd-stage--col' + (D.light ? ' is-light' : '') });
+                [14, 20, 30].forEach(function (px) {
+                    var slot = el('span', { class: 'sm-titleslot' });
+                    slots.push(slot);
+                    stage.appendChild(el('div', { class: 'sm-titlerow', style: 'font-size:' + px + 'px' }, el('strong', { text: 'Username' }), slot));
+                });
+                wrap.appendChild(stage);
+
+                var tpl = el('select', { 'aria-label': 'Template' }, el('option', { value: '', text: 'Start from a template' }), ST.TEMPLATES.map(function (t, i) { return el('option', { value: String(i), text: t.name }); }));
+                tpl.onchange = function () { if (tpl.value === '') return; D.f = JSON.parse(JSON.stringify(ST.TEMPLATES[Number(tpl.value)].title)); render(); };
+                wrap.appendChild(el('div', { class: 'fd-bar' }, tpl, el('span', { class: 'fd-sep' }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.light ? 'Dark preview' : 'Light preview', onclick: function () { D.light = !D.light; render(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Copy JSON', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(JSON.stringify(ST.clean(D.f))); toast('Title JSON copied'); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Paste JSON', onclick: function () {
+                        var t = window.prompt('Paste a title JSON'); if (!t) return;
+                        try { var f = ST.clean(JSON.parse(t)); if (!f) throw new Error('bad'); D.f = f; render(); } catch (e) { toast('That is not a valid title.', true); }
+                    } })));
+
+                var ctl = el('div', { class: 'fd-ctl' });
+
+                var txt = el('input', { type: 'text', maxlength: String(ST.TEXT_MAX), placeholder: 'Title text', 'aria-label': 'Title text', autocomplete: 'off' });
+                txt.value = D.f.text;
+                txt.oninput = function () { D.f.text = txt.value; paint(); };
+                ctl.appendChild(el('div', { class: 'fd-s fd-wide' }, el('label', null, 'Text (max ' + ST.TEXT_MAX + ' characters)'), txt));
+
+                ctl.appendChild(pick('Font', 'font', Object.keys(ST.FONTS).map(function (k) { return [k, ST.FONTS[k][0]]; })));
+                ctl.appendChild(pick('Weight', 'weight', [[400, 'Regular'], [500, 'Medium'], [600, 'Semi-bold'], [700, 'Bold'], [800, 'Extra bold'], [900, 'Black']].map(function (w) { return [String(w[0]), w[1]]; })));
+                ctl.appendChild(check('Italic', 'italic'));
+                ctl.appendChild(check('ALL CAPS', 'caps'));
+                ctl.appendChild(slider('Letter spacing', 'spacing', 0.5));
+                ctl.appendChild(slider('Size', 'size', 0.05));
+
+                /* colors */
+                var cols = el('div', { class: 'fd-colors' });
+                D.f.colors.forEach(function (c, i) {
+                    var ci = el('input', { type: 'color', value: c, 'aria-label': 'Color ' + (i + 1) });
+                    ci.oninput = function () { D.f.colors[i] = ci.value; paint(); };
+                    cols.appendChild(ci);
+                    if (D.f.colors.length > 1) cols.appendChild(el('button', { type: 'button', class: 'fd-x', text: '×', 'aria-label': 'Remove color ' + (i + 1), onclick: function () { D.f.colors.splice(i, 1); if (D.f.colors.length < 2) D.f.fill = 'solid'; render(); } }));
+                });
+                if (D.f.colors.length < 5) cols.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Color', onclick: function () { D.f.colors.push(D.f.colors[D.f.colors.length - 1]); render(); } }));
+                ctl.appendChild(el('div', { class: 'fd-s fd-wide' }, el('label', null, 'Colors (up to 5)'), cols));
+
+                ctl.appendChild(pick('Fill', 'fill', [['solid', 'Solid (first color)'], ['gradient', 'Gradient (needs 2+ colors)']]));
+                ctl.appendChild(slider('Gradient angle (deg)', 'angle', 5));
+                ctl.appendChild(slider('Gradient flow (seconds, 0 = still)', 'flow', 0.5));
+
+                ctl.appendChild(pick('Effect', 'effect', Object.keys(ST.EFFECTS).map(function (k) { return [k, ST.EFFECTS[k]]; })));
+                ctl.appendChild(slider('Glow strength', 'strength', 5));
+                ctl.appendChild(slider('Effect speed (seconds per loop)', 'speed', 0.1));
+
+                ctl.appendChild(pick('Decoration', 'deco', Object.keys(ST.DECOS).map(function (k) { return [k, ST.DECOS[k]]; })));
+                ctl.appendChild(pick('Symbol before', 'left', ST.SYMBOLS.map(function (s) { return [s, s || 'None']; })));
+                ctl.appendChild(pick('Symbol after', 'right', ST.SYMBOLS.map(function (s) { return [s, s || 'None']; })));
+
+                var oc = el('input', { type: 'checkbox' }); oc.checked = !!D.f.outline;
+                var oci = el('input', { type: 'color', value: D.f.outline || '#000000', 'aria-label': 'Outline color' });
+                oc.onchange = function () { D.f.outline = oc.checked ? oci.value : null; paint(); };
+                oci.oninput = function () { if (oc.checked) { D.f.outline = oci.value; paint(); } };
+                ctl.appendChild(el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, oc, 'Outline'), oci));
+                wrap.appendChild(ctl);
+
+                wrap.appendChild(el('div', { class: 'sm-dlg-foot' },
+                    el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { dlg.close(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--primary', text: 'Use this title', onclick: function () {
+                        var t = ST.clean(D.f); if (!t) { toast('Type the title text first.', true); return; }
+                        dlg.close(); done(t);
+                    } })));
+                body.appendChild(wrap);
+                paint();
+            }
+            render();
+            if (!dlg.open) dlg.showModal();
+        }
+        /* TITLE EDITOR END */
 
         /* ---------- QUESTS (task manager) ---------- */
         var QKINDS = [['normal', 'Normal'], ['daily', 'Daily'], ['weekly', 'Weekly']];

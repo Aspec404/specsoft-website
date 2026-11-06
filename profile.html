@@ -78,6 +78,7 @@
 
                         <div class="pf-id">
                             <h1 class="pf-name" id="pfName"></h1>
+                            <div class="pf-title" id="pfTitle"></div>
                             <p class="pf-handle" id="pfHandle"></p>
                             <ul class="sr-badges" id="pfRoles" hidden></ul>
                             <p class="pf-headline" id="pfHeadline"></p>
@@ -518,6 +519,22 @@
         </footer>
     </dialog>
 
+    <!-- CHOOSE A PROFILE TITLE (owner only) -->
+    <dialog class="pf-dlg pf-dlg--small" id="ttDlg" aria-labelledby="ttTitle">
+        <header class="pf-dlg-head">
+            <h2 id="ttTitle">Profile title</h2>
+            <button type="button" class="pf-x" data-close aria-label="Close"></button>
+        </header>
+        <div class="pf-dlg-body">
+            <div class="pf-titles" id="ttList" role="radiogroup" aria-label="Your titles"></div>
+            <p class="pf-help" id="ttHelp"></p>
+        </div>
+        <footer class="pf-dlg-foot">
+            <a class="pf-btn pf-btn--ghost" href="store.html#items">Get more in the Store</a>
+            <button type="button" class="pf-btn pf-btn--ghost" data-close>Close</button>
+        </footer>
+    </dialog>
+
     <div class="pf-toast" id="pfToast" role="status" aria-live="polite"></div>
 
     <!-- Supabase client (pinned version) -->
@@ -528,6 +545,7 @@
     <!-- roles.js: badges + online heartbeat + account standing banner -->
     <script src="roles.js"></script>
     <script src="avatar-frames.js"></script>
+    <script src="name-titles.js"></script>
     <!-- xp.js: 1 XP for every 3 minutes you are active, and counts the "open your profile" quest -->
     <script src="xp.js" data-visit="profile" defer></script>
     <!-- main.js builds the sidebar + top bar. profile.js goes AFTER it. -->

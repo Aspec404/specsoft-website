@@ -2022,3 +2022,28 @@ a.pf-btn { display: inline-flex; align-items: center; text-decoration: none; }
     .pf-xp-lv { align-self: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) { .pf-xp-bar i { transition: none; } }
+
+/* ---------- member title (name-titles.js) ---------- */
+.pf-title { display: flex; margin-top: 6px; font-size: 16px; min-width: 0; max-width: 100%; }
+.pf-title:empty { display: none; }
+.pf-title .spt { margin-left: 0; }
+.pf-titles { display: grid; gap: 10px; padding: 18px 6px 8px; }
+.pf-title-opt {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.pf-title-opt:hover { border-color: var(--border-hover); }
+.pf-title-opt.is-on { border-color: var(--pf-accent); background: color-mix(in srgb, var(--pf-accent) 12%, transparent); }
+.pf-title-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-secondary); }
+.pf-title-prev { display: inline-flex; align-items: center; justify-content: flex-end; flex: none; font-size: 17px; max-width: 60%; overflow: hidden; }
+.pf-title-prev .spt { margin-left: 0; }

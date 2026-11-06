@@ -837,6 +837,68 @@
         }
     }
 
+
+    // pick which owned title you wear (shows next to your name in chats and under it on your profile)
+    let titleBusy = false;
+    async function openTitles() {
+        if (!state.isOwner || !state.me) return;
+        const box = $('ttList'), help = $('ttHelp');
+        box.textContent = '';
+        help.textContent = 'Loading your titles...';
+        openDlg($('ttDlg'));
+        try {
+            const [own, eq] = await Promise.all([
+                sb.from('store_purchases').select('item_id').eq('user_id', state.me.id),
+                sb.from('user_equipped').select('title_item').eq('user_id', state.me.id).maybeSingle()
+            ]);
+            if (own.error) throw own.error;
+            const ids = Array.from(new Set((own.data || []).map(function (r) { return r.item_id; })));
+            let titles = [];
+            if (ids.length) {
+                const it = await sb.from('store_items').select('id,name,title_data').in('id', ids).eq('category', 'title').order('sort', { ascending: true });
+                if (it.error) throw it.error;
+                titles = it.data || [];
+            }
+            const current = eq && !eq.error && eq.data ? eq.data.title_item : null;
+            const option = function (id, label, data) {
+                const on = (id || null) === (current || null);
+                const slot = el('span', { class: 'pf-title-prev' });
+                if (data && window.SpecTitles) window.SpecTitles.apply(slot, data);
+                if (!slot.firstChild) slot.textContent = label;
+                const b = el('button', {
+                    type: 'button', class: 'pf-title-opt' + (on ? ' is-on' : ''), role: 'radio', 'aria-checked': String(on),
+                    onclick: function () { equipTitle(id, b); }
+                }, el('span', { class: 'pf-title-name', text: data ? label : '' }), slot);
+                return b;
+            };
+            box.appendChild(option(null, 'No title', null));
+            titles.forEach(function (t) { box.appendChild(option(t.id, t.name, t.title_data)); });
+            help.textContent = titles.length ? 'Pick one to wear it everywhere: chats, profile and the store.' : 'You do not own any titles yet. Get some in the Store.';
+        } catch (err) {
+            help.textContent = friendly(err);
+        }
+    }
+
+    async function equipTitle(id, btn) {
+        if (titleBusy) return;
+        titleBusy = true;
+        try {
+            const r = await sb.rpc('store_equip_title', { p_item: id });
+            if (r.error) throw r.error;
+            if (window.SpecTitles) window.SpecTitles.setMine(state.me.id, r.data && r.data.title ? r.data.title : null);
+            $('ttList').querySelectorAll('.pf-title-opt').forEach(function (o) {
+                const on = o === btn;
+                o.classList.toggle('is-on', on);
+                o.setAttribute('aria-checked', String(on));
+            });
+            toast(id ? 'Title equipped' : 'Title removed');
+        } catch (err) {
+            toast(friendly(err));
+        } finally {
+            titleBusy = false;
+        }
+    }
+
     function renderProfile() {
         const p = state.profile;
         state.isOwner = !!(state.me && state.me.id === p.id);
@@ -878,6 +940,7 @@
         // names
         $('pfName').textContent = name;
         applyDisplayNameStyle(p);
+        if (window.SpecTitles && $('pfTitle')) window.SpecTitles.adorn($('pfTitle'), p.id);      // equipped store title (name-titles.js)
         $('pfHandle').textContent = '@' + p.username;
         if (window.SpecRoles && $('pfRoles')) window.SpecRoles.mount($('pfRoles'), p.id);
         $('pfHeadline').textContent = p.headline || '';
@@ -888,6 +951,7 @@
         if (state.isOwner) {
             actions.appendChild(el('button', { type: 'button', class: 'pf-btn', onclick: openEdit }, icon('pencil'), 'Edit profile'));
             actions.appendChild(el('button', { type: 'button', class: 'pf-btn pf-btn--ghost', onclick: openFrames }, 'Frame'));
+            actions.appendChild(el('button', { type: 'button', class: 'pf-btn pf-btn--ghost', onclick: openTitles }, 'Title'));
         } else if (state.me) {
             actions.appendChild(el('button', {
                 type: 'button',

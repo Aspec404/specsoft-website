@@ -363,6 +363,14 @@
     function setIcon(id, name) { const n = $(id); if (n) n.innerHTML = ICON[name]; }
 
     // round avatar (uses the shared .sp-avatar look from style.css)
+    // member title (name-titles.js): an empty slot next to a name that fills itself in if that member wears one
+    function titleSlot(userId) {
+        if (!userId || !window.SpecTitles) return null;
+        const slot = el('span', { class: 'ch-title-slot' });
+        window.SpecTitles.adorn(slot, userId);
+        return slot;
+    }
+
     function avatar(p, size) {
         const name = (p && (p.display_name || p.username)) || '?';
         const wrap = el('span', { class: 'sp-avatar' }, el('span', { class: 'sp-initial', text: name.charAt(0).toUpperCase() }));
@@ -1129,6 +1137,7 @@
 
         const head = grouped ? null : el('div', { class: 'ch-msg-head' },
             sender.username ? el('a', { class: 'ch-msg-name', href: 'profile.html?u=' + encodeURIComponent(sender.username), text: nameOf(sender) }) : el('span', { class: 'ch-msg-name', text: nameOf(sender) }),
+            titleSlot(m.sender_id || sender.id),
             el('time', { class: 'ch-msg-time', datetime: m.created_at, text: fmtTime(m.created_at) }),
             m.edited_at && !deleted ? el('span', { class: 'ch-edited', text: '(edited)' }) : null);
 
@@ -3913,6 +3922,7 @@
                 el('span', { class: 'ch-member-av' }, avatar(p, 38), S.online.has(mm.user_id) ? el('i', { class: 'ch-online-dot', title: 'Online' }) : null),
                 el('a', { class: 'ch-member-main', href: p.username ? 'profile.html?u=' + encodeURIComponent(p.username) : '#' },
                     el('strong', { text: nameOf(p) + (isMe ? ' (you)' : '') }),
+                    titleSlot(mm.user_id),
                     el('small', { text: '@' + (p.username || 'member') })),
                 mm.role !== 'member' ? el('span', { class: 'ch-role', text: mm.role.toUpperCase() }) : null,
                 !isMe ? el('button', { type: 'button', class: 'ch-iconbtn', title: 'Message', 'aria-label': 'Message ' + nameOf(p), onclick: function () { startDm(mm.user_id); } }, icon('dm')) : null,
