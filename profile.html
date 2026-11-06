@@ -79,6 +79,7 @@
                         <div class="pf-id">
                             <h1 class="pf-name" id="pfName"></h1>
                             <div class="pf-title" id="pfTitle"></div>
+                            <div class="pf-boosters" id="pfBoosters" data-xp-boosters hidden></div>
                             <p class="pf-handle" id="pfHandle"></p>
                             <ul class="sr-badges" id="pfRoles" hidden></ul>
                             <p class="pf-headline" id="pfHeadline"></p>
@@ -162,10 +163,30 @@
                 <button type="button" class="pf-x" data-close aria-label="Close"></button>
             </header>
 
+            <div class="pf-ed-top">
+                <div class="pf-pv" id="edPreview" aria-label="Live preview of your profile">
+                    <div class="pf-pv-banner pf-banner pf-banner--grid" id="edPvBanner"></div>
+                    <div class="pf-pv-row">
+                        <div class="pf-pv-av" id="edPvAvatar" style="--sp-size:56px"></div>
+                        <div class="pf-pv-txt">
+                            <div class="pf-pv-namerow"><span class="pf-name pf-pv-name" id="edPvName"></span><span class="pf-pv-title" id="edPvTitle"></span></div>
+                            <div class="pf-pv-sub"><span id="edPvHandle"></span><span id="edPvHeadline"></span></div>
+                        </div>
+                    </div>
+                </div>
+                <nav class="pf-tabs" id="edTabs" role="tablist" aria-label="Edit sections">
+                    <button type="button" role="tab" class="pf-tab is-on" data-tab="look" aria-selected="true">Look</button>
+                    <button type="button" role="tab" class="pf-tab" data-tab="name" aria-selected="false">Name style</button>
+                    <button type="button" role="tab" class="pf-tab" data-tab="about" aria-selected="false">About</button>
+                    <button type="button" role="tab" class="pf-tab" data-tab="status" aria-selected="false">Status</button>
+                    <button type="button" role="tab" class="pf-tab" data-tab="links" aria-selected="false">Links</button>
+                </nav>
+            </div>
+
             <div class="pf-dlg-body">
                 <div class="pf-msg" id="edMsg" role="alert"></div>
 
-                <fieldset class="pf-fs">
+                <fieldset class="pf-fs" data-tab="look">
                     <legend>LOOK</legend>
 
                     <div class="pf-field">
@@ -184,6 +205,11 @@
                     <div class="pf-field">
                         <span class="pf-label">BANNER STYLE</span>
                         <div class="pf-presets" id="edPresets" role="radiogroup" aria-label="Banner style"></div>
+                    </div>
+
+                    <div class="pf-field">
+                        <span class="pf-label">QUICK THEMES</span>
+                        <div class="pf-qthemes" id="edQuickThemes" role="group" aria-label="Quick themes"></div>
                     </div>
 
                     <div class="pf-field">
@@ -208,6 +234,30 @@
                         </div>
                     </div>
 
+                    <div class="pf-field">
+                        <span class="pf-label">BANNER IMAGE (OPTIONAL)</span>
+                        <div class="pf-file-actions">
+                            <label class="pf-btn pf-btn--ghost pf-btn--sm" for="edBannerFile">Choose image</label>
+                            <input class="pf-sr" type="file" id="edBannerFile" accept="image/png,image/jpeg,image/webp">
+                            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" id="edBannerReset">Remove</button>
+                            <span class="pf-file-name" id="edBannerName"></span>
+                        </div>
+                    </div>
+
+                    <div class="pf-field">
+                        <span class="pf-label">PROFILE BACKGROUND IMAGE (OPTIONAL)</span>
+                        <div class="pf-file-actions">
+                            <label class="pf-btn pf-btn--ghost pf-btn--sm" for="edBackgroundFile">Choose image</label>
+                            <input class="pf-sr" type="file" id="edBackgroundFile" accept="image/png,image/jpeg,image/webp">
+                            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" id="edBackgroundReset">Remove</button>
+                            <span class="pf-file-name" id="edBackgroundName"></span>
+                        </div>
+                        <p class="pf-help">This sits behind the profile content and stays behind cards, text and controls.</p>
+                    </div>
+                </fieldset>
+
+                <fieldset class="pf-fs" data-tab="name">
+                    <legend>NAME STYLE</legend>
                     <div class="pf-field">
                         <span class="pf-label">DISPLAY NAME STYLE</span>
                         <div class="pf-name-style-grid">
@@ -262,29 +312,9 @@
                         </div>
                     </div>
 
-                    <div class="pf-field">
-                        <span class="pf-label">BANNER IMAGE (OPTIONAL)</span>
-                        <div class="pf-file-actions">
-                            <label class="pf-btn pf-btn--ghost pf-btn--sm" for="edBannerFile">Choose image</label>
-                            <input class="pf-sr" type="file" id="edBannerFile" accept="image/png,image/jpeg,image/webp">
-                            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" id="edBannerReset">Remove</button>
-                            <span class="pf-file-name" id="edBannerName"></span>
-                        </div>
-                    </div>
-
-                    <div class="pf-field">
-                        <span class="pf-label">PROFILE BACKGROUND IMAGE (OPTIONAL)</span>
-                        <div class="pf-file-actions">
-                            <label class="pf-btn pf-btn--ghost pf-btn--sm" for="edBackgroundFile">Choose image</label>
-                            <input class="pf-sr" type="file" id="edBackgroundFile" accept="image/png,image/jpeg,image/webp">
-                            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" id="edBackgroundReset">Remove</button>
-                            <span class="pf-file-name" id="edBackgroundName"></span>
-                        </div>
-                        <p class="pf-help">This sits behind the profile content and stays behind cards, text and controls.</p>
-                    </div>
                 </fieldset>
 
-                <fieldset class="pf-fs">
+                <fieldset class="pf-fs" data-tab="about">
                     <legend>BASICS</legend>
 
                     <div class="pf-field">
@@ -324,12 +354,13 @@
                     </div>
                 </fieldset>
 
-                <fieldset class="pf-fs">
+                <fieldset class="pf-fs" data-tab="status">
                     <legend>STATUS</legend>
                     <div class="pf-statuses" id="edStatuses" role="radiogroup" aria-label="Status"></div>
+                    <p class="pf-help">Your status only shows while you are really on the site. When you leave you show as offline automatically. Pick the offline option to appear offline even while you are here.</p>
                 </fieldset>
 
-                <fieldset class="pf-fs">
+                <fieldset class="pf-fs" data-tab="links">
                     <legend>LINKS</legend>
 
                     <div class="pf-field">

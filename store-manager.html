@@ -91,6 +91,10 @@
         .sm-titlerow { display: flex; align-items: center; justify-content: center; gap: 2px; color: #f2f2f2; }
         .fd-stage.is-light .sm-titlerow { color: #111; }
         .sm-titleslot { display: inline-flex; }
+        .sm-giftprev { display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 8px 12px; font-size: 18px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 10px; }
+        .sm-giftprev .spt { margin-left: 0; }
+        .sm-iconprev { display: grid; place-items: center; width: 44px; height: 44px; border: 1px dashed var(--border-hover); border-radius: 10px; font-size: 11px; color: var(--text-tertiary); background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0 / 12px 12px; }
+        .sm-iconprev img { max-width: 36px; max-height: 36px; object-fit: contain; }
         .sm-titlepv { display: inline-flex; align-items: center; min-height: 40px; padding: 6px 14px; font-size: 18px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 10px; color: var(--text-primary); }
         .sm-titlepv .spt { margin-left: 0; }
         .sm-thumb--title { width: auto; min-width: 46px; max-width: 120px; padding: 0 6px; font-size: 10px; }
@@ -147,7 +151,7 @@
             : ((window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY) ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null);
         var $ = function (id) { return document.getElementById(id); };
         var S = { tab: 'items', items: [], packs: [], codes: [], settings: null, featured: [], sales: [], names: {}, q: '', qKind: 'normal', rtok: 0 };
-        var TABS = [['items', 'Items'], ['featured', 'Featured'], ['packs', 'Credit packs'], ['codes', 'Codes'], ['credits', 'Credits & economy'], ['quests', 'Quests'], ['xp', 'XP & levels'], ['sales', 'Sales']];
+        var TABS = [['items', 'Items'], ['featured', 'Featured'], ['packs', 'Credit packs'], ['codes', 'Codes'], ['credits', 'Credits & economy'], ['quests', 'Quests'], ['xp', 'XP & levels'], ['gifts', 'Gift items'], ['sales', 'Sales']];
 
         /* ---------- helpers ---------- */
         function el(tag, props) {
@@ -276,6 +280,10 @@
             { key: 'emote_name', label: 'Emote code (Emote category only)', nullable: true, placeholder: 'pepe_happy', hint: 'Letters, numbers and _ + -. Members use it as :pepe_happy:. Needs an Image URL. Do not reuse a built-in emoji name.' },
             { key: 'frame_design', label: 'Frame design (Frame category only)', type: 'frame', wide: true, hint: 'Opens the designer: upload a GIF / PNG / WebP image, add up to 4 CSS layers, pick shapes, colors and motion, with a live preview.' },
             { key: 'title_design', label: 'Title design (Title category only)', type: 'title', wide: true, hint: 'Opens the editor: text, font, gradient colors, glow, animation and decorations, with a live preview. It shows next to the member name in chats and on their profile.' },
+            { key: 'boost_kind', label: 'Booster type (Boost category only)', type: 'select', options: [['', 'Not a booster (plain item)'], ['credits', 'Credit booster'], ['xp', 'XP booster']], hint: 'A booster pays strength x 1 credit (or XP) for every minute the member is online while it runs. Buying the same strength again adds time, a higher strength replaces it, a lower one is refused.' },
+            { key: 'boost_tier', label: 'Booster strength', type: 'select', options: [['2', '2x'], ['3', '3x'], ['5', '5x']] },
+            { key: 'boost_amount', label: 'Booster duration', type: 'number' },
+            { key: 'boost_unit', label: 'Duration unit', type: 'select', options: [['minutes', 'Minutes'], ['hours', 'Hours'], ['days', 'Days']] },
             { key: 'bundle_items', label: 'Bundle contents (Bundle category only). Pick 2 or more', type: 'multi', wide: true, options: [] },
             { key: 'rarity', label: 'Rarity', type: 'select', options: [['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary'], ['legacy', 'Legacy'], ['mythic', 'Mythic']] },
             { key: 'price', label: 'Price (APEX Credits)', type: 'number', required: true },
@@ -292,7 +300,13 @@
             if (isEmote && !code) throw new Error('Emotes need a code like pepe_happy.');
             if (isEmote && !/^https:\/\//i.test(o.image_url || '')) throw new Error('Emotes need an https image URL.');
             if (isEmote) o.per_user_limit = 1;
-            var isFrame = o.category === 'frame', isBundle = o.category === 'bundle', isTitle = o.category === 'title', frame = null, title = null;
+            var isFrame = o.category === 'frame', isBundle = o.category === 'bundle', isTitle = o.category === 'title', frame = null, title = null, boost = null;
+            if (o.category === 'boost' && o.boost_kind) {
+                var bm = Math.round(Number(o.boost_amount) * (o.boost_unit === 'days' ? 1440 : o.boost_unit === 'hours' ? 60 : 1));
+                if (!(bm >= 1 && bm <= 43200)) throw new Error('A booster lasts between 1 minute and 30 days.');
+                boost = { v: 1, kind: o.boost_kind, tier: Number(o.boost_tier) || 2, minutes: bm };
+                o.per_user_limit = null;          // boosters can always be bought again
+            }
             if (isFrame) {
                 frame = window.SpecFrames ? window.SpecFrames.clean(o.frame_design) : null;
                 if (!frame) throw new Error('Design the frame first: press Open frame designer.');
@@ -307,14 +321,16 @@
                 if ((o.bundle_items || []).length < 2) throw new Error('Pick at least 2 items for a bundle.');
                 o.per_user_limit = 1;
             }
-            return { frame_data: frame, title_data: title, emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
+            return { frame_data: frame, title_data: title, boost_data: boost, emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
                 per_user_limit: o.per_user_limit == null ? null : Math.max(1, o.per_user_limit), sort: Math.floor(o.sort || 0), image_url: o.image_url, in_rotation: o.in_rotation, active: o.active };
         }
         function itemErr(e) {
             var msg = String(e && e.message || e);
             if (/emote_name_key|duplicate/i.test(msg)) return new Error('That emote code is already used.');
             if (/frame_rules/.test(msg)) return new Error('The database rejected this frame. Run supabase-store-frames-10mb.sql in Supabase (it reinstalls the newest frame validator: image frames + Frame Lab effects), then try again.');
-            if (/title_rules/.test(msg)) return new Error('The database rejected this title. Run supabase-store-titles.sql in Supabase, then try again.');
+            if (/boost_rules/.test(msg)) return new Error('The database rejected this booster. Run supabase-store-boosters.sql in Supabase, then try again.');
+            if (/boost_data/.test(msg) && /column|schema/i.test(msg)) return new Error('Run supabase-store-boosters.sql in Supabase first (it adds the booster column).');
+            if (/title_rules/.test(msg)) return new Error('The database rejected this title. Run supabase-store-titles.sql, supabase-store-title-icons.sql and supabase-store-titles-v2.sql (in that order) in Supabase, then try again.');
             if (/title_data/.test(msg) && /column|schema/i.test(msg)) return new Error('Run supabase-store-titles.sql in Supabase first (it adds the title_data column).');
             if (/bundle_rules/.test(msg)) return new Error('Bundles can only hold normal items (no bundles inside bundles).');
             if (/emote_rules|category_check/.test(msg)) return new Error('Run supabase-store-emotes.sql and supabase-store-frames.sql first, then try again.');
@@ -330,7 +346,10 @@
             var fields = ITEM_FIELDS.map(function (f) {
                 return f.key !== 'bundle_items' ? f : Object.assign({}, f, { options: S.items.filter(function (i) { return i.category !== 'bundle' && (!it || i.id !== it.id); }).map(function (i) { return [i.id, i.name + ' (' + fmt(i.price) + ')']; }) });
             });
-            var base = { title_design: it ? it.title_data : (window.SpecTitles ? window.SpecTitles.TEMPLATES[0].title : null), frame_design: it ? it.frame_data : (window.SpecFrames ? window.SpecFrames.TEMPLATES[0].frame : null), bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
+            var bd = it && it.boost_data, bmin = bd ? Number(bd.minutes) : 60;
+            var base = { boost_kind: bd ? bd.kind : '', boost_tier: bd ? String(bd.tier) : '2',
+                         boost_amount: bmin % 1440 === 0 ? bmin / 1440 : (bmin % 60 === 0 ? bmin / 60 : bmin), boost_unit: bmin % 1440 === 0 ? 'days' : (bmin % 60 === 0 ? 'hours' : 'minutes'),
+                         title_design: it ? it.title_data : (window.SpecTitles ? window.SpecTitles.TEMPLATES[0].title : null), frame_design: it ? it.frame_data : (window.SpecFrames ? window.SpecFrames.TEMPLATES[0].frame : null), bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
             openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: fields,
                 values: Object.assign({}, it || { category: 'title', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' }, base),
                 onSave: async function (o) {
@@ -380,6 +399,8 @@
                     thumb.style.overflow = 'visible';
                     var fav = el('span', { class: 'sp-avatar', style: '--sp-size:26px', text: 'A' });
                     window.SpecFrames.apply(fav, it.frame_data); thumb.appendChild(fav);
+                } else if (it.category === 'boost' && it.boost_data) {
+                    thumb.textContent = it.boost_data.tier + 'x'; thumb.style.fontWeight = '800'; thumb.style.color = it.boost_data.kind === 'xp' ? '#38bdf8' : '#facc15';
                 } else if (it.category === 'title' && it.title_data && window.SpecTitles) {
                     thumb.className = 'sm-thumb sm-thumb--title'; window.SpecTitles.apply(thumb, it.title_data);
                 } else if (/^https:\/\//i.test(it.image_url || '')) thumb.appendChild(el('img', { src: it.image_url, alt: '', referrerpolicy: 'no-referrer' })); else thumb.textContent = it.emoji || '🎁';
@@ -508,6 +529,84 @@
                         el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete this code?')) return; var r = await sb.from('apex_codes').delete().eq('code', c.code); if (r.error) return fail(r.error); reload(); } }))));
             });
             root.appendChild(list);
+        }
+
+        /* ---------- GIFT ITEMS (give a title, frame or anything else to one member) ---------- */
+        function renderGifts(root) {
+            var CATS = { title: 'Titles', frame: 'Frames', bundle: 'Bundles', emote: 'Emotes', theme: 'Themes', boost: 'Boosts', cosmetic: 'Cosmetics', badge: 'Badges', misc: 'Other' };
+            var user = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'giUser', list: 'giUsers' });
+            var dl = el('datalist', { id: 'giUsers' });
+            var cat = el('select', { id: 'giCat' }, el('option', { value: '', text: 'All categories' }),
+                Object.keys(CATS).filter(function (k) { return S.items.some(function (i) { return i.category === k; }); }).map(function (k) { return el('option', { value: k, text: CATS[k] }); }));
+            var pick = el('select', { id: 'giItem' });
+            var prev = el('div', { class: 'sm-giftprev' });
+            function fill() {
+                var keep = pick.value; pick.textContent = '';
+                S.items.filter(function (i) { return !cat.value || i.category === cat.value; })
+                    .sort(function (a, b) { return (a.category === 'title' ? -1 : 0) - (b.category === 'title' ? -1 : 0) || (a.sort || 0) - (b.sort || 0); })
+                    .forEach(function (i) { pick.appendChild(el('option', { value: i.id, text: (CATS[i.category] || i.category) + ': ' + i.name + ' (' + i.rarity + ')' + (i.active ? '' : ' [hidden]') })); });
+                if (keep) pick.value = keep;
+                look();
+            }
+            function look() {
+                prev.textContent = '';
+                var it = S.items.find(function (i) { return i.id === pick.value; });
+                if (it && it.category === 'title' && it.title_data && window.SpecTitles) {
+                    var slot = el('span', { class: 'sm-titleslot' }); window.SpecTitles.apply(slot, it.title_data);
+                    prev.appendChild(el('strong', { text: (user.value.trim() || 'Username') + ' ' })); prev.appendChild(slot);
+                } else if (it) prev.appendChild(el('span', { class: 'sm-note', text: it.description || it.name }));
+            }
+            cat.onchange = fill; pick.onchange = look; user.addEventListener('input', look);
+            var qt = null;
+            user.addEventListener('input', function () {
+                clearTimeout(qt);
+                var q = user.value.trim().replace(/[%_,()]/g, '');
+                if (q.length < 2) return;
+                qt = setTimeout(async function () {
+                    try {
+                        var r = await sb.from('profiles').select('username,display_name').ilike('username', q + '%').limit(8);
+                        dl.textContent = '';
+                        (r.data || []).forEach(function (u) { dl.appendChild(el('option', { value: u.username, label: u.display_name || '' })); });
+                    } catch (e) { /* suggestions are optional */ }
+                }, 250);
+            });
+            function giveMsg(e) {
+                var m = String(e && e.message || e);
+                if (/already_owned/.test(m)) return 'They already own that (or everything inside it).';
+                if (/not_owned/.test(m)) return 'They do not own that item.';
+                if (/booster_blocked/.test(m)) return 'They have a stronger booster of that kind running right now.';
+                if (/booster_max/.test(m)) return 'That would stack more than 30 days of that booster for them.';
+                if (/item_unavailable/.test(m)) return 'That item no longer exists. Refresh the page.';
+                if (/store_admin_(give|take)_item/.test(m) && /function|schema/i.test(m)) return 'Run supabase-store-gifts.sql in Supabase first.';
+                return null;
+            }
+            var send = el('button', { class: 'sm-btn sm-btn--primary', type: 'button', text: 'Send to member', onclick: async function () {
+                var u = user.value.trim(), it = S.items.find(function (i) { return i.id === pick.value; });
+                if (!u || !it) return toast('Pick a member and an item.', true);
+                if (!confirmIt('Give "' + it.name + '" to ' + u + ' for free?')) return;
+                send.disabled = true;
+                try { var r = await sb.rpc('store_admin_give_item', { p_username: u, p_item: it.id }); if (r.error) throw r.error;
+                    toast(u + ' received: ' + (r.data.granted || [it.name]).join(', ')); }
+                catch (e) { var g = giveMsg(e); if (g) toast(g, true); else fail(e); } finally { send.disabled = false; }
+            } });
+            var take = el('button', { class: 'sm-btn sm-btn--danger', type: 'button', text: 'Take back', onclick: async function () {
+                var u = user.value.trim(), it = S.items.find(function (i) { return i.id === pick.value; });
+                if (!u || !it) return toast('Pick a member and an item.', true);
+                if (!confirmIt('Remove one copy of "' + it.name + '" from ' + u + '? If it was equipped it is unequipped.')) return;
+                take.disabled = true;
+                try { var r = await sb.rpc('store_admin_take_item', { p_username: u, p_item: it.id }); if (r.error) throw r.error; toast('Removed "' + it.name + '" from ' + u); }
+                catch (e) { var g = giveMsg(e); if (g) toast(g, true); else fail(e); } finally { take.disabled = false; }
+            } });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Give an item to a member' }),
+                el('p', { class: 'sm-note', text: 'Type a username, choose a title (or a frame, bundle...) and send it. It shows up in their items right away, free, with no stock used. They can equip it from the store or their profile.' }),
+                el('div', { class: 'sm-form', style: 'margin-top:12px' },
+                    el('div', { class: 'sm-field' }, el('label', { for: 'giUser', text: 'Username' }), user, dl),
+                    el('div', { class: 'sm-field' }, el('label', { for: 'giCat', text: 'Category' }), cat),
+                    el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'giItem', text: 'Item' }), pick),
+                    el('div', { class: 'sm-field sm-wide' }, el('label', { text: 'Preview' }), prev)),
+                el('div', { class: 'sm-dlg-foot' }, take, send)));
+            cat.value = S.items.some(function (i) { return i.category === 'title'; }) ? 'title' : '';
+            fill();
         }
 
         /* ---------- CREDITS & ECONOMY ---------- */
@@ -828,6 +927,34 @@
         }
         /* FRAME DESIGNER END */
 
+        /* ---------- TITLE ICONS (Flaticon downloads) ---------- */
+        async function uploadTitleIcon(file) {
+            var EXT = { 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' }, MIME = { png: 'image/png', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml' };
+            var ext = EXT[String(file.type || '').toLowerCase()];
+            if (!ext) { var m = /\.(png|webp|gif|svg)$/i.exec(file.name || ''); if (m) ext = m[1].toLowerCase(); }
+            if (!ext) throw new Error('Use a PNG, SVG, WebP or GIF icon (Flaticon gives you PNG or SVG).');
+            if (file.size > 2 * 1024 * 1024) throw new Error('That icon is ' + (file.size / 1048576).toFixed(1) + ' MB. The limit is 2 MB. Download a smaller size (128 px is plenty).');
+            if (ext !== 'svg') {
+                var d = await imageSize(file);
+                if (d.w < 16 || d.h < 16) throw new Error('The icon is too small. Use at least 16 x 16 pixels (128 x 128 is ideal).');
+                if (d.w > 1024 || d.h > 1024) throw new Error('The icon is too big. Use at most 1024 x 1024 pixels (128 x 128 is ideal).');
+            }
+            var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+            var path = 'icons/' + id + '.' + ext, type = MIME[ext];
+            var blob = file.type === type ? file : new Blob([file], { type: type });
+            var r = await sb.storage.from('store-icons').upload(path, blob, { contentType: type, cacheControl: '31536000', upsert: false });
+            if (r.error) throw r.error;
+            return sb.storage.from('store-icons').getPublicUrl(path).data.publicUrl;
+        }
+        function iconUploadMsg(e) {
+            var m = String((e && (e.message || e.error)) || e), code = String((e && (e.statusCode || e.status)) || '');
+            if (/bucket not found/i.test(m)) return 'The store-icons bucket does not exist yet. Run supabase-store-title-icons.sql in Supabase.';
+            if (/row-level security|not authorized|unauthorized|permission|violates/i.test(m) || code === '403') return 'Upload blocked. Run supabase-store-title-icons.sql and sign in with a store admin account.';
+            if (/exceeded the maximum allowed size|too large/i.test(m) || code === '413') return 'The server rejected the size (limit is 2 MB). Run supabase-store-title-icons.sql if you have not.';
+            if (/mime|not supported|unsupported/i.test(m)) return 'The server only accepts PNG, SVG, WebP and GIF icons. Run supabase-store-title-icons.sql if this file is one of those.';
+            return m;
+        }
+
         /* ---------- TITLE EDITOR ---------- */
         function openTitleEditor(initial, done) {
             var ST = window.SpecTitles, dlg = $('dlgTitle'), body = $('titleBody');
@@ -847,6 +974,34 @@
                 s.value = String(D.f[key] == null ? '' : D.f[key]);
                 s.onchange = function () { D.f[key] = key === 'weight' ? Number(s.value) : s.value; if (after) after(); paint(); };
                 return el('div', { class: 'fd-s' }, el('label', null, label), s);
+            }
+            function iconPicker(label, key) {
+                var prev = el('span', { class: 'sm-iconprev' }), file = el('input', { type: 'file', accept: 'image/png,image/svg+xml,image/webp,image/gif,.png,.svg,.webp,.gif', hidden: true });
+                function paintI() {
+                    prev.textContent = '';
+                    if (D.f[key] && ST.iconOk(D.f[key])) { var im = el('img', { src: D.f[key], alt: '', referrerpolicy: 'no-referrer' }); im.onerror = function () { im.replaceWith(document.createTextNode('?')); }; prev.appendChild(im); }
+                    else prev.appendChild(document.createTextNode('none'));
+                }
+                var lnk = el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Flaticon link' });
+                lnk.onclick = function () {
+                    var t = window.prompt('Paste a Flaticon link: the image link (cdn-icons-png.flaticon.com/.../123456.png) or the icon page link (flaticon.com/free-icon/name_123456).');
+                    if (!t) return;
+                    var u = ST.iconFromLink(t);
+                    if (!u) { toast('That is not a Flaticon link I can use. Paste the image link or the icon page link.', true); return; }
+                    D.f[key] = u; toast('Icon link set'); render();
+                };
+                var up = el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.f[key] ? 'Replace' : 'Upload icon' });
+                up.onclick = function () { file.click(); };
+                file.onchange = async function () {
+                    var fl = file.files && file.files[0]; file.value = '';
+                    if (!fl) return;
+                    up.disabled = true; up.textContent = 'Uploading...';
+                    try { D.f[key] = await uploadTitleIcon(fl); toast('Icon uploaded'); render(); }
+                    catch (e) { toast(iconUploadMsg(e), true); up.disabled = false; up.textContent = D.f[key] ? 'Replace' : 'Upload icon'; }
+                };
+                paintI();
+                return el('div', { class: 'fd-s' }, el('label', null, label), el('div', { class: 'fd-imgrow' }, prev, up, lnk, file,
+                    D.f[key] ? el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Remove', onclick: function () { D.f[key] = null; render(); } }) : null));
             }
             function check(label, key) {
                 var c = el('input', { type: 'checkbox' }); c.checked = !!D.f[key];
@@ -906,13 +1061,26 @@
                 ctl.appendChild(slider('Gradient angle (deg)', 'angle', 5));
                 ctl.appendChild(slider('Gradient flow (seconds, 0 = still)', 'flow', 0.5));
 
-                ctl.appendChild(pick('Effect', 'effect', Object.keys(ST.EFFECTS).map(function (k) { return [k, ST.EFFECTS[k]]; })));
+                function fxPick(label, key) {
+                    var s = el('select', { 'aria-label': label }, el('option', { value: 'none', text: 'None' }),
+                        ST.EFFECT_GROUPS.map(function (g) { return el('optgroup', { label: g[0] }, Object.keys(g[1]).map(function (k) { return el('option', { value: k, text: g[1][k] }); })); }));
+                    s.value = D.f[key] || 'none';
+                    s.onchange = function () { D.f[key] = s.value; paint(); };
+                    return el('div', { class: 'fd-s' }, el('label', null, label), s);
+                }
+                ctl.appendChild(fxPick('Effect 1', 'effect'));
+                ctl.appendChild(fxPick('Effect 2', 'effect2'));
+                ctl.appendChild(fxPick('Effect 3', 'effect3'));
+                ctl.appendChild(el('p', { class: 'sm-note fd-wide', text: 'Effects from different groups stack. Two effects from the same group (for example Float and Bounce) replace each other, the later slot wins.' }));
                 ctl.appendChild(slider('Glow strength', 'strength', 5));
                 ctl.appendChild(slider('Effect speed (seconds per loop)', 'speed', 0.1));
 
                 ctl.appendChild(pick('Decoration', 'deco', Object.keys(ST.DECOS).map(function (k) { return [k, ST.DECOS[k]]; })));
-                ctl.appendChild(pick('Symbol before', 'left', ST.SYMBOLS.map(function (s) { return [s, s || 'None']; })));
-                ctl.appendChild(pick('Symbol after', 'right', ST.SYMBOLS.map(function (s) { return [s, s || 'None']; })));
+                ctl.appendChild(iconPicker('Icon before the text', 'iconL'));
+                ctl.appendChild(iconPicker('Icon after the text', 'iconR'));
+                ctl.appendChild(slider('Icon size', 'iconSize', 0.05));
+                if (D.f.left || D.f.right) ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Old text symbol (' + (D.f.left || '') + ' ' + (D.f.right || '') + ')'),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Remove it', onclick: function () { D.f.left = ''; D.f.right = ''; render(); } })));
 
                 var oc = el('input', { type: 'checkbox' }); oc.checked = !!D.f.outline;
                 var oci = el('input', { type: 'color', value: D.f.outline || '#000000', 'aria-label': 'Outline color' });
@@ -1170,7 +1338,7 @@
             var tabs = $('tabs'); tabs.textContent = '';
             TABS.forEach(function (t) { tabs.appendChild(el('button', { class: 'sm-tab', role: 'tab', 'aria-selected': String(S.tab === t[0]), text: t[1], onclick: function () { S.tab = t[0]; render(); } })); });
             var v = $('view'); v.textContent = ''; S.rtok = (S.rtok || 0) + 1;
-            ({ items: renderItems, featured: renderFeatured, packs: renderPacks, codes: renderCodes, credits: renderCredits, quests: renderQuests, xp: renderXp, sales: renderSales })[S.tab](v);
+            ({ items: renderItems, featured: renderFeatured, packs: renderPacks, codes: renderCodes, credits: renderCredits, quests: renderQuests, xp: renderXp, gifts: renderGifts, sales: renderSales })[S.tab](v);
         }
 
         async function start() {

@@ -40,6 +40,8 @@
         receipt_not_found: 'No receipt with that number.',
         already_own_all: 'You already own everything in this bundle.',
         not_owned: 'You need to own that item first.',
+        booster_blocked: 'A stronger booster of that kind is already running. Wait for it to end first. Nothing was charged.',
+        booster_max: 'That would stack more than 30 days of that booster. Nothing was charged.',
         quest_not_done: 'That quest is not finished yet.',
         quest_already_claimed: 'You already claimed that quest.',
         quest_expired: 'That board just refreshed. Check the new quests.',
@@ -138,6 +140,15 @@
         S.equippedTitle = (!r[2].error && r[2].data && r[2].data.title_item) || null;
         S.me = (!r[3].error && r[3].data) || null;
         try { var a = await sb.rpc('store_is_admin'); $('stManage').hidden = !(a && a.data === true); } catch (e) { /* not an admin */ }
+    }
+
+    // a credit booster just paid out: pull the new balance without touching the rest of the screen
+    async function refreshWalletQuiet() {
+        if (!S.user) return;
+        try {
+            var r = await sb.rpc('apex_wallet');
+            if (r && !r.error && r.data) { S.wallet = r.data; paintWallet(); window.dispatchEvent(new CustomEvent('apex:balance', { detail: { balance: r.data.balance } })); }
+        } catch (e) { /* the next ping tries again */ }
     }
 
     function setBalance(n) {
@@ -243,6 +254,18 @@
         return node;
     }
 
+    function durLabel(min) {
+        min = Number(min) || 0;
+        if (min % 1440 === 0 && min >= 1440) return (min / 1440) + (min === 1440 ? ' day' : ' days');
+        if (min % 60 === 0 && min >= 60) return (min / 60) + 'h';
+        if (min > 60) return Math.floor(min / 60) + 'h ' + (min % 60) + 'm';
+        return min + ' min';
+    }
+    function boostArt(d) {
+        return el('div', { class: 'st-boost-art st-boost-art--' + d.kind },
+            el('b', { text: d.tier + 'x' }), el('span', { text: d.kind === 'xp' ? 'XP' : 'Credits' }), el('small', { text: durLabel(d.minutes) }));
+    }
+
     function titleArt(data, size) {
         var node = el('span', { class: 'st-title-art', style: 'font-size:' + (size || 18) + 'px' });
         if (window.SpecTitles) window.SpecTitles.apply(node, data);
@@ -299,6 +322,7 @@
 
     function mediaOf(item, big) {
         if (item.category === 'frame' && item.frame_data) return frameAvatar(item.frame_data, typeof big === 'number' ? big : (big ? 92 : 72));
+        if (item.category === 'boost' && item.boost_data) return boostArt(item.boost_data);
         if (item.category === 'title' && item.title_data) return titleArt(item.title_data, typeof big === 'number' ? Math.round(big * 0.45) : (big ? 26 : 20));
         if (item.category === 'bundle') return bundleArt(item);
         var url = safeUrl(item.image_url);
@@ -512,11 +536,13 @@
             }
             if (item.stock != null) item.stock = Math.max(0, item.stock - 1);
             setBalance(Number(r.data.balance));
+            if (window.SpecXP && r.data.boosters) window.SpecXP.setBoosters(r.data.boosters);
             var autoWear = !wasEquipped && newFrame, autoTitle = !wasTitle && newTitle;
             toast(item.category === 'emote' ? item.name + ' added to MY EMOTES in chats'
                 : item.category === 'bundle' ? item.name + ': ' + (r.data.granted || []).length + ' items added' + (autoWear ? ' and your new frame is on' : '')
                 : item.category === 'frame' ? item.name + (autoWear ? ' bought and equipped' : ' bought. Press Equip to wear it')
                 : item.category === 'title' ? item.name + (autoTitle ? ' bought and equipped' : ' bought. Press Equip to wear it')
+                : item.category === 'boost' && item.boost_data ? item.name + ' is running: ' + item.boost_data.tier + 'x ' + (item.boost_data.kind === 'xp' ? 'XP' : 'credits') + ' for ' + durLabel(item.boost_data.minutes) + ' of online time'
                 : 'Bought ' + item.name + ' for ' + fmt(r.data.price) + ' credits');
             if (autoWear) setTimeout(function () { equipFrame(newFrame.id, true); }, 60);
             if (autoTitle) setTimeout(function () { equipTitle(newTitle.id, true); }, autoWear ? 700 : 60);
@@ -834,6 +860,7 @@
         // xp.js pings once a minute: when it answers, refresh the quest progress too (at most every 20 seconds)
         if (window.SpecXP) window.SpecXP.onChange(function (i) {
             setXp(i);
+            if (Number(i.booster_credits) > 0) refreshWalletQuiet();
             if (S.user && !S.questBusy && Date.now() - S.questReloadAt > 20000) loadQuests();
         });
         sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT' || ev === 'SIGNED_IN') { loadUser().then(function () { paintWallet(); paintAll(); loadQuests(); }); } });

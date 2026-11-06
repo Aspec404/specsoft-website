@@ -13,7 +13,8 @@
    here, so a title can never inject CSS or HTML (text is always set as plain text).
 
    Public API (window.SpecTitles)
-     FONTS, EFFECTS, DECOS, SYMBOLS, LIMITS, TEMPLATES   lists for the editor
+     FONTS, EFFECTS, EFFECT_GROUPS, DECOS, SYMBOLS, LIMITS, TEMPLATES   lists for the editor
+     iconOk(url), iconFromLink(text)   icon link checks (store-icons bucket or Flaticon CDN)
      clean(title)            a safe, clamped copy, or null
      render(title)           a DOM element for that title (or null)
      apply(node, title)      put a title inside one container (null empties it)
@@ -39,22 +40,62 @@
         mono:    ['Terminal',   "ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace"],
         script:  ['Script',     "'Brush Script MT','Segoe Script','Lucida Handwriting',cursive"],
         comic:   ['Playful',    "'Comic Sans MS','Chalkboard SE','Comic Neue',cursive"],
-        engrave: ['Engraved',   "Copperplate,'Copperplate Gothic Light','Gill Sans',Optima,fantasy"]
+        engrave: ['Engraved',   "Copperplate,'Copperplate Gothic Light','Gill Sans',Optima,fantasy"],
+        /* web fonts (Google Fonts, loaded only when a title uses them; the fallback shows until then) */
+        orbitron:  ['Orbitron (HUD)',        "'Orbitron','Segoe UI',system-ui,sans-serif"],
+        audiowide: ['Audiowide (tech)',      "'Audiowide','Segoe UI',system-ui,sans-serif"],
+        righteous: ['Righteous (retro)',     "'Righteous','Trebuchet MS',system-ui,sans-serif"],
+        bungee:    ['Bungee (signage)',      "'Bungee',Impact,'Arial Black',sans-serif"],
+        bebas:     ['Bebas (tall caps)',     "'Bebas Neue',Impact,'Arial Narrow',sans-serif"],
+        pixel:     ['Pixel (8-bit)',         "'Press Start 2P',ui-monospace,Menlo,Consolas,monospace"],
+        vt323:     ['VT323 (old terminal)',  "'VT323',ui-monospace,Menlo,Consolas,monospace"],
+        cinzel:    ['Cinzel (epic)',         "'Cinzel',Georgia,'Times New Roman',serif"],
+        playfair:  ['Playfair (fancy)',      "'Playfair Display',Georgia,'Times New Roman',serif"],
+        gothic:    ['Gothic (old English)',  "'UnifrakturCook','Old English Text MT',Georgia,serif"],
+        creepster: ['Creepster (spooky)',    "'Creepster',Impact,'Arial Black',sans-serif"],
+        pacifico:  ['Pacifico (surf script)',"'Pacifico','Brush Script MT','Segoe Script',cursive"],
+        lobster:   ['Lobster (bold script)', "'Lobster','Brush Script MT','Segoe Script',cursive"],
+        caveat:    ['Caveat (handwriting)',  "'Caveat','Segoe Script','Comic Sans MS',cursive"],
+        marker:    ['Marker (graffiti)',     "'Permanent Marker','Comic Sans MS','Chalkboard SE',cursive"],
+        fredoka:   ['Fredoka (bubbly)',      "'Fredoka','Trebuchet MS','Arial Rounded MT Bold',system-ui,sans-serif"]
     };
-    var EFFECTS = {
-        none:    'None',
-        glow:    'Soft glow',
-        neon:    'Neon',
-        pulse:   'Pulse',
-        flicker: 'Flicker',
-        shimmer: 'Shimmer',
-        wave:    'Wave',
-        glitch:  'Glitch',
-        rainbow: 'Rainbow cycle',
-        float:   'Float',
-        sparkle: 'Sparkle'
+    // Google Fonts "family" query values (exact weights each family really has, or the css2 request fails)
+    var GFONTS = {
+        orbitron: 'Orbitron:wght@400..900', audiowide: 'Audiowide', righteous: 'Righteous', bungee: 'Bungee',
+        bebas: 'Bebas+Neue', pixel: 'Press+Start+2P', vt323: 'VT323', cinzel: 'Cinzel:wght@400..900',
+        playfair: 'Playfair+Display:wght@400..900', gothic: 'UnifrakturCook:wght@700', creepster: 'Creepster',
+        pacifico: 'Pacifico', lobster: 'Lobster', caveat: 'Caveat:wght@400..700', marker: 'Permanent+Marker',
+        fredoka: 'Fredoka:wght@300..700'
     };
-    var DECOS = { none: 'None', pill: 'Pill background', underline: 'Gradient underline', outline: 'Outlined box', brackets: 'Brackets' };
+    var fontLoaded = {};
+    function ensureFont(key) {
+        if (!GFONTS[key] || fontLoaded[key]) return;
+        fontLoaded[key] = true;
+        try {
+            var l = document.createElement('link');
+            l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=' + GFONTS[key] + '&display=swap';
+            (document.head || document.documentElement).appendChild(l);
+        } catch (e) { /* offline or blocked: the fallback font is used */ }
+    }
+    // Effects are grouped by what they animate. A title can use up to 3 effects at once; two effects from the
+    // SAME group replace each other (the later one wins), effects from different groups stack.
+    var EFFECT_GROUPS = [
+        ['Glow & light',  { glow: 'Soft glow', neon: 'Neon (flickering)', halo: 'White halo', shadow: 'Drop shadow' }],
+        ['Movement',      { float: 'Float', bounce: 'Bounce', shake: 'Shake', swing: 'Swing', heartbeat: 'Heartbeat' }],
+        ['Fade',          { pulse: 'Pulse', flicker: 'Flicker', blink: 'Blink', fade: 'Slow fade' }],
+        ['Colour shift',  { rainbow: 'Rainbow cycle', hueshift: 'Hue sway' }],
+        ['Text FX',       { shimmer: 'Shimmer', glitch: 'Glitch', ghost: 'Ghost echo', scanline: 'Scan line' }],
+        ['Letter by letter', { wave: 'Wave', hop: 'Hop', jitter: 'Jitter', spectrum: 'Spectrum letters' }],
+        ['Extras',        { sparkle: 'Sparkle' }]
+    ];
+    var EFFECTS = { none: 'None' }, EFFECT_SLOT = {};
+    EFFECT_GROUPS.forEach(function (g, gi) { Object.keys(g[1]).forEach(function (k) { EFFECTS[k] = g[1][k]; EFFECT_SLOT[k] = gi; }); });
+    var LETTER_SLOT = 5;
+    var DECOS = {
+        none: 'None', pill: 'Pill background', gradpill: 'Gradient pill', glass: 'Glass pill', tag: 'Angled tag',
+        underline: 'Gradient underline', outline: 'Outlined box', dashed: 'Dashed box', double: 'Double border',
+        neonbox: 'Neon box', corners: 'Corner marks', brackets: 'Brackets', wings: 'Wings \u00ab \u00bb', stars: 'Star sparks'
+    };
     var SYMBOLS = ['', '\u2726', '\u2605', '\u2756', '\u263e', '\u26a1', '\u265b', '\u2744', '\u2764', '\u2620', '\u273f', '\u2694', '\u2666', '\u2727', '\u2600', '\u27a4'];
     var LIMITS = {
         weight:   [400, 900, 700],
@@ -63,9 +104,25 @@
         angle:    [0, 360, 90],
         flow:     [0, 12, 0],
         strength: [0, 100, 50],
-        speed:    [0.5, 12, 3]
+        speed:    [0.5, 12, 3],
+        iconSize: [0.6, 2, 1]
     };
     var COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+    // icons: only https links into our own store-icons bucket (same rule as the database)
+    var ICON_RE = /^https:\/\/[A-Za-z0-9.-]+(:[0-9]+)?\/storage\/v1\/object\/public\/store-icons\/[A-Za-z0-9._\/-]+$/;
+    // Flaticon CDN images: https://cdn-icons-png.flaticon.com/<size>/<folder>/<id>.png
+    var FLAT_RE = /^https:\/\/cdn-icons-png\.flaticon\.com\/[0-9]{2,3}\/[0-9]{1,6}\/[0-9]{1,9}\.(png|webp)$/;
+    function iconOk(u) { return typeof u === 'string' && u.length <= 300 && u.indexOf('..') < 0 && (ICON_RE.test(u) || FLAT_RE.test(u)); }
+    // accepts a direct Flaticon image link, or a Flaticon icon PAGE link (.../free-icon/name_1234567), and returns a usable image link (or null)
+    function iconFromLink(t) {
+        t = String(t || '').trim();
+        if (iconOk(t)) return t;
+        var m = t.match(/^https:\/\/(?:www\.)?flaticon\.com\/[^?#\s]*_([0-9]{1,9})(?:[?#]|$)/);
+        if (!m) return null;
+        var id = Number(m[1]);
+        var u = 'https://cdn-icons-png.flaticon.com/128/' + Math.floor(id / 1000) + '/' + id + '.png';
+        return iconOk(u) ? u : null;
+    }
     var TTL = 5 * 60 * 1000;
     var TEXT_MAX = 24;
 
@@ -94,29 +151,69 @@
             '.spt-x.is-flow{animation:sptFlow calc(var(--spt-flow) * 1s) linear infinite}',
             '.spt-x.is-stroke{-webkit-text-stroke:var(--spt-sw,1px) var(--spt-sc)}',
             '.spt-c{display:inline-block;white-space:pre}',
+            '.spt-i{display:inline-block;flex:none;height:calc(1.15em * var(--spt-isz,1));width:auto;max-width:3.5em;object-fit:contain;vertical-align:middle}',
             '.spt-d{display:inline-block;color:var(--spt-c0);font-style:normal;font-weight:400;font-family:system-ui,sans-serif;font-size:.9em}',
+
+            /* layers: .spt (glow) > .spt-m (movement) > .spt-f (fade) > .spt-h (colour shift) > .spt-in (decoration + content) */
+            '.spt-m,.spt-f,.spt-h,.spt-in{display:inline-flex;align-items:center}',
+            '.spt-in{gap:.3em;position:relative}',
 
             /* decorations around the whole title */
             '.spt-deco-pill{padding:.12em .7em;border-radius:99px;background:color-mix(in srgb,var(--spt-c0) 16%,transparent);border:1px solid color-mix(in srgb,var(--spt-c0) 45%,transparent)}',
+            '.spt-deco-gradpill{padding:.12em .8em;border-radius:99px;background:var(--spt-bg)}',
+            '.spt-deco-gradpill .spt-x,.spt-deco-gradpill .spt-x.is-grad{background:none;-webkit-text-fill-color:#fff;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)}',
+            '.spt-deco-gradpill .spt-c{color:#fff!important}',
+            '.spt-deco-glass{padding:.12em .75em;border-radius:99px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}',
+            '.spt-deco-tag{padding:.12em .85em;background:color-mix(in srgb,var(--spt-c0) 22%,transparent);clip-path:polygon(.45em 0,100% 0,calc(100% - .45em) 100%,0 100%)}',
             '.spt-deco-outline{padding:.08em .55em;border-radius:.35em;border:1.5px solid var(--spt-c0);box-shadow:inset 0 0 .5em color-mix(in srgb,var(--spt-c0) 30%,transparent)}',
+            '.spt-deco-dashed{padding:.08em .55em;border-radius:.35em;border:1.5px dashed var(--spt-c0)}',
+            '.spt-deco-double{padding:.06em .55em;border-radius:.3em;border:3px double var(--spt-c0)}',
+            '.spt-deco-neonbox{padding:.08em .6em;border-radius:.3em;border:1.5px solid var(--spt-c0);box-shadow:0 0 .35em var(--spt-c0),inset 0 0 .35em color-mix(in srgb,var(--spt-c0) 55%,transparent)}',
+            '.spt-deco-corners{padding:.14em .65em;background:linear-gradient(var(--spt-c0),var(--spt-c0)) 0 0/.5em 1.5px no-repeat,linear-gradient(var(--spt-c0),var(--spt-c0)) 0 0/1.5px .5em no-repeat,linear-gradient(var(--spt-c0),var(--spt-c0)) 100% 0/.5em 1.5px no-repeat,linear-gradient(var(--spt-c0),var(--spt-c0)) 100% 0/1.5px .5em no-repeat,linear-gradient(var(--spt-c0),var(--spt-c0)) 0 100%/.5em 1.5px no-repeat,linear-gradient(var(--spt-c0),var(--spt-c0)) 0 100%/1.5px .5em no-repeat,linear-gradient(var(--spt-c0),var(--spt-c0)) 100% 100%/.5em 1.5px no-repeat,linear-gradient(var(--spt-c0),var(--spt-c0)) 100% 100%/1.5px .5em no-repeat}',
             '.spt-deco-brackets{padding:0 .2em}',
             '.spt-deco-brackets::before{content:"[";color:var(--spt-c0);font-weight:400}',
             '.spt-deco-brackets::after{content:"]";color:var(--spt-c0);font-weight:400}',
+            '.spt-deco-wings::before{content:"\\00ab";color:var(--spt-c0);font-weight:400}',
+            '.spt-deco-wings::after{content:"\\00bb";color:var(--spt-c0);font-weight:400}',
+            '.spt-deco-stars::before{content:"\\2726";color:var(--spt-c0);font-weight:400;font-size:.7em;margin-right:.1em}',
+            '.spt-deco-stars::after{content:"\\2726";color:var(--spt-c0);font-weight:400;font-size:.7em;margin-left:.1em}',
             '.spt-deco-underline{padding-bottom:.18em;background:var(--spt-bg) 0 100%/100% .14em no-repeat}',
 
-            /* effects (filter-based so they also work on gradient text) */
+            /* effects. glow group: filter on the whole title */
             '.spt-fx-glow{filter:drop-shadow(0 0 calc(var(--spt-gl) * .12em) var(--spt-c0))}',
-            '.spt-fx-neon{filter:drop-shadow(0 0 .08em var(--spt-c0)) drop-shadow(0 0 calc(var(--spt-gl) * .1em) var(--spt-c0)) drop-shadow(0 0 calc(var(--spt-gl) * .22em) var(--spt-c1,var(--spt-c0)));animation:sptFlicker calc(var(--spt-sp) * 2.2s) linear infinite}',
-            '.spt-fx-pulse{animation:sptPulse calc(var(--spt-sp) * 1s) ease-in-out infinite}',
-            '.spt-fx-flicker{animation:sptFlicker calc(var(--spt-sp) * 1.6s) linear infinite}',
-            '.spt-fx-rainbow{animation:sptHue calc(var(--spt-sp) * 2s) linear infinite}',
-            '.spt-fx-float{animation:sptFloat calc(var(--spt-sp) * 1s) ease-in-out infinite}',
+            '.spt-fx-neon{filter:drop-shadow(0 0 .08em var(--spt-c0)) drop-shadow(0 0 calc(var(--spt-gl) * .1em) var(--spt-c0)) drop-shadow(0 0 calc(var(--spt-gl) * .22em) var(--spt-c1,var(--spt-c0)))}',
+            '.spt-fx-neon .spt-f{animation:sptFlicker calc(var(--spt-sp) * 2.2s) linear infinite}',
+            '.spt-fx-halo{filter:drop-shadow(0 0 .06em #fff) drop-shadow(0 0 calc(var(--spt-gl) * .16em) var(--spt-c0))}',
+            '.spt-fx-shadow{filter:drop-shadow(.07em .07em 0 rgba(0,0,0,.65)) drop-shadow(.14em .14em calc(var(--spt-gl) * .04em) var(--spt-c0))}',
+            /* movement group */
+            '.spt-fx-float .spt-m{animation:sptFloat calc(var(--spt-sp) * 1s) ease-in-out infinite}',
+            '.spt-fx-bounce .spt-m{animation:sptBounce calc(var(--spt-sp) * .5s) ease-in-out infinite}',
+            '.spt-fx-shake .spt-m{animation:sptShake calc(var(--spt-sp) * .12s) linear infinite}',
+            '.spt-fx-swing .spt-m{transform-origin:50% 0;animation:sptSwing calc(var(--spt-sp) * .7s) ease-in-out infinite}',
+            '.spt-fx-heartbeat .spt-m{animation:sptBeat calc(var(--spt-sp) * .45s) ease-in-out infinite}',
+            /* fade group */
+            '.spt-fx-pulse .spt-f{animation:sptPulse calc(var(--spt-sp) * 1s) ease-in-out infinite}',
+            '.spt-fx-flicker .spt-f{animation:sptFlicker calc(var(--spt-sp) * 1.6s) linear infinite}',
+            '.spt-fx-blink .spt-f{animation:sptBlink calc(var(--spt-sp) * .5s) steps(1) infinite}',
+            '.spt-fx-fade .spt-f{animation:sptFade calc(var(--spt-sp) * 1s) ease-in-out infinite}',
+            /* colour shift group */
+            '.spt-fx-rainbow .spt-h{animation:sptHue calc(var(--spt-sp) * 2s) linear infinite}',
+            '.spt-fx-hueshift .spt-h{animation:sptHueShift calc(var(--spt-sp) * 1.5s) ease-in-out infinite}',
+            /* text FX group */
             '.spt-fx-shimmer .spt-x::after{content:attr(data-text);position:absolute;left:0;top:0;white-space:pre;color:transparent;-webkit-text-fill-color:transparent;' +
                 'background:linear-gradient(110deg,transparent 38%,rgba(255,255,255,.95) 50%,transparent 62%) 0 0/250% 100% no-repeat;-webkit-background-clip:text;background-clip:text;animation:sptShine calc(var(--spt-sp) * 1s) ease-in-out infinite}',
+            '.spt-fx-scanline .spt-x::after{content:attr(data-text);position:absolute;left:0;top:0;white-space:pre;color:transparent;-webkit-text-fill-color:transparent;' +
+                'background:linear-gradient(180deg,transparent 40%,rgba(255,255,255,.95) 50%,transparent 60%) 0 0/100% 300% no-repeat;-webkit-background-clip:text;background-clip:text;animation:sptScan calc(var(--spt-sp) * .8s) linear infinite}',
+            '.spt-fx-ghost .spt-x::before{content:attr(data-text);position:absolute;left:0;top:0;white-space:pre;color:var(--spt-c1,var(--spt-c0));-webkit-text-fill-color:currentColor;background:none;opacity:.4;animation:sptGhost calc(var(--spt-sp) * .9s) ease-in-out infinite}',
             '.spt-fx-glitch .spt-x::before,.spt-fx-glitch .spt-x::after{content:attr(data-text);position:absolute;left:0;top:0;white-space:pre;-webkit-text-fill-color:currentColor;background:none}',
             '.spt-fx-glitch .spt-x::before{color:#00e5ff;animation:sptGlA calc(var(--spt-sp) * 1s) steps(1) infinite}',
             '.spt-fx-glitch .spt-x::after{color:#ff2bd6;animation:sptGlB calc(var(--spt-sp) * 1s) steps(1) infinite}',
+            /* letter by letter group */
             '.spt-fx-wave .spt-c{animation:sptWave calc(var(--spt-sp) * .9s) ease-in-out infinite;animation-delay:calc(var(--i) * .09s)}',
+            '.spt-fx-hop .spt-c{animation:sptHop calc(var(--spt-sp) * .8s) ease-in-out infinite;animation-delay:calc(var(--i) * .12s)}',
+            '.spt-fx-jitter .spt-c{animation:sptJit calc(var(--spt-sp) * .3s) steps(1) infinite;animation-delay:calc(var(--i) * -.07s)}',
+            '.spt-fx-spectrum .spt-c{animation:sptHue calc(var(--spt-sp) * 2s) linear infinite;animation-delay:calc(var(--i) * -.18s)}',
+            /* extras */
             '.spt-fx-sparkle{position:relative}',
             '.spt-fx-sparkle::before,.spt-fx-sparkle::after{content:"";position:absolute;width:.42em;height:.42em;background:#fff;pointer-events:none;' +
                 'clip-path:polygon(50% 0,61% 39%,100% 50%,61% 61%,50% 100%,39% 61%,0 50%,39% 39%);animation:sptTwinkle calc(var(--spt-sp) * .7s) ease-in-out infinite;filter:drop-shadow(0 0 .2em var(--spt-c0))}',
@@ -126,10 +223,21 @@
             '@keyframes sptFlow{to{background-position:200% 0}}',
             '@keyframes sptPulse{0%,100%{opacity:1;filter:drop-shadow(0 0 .05em var(--spt-c0))}50%{opacity:.8;filter:drop-shadow(0 0 calc(var(--spt-gl) * .2em) var(--spt-c0)) brightness(1.25)}}',
             '@keyframes sptFlicker{0%,18%,22%,25%,53%,57%,100%{opacity:1}20%,24%,55%{opacity:.45}}',
+            '@keyframes sptBlink{0%,49%{opacity:1}50%,100%{opacity:.12}}',
+            '@keyframes sptFade{0%,100%{opacity:1}50%{opacity:.3}}',
             '@keyframes sptHue{to{filter:hue-rotate(360deg)}}',
+            '@keyframes sptHueShift{0%,100%{filter:hue-rotate(-45deg)}50%{filter:hue-rotate(45deg)}}',
             '@keyframes sptFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-.22em)}}',
+            '@keyframes sptBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-.32em)}}',
+            '@keyframes sptShake{0%,100%{transform:translateX(0) rotate(0)}25%{transform:translateX(-.05em) rotate(-2deg)}75%{transform:translateX(.05em) rotate(2deg)}}',
+            '@keyframes sptSwing{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}',
+            '@keyframes sptBeat{0%,100%{transform:scale(1)}15%{transform:scale(1.15)}30%{transform:scale(1)}45%{transform:scale(1.1)}}',
             '@keyframes sptShine{0%{background-position:100% 0}60%,100%{background-position:0% 0}}',
+            '@keyframes sptScan{0%{background-position:0 0}100%{background-position:0 100%}}',
+            '@keyframes sptGhost{0%,100%{transform:translate(-.1em,.03em)}50%{transform:translate(.1em,-.03em)}}',
             '@keyframes sptWave{0%,100%{transform:translateY(0)}50%{transform:translateY(-.28em)}}',
+            '@keyframes sptHop{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-.4em)}}',
+            '@keyframes sptJit{0%{transform:translate(0)}20%{transform:translate(.04em,-.04em)}40%{transform:translate(-.04em,.03em)}60%{transform:translate(.03em,.04em)}80%{transform:translate(-.03em,-.03em)}}',
             '@keyframes sptGlA{0%,84%,100%{transform:translate(0);clip-path:none}86%{transform:translate(-.08em,.03em);clip-path:inset(0 0 55% 0)}91%{transform:translate(.07em,-.03em);clip-path:inset(45% 0 0 0)}95%{transform:translate(-.05em,0);clip-path:inset(20% 0 30% 0)}}',
             '@keyframes sptGlB{0%,86%,100%{transform:translate(0);clip-path:none}88%{transform:translate(.08em,-.03em);clip-path:inset(50% 0 0 0)}93%{transform:translate(-.07em,.03em);clip-path:inset(0 0 45% 0)}97%{transform:translate(.05em,0);clip-path:inset(30% 0 20% 0)}}',
             '@keyframes sptTwinkle{0%,100%{transform:scale(.1);opacity:.1}50%{transform:scale(1);opacity:1}}',
@@ -172,12 +280,17 @@
             angle: num(f.angle, 'angle'),
             flow: num(f.flow, 'flow'),
             effect: EFFECTS[f.effect] ? f.effect : 'none',
+            effect2: EFFECTS[f.effect2] ? f.effect2 : 'none',
+            effect3: EFFECTS[f.effect3] ? f.effect3 : 'none',
             strength: num(f.strength, 'strength'),
             speed: num(f.speed, 'speed'),
             outline: typeof f.outline === 'string' && COLOR_RE.test(f.outline) ? f.outline : null,
             deco: DECOS[f.deco] ? f.deco : 'none',
             left: SYMBOLS.indexOf(f.left) >= 0 ? f.left : '',
-            right: SYMBOLS.indexOf(f.right) >= 0 ? f.right : ''
+            right: SYMBOLS.indexOf(f.right) >= 0 ? f.right : '',
+            iconL: iconOk(f.iconL) ? f.iconL : null,
+            iconR: iconOk(f.iconR) ? f.iconR : null,
+            iconSize: num(f.iconSize, 'iconSize')
         };
         return o;
     }
@@ -196,13 +309,29 @@
         if (loop) stops.push(f.colors[0]);          // wrap around so a flowing gradient has no seam
         return 'linear-gradient(' + f.angle + 'deg,' + stops.join(',') + ')';
     }
+    function icon(url) {
+        var im = document.createElement('img');
+        im.className = 'spt-i'; im.alt = ''; im.decoding = 'async'; im.loading = 'lazy';
+        im.setAttribute('referrerpolicy', 'no-referrer'); im.setAttribute('aria-hidden', 'true');
+        im.src = url;
+        im.onerror = function () { if (im.parentNode) im.parentNode.removeChild(im); };
+        return im;
+    }
     function sym(ch) { var d = document.createElement('i'); d.className = 'spt-d'; d.setAttribute('aria-hidden', 'true'); d.textContent = ch; return d; }
 
     function render(title) {
         var f = clean(title);
         if (!f) return null;
         var root = document.createElement('span'), st = root.style;
-        root.className = 'spt spt-fx-' + f.effect + (f.deco !== 'none' ? ' spt-deco-' + f.deco : '');
+        ensureFont(f.font);
+        // resolve up to 3 effects: one per group (the later one wins inside a group)
+        var bySlot = {}, ids = [];
+        [f.effect, f.effect2, f.effect3].forEach(function (k) { if (k && k !== 'none') bySlot[EFFECT_SLOT[k]] = k; });
+        Object.keys(bySlot).forEach(function (g) { ids.push(bySlot[g]); });
+        var letters = bySlot[LETTER_SLOT] !== undefined;
+        root.className = 'spt ' + (ids.length ? ids.map(function (k) { return 'spt-fx-' + k; }).join(' ') : 'spt-fx-none');
+        var inner = document.createElement('span');
+        inner.className = 'spt-in' + (f.deco !== 'none' ? ' spt-deco-' + f.deco : '');
         root.setAttribute('title', f.text);
         st.setProperty('--spt-font', FONTS[f.font][1]);
         st.setProperty('--spt-weight', String(f.weight));
@@ -212,23 +341,25 @@
         st.setProperty('--spt-size', String(f.size));
         st.setProperty('--spt-gl', String(round2(f.strength / 25)));
         st.setProperty('--spt-sp', String(f.speed));
+        st.setProperty('--spt-isz', String(f.iconSize));
         f.colors.forEach(function (c, i) { st.setProperty('--spt-c' + i, c); });
 
         var grad = f.fill === 'gradient', flow = grad && f.flow > 0;
         if (grad) {
-            st.setProperty('--spt-bg', gradientCss(f, flow || f.deco === 'underline'));
+            st.setProperty('--spt-bg', gradientCss(f, flow || f.deco === 'underline' || f.deco === 'gradpill'));
             if (flow) { st.setProperty('--spt-bgs', '200% 100%'); st.setProperty('--spt-flow', String(f.flow)); }
-        } else if (f.deco === 'underline') {
+        } else if (f.deco === 'underline' || f.deco === 'gradpill') {
             st.setProperty('--spt-bg', 'linear-gradient(90deg,' + f.colors[0] + ',' + f.colors[0] + ')');
         }
         if (f.outline) { st.setProperty('--spt-sc', f.outline); st.setProperty('--spt-sw', '1px'); }
 
-        if (f.left) root.appendChild(sym(f.left));
+        if (f.iconL) inner.appendChild(icon(f.iconL));
+        if (f.left) inner.appendChild(sym(f.left));
 
         var x = document.createElement('span');
-        x.className = 'spt-x' + (grad && f.effect !== 'wave' ? ' is-grad' : '') + (flow && f.effect !== 'wave' ? ' is-flow' : '') + (f.outline ? ' is-stroke' : '');
+        x.className = 'spt-x' + (grad && !letters ? ' is-grad' : '') + (flow && !letters ? ' is-flow' : '') + (f.outline ? ' is-stroke' : '');
         x.setAttribute('data-text', f.text);
-        if (f.effect === 'wave') {
+        if (letters) {
             // each letter bobs on its own, and gets its own point of the gradient as a plain color
             var chars = Array.from(f.text);
             chars.forEach(function (ch, i) {
@@ -240,9 +371,14 @@
                 x.appendChild(c);
             });
         } else x.textContent = f.text;
-        root.appendChild(x);
+        inner.appendChild(x);
 
-        if (f.right) root.appendChild(sym(f.right));
+        if (f.right) inner.appendChild(sym(f.right));
+        if (f.iconR) inner.appendChild(icon(f.iconR));
+        var wm = document.createElement('span'); wm.className = 'spt-m';
+        var wf = document.createElement('span'); wf.className = 'spt-f';
+        var wh = document.createElement('span'); wh.className = 'spt-h';
+        wh.appendChild(inner); wf.appendChild(wh); wm.appendChild(wf); root.appendChild(wm);
         return root;
     }
 
@@ -330,7 +466,7 @@
     function forUsers(ids) { return fetchTitles((ids || []).map(function (i) { return String(i).toLowerCase(); })); }
 
     window.SpecTitles = {
-        FONTS: FONTS, EFFECTS: EFFECTS, DECOS: DECOS, SYMBOLS: SYMBOLS, LIMITS: LIMITS, TEXT_MAX: TEXT_MAX, TEMPLATES: TEMPLATES,
-        clean: clean, render: render, apply: apply, adorn: adorn, setMine: setMine, forUsers: forUsers
+        FONTS: FONTS, EFFECTS: EFFECTS, EFFECT_GROUPS: EFFECT_GROUPS, DECOS: DECOS, SYMBOLS: SYMBOLS, LIMITS: LIMITS, TEXT_MAX: TEXT_MAX, TEMPLATES: TEMPLATES,
+        clean: clean, iconOk: iconOk, iconFromLink: iconFromLink, ensureFont: ensureFont, render: render, apply: apply, adorn: adorn, setMine: setMine, forUsers: forUsers
     };
 })();

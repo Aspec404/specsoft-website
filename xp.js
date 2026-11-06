@@ -17,6 +17,9 @@
      onChange(fn)     fn(info) is called whenever XP changes
      set(info)        other scripts (the quest board) can push a fresh XP info in
 
+   Boosters: put  <div data-xp-boosters></div>  anywhere to show the member's running XP / credit boosters
+   with a live countdown (needs supabase-store-boosters.sql). setBoosters(list) / boosters() are also available.
+
    Also fills any element with  data-xp-level  data-xp-total  data-xp-into  data-xp-need
    and sets the width of  data-xp-fill  to the percent to the next level.
    A window event "xp:update" is fired with the info as event.detail.
@@ -33,7 +36,7 @@
     var script = document.currentScript;
     var visitPage = script && script.getAttribute('data-visit');
 
-    var sb = null, uid = null, timer = null, errors = 0, info = null;
+    var sb = null, uid = null, timer = null, errors = 0, info = null, boosters = [], bTimer = null;
     var lastActive = Date.now(), needsResume = true, listeners = [];
 
     function client() {
@@ -48,7 +51,10 @@
     /* ---------- paint ---------- */
     function set(next) {
         if (!next || typeof next !== 'object') return;
+        // answers that carry no booster list (quest claims...) must not wipe the booster chips
+        if (!('boosters' in next) && info && info.boosters) next.boosters = info.boosters;
         info = next;
+        if ('boosters' in next) setBoosters(next.boosters);
         document.querySelectorAll('[data-xp-level]').forEach(function (n) { n.textContent = String(next.level); });
         document.querySelectorAll('[data-xp-total]').forEach(function (n) { n.textContent = Number(next.xp).toLocaleString('en-US'); });
         document.querySelectorAll('[data-xp-into]').forEach(function (n) { n.textContent = Number(next.into).toLocaleString('en-US'); });
@@ -56,6 +62,62 @@
         document.querySelectorAll('[data-xp-fill]').forEach(function (n) { n.style.width = Math.max(0, Math.min(100, Number(next.pct) || 0)) + '%'; });
         listeners.slice().forEach(function (fn) { try { fn(next); } catch (e) { /* a listener failed, ignore */ } });
         try { window.dispatchEvent(new CustomEvent('xp:update', { detail: next })); } catch (e) { /* old browser */ }
+    }
+
+    /* ---------- boosters (chips for the signed-in member: any element with data-xp-boosters) ---------- */
+    var BOOST_CSS = '.xpb-row{display:flex;flex-wrap:wrap;gap:8px}.xpb-row:empty{display:none}' +
+        '.xpb{--c:#38bdf8;display:inline-flex;align-items:center;gap:7px;padding:5px 11px 5px 6px;border-radius:99px;font:600 12.5px/1.2 system-ui,sans-serif;white-space:nowrap;' +
+        'color:inherit;background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent)}' +
+        '.xpb--credits{--c:#facc15}' +
+        '.xpb b{display:inline-grid;place-items:center;min-width:26px;height:22px;padding:0 6px;border-radius:99px;background:var(--c);color:#111;font-weight:800;font-size:12px}' +
+        '.xpb time{font-variant-numeric:tabular-nums;opacity:.85;font-weight:600}' +
+        '@media (prefers-reduced-motion:no-preference){.xpb b{animation:xpbPulse 2.4s ease-in-out infinite}}' +
+        '@keyframes xpbPulse{50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 28%,transparent)}}';
+    (function () { var st = document.createElement('style'); st.id = 'xpb-styles'; st.textContent = BOOST_CSS; (document.head || document.documentElement).appendChild(st); })();
+
+    function fmtLeft(sec) {
+        sec = Math.max(0, Math.floor(sec));
+        var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+        if (h >= 24) return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
+        if (h >= 1) return h + 'h ' + m + 'm';
+        return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+    function paintBoosters() {
+        var now = Date.now();
+        boosters = boosters.filter(function (b) { return b.endsAtMs > now; });
+        document.querySelectorAll('[data-xp-boosters]').forEach(function (box) {
+            box.classList.add('xpb-row');
+            var have = {};
+            Array.prototype.slice.call(box.children).forEach(function (c) { have[c.getAttribute('data-k')] = c; });
+            var keep = {};
+            boosters.forEach(function (b) {
+                var key = b.kind + b.tier;
+                keep[key] = true;
+                var chip = have[key];
+                if (!chip) {
+                    chip = document.createElement('span');
+                    chip.className = 'xpb xpb--' + b.kind;
+                    chip.setAttribute('data-k', key);
+                    chip.title = b.tier + 'x ' + (b.kind === 'xp' ? 'XP' : 'credits') + ' per online minute';
+                    var t = document.createElement('b'); t.textContent = b.tier + 'x';
+                    var l = document.createElement('span'); l.textContent = b.kind === 'xp' ? 'XP' : 'Credits';
+                    var tm = document.createElement('time');
+                    chip.appendChild(t); chip.appendChild(l); chip.appendChild(tm);
+                    box.appendChild(chip);
+                }
+                chip.querySelector('time').textContent = fmtLeft((b.endsAtMs - now) / 1000);
+            });
+            Object.keys(have).forEach(function (k) { if (!keep[k]) have[k].remove(); });
+        });
+        if (!boosters.length && bTimer) { clearInterval(bTimer); bTimer = null; }
+    }
+    function setBoosters(list) {
+        var now = Date.now();
+        boosters = (Array.isArray(list) ? list : []).filter(function (b) { return b && (b.kind === 'xp' || b.kind === 'credits') && Number(b.seconds_left) > 0; })
+            .map(function (b) { return { kind: b.kind, tier: Number(b.tier) || 2, endsAtMs: now + Number(b.seconds_left) * 1000 }; });
+        if (info) info.boosters = list || [];
+        paintBoosters();
+        if (boosters.length && !bTimer) bTimer = setInterval(paintBoosters, 1000);
     }
 
     /* ---------- activity ---------- */
@@ -151,8 +213,10 @@
         get: function () { return info; },
         refresh: refresh,
         set: set,
+        setBoosters: setBoosters,
+        boosters: function () { return boosters.map(function (b) { return { kind: b.kind, tier: b.tier, seconds_left: Math.max(0, Math.floor((b.endsAtMs - Date.now()) / 1000)) }; }); },
         onChange: function (fn) { if (typeof fn === 'function') listeners.push(fn); }
     };
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { boot(); paintBoosters(); }); else { boot(); paintBoosters(); }
 })();

@@ -207,6 +207,48 @@
         }
     }
 
+    // ---- real presence: "online" only while the person is actually on the site (Supabase Realtime presence) ----
+    // The saved status is only the status they WANT to show. It is shown while they are connected, otherwise offline.
+    const presence = { ch: null, online: new Set(), ready: false };
+
+    function effectiveStatus(p) {
+        if (!p) return 'offline';
+        if (p.status === 'offline') return 'offline';                       // chose to appear offline
+        return presence.online.has(p.id) ? (STATUS[p.status] ? p.status : 'online') : 'offline';
+    }
+
+    function paintStatus() {
+        const p = state.profile;
+        if (!p) return;
+        const key = effectiveStatus(p), st = STATUS[key] || STATUS.offline;
+        const badge = document.querySelector('#pfAvatarWrap .pf-status-badge');
+        if (badge) { badge.innerHTML = statusIcon(key); badge.setAttribute('aria-label', st.aria); }
+        const chip = document.querySelector('#pfMeta .pf-chip--status');
+        if (chip) {
+            chip.innerHTML = statusIcon(key);
+            if (chip.firstChild) { chip.firstChild.style.width = '13px'; chip.firstChild.style.height = '13px'; }
+            chip.appendChild(document.createTextNode(st.label));
+        }
+    }
+
+    function startPresence() {
+        if (presence.ch || !sb || !sb.channel) return;
+        try {
+            const key = state.me ? state.me.id : 'guest-' + Math.random().toString(36).slice(2);
+            const ch = sb.channel('specsoft-online', { config: { presence: { key: key } } });
+            presence.ch = ch;
+            ch.on('presence', { event: 'sync' }, function () {
+                const st = ch.presenceState ? ch.presenceState() : {};
+                presence.online = new Set(Object.keys(st));
+                presence.ready = true;
+                paintStatus();
+            }).subscribe(function (status) {
+                // guests only watch; signed-in members announce themselves (same channel the chats page uses)
+                if (status === 'SUBSCRIBED' && state.me && ch.track) ch.track({ at: Date.now() });
+            });
+        } catch (e) { /* presence is a bonus: the profile still works without it */ }
+    }
+
     const PRESETS = ['grid', 'rings', 'scan', 'dots', 'diag', 'wave'];
 
     const NAME_FONT_FAMILIES = {
@@ -245,10 +287,11 @@
         };
     }
 
-    function applyDisplayNameStyle(profile) {
-        const node = $('pfName');
+    function applyDisplayNameStyle(profile) { applyNameStyleNode($('pfName'), profile && profile.display_style); }
+
+    function applyNameStyleNode(node, raw) {
         if (!node) return;
-        const style = normalizeDisplayStyle(profile && profile.display_style);
+        const style = normalizeDisplayStyle(raw);
         const g = style.gradientColors;
         node.style.fontFamily = NAME_FONT_FAMILIES[style.font] || NAME_FONT_FAMILIES.default;
         node.style.setProperty('--pf-name-glow', style.glowColor || '#7c3aed');
@@ -932,15 +975,17 @@
         const wrap = $('pfAvatarWrap');
         wrap.textContent = '';
         wrap.appendChild(framed(avatarEl({ name: name, avatar: safeHttps(p.avatar_url) || '' }), p.id));
-        const st = STATUS[p.status] || STATUS.offline;
+        const liveStatus = effectiveStatus(p);
+        const st = STATUS[liveStatus] || STATUS.offline;
         const badge = el('span', { class: 'pf-status-badge', role: 'img', 'aria-label': st.aria });
-        badge.innerHTML = statusIcon(p.status);
+        badge.innerHTML = statusIcon(liveStatus);
         wrap.appendChild(badge);
 
         // names
         $('pfName').textContent = name;
         applyDisplayNameStyle(p);
-        if (window.SpecTitles && $('pfTitle')) window.SpecTitles.adorn($('pfTitle'), p.id);      // equipped store title (name-titles.js)
+        if (window.SpecTitles && $('pfTitle')) window.SpecTitles.adorn($('pfTitle'), p.id);
+        if ($('pfBoosters')) $('pfBoosters').hidden = !state.isOwner;      // the chips show YOUR boosters, so only on your own profile      // equipped store title (name-titles.js)
         $('pfHandle').textContent = '@' + p.username;
         if (window.SpecRoles && $('pfRoles')) window.SpecRoles.mount($('pfRoles'), p.id);
         $('pfHeadline').textContent = p.headline || '';
@@ -976,8 +1021,8 @@
         // meta chips
         const meta = $('pfMeta');
         meta.textContent = '';
-        const statusChip = el('li', { class: 'pf-chip' });
-        statusChip.innerHTML = statusIcon(p.status);
+        const statusChip = el('li', { class: 'pf-chip pf-chip--status' });
+        statusChip.innerHTML = statusIcon(liveStatus);
         statusChip.firstChild.style.width = '13px';
         statusChip.firstChild.style.height = '13px';
         statusChip.appendChild(document.createTextNode(st.label));
@@ -1968,7 +2013,9 @@ async function loadReposts() {
         });
     })();
 
-    function paintAvatarPreview() {
+    function paintAvatarPreview() { paintAvatarPreviewBase(); paintEditPreview(); }
+
+    function paintAvatarPreviewBase() {
         const p = state.profile;
         const box = $('edAvatarPreview');
         box.textContent = '';
@@ -1979,10 +2026,108 @@ async function loadReposts() {
         box.appendChild(avatarEl({ name: name, avatar: url }));
     }
 
+    /* ---------- profile editor revamp: live preview, tabs, quick themes ---------- */
+    const QUICK_THEMES = [
+        ['Midnight', '#7c3aed', '#22d3ee', '#0f172a', '#1e293b'],
+        ['Sunset',   '#f97316', '#ec4899', '#1f1230', '#3b1d2e'],
+        ['Ocean',    '#0ea5e9', '#22d3ee', '#06202e', '#0b3b4f'],
+        ['Forest',   '#22c55e', '#a3e635', '#0b1f14', '#14352a'],
+        ['Candy',    '#f472b6', '#a78bfa', '#2a1236', '#3b1d52'],
+        ['Crimson',  '#ef4444', '#f59e0b', '#1c0b0d', '#3a1217'],
+        ['Aurora',   '#34d399', '#a855f7', '#08141f', '#1a1033'],
+        ['Gold',     '#facc15', '#fb923c', '#17130a', '#2d2410'],
+        ['Mono',     '#e5e7eb', '#9ca3af', '#0a0a0a', '#1f1f1f']
+    ];
+
+    (function buildQuickThemes() {
+        const box = $('edQuickThemes');
+        if (!box) return;
+        QUICK_THEMES.forEach(function (t) {
+            const b = el('button', { type: 'button', class: 'pf-qtheme', title: t.name || t[0], 'aria-label': t[0] + ' theme' },
+                el('span', { class: 'pf-qtheme-sw', style: 'background:linear-gradient(135deg,' + t[3] + ' 0%,' + t[4] + ' 100%);--a:' + t[1] + ';--b:' + t[2] }),
+                el('span', { class: 'pf-qtheme-n', text: t[0] }));
+            b.addEventListener('click', function () {
+                $('edThemePrimary').value = t[1]; $('edThemeSecondary').value = t[2];
+                $('edThemeTop').value = t[3]; $('edThemeBottom').value = t[4];
+                paintEditPreview();
+            });
+            box.appendChild(b);
+        });
+    })();
+
+    function readEditStyle() {
+        return {
+            font: $('edNameFont').value, style: $('edNameStyle').value, animated: $('edNameAnimatedGradient').checked,
+            glowColor: $('edNameGlowColor').value,
+            gradientColors: [1, 2, 3, 4, 5].map(function (i) { return $('edNameGrad' + i).value; })
+        };
+    }
+
+    let pvRaf = 0;
+    function schedulePv() {
+        if (pvRaf) return;
+        pvRaf = requestAnimationFrame(function () { pvRaf = 0; paintEditPreview(); });
+    }
+
+    function paintEditPreview() {
+        const p = state.profile, box = $('edPreview');
+        if (!p || !box) return;
+        const val = function (id, d) { const n = $(id); return n && n.value ? n.value : d; };
+        box.style.setProperty('--pf-accent', val('edThemePrimary', '#7c3aed'));
+        box.style.setProperty('--pf-accent-2', val('edThemeSecondary', '#22d3ee'));
+        box.style.setProperty('--pf-top-grad', val('edThemeTop', '#0f172a'));
+        box.style.setProperty('--pf-bottom-grad', val('edThemeBottom', '#1e293b'));
+
+        const preset = (document.querySelector('input[name="edPreset"]:checked') || {}).value || 'grid';
+        const banner = $('edPvBanner');
+        banner.className = 'pf-pv-banner pf-banner pf-banner--' + preset;
+        banner.textContent = '';
+        let img = '';
+        if (edit.bannerBlob && edit.bannerPreviewUrl) img = edit.bannerPreviewUrl;
+        else if (!edit.bannerReset) img = safeHttps(p.banner_url) || '';
+        if (img) banner.appendChild(el('img', { src: img, alt: '', referrerpolicy: 'no-referrer' }));
+
+        const name = $('edDisplay').value.trim() || p.username;
+        let url = '';
+        if (edit.avatarBlob) url = edit.avatarPreviewUrl;
+        else if (!edit.avatarReset) url = safeHttps(p.avatar_url) || '';
+        const av = $('edPvAvatar');
+        av.textContent = '';
+        av.appendChild(framed(avatarEl({ name: name, avatar: url }), p.id));
+
+        const nm = $('edPvName');
+        nm.textContent = name;
+        applyNameStyleNode(nm, readEditStyle());
+        $('edPvHandle').textContent = '@' + (val('edUsername', p.username).trim() || p.username);
+        $('edPvHeadline').textContent = $('edHeadline').value.trim();
+        const slot = $('edPvTitle');
+        if (window.SpecTitles && slot && slot.getAttribute('data-spt-uid') !== String(p.id)) window.SpecTitles.adorn(slot, p.id);
+    }
+
+    function setEdTab(key) {
+        document.querySelectorAll('#edForm fieldset[data-tab]').forEach(function (fs) { fs.hidden = fs.getAttribute('data-tab') !== key; });
+        document.querySelectorAll('#edTabs .pf-tab').forEach(function (t) {
+            const on = t.getAttribute('data-tab') === key;
+            t.classList.toggle('is-on', on);
+            t.setAttribute('aria-selected', String(on));
+            if (on && t.scrollIntoView) t.scrollIntoView({ block: 'nearest', inline: 'center' });
+        });
+        const body = document.querySelector('#edForm .pf-dlg-body');
+        if (body) body.scrollTop = 0;
+    }
+
+    $('edTabs').addEventListener('click', function (e) {
+        const t = e.target.closest('.pf-tab');
+        if (t) setEdTab(t.getAttribute('data-tab'));
+    });
+    $('edForm').addEventListener('input', schedulePv);
+    $('edForm').addEventListener('change', schedulePv);
+
     function openEdit() {
         const p = state.profile;
         edit.avatarBlob = null; edit.avatarReset = false; edit.bannerBlob = null; edit.bannerReset = false;
         edit.backgroundBlob = null; edit.backgroundReset = false;
+        if (edit.bannerPreviewUrl) { URL.revokeObjectURL(edit.bannerPreviewUrl); edit.bannerPreviewUrl = ''; }
         if (edit.avatarPreviewUrl) { URL.revokeObjectURL(edit.avatarPreviewUrl); edit.avatarPreviewUrl = ''; }
         $('edAvatarFile').value = '';
         $('edBannerFile').value = '';
@@ -2028,6 +2173,8 @@ async function loadReposts() {
 
         updBio();
         paintAvatarPreview();
+        setEdTab('look');
+        paintEditPreview();
         openDlg($('edDlg'));
     }
 
@@ -2109,7 +2256,10 @@ async function loadReposts() {
         try {
             const out = await resizeToBlob(file, 1600, 600, false);
             edit.bannerBlob = out.blob; edit.bannerType = out.type; edit.bannerReset = false;
+            if (edit.bannerPreviewUrl) URL.revokeObjectURL(edit.bannerPreviewUrl);
+            edit.bannerPreviewUrl = URL.createObjectURL(out.blob);
             $('edBannerName').textContent = file.name;
+            paintEditPreview();
             showMsg('edMsg', '');
         } catch (err) { showMsg('edMsg', err.message || 'Could not use that image.'); }
     });
@@ -2118,6 +2268,7 @@ async function loadReposts() {
         edit.bannerBlob = null; edit.bannerReset = true;
         $('edBannerFile').value = '';
         $('edBannerName').textContent = 'Image will be removed when you save';
+        paintEditPreview();
     });
 
     $('edBackgroundFile').addEventListener('change', async function (e) {
@@ -2478,6 +2629,7 @@ async function loadReposts() {
         let session = null;
         try { session = (await sb.auth.getSession()).data.session; } catch (e) { session = null; }
         state.me = session && session.user ? session.user : null;
+        startPresence();
 
         sb.auth.onAuthStateChange(function (event) {
             if (event === 'SIGNED_OUT') location.reload();
