@@ -36,7 +36,7 @@
         SUPABASE_ANON_KEY: 'sb_publishable_uuybm3j2xZ0wdrbIhxANCQ_QApPdkv7'
     };
     var CALM_KEY = 'specsoft.nuke.calm';
-    var TILES = 20, GOAL = 250;     // must match nuke_pad_finish in supabase-nuke.sql
+    var TILES = 20, GOAL = 210;     // must match nuke_pad_finish in supabase-nuke.sql
 
     var S = {
         ev: null, off: 0, phase: 'none', loop: 0, pollT: 0, preview: false,

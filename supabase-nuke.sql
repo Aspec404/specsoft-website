@@ -137,8 +137,8 @@ begin
     return json_build_object('ok', true, 'safe', p.safe_at is not null);
 end $$;
 
--- The browser says "I hit 250". The server only believes it if the pad was really opened and enough
--- real time passed (a human cannot hit 250 random tiles in a few seconds). Rewards are paid once.
+-- The browser says "I hit 210". The server only believes it if the pad was really opened and enough
+-- real time passed (a human cannot hit 210 random tiles in a few seconds). Rewards are paid once.
 create or replace function public.nuke_pad_finish(p_event uuid, p_hits int)
 returns json language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); e public.nuke_events; p public.nuke_participants; elapsed numeric;
@@ -153,10 +153,10 @@ begin
     select * into p from public.nuke_participants where event_id = p_event and user_id = uid for update;
     if not found or p.pad_started_at is null then raise exception 'pad_not_started'; end if;
     if p.safe_at is not null then return json_build_object('ok', true, 'already', true); end if;
-    if coalesce(p_hits, 0) < 250 then raise exception 'not_enough_hits'; end if;
+    if coalesce(p_hits, 0) < 210 then raise exception 'not_enough_hits'; end if;
 
     elapsed := extract(epoch from (now() - p.pad_started_at));
-    if elapsed < 60 then raise exception 'too_fast'; end if;           -- 250 tiles in under 60 seconds is a script, not a hand
+    if elapsed < 52 then raise exception 'too_fast'; end if;           -- 210 tiles in under 52 seconds is a script, not a hand
 
     update public.nuke_participants set safe_at = now() where event_id = p_event and user_id = uid;
 
