@@ -41,7 +41,7 @@
     var S = {
         ev: null, off: 0, phase: 'none', loop: 0, pollT: 0, preview: false,
         user: null, safe: false, hits: 0, glow: -1, joined: false, padStarted: false, finishing: false,
-        ann60: false, ann15: false, calm: false, snd: false, blocked: false, auds: {}, siren: null,
+        ann60: false, ann15: false, calm: false, snd: false, blocked: false, auds: {},
         root: null, dark: null, inc: null, rep: null, falls: [], destroyed: false, seen: false, reportShown: false,
         light: null, annT: 0
     };
@@ -136,19 +136,6 @@
         if (!fade) { try { a.pause(); } catch (e) { /* ignore */ } return; }
         var v = a.volume, i = setInterval(function () { v -= 0.08; if (v <= 0) { clearInterval(i); try { a.pause(); } catch (e) { /* ignore */ } } else a.volume = v; }, 80);
     }
-    function sirenOn(on) {
-        var c = ac();
-        if (!c) return;
-        if (!on) { if (S.siren) { try { S.siren.o.stop(); S.siren.l.stop(); } catch (e) { /* ignore */ } S.siren = null; } return; }
-        if (S.siren) return;
-        try {
-            if (c.state === 'suspended') c.resume();
-            var o = c.createOscillator(), g = c.createGain(), l = c.createOscillator(), lg = c.createGain();
-            o.type = 'sawtooth'; o.frequency.value = 720; l.frequency.value = 0.7; lg.gain.value = 230;
-            l.connect(lg); lg.connect(o.frequency); g.gain.value = 0.05 * (vol() / 0.9); o.connect(g); g.connect(c.destination);
-            o.start(); l.start(); S.siren = { o: o, l: l };
-        } catch (e) { /* ignore */ }
-    }
     function synthBoom() {
         var c = ac();
         if (!c) return;
@@ -186,13 +173,14 @@
         S.blocked = false;
         var t = nowMs(), s = Date.parse(S.ev.starts_at), b = Date.parse(S.ev.boom_at), a = S.ev.audio || {};
         if (S.phase === 'count') {
-            if (a.ost) { if (!S.auds.ost) track('ost', a.ost, true, (t - s) / 1000); } else sirenOn(true);
+            if (a.ost && !S.auds.ost) track('ost', a.ost, true, (t - s) / 1000);
+            if (a.alarm && !S.auds.alarm) track('alarm', a.alarm, true, (t - s) / 1000);
         } else if (S.phase === 'after') {
             if (a.after && !S.auds.after) track('after', a.after, true, (t - b) / 1000);
         }
         paintSoundBtn();
     }
-    function stopAllAudio() { stopTrack('ost'); stopTrack('boom'); stopTrack('after'); sirenOn(false); try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
+    function stopAllAudio() { stopTrack('ost'); stopTrack('boom'); stopTrack('after'); stopTrack('alarm'); try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
     function setSound(on) {
         S.snd = !!on;
         if (S.snd) { var c = ac(); if (c && c.state === 'suspended') c.resume(); phaseAudio(); }
@@ -550,9 +538,9 @@
             var late = (t - b) > 3500;
             renderAfter(late); joinEvent();
             if (!late) {
-                stopTrack('ost', true); sirenOn(false);
+                stopTrack('ost', true); stopTrack('alarm', true);
                 if (S.snd) { var a = S.ev.audio || {}; if (a.boom) track('boom', a.boom, false, 0); else synthBoom(); }
-            } else stopTrack('ost');
+            } else { stopTrack('ost'); stopTrack('alarm'); }
             if (S.snd) phaseAudio();
         } else if (ph === 'report') {
             var wasIn = S.seen;

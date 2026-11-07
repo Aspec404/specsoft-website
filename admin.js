@@ -1342,6 +1342,7 @@
     var NUKE_MAX_BYTES = 15 * 1024 * 1024;
     var NUKE_SLOTS = [
         ['ost', 'Countdown music (loops)', 'Plays during the countdown, starting at the right spot for people who join late. Your OST goes here.'],
+        ['alarm', 'Alarm blare (loops)', 'Plays during the whole countdown, on top of the music. Optional.'],
         ['boom', 'Explosion sound', 'Plays once at 0:00.'],
         ['after', 'Aftermath ambience (loops)', 'Optional. Plays during the dark 2 minutes.']
     ];
@@ -1355,7 +1356,7 @@
         if (!d || d.ok === false) { add(root, el('p', { class: 'ad-help', text: 'Could not load events. Is supabase-nuke.sql installed?' })); return; }
 
         var st = d.settings || {}, evs = d.events || [], nowMs = Date.parse(d.now) || Date.now();
-        var cur = { ost: st.audio_ost || null, boom: st.audio_boom || null, after: st.audio_after || null };
+        var cur = { ost: st.audio_ost || null, boom: st.audio_boom || null, after: st.audio_after || null, alarm: st.audio_alarm || null };
         function again() { viewEvents(clear($('adView')), token); }
         function phaseOf(e) {
             if (e.aborted_at) return ['ABORTED', 'warn'];
@@ -1422,7 +1423,7 @@
         async function saveAll(reasonText, quiet) {
             var r = await rpc('admin_nuke_settings_set', {
                 p_countdown: parseInt(iCount.value, 10), p_aftermath: parseInt(iAft.value, 10), p_xp: parseInt(iXp.value, 10) || 0, p_ac: parseInt(iAc.value, 10) || 0,
-                p_spare: iSpare.checked, p_volume: parseInt(iVol.value, 10) || 0, p_ost: cur.ost, p_boom: cur.boom, p_after: cur.after,
+                p_spare: iSpare.checked, p_volume: parseInt(iVol.value, 10) || 0, p_ost: cur.ost, p_boom: cur.boom, p_after: cur.after, p_alarm: cur.alarm,
                 p_reason: reasonText || iWhy.value.trim() || null });
             if (r && r.ok) { if (!quiet) toast('Saved. Applies to the NEXT launch (a running event keeps its own settings).'); return true; }
             if (nerr(r)) toast(nerr(r), true);
@@ -1466,7 +1467,7 @@
                 if (await saveAll('Audio removed: ' + slot[1], true)) { toast('Removed.'); again(); }
             } }) : null;
             audioList.appendChild(el('div', { class: 'ad-row' },
-                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: slot[1] }), el('div', { class: 'ad-row-sub', text: url ? 'Uploaded' : 'Nothing uploaded. A built-in siren / boom plays instead.' }), el('div', { class: 'ad-row-sub', text: slot[2] }), player),
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: slot[1] }), el('div', { class: 'ad-row-sub', text: url ? 'Uploaded' : (key === 'boom' ? 'Nothing uploaded. A built-in boom plays instead.' : 'Nothing uploaded. Nothing plays for this one.') }), el('div', { class: 'ad-row-sub', text: slot[2] }), player),
                 el('div', { class: 'ad-row-end' }, up, ' ', rm, file)));
         });
         add(root, panel('Audio (mp3 or m4a, 15 MB each)', audioList, pill('Sound only plays for people who turned sound on', 'info')));

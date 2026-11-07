@@ -68,6 +68,13 @@ create table if not exists public.nuke_events (
 );
 create index if not exists nuke_events_start_idx on public.nuke_events (starts_at desc);
 
+-- ---------- alarm blare slot (added later; safe to re-run) ----------------------
+alter table public.nuke_settings add column if not exists audio_alarm text;
+alter table public.nuke_events   add column if not exists audio_alarm text;
+alter table public.nuke_settings drop constraint if exists nuke_settings_audio_alarm_check;
+alter table public.nuke_settings add constraint nuke_settings_audio_alarm_check
+    check (audio_alarm is null or audio_alarm ~ '^https://mcpjjmbvuzclzrniunkq\.supabase\.co/storage/v1/object/public/event-audio/[A-Za-z0-9_./%-]{3,200}$');
+
 create table if not exists public.nuke_participants (
     event_id uuid not null references public.nuke_events(id) on delete cascade,
     user_id uuid not null references auth.users(id) on delete cascade,
@@ -100,7 +107,7 @@ begin
         'id', e.id, 'label', e.label, 'starts_at', e.starts_at, 'boom_at', e.boom_at, 'ends_at', e.ends_at,
         'countdown_s', e.countdown_s, 'aftermath_s', e.aftermath_s, 'spare', e.spare_survivors, 'volume', e.volume,
         'reward_xp', e.reward_xp, 'reward_ac', e.reward_ac,
-        'audio', json_build_object('ost', e.audio_ost, 'boom', e.audio_boom, 'after', e.audio_after)));
+        'audio', json_build_object('ost', e.audio_ost, 'boom', e.audio_boom, 'after', e.audio_after, 'alarm', e.audio_alarm)));
 end $$;
 
 -- ---------- members: join, start the tapper, finish the tapper ----------------
@@ -224,9 +231,10 @@ begin
 end $$;
 
 -- ---------- staff: timings, rewards, volume, audio -----------------------------
+drop function if exists public.admin_nuke_settings_set(int, int, int, int, boolean, int, text, text, text, text);
 create or replace function public.admin_nuke_settings_set(
     p_countdown int, p_aftermath int, p_xp int, p_ac int, p_spare boolean, p_volume int,
-    p_ost text, p_boom text, p_after text, p_reason text default null)
+    p_ost text, p_boom text, p_after text, p_alarm text, p_reason text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_err text; v_before jsonb; v_after jsonb;
         v_re text := '^https://mcpjjmbvuzclzrniunkq\.supabase\.co/storage/v1/object/public/event-audio/[A-Za-z0-9_./%-]{3,200}$';
@@ -237,7 +245,7 @@ begin
     if p_aftermath is null or p_aftermath not between 20 and 900 then return public.admin_fail('nuke_settings_set', null, p_reason, 'bad_aftermath'); end if;
     if p_xp is null or p_xp not between 0 and 1000000 or p_ac is null or p_ac not between 0 and 1000000 then return public.admin_fail('nuke_settings_set', null, p_reason, 'bad_reward'); end if;
     if p_volume is null or p_volume not between 0 and 100 then return public.admin_fail('nuke_settings_set', null, p_reason, 'bad_volume'); end if;
-    if (p_ost is not null and p_ost !~ v_re) or (p_boom is not null and p_boom !~ v_re) or (p_after is not null and p_after !~ v_re) then
+    if (p_ost is not null and p_ost !~ v_re) or (p_boom is not null and p_boom !~ v_re) or (p_after is not null and p_after !~ v_re) or (p_alarm is not null and p_alarm !~ v_re) then
         return public.admin_fail('nuke_settings_set', null, p_reason, 'bad_audio_url');
     end if;
 
@@ -245,7 +253,7 @@ begin
     update public.nuke_settings
        set countdown_s = p_countdown, aftermath_s = p_aftermath, reward_xp = p_xp, reward_ac = p_ac,
            spare_survivors = coalesce(p_spare, spare_survivors), volume = p_volume,
-           audio_ost = p_ost, audio_boom = p_boom, audio_after = p_after,
+           audio_ost = p_ost, audio_boom = p_boom, audio_after = p_after, audio_alarm = p_alarm,
            updated_at = now(), updated_by = auth.uid()
      where id = 1;
     select to_jsonb(s) into v_after from public.nuke_settings s where s.id = 1;
@@ -270,10 +278,10 @@ begin
         return public.admin_fail('nuke_launch', null, p_reason, 'event_overlap');
     end if;
     insert into public.nuke_events (label, starts_at, boom_at, ends_at, countdown_s, aftermath_s, reward_xp, reward_ac,
-                                    spare_survivors, volume, audio_ost, audio_boom, audio_after, created_by)
+                                    spare_survivors, volume, audio_ost, audio_boom, audio_after, audio_alarm, created_by)
     values (nullif(left(btrim(coalesce(p_label, '')), 60), ''), t0, t0 + make_interval(secs => s.countdown_s),
             t0 + make_interval(secs => s.countdown_s + s.aftermath_s), s.countdown_s, s.aftermath_s, s.reward_xp, s.reward_ac,
-            s.spare_survivors, s.volume, s.audio_ost, s.audio_boom, s.audio_after, auth.uid())
+            s.spare_survivors, s.volume, s.audio_ost, s.audio_boom, s.audio_after, s.audio_alarm, auth.uid())
     returning * into e;
     perform public.admin_log('nuke_launch', null, nullif(btrim(coalesce(p_reason, '')), ''), true, null, to_jsonb(e), null, 'nuke_event', e.id::text);
     return jsonb_build_object('ok', true, 'id', e.id);
@@ -294,10 +302,10 @@ begin
 end $$;
 
 revoke all on function public.admin_nuke_get() from public, anon;
-revoke all on function public.admin_nuke_settings_set(int, int, int, int, boolean, int, text, text, text, text) from public, anon;
+revoke all on function public.admin_nuke_settings_set(int, int, int, int, boolean, int, text, text, text, text, text) from public, anon;
 revoke all on function public.admin_nuke_launch(timestamptz, text, text) from public, anon;
 revoke all on function public.admin_nuke_abort(uuid, text) from public, anon;
 grant execute on function public.admin_nuke_get() to authenticated;
-grant execute on function public.admin_nuke_settings_set(int, int, int, int, boolean, int, text, text, text, text) to authenticated;
+grant execute on function public.admin_nuke_settings_set(int, int, int, int, boolean, int, text, text, text, text, text) to authenticated;
 grant execute on function public.admin_nuke_launch(timestamptz, text, text) to authenticated;
 grant execute on function public.admin_nuke_abort(uuid, text) to authenticated;
