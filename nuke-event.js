@@ -36,7 +36,7 @@
         SUPABASE_ANON_KEY: 'sb_publishable_uuybm3j2xZ0wdrbIhxANCQ_QApPdkv7'
     };
     var CALM_KEY = 'specsoft.nuke.calm';
-    var TILES = 20, GOAL = 100;
+    var TILES = 20, GOAL = 250;     // must match nuke_pad_finish in supabase-nuke.sql
 
     var S = {
         ev: null, off: 0, phase: 'none', loop: 0, pollT: 0, preview: false,
@@ -210,15 +210,25 @@
         var b = '';
         for (var i = 0; i < TILES; i++) b += '<button type="button" class="nk-tile" data-i="' + i + '" aria-label="Tile ' + (i + 1) + '"></button>';
         return '<div class="nk-pad-head"><b>SAFE PAD</b><span data-count>0/' + GOAL + '</span><button type="button" class="nk-mini" data-a="padx" aria-label="Close pad">\u00D7</button></div>' +
-            '<div class="nk-grid" data-grid>' + b + '</div><div class="nk-pad-note" data-note></div>';
+            '<div class="nk-prog"><i data-prog></i></div><div class="nk-grid" data-grid>' + b + '</div><div class="nk-pad-note" data-note></div>';
+    }
+
+    // ADRENALINE SURGE: streaks shoot outward from the centre (random angle / length / speed) + two shock rings
+    function rushHtml() {
+        var h = '<div class="nk-rush"><b></b><b class="r2"></b>', n = 30;
+        for (var i = 0; i < n; i++) {
+            var a = (i * (360 / n) + rand(-6, 6)).toFixed(1), l = rand(10, 26).toFixed(1), t = rand(0.55, 1.25).toFixed(2), d = rand(0, 1.2).toFixed(2), w = rand(1.5, 3.4).toFixed(1);
+            h += '<i style="--a:' + a + 'deg;--l:' + l + 'vmin;--t:' + t + 's;--d:-' + d + 's;--w:' + w + 'px"></i>';
+        }
+        return h + '</div>';
     }
 
     function renderCount() {
         mount(); rootClass('');
         S.root.innerHTML =
-            '<div class="nk-alarm"></div><div class="nk-rush"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>' +
-            '<div class="nk-hud"><div class="nk-top"><span class="nk-tag" data-tag>\u2622 NUCLEAR STRIKE INBOUND</span><button type="button" class="nk-mini" data-a="snd"></button></div>' +
-            '<div class="nk-time" data-time>--:--</div><div class="nk-sub">TIME TO IMPACT</div>' +
+            '<div class="nk-alarm"></div><div class="nk-rays"></div>' + rushHtml() + '<div class="nk-pulse"></div><div class="nk-glitch"><i></i><i></i><i></i></div>' +
+            '<div class="nk-hud"><div class="nk-stripe"></div><div class="nk-top"><span class="nk-tag" data-tag>\u2622 NUCLEAR STRIKE INBOUND</span><button type="button" class="nk-mini" data-a="snd"></button></div>' +
+            '<div class="nk-time" data-time>--:--</div><div class="nk-sub">TIME TO IMPACT</div><div class="nk-meter"><i data-meter></i></div>' +
             '<div class="nk-actions"><button type="button" class="nk-btn" data-a="pad">SHOW SAFE PAD</button><span class="nk-safe" data-safe hidden>\uD83D\uDEE1 YOU ARE SAFE</span></div>' +
             '<div class="nk-reward" data-reward></div></div>' +
             '<div class="nk-pad" data-pad hidden>' + padHtml() + '</div>' +
@@ -227,7 +237,7 @@
         var ev = S.ev, rw = [];
         if (ev.reward_xp > 0) rw.push('+' + ev.reward_xp + ' XP');
         if (ev.reward_ac > 0) rw.push('+' + ev.reward_ac + ' APEX Credits');
-        S.root.querySelector('[data-reward]').textContent = S.preview ? 'PREVIEW \u00B7 nobody else sees this \u00B7 no rewards' : (rw.length ? 'SURVIVE TO EARN ' + rw.join(' \u00B7 ') : 'REACH 100/' + GOAL + ' ON THE PAD TO SURVIVE');
+        S.root.querySelector('[data-reward]').textContent = S.preview ? 'PREVIEW \u00B7 nobody else sees this \u00B7 no rewards' : (rw.length ? 'SURVIVE TO EARN ' + rw.join(' \u00B7 ') : 'HIT ' + GOAL + ' TILES ON THE SAFE PAD TO SURVIVE');
         if (S.preview) S.root.querySelector('[data-tag]').textContent = '\u2622 PREVIEW \u00B7 NUCLEAR STRIKE';
         paintSoundBtn(); paintPad(); paintSafe();
     }
@@ -282,7 +292,7 @@
             loadUser().then(function (u) {
                 var n = S.root && S.root.querySelector('[data-note]');
                 if (!S.preview && u) rpc('nuke_pad_start', { p_event: S.ev.id }).catch(function () { /* ignore */ });
-                if (n && !S.safe) n.textContent = S.preview ? 'Preview: practice only.' : (u ? 'Hit the glowing tile. 100 hits before 0:00 and you are safe.' : 'Practice mode: log in to be counted as ALIVE and earn rewards.');
+                if (n && !S.safe) n.textContent = S.preview ? 'Preview: practice only.' : (u ? 'Hit the glowing tile. ' + GOAL + ' hits before 0:00 and you are safe.' : 'Practice mode: log in to be counted as ALIVE and earn rewards.');
             });
         }
         paintPad();
@@ -292,6 +302,14 @@
         if (!S.root) return;
         var c = S.root.querySelector('[data-count]');
         if (c) c.textContent = Math.min(S.hits, GOAL) + '/' + GOAL;
+        var pg = S.root.querySelector('[data-prog]');
+        if (pg) pg.style.width = (Math.min(S.hits, GOAL) / GOAL * 100).toFixed(1) + '%';
+        var nt = S.root.querySelector('[data-note]');
+        if (nt && S.hits > 0 && !S.safe && !S.finishing) {
+            var pc = S.hits / GOAL;
+            var msg = pc >= 0.9 ? 'ALMOST THERE. DO NOT STOP.' : pc >= 0.75 ? '75% DONE. KEEP GOING.' : pc >= 0.5 ? 'HALFWAY. FASTER.' : pc >= 0.25 ? '25% DONE. KEEP TAPPING.' : '';
+            if (msg) nt.textContent = msg;
+        }
         var tiles = S.root.querySelectorAll('.nk-tile');
         for (var i = 0; i < tiles.length; i++) tiles[i].classList.toggle('is-glow', i === S.glow);
     }
@@ -307,6 +325,8 @@
         if (i === S.glow) {
             S.hits++; ssSet(padKey(), String(S.hits));
             if (window.SpecSound && S.snd) { try { window.SpecSound.play('click'); } catch (e) { /* ignore */ } }
+            var ht = S.root.querySelectorAll('.nk-tile')[i];
+            if (ht && !S.calm) { ht.classList.remove('is-hit'); void ht.offsetWidth; ht.classList.add('is-hit'); setTimeout(function () { ht.classList.remove('is-hit'); }, 260); }
             if (S.hits >= GOAL) { paintPad(); finish(); return; }
             nextGlow();
         } else {
@@ -362,6 +382,8 @@
         if (!S.root) return;
         var tm = S.root.querySelector('[data-time]');
         if (tm) tm.textContent = mmss(left);
+        var mt = S.root.querySelector('[data-meter]');
+        if (mt && S.ev.countdown_s) mt.style.width = Math.max(0, Math.min(100, left / S.ev.countdown_s * 100)).toFixed(1) + '%';
         S.root.classList.toggle('nk-t60', left <= 60 && left > 15);
         S.root.classList.toggle('nk-t15', left <= 15);
         if (!S.ann60 && S.ev.countdown_s > 60 && left <= 60) { S.ann60 = true; announce('T-MINUS 1 MINUTE', 'One minute to impact.'); }
@@ -486,9 +508,13 @@
             list.innerHTML = '';
             if (!d || d.ok === false) { var m = document.createElement('div'); m.className = 'nk-rep-empty'; m.textContent = 'The survival log is not available right now.'; list.appendChild(m); return; }
             count.innerHTML = '';
-            var a = document.createElement('b'); a.className = 'a'; a.textContent = String(d.alive);
-            var mi = document.createElement('b'); mi.className = 'm'; mi.textContent = String(d.missing);
-            count.appendChild(a); count.appendChild(document.createTextNode(' ALIVE  \u00B7  ')); count.appendChild(mi); count.appendChild(document.createTextNode(' MISSING'));
+            function card(cls, num, label) {
+                var c = document.createElement('div'); c.className = 'nk-rep-card ' + cls;
+                var b = document.createElement('b'); b.textContent = String(num);
+                var s = document.createElement('span'); s.textContent = label;
+                c.appendChild(b); c.appendChild(s); return c;
+            }
+            count.appendChild(card('a', d.alive, 'ALIVE')); count.appendChild(card('m', d.missing, 'MISSING'));
             if (!d.players || !d.players.length) { var e0 = document.createElement('div'); e0.className = 'nk-rep-empty'; e0.textContent = 'Nobody signed in was here for this one.'; list.appendChild(e0); return; }
             d.players.forEach(function (p) {
                 var r = document.createElement('div'); r.className = 'nk-rep-row ' + (p.alive ? 'is-alive' : 'is-missing') + (p.me ? ' is-me' : '');
