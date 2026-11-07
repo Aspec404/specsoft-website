@@ -263,6 +263,7 @@ body.pf-custom-bg .crosshair {
     position: absolute;
     right: 2px;
     bottom: 2px;
+    z-index: 6;   /* above the equipped frame (and the level badge), so the status never hides under it */
     width: 32px;
     height: 32px;
     padding: 5px;
@@ -270,6 +271,8 @@ body.pf-custom-bg .crosshair {
     place-items: center;
     border-radius: 50%;
     background: var(--bg-card);
+    box-shadow: 0 0 0 2px var(--bg-card);
+    pointer-events: none;
 }
 
 .pf-status-badge svg { display: block; width: 100%; height: 100%; }
