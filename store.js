@@ -858,6 +858,11 @@
         var t; $('stSearch').addEventListener('input', function (e) { var v = e.target.value; clearTimeout(t); t = setTimeout(function () { S.q = v.trim(); paintGrid(); }, 150); });
         setInterval(paintClock, 1000);
         // xp.js pings once a minute: when it answers, refresh the quest progress too (at most every 20 seconds)
+        // free rewards (freemium.js): credits, XP, titles or frames may have just arrived, so refresh the wallet and your items
+        window.addEventListener('freemium:reward', function () {
+            refreshWalletQuiet();
+            loadUser().then(function () { paintWallet(); paintAll(); });
+        });
         if (window.SpecXP) window.SpecXP.onChange(function (i) {
             setXp(i);
             if (Number(i.booster_credits) > 0) refreshWalletQuiet();

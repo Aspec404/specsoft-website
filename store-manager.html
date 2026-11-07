@@ -151,7 +151,7 @@
             : ((window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY) ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null);
         var $ = function (id) { return document.getElementById(id); };
         var S = { tab: 'items', items: [], packs: [], codes: [], settings: null, featured: [], sales: [], names: {}, q: '', qKind: 'normal', rtok: 0 };
-        var TABS = [['items', 'Items'], ['featured', 'Featured'], ['packs', 'Credit packs'], ['codes', 'Codes'], ['credits', 'Credits & economy'], ['quests', 'Quests'], ['xp', 'XP & levels'], ['gifts', 'Gift items'], ['sales', 'Sales']];
+        var TABS = [['items', 'Items'], ['featured', 'Featured'], ['packs', 'Credit packs'], ['codes', 'Codes'], ['credits', 'Credits & economy'], ['quests', 'Quests'], ['xp', 'XP & levels'], ['gifts', 'Gift items'], ['freemium', 'Free rewards'], ['sales', 'Sales']];
 
         /* ---------- helpers ---------- */
         function el(tag, props) {
@@ -1333,12 +1333,156 @@
             loadLog();
         }
 
+
+        /* ---------- FREE REWARDS (freemium: ad -> guaranteed rewards -> pick 1 of 3 cards) ---------- */
+        var FR_KIND_ICON = { credits: '🪙', xp: '⚡', booster: '🚀', title: '🏷️', frame: '🖼️', emote: '😎', item: '🎁' };
+        var FR_KINDS = [['credits', 'Credits'], ['xp', 'XP'], ['booster', 'Booster'], ['item', 'Specific items (you pick them)'], ['title', 'Random title'], ['frame', 'Random frame'], ['emote', 'Random emote']];
+        var FR_RARITY = [['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary'], ['legacy', 'Legacy'], ['mythic', 'Mythic']];
+        function frMin(m) { m = Number(m) || 0; return m >= 1440 && m % 1440 === 0 ? (m / 1440) + 'd' : (m >= 60 && m % 60 === 0 ? (m / 60) + 'h' : m + ' min'); }
+        var FR_ITEM_CATS = { title: 'Title', frame: 'Frame', emote: 'Emote' };
+        function frItemOptions() {
+            return S.items.filter(function (i) { return FR_ITEM_CATS[i.category] && i.stock == null; })
+                .map(function (i) { return [i.id, (i.emoji ? i.emoji + ' ' : '') + i.name + ' (' + FR_ITEM_CATS[i.category] + ', ' + i.rarity + (i.active ? '' : ', hidden') + ')']; });
+        }
+        function frItemNames(ids) {
+            var names = (ids || []).map(function (id) { var it = S.items.find(function (i) { return i.id === id; }); return it ? it.name + (it.active ? '' : ' (hidden, will not drop)') : 'missing item'; });
+            if (!names.length) return 'No items picked yet';
+            if (names.length === 1) return 'Gives: ' + names[0];
+            return 'One of: ' + names.slice(0, 4).join(', ') + (names.length > 4 ? ' +' + (names.length - 4) + ' more' : '');
+        }
+        function frSummary(p) {
+            var x = p.params || {};
+            if (p.kind === 'item') return frItemNames(x.item_ids);
+            if (p.kind === 'credits') return fmt(x.min) + ' to ' + fmt(x.max) + ' credits';
+            if (p.kind === 'xp') return fmt(x.min) + ' to ' + fmt(x.max) + ' XP';
+            if (p.kind === 'booster') return x.tier + 'x ' + (x.boost === 'xp' ? 'XP' : 'credit') + ' booster for ' + frMin(x.minutes);
+            return 'Any unowned, unlimited-stock ' + p.kind + ' up to ' + (x.max_rarity || 'epic');
+        }
+        function frPayload(o) {
+            var kind = o.kind, w = clampInt(o.weight, 1, 1000), params = {};
+            if (kind === 'credits' || kind === 'xp') {
+                var lo = clampInt(o.amount_min, 1, 1000000), hi = clampInt(o.amount_max, 1, 1000000);
+                if (hi < lo) throw new Error('The maximum amount cannot be lower than the minimum.');
+                params = { min: lo, max: hi };
+            } else if (kind === 'booster') {
+                params = { boost: o.boost_kind === 'credits' ? 'credits' : 'xp', tier: Number(o.boost_tier) || 2, minutes: clampInt(o.boost_minutes, 1, 43200) };
+            } else if (kind === 'item') {
+                var ids = (o.item_ids || []).slice(0, 12);
+                if (!ids.length) throw new Error('Pick at least one item to give (up to 12).');
+                params = { item_ids: ids };
+            } else params = { max_rarity: o.max_rarity || 'epic' };
+            return { kind: kind, weight: w, params: params, label: o.label || null, active: !!o.active, sort: clampInt(o.sort, 0, 100000) };
+        }
+        function editFrPool(p) {
+            var x = (p && p.params) || {};
+            var base = p ? { kind: p.kind, weight: p.weight, label: p.label || '', active: p.active, sort: p.sort,
+                             amount_min: x.min || 50, amount_max: x.max || 150, boost_kind: x.boost || 'xp', boost_tier: String(x.tier || 2), boost_minutes: x.minutes || 60, max_rarity: x.max_rarity || 'epic', item_ids: x.item_ids || [] }
+                : { kind: 'credits', weight: 10, label: '', active: true, sort: 0, amount_min: 50, amount_max: 150, boost_kind: 'xp', boost_tier: '2', boost_minutes: 60, max_rarity: 'epic', item_ids: [] };
+            openForm({ title: p ? 'Edit reward' : 'New reward', values: base, fields: [
+                { key: 'kind', label: 'Reward type', type: 'select', options: FR_KINDS, required: true },
+                { key: 'weight', label: 'Weight (higher = shows up more often)', type: 'number', required: true, hint: '1 to 1000. Odds are this weight divided by the total of all active rewards.' },
+                { key: 'label', label: 'Name for you (optional)', nullable: true, hint: 'Only shown here in the manager.' },
+                { key: 'amount_min', label: 'Minimum amount (Credits / XP only)', type: 'number' },
+                { key: 'amount_max', label: 'Maximum amount (Credits / XP only)', type: 'number', hint: 'A random amount between the two is rolled for every card.' },
+                { key: 'boost_kind', label: 'Booster kind (Booster only)', type: 'select', options: [['xp', 'XP booster'], ['credits', 'Credit booster']] },
+                { key: 'boost_tier', label: 'Booster strength (Booster only)', type: 'select', options: [['2', '2x'], ['3', '3x'], ['5', '5x']] },
+                { key: 'boost_minutes', label: 'Booster minutes (Booster only)', type: 'number', hint: '60 = 1 hour, 1440 = 1 day.' },
+                { key: 'item_ids', label: 'Items to give (Specific items only)', type: 'multi', options: frItemOptions(), hint: 'Tick the exact titles, frames or emotes you made. Pick 1 to give that item, or several and each card gives one random one the member does not own yet. Only items with unlimited stock are listed; hidden items will not drop.' },
+                { key: 'max_rarity', label: 'Highest rarity (Title / Frame / Emote only)', type: 'select', options: FR_RARITY, hint: 'Only active items with unlimited stock that the member does not own yet can come up.' },
+                { key: 'sort', label: 'Sort order', type: 'number' },
+                { key: 'active', label: 'Active (can appear on cards)', type: 'checkbox', wide: true }],
+                onSave: async function (o) {
+                    var row = frPayload(o);
+                    var r = await (p ? sb.from('freemium_pool').update(row).eq('id', p.id) : sb.from('freemium_pool').insert(row));
+                    if (r.error) throw r.error;
+                    toast('Reward saved'); render();
+                } });
+        }
+        async function renderFreemium(root) {
+            var tok = S.rtok;
+            root.appendChild(el('div', { class: 'sm-note', text: 'Loading free rewards...' }));
+            var r = await Promise.all([
+                sb.from('freemium_settings').select('*').eq('id', 1).maybeSingle(),
+                sb.from('freemium_pool').select('*').order('sort', { ascending: true }).order('created_at', { ascending: true })
+            ]);
+            if (tok !== S.rtok) return;
+            root.textContent = '';
+            if (r[0].error || !r[0].data) return root.appendChild(el('div', { class: 'sm-empty', text: 'Free rewards are not set up yet. Run supabase-store-freemium.sql in the Supabase SQL Editor.' }));
+            var st = r[0].data, pool = r[1].data || [];
+            var act = pool.filter(function (p) { return p.active; });
+            var total = act.reduce(function (a, p) { return a + p.weight; }, 0);
+            var mins = Math.round(Number(st.cooldown_hours) * 60);
+
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Free rewards' + (st.active ? '' : ' (paused)') }),
+                el('p', { class: 'sm-note', text: 'Every ' + (mins % 60 === 0 ? (mins / 60) + ' hour(s)' : mins + ' minutes') + ' a member watches an ad (' + st.ad_seconds + 's placeholder for now), gets ' + fmt(st.credits) + ' credits, ' + fmt(st.xp) + ' XP and a ' + st.booster_tier + 'x booster for ' + frMin(st.booster_minutes) + ' (credit or XP, random), then picks 1 of 3 face-down cards from the pool below.' + (Number(st.pity_limit) > 0 ? ' After ' + st.pity_limit + ' claims without a title or frame card, the next offer includes one.' : '') }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit settings', onclick: function () {
+                    openForm({ title: 'Free rewards settings', values: { active: st.active, cooldown_minutes: mins, ad_seconds: st.ad_seconds, credits: st.credits, xp: st.xp, booster_minutes: st.booster_minutes, booster_tier: String(st.booster_tier), pity_limit: st.pity_limit, streak_warn_hours: st.streak_warn_hours == null ? 11 : st.streak_warn_hours, streak_reset_hours: st.streak_reset_hours == null ? 12 : st.streak_reset_hours, shield_every: st.shield_every == null ? 7 : st.shield_every, shield_max: st.shield_max == null ? 3 : st.shield_max, shield_grace_hours: st.shield_grace_hours == null ? 12 : st.shield_grace_hours }, fields: [
+                        { key: 'active', label: 'Free rewards are on', type: 'checkbox', wide: true },
+                        { key: 'cooldown_minutes', label: 'Minutes between claims', type: 'number', required: true, hint: '300 = 5 hours. Lower it to test, then put it back.' },
+                        { key: 'ad_seconds', label: 'Ad length in seconds (placeholder timer)', type: 'number', required: true, hint: '0 to 120. The server refuses a claim that comes in faster than this.' },
+                        { key: 'credits', label: 'Guaranteed credits', type: 'number', required: true },
+                        { key: 'xp', label: 'Guaranteed XP', type: 'number', required: true },
+                        { key: 'booster_tier', label: 'Guaranteed booster strength', type: 'select', options: [['2', '2x'], ['3', '3x'], ['5', '5x']] },
+                        { key: 'booster_minutes', label: 'Guaranteed booster minutes', type: 'number', required: true, hint: '1 to 1440. 15 = 15 minutes.' },
+                        { key: 'pity_limit', label: 'Pity: guarantee a title/frame card after this many claims without one', type: 'number', required: true, hint: '0 turns it off.' },
+                        { key: 'streak_warn_hours', label: 'Streak warning after (hours since the last claim)', type: 'number', required: true, hint: '11 = warn members one hour before the streak ends.' },
+                        { key: 'streak_reset_hours', label: 'Streak resets after (hours since the last claim)', type: 'number', required: true, hint: '12 = the streak counter goes back to 0 if nobody claims in 12 hours. Must be higher than the cooldown and the warning.' },
+                        { key: 'shield_every', label: 'Streak shield: earn one every this many streak', type: 'number', required: true, hint: '7 = a shield at streak 7, 14, 21... 0 turns shields off.' },
+                        { key: 'shield_max', label: 'Streak shield: most a member can hold', type: 'number', required: true, hint: '3 is a good start. 0 turns shields off.' },
+                        { key: 'shield_grace_hours', label: 'Streak shield: extra hours after the reset to still be saved', type: 'number', required: true, hint: '12 = a member who claims up to 12 hours after the streak would reset keeps it (and uses one shield).' }],
+                        onSave: async function (o) {
+                            var row = { active: !!o.active, cooldown_hours: clampInt(o.cooldown_minutes, 1, 10080) / 60, ad_seconds: clampInt(o.ad_seconds, 0, 120), credits: clampInt(o.credits, 0, 100000), xp: clampInt(o.xp, 0, 100000),
+                                booster_tier: Number(o.booster_tier) || 2, booster_minutes: clampInt(o.booster_minutes, 1, 1440), pity_limit: clampInt(o.pity_limit, 0, 1000),
+                                streak_warn_hours: Math.min(720, Math.max(0.01, Number(o.streak_warn_hours) || 11)), streak_reset_hours: Math.min(720, Math.max(0.01, Number(o.streak_reset_hours) || 12)),
+                                shield_every: clampInt(o.shield_every, 0, 1000), shield_max: clampInt(o.shield_max, 0, 100), shield_grace_hours: Math.min(720, Math.max(0.01, Number(o.shield_grace_hours) || 12)), updated_at: new Date().toISOString() };
+                            if (row.streak_warn_hours >= row.streak_reset_hours) throw new Error('The streak warning must come before the streak reset.');
+                            if (row.streak_reset_hours * 60 <= clampInt(o.cooldown_minutes, 1, 10080)) throw new Error('The streak reset time must be longer than the cooldown, or nobody could keep a streak.');
+                            var u = await sb.from('freemium_settings').update(row).eq('id', 1); if (u.error) throw u.error;
+                            toast('Free rewards settings saved'); render();
+                        } });
+                } }))));
+
+            root.appendChild(el('div', { class: 'sm-stats' },
+                el('div', { class: 'sm-stat' }, el('strong', { text: String(act.length) }), el('span', { text: 'Active rewards in the pool' })),
+                el('div', { class: 'sm-stat' }, el('strong', { text: fmt(total) }), el('span', { text: 'Total weight' }))));
+            if (!act.length) root.appendChild(el('div', { class: 'sm-warn', text: 'The pool is empty. Every card would just be 25 credits until you add rewards.' }));
+
+            root.appendChild(el('div', { class: 'sm-bar' }, el('button', { class: 'sm-btn sm-btn--primary', text: 'New reward', onclick: function () { editFrPool(null); } }),
+                el('span', { class: 'sm-note', text: 'Each offer rolls 3 different reward types from here. Members never see the odds or the cards before they pick.' })));
+            var list = el('div', { class: 'sm-list' });
+            if (!pool.length) list.appendChild(el('div', { class: 'sm-empty', text: 'No rewards yet.' }));
+            pool.forEach(function (p) {
+                var pct = p.active && total ? Math.round((p.weight / total) * 1000) / 10 : 0;
+                list.appendChild(el('div', { class: 'sm-row' + (p.active ? '' : ' is-off') }, el('div', { class: 'sm-thumb', text: FR_KIND_ICON[p.kind] || '🎁' }),
+                    el('div', { class: 'sm-main' }, el('strong', { text: p.label || (FR_KINDS.filter(function (k) { return k[0] === p.kind; })[0] || [0, p.kind])[1] }),
+                        el('div', { class: 'sm-meta', text: frSummary(p) + ' · weight ' + p.weight + (p.active ? ' · about ' + pct + '% per pick' : ' · hidden') })),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Edit', onclick: function () { editFrPool(p); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: p.active ? 'Hide' : 'Show', onclick: async function () { var u = await sb.from('freemium_pool').update({ active: !p.active }).eq('id', p.id); if (u.error) return fail(u.error); render(); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete this reward from the pool?')) return; var u = await sb.from('freemium_pool').delete().eq('id', p.id); if (u.error) return fail(u.error); render(); } }))));
+            });
+            root.appendChild(list);
+
+            var who = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'frUser' });
+            var reset = el('button', { class: 'sm-btn', type: 'button', text: 'Reset cooldown', onclick: async function () {
+                if (!who.value.trim()) return toast('Enter a username.', true);
+                if (!confirmIt('Reset the free reward cooldown for ' + who.value.trim() + '? Any card they have not picked yet is removed.')) return;
+                reset.disabled = true;
+                try { var u = await sb.rpc('freemium_admin_reset', { p_username: who.value.trim() }); if (u.error) throw u.error; toast('Cooldown reset for ' + who.value.trim()); }
+                catch (e) { fail(e); } finally { reset.disabled = false; }
+            } });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Testing tools' }),
+                el('p', { class: 'sm-note', text: 'Make a member claim again right away (for example your own test account).' }),
+                el('div', { class: 'sm-form', style: 'margin-top:12px' }, el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'frUser', text: 'Username' }), who)),
+                el('div', { class: 'sm-dlg-foot' }, reset)));
+        }
+
         /* ---------- shell ---------- */
         function render() {
             var tabs = $('tabs'); tabs.textContent = '';
             TABS.forEach(function (t) { tabs.appendChild(el('button', { class: 'sm-tab', role: 'tab', 'aria-selected': String(S.tab === t[0]), text: t[1], onclick: function () { S.tab = t[0]; render(); } })); });
             var v = $('view'); v.textContent = ''; S.rtok = (S.rtok || 0) + 1;
-            ({ items: renderItems, featured: renderFeatured, packs: renderPacks, codes: renderCodes, credits: renderCredits, quests: renderQuests, xp: renderXp, gifts: renderGifts, sales: renderSales })[S.tab](v);
+            ({ items: renderItems, featured: renderFeatured, packs: renderPacks, codes: renderCodes, credits: renderCredits, quests: renderQuests, xp: renderXp, gifts: renderGifts, freemium: renderFreemium, sales: renderSales })[S.tab](v);
         }
 
         async function start() {

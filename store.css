@@ -562,3 +562,7 @@ body.light-mode .st-pip.is-done .apex-ico { filter: none; }
 .st-boost-art small { font-size: 11px; opacity: 0.75; }
 .st-own .st-boost-art { min-height: 0; }
 .st-own .st-boost-art b { font-size: 22px; }
+
+/* ---------- free rewards (freemium.js) ---------- */
+.st-free { margin: 18px 0 0; }
+.st-free:empty { display: none; }
