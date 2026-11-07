@@ -403,6 +403,7 @@
         { id: 'staff',     label: 'Staff',     ico: 'shield', min: 'admin' },
         { id: 'notifications', label: 'Notifications', ico: 'bell', min: 'moderator' },
         { id: 'seasons',   label: 'Seasons',   ico: 'sparkle', min: 'admin' },
+        { id: 'events',    label: 'Events',    ico: 'sparkle', min: 'admin' },
         { id: 'cases',     label: 'Cases',     ico: 'flag',   min: 'moderator' },
         { id: 'content',   label: 'Content',   ico: 'file',   min: 'moderator', soon: true }
     ];
@@ -469,7 +470,7 @@
 
         var token = nextToken();
         stopViewTimers();                                  // auto refresh belongs to the dashboard only
-        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications', seasons: 'Seasons', appeals: 'Appeals', cases: 'Cases' }[view];
+        var title = { dashboard: 'Dashboard', users: 'Users', roles: 'Roles', audit: 'Audit log', staff: 'Staff', notifications: 'Notifications', seasons: 'Seasons', events: 'Events', appeals: 'Appeals', cases: 'Cases' }[view];
         $('adTitle').textContent = title;
         $('adTopSub').textContent = '';
         var root = clear($('adView'));
@@ -482,6 +483,7 @@
         else if (view === 'staff') viewStaff(root, token);
         else if (view === 'notifications') viewNotifications(root, token);
         else if (view === 'seasons') viewSeasons(root, token);
+        else if (view === 'events') viewEvents(root, token);
         else if (view === 'appeals') viewAppeals(root, token);
         else if (view === 'cases') { if (parts[1] && UUID_RE.test(parts[1])) viewCase(root, parts[1].toLowerCase(), token); else viewCases(root, token); }
     }
@@ -495,7 +497,7 @@
         password_create: 'Admin password created', password_change: 'Admin password changed', password_reset: 'Admin password reset',
         panel_unlock: 'Console unlock', hub_hide: 'Hub visibility changed', sanction_details: 'Ban details updated',
         appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered',
-        seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
+        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
         case_assign: 'Case assigned', case_status: 'Case status changed', case_resolve: 'Case closed', case_note: 'Case note added'
     };
 
@@ -1330,6 +1332,156 @@
         });
         if (!(d.schedule || []).length) list.appendChild(el('p', { class: 'ad-help', text: 'No events yet. Add one and it will switch on by itself in Automatic mode.' }));
         add(root, panel('Schedule', list, el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Add event', onclick: function () { editEvent(null); } })));
+    }
+
+    /* ----------------------------------------------------------------------
+       EVENTS: the NUKE EVENT (live and synced for every visitor)
+       Launch now or schedule it, abort it, set timings + rewards, upload the music (mp3 / m4a, 15 MB max).
+       Everything staff change here is audit logged.
+       ---------------------------------------------------------------------- */
+    var NUKE_MAX_BYTES = 15 * 1024 * 1024;
+    var NUKE_SLOTS = [
+        ['ost', 'Countdown music (loops)', 'Plays during the countdown, starting at the right spot for people who join late. Your OST goes here.'],
+        ['boom', 'Explosion sound', 'Plays once at 0:00.'],
+        ['after', 'Aftermath ambience (loops)', 'Optional. Plays during the dark 2 minutes.']
+    ];
+    var NUKE_ERR = { bad_countdown: 'Countdown must be 30 to 1800 seconds.', bad_aftermath: 'Aftermath must be 20 to 900 seconds.', bad_reward: 'Rewards must be 0 or more.', bad_volume: 'Volume is 0 to 100.', bad_audio_url: 'That audio link is not from the event-audio bucket.', bad_time: 'Pick a time at least 10 seconds from now.', event_overlap: 'Another nuke event is already scheduled around then.', not_active: 'That event is not running or scheduled any more.' };
+
+    async function viewEvents(root, token) {
+        add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
+        var d = await rpc('admin_nuke_get');
+        if (stale(token)) return;
+        clear(root);
+        if (!d || d.ok === false) { add(root, el('p', { class: 'ad-help', text: 'Could not load events. Is supabase-nuke.sql installed?' })); return; }
+
+        var st = d.settings || {}, evs = d.events || [], nowMs = Date.parse(d.now) || Date.now();
+        var cur = { ost: st.audio_ost || null, boom: st.audio_boom || null, after: st.audio_after || null };
+        function again() { viewEvents(clear($('adView')), token); }
+        function phaseOf(e) {
+            if (e.aborted_at) return ['ABORTED', 'warn'];
+            var s = Date.parse(e.starts_at), b = Date.parse(e.boom_at), en = Date.parse(e.ends_at);
+            if (nowMs < s) return ['SCHEDULED', 'info'];
+            if (nowMs < b) return ['COUNTDOWN', 'ok'];
+            if (nowMs < en) return ['AFTERMATH', 'ok'];
+            return ['DONE', null];
+        }
+        function nerr(r) { return NUKE_ERR[r && r.error] || null; }
+
+        // ---- right now ----
+        var active = evs.find(function (e) { return !e.aborted_at && Date.parse(e.ends_at) > nowMs; });
+        var nowBody;
+        if (active) {
+            var ph = phaseOf(active);
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\u2622\uFE0F' }),
+                el('div', {},
+                    el('div', { class: 'ad-row-title', text: active.label || 'Nuke event' }),
+                    el('div', { class: 'ad-row-sub', text: 'Countdown ' + fmt(active.starts_at) + '  \u00B7  impact ' + fmt(active.boom_at) + '  \u00B7  over ' + fmt(active.ends_at) })),
+                el('div', { class: 'ad-row-end' }, pill(ph[0], ph[1]), ' ',
+                    el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'ABORT', onclick: function () {
+                        var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (saved in the audit log)' });
+                        dialog({ title: 'Abort the nuke event?', body: el('div', {}, el('p', { class: 'ad-help', text: 'Every open page cleans itself up within a few seconds and the site goes back to normal. Nobody gets rewards after this.' }), field('Reason', why)),
+                            buttons: [{ text: 'Keep it running' }, { text: 'Abort now', kind: 'danger', onClick: async function () {
+                                var r = await rpc('admin_nuke_abort', { p_event: active.id, p_reason: why.value.trim() || null });
+                                if (!(r && r.ok)) { if (nerr(r)) toast(nerr(r), true); return false; }
+                                toast('Event aborted.'); again();
+                            } }] });
+                    } })));
+        } else {
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\u2600\uFE0F' }),
+                el('div', {}, el('div', { class: 'ad-row-title', text: 'No nuke event running' }), el('div', { class: 'ad-row-sub', text: 'Launch one now, or schedule it for later. Preview it first: nobody else sees the preview.' })),
+                el('div', { class: 'ad-row-end' }, pill('IDLE')));
+        }
+        function launchDialog(scheduled) {
+            var label = el('input', { class: 'ad-field', type: 'text', maxlength: '60', placeholder: 'Name for the ending screen (optional)' });
+            var when = el('input', { class: 'ad-field', type: 'datetime-local' });
+            var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+            var mins = Math.round((st.countdown_s || 180) / 60 * 10) / 10, aft = Math.round((st.aftermath_s || 120) / 60 * 10) / 10;
+            dialog({ title: scheduled ? 'Schedule the nuke event' : 'Launch the nuke event now?',
+                body: el('div', {}, el('p', { class: 'ad-help', text: (scheduled ? 'It starts at the time you pick. ' : 'The countdown starts in about 45 seconds so every open page can catch it. ') + 'Countdown ' + mins + ' min, aftermath ' + aft + ' min. Rewards: ' + (st.reward_xp || 0) + ' XP and ' + (st.reward_ac || 0) + ' APEX Credits.' }),
+                    field('Name', label), scheduled ? field('Starts (your local time)', when) : null, field('Reason', why)),
+                buttons: [{ text: 'Cancel' }, { text: scheduled ? 'Schedule' : 'LAUNCH', primary: true, onClick: async function () {
+                    if (scheduled && !when.value) { toast('Pick a start time.', true); return false; }
+                    var r = await rpc('admin_nuke_launch', { p_starts: scheduled ? new Date(when.value).toISOString() : null, p_label: label.value.trim() || null, p_reason: why.value.trim() || null });
+                    if (!(r && r.ok)) { if (nerr(r)) toast(nerr(r), true); return false; }
+                    toast(scheduled ? 'Scheduled.' : 'Launching. Countdown starts in about 45 seconds.'); again();
+                } }] });
+        }
+        add(root, panel('Nuke event', nowBody, el('div', { class: 'ad-row-end' },
+            el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Preview (new tab)', onclick: function () { window.open('index.html#nuke-preview', '_blank', 'noopener'); } }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Schedule', onclick: function () { launchDialog(true); } }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Launch now', onclick: function () { launchDialog(false); } }))));
+
+        // ---- settings ----
+        function num(v, min, max, step) { return el('input', { class: 'ad-field', type: 'number', min: String(min), max: String(max), step: String(step || 1), value: String(v) }); }
+        var iCount = num(st.countdown_s != null ? st.countdown_s : 180, 30, 1800), iAft = num(st.aftermath_s != null ? st.aftermath_s : 120, 20, 900);
+        var iXp = num(st.reward_xp || 0, 0, 1000000), iAc = num(st.reward_ac || 0, 0, 1000000), iVol = num(st.volume != null ? st.volume : 80, 0, 100);
+        var iSpare = el('input', { type: 'checkbox' }); iSpare.checked = st.spare_survivors !== false;
+        var iWhy = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+        async function saveAll(reasonText, quiet) {
+            var r = await rpc('admin_nuke_settings_set', {
+                p_countdown: parseInt(iCount.value, 10), p_aftermath: parseInt(iAft.value, 10), p_xp: parseInt(iXp.value, 10) || 0, p_ac: parseInt(iAc.value, 10) || 0,
+                p_spare: iSpare.checked, p_volume: parseInt(iVol.value, 10) || 0, p_ost: cur.ost, p_boom: cur.boom, p_after: cur.after,
+                p_reason: reasonText || iWhy.value.trim() || null });
+            if (r && r.ok) { if (!quiet) toast('Saved. Applies to the NEXT launch (a running event keeps its own settings).'); return true; }
+            if (nerr(r)) toast(nerr(r), true);
+            return false;
+        }
+        add(root, panel('Settings', el('div', {},
+            field('Countdown (seconds)', iCount, '180 = 3 minutes. The T-1:00 announcement and the red/pink/white pulse at 0:15 happen automatically.'),
+            field('Aftermath (seconds)', iAft, '120 = 2 minutes of darkness before everything returns.'),
+            field('Reward for surviving: XP', iXp, 'Paid by the database to members who really finish the tapper (100/100).'),
+            field('Reward for surviving: APEX Credits', iAc),
+            field('Music volume (0 to 100)', iVol),
+            el('label', { class: 'ad-role-opt' }, iSpare, el('span', {}, el('b', { text: 'Spare survivors from the wreck' }), el('br'), el('span', { class: 'ad-row-sub', text: 'On: people who finished the pad watch the aftermath from a "bunker" and the site stays readable for them. Off: everyone sees the destruction.' }))),
+            field('Reason', iWhy),
+            el('div', { style: 'margin-top:14px' }, el('button', { type: 'button', class: 'ad-btn', text: 'Save settings', onclick: async function (e) { e.target.disabled = true; await saveAll(); e.target.disabled = false; } })))));
+
+        // ---- audio ----
+        var audioList = el('div', { class: 'ad-list' });
+        NUKE_SLOTS.forEach(function (slot) {
+            var key = slot[0], url = cur[key];
+            var file = el('input', { type: 'file', accept: '.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a', style: 'display:none' });
+            var player = url ? el('audio', { controls: 'controls', preload: 'none', src: url, style: 'width:100%;max-width:420px;margin-top:6px' }) : null;
+            var up = el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: url ? 'Replace' : 'Upload', onclick: function () { file.click(); } });
+            file.addEventListener('change', async function () {
+                var f = file.files && file.files[0];
+                file.value = '';
+                if (!f) return;
+                var ext = ((f.name.match(/\.([A-Za-z0-9]+)$/) || [])[1] || '').toLowerCase();
+                if (ext !== 'mp3' && ext !== 'm4a') { toast('Only .mp3 or .m4a files.', true); return; }
+                if (f.size > NUKE_MAX_BYTES) { toast('That file is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 15 MB. Export it smaller (MP3 around 160 kbps).', true); return; }
+                up.disabled = true; up.textContent = 'Uploading...';
+                var path = 'nuke/' + key + '-' + Date.now() + '.' + ext;
+                var res = await sb.storage.from('event-audio').upload(path, f, { contentType: ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4', cacheControl: '31536000', upsert: false });
+                if (res.error) { up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; toast('Upload failed: ' + (res.error.message || 'unknown error') + '. Is supabase-nuke.sql installed and the console unlocked?', true); return; }
+                var pub = sb.storage.from('event-audio').getPublicUrl(path);
+                cur[key] = pub && pub.data && pub.data.publicUrl;
+                var ok = await saveAll('Audio uploaded: ' + slot[1], true);
+                if (ok) { toast('Uploaded and saved. The next launch uses it.'); again(); } else { up.disabled = false; up.textContent = 'Upload'; }
+            });
+            var rm = url ? el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'Remove', onclick: async function () {
+                cur[key] = null;
+                if (await saveAll('Audio removed: ' + slot[1], true)) { toast('Removed.'); again(); }
+            } }) : null;
+            audioList.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: slot[1] }), el('div', { class: 'ad-row-sub', text: url ? 'Uploaded' : 'Nothing uploaded. A built-in siren / boom plays instead.' }), el('div', { class: 'ad-row-sub', text: slot[2] }), player),
+                el('div', { class: 'ad-row-end' }, up, ' ', rm, file)));
+        });
+        add(root, panel('Audio (mp3 or m4a, 15 MB each)', audioList, pill('Sound only plays for people who turned sound on', 'info')));
+
+        // ---- history ----
+        var hist = el('div', { class: 'ad-list' });
+        evs.forEach(function (e) {
+            var ph = phaseOf(e);
+            hist.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: e.label || 'Nuke event' }),
+                    el('div', { class: 'ad-row-sub', text: fmt(e.starts_at) + ' to ' + fmt(e.ends_at) + '  \u00B7  ' + (e.players || 0) + ' signed in, ' + (e.alive || 0) + ' ALIVE, ' + Math.max(0, (e.players || 0) - (e.alive || 0)) + ' MISSING' })),
+                el('div', { class: 'ad-row-end' }, pill(ph[0], ph[1]))));
+        });
+        if (!evs.length) hist.appendChild(el('p', { class: 'ad-help', text: 'No events yet.' }));
+        add(root, panel('History', hist));
     }
 
     function viewRoles(root, token) {

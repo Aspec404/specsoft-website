@@ -1,0 +1,101 @@
+/* ==========================================================================
+   SPECSOFT® — Community glow-up (community-fx.css)
+   Load AFTER style.css. Every class is prefixed "cx-" so nothing existing is
+   overridden. Uses your CSS variables, so light mode works automatically.
+   ========================================================================== */
+
+/* scroll progress bar */
+.cx-progress { position: fixed; top: 0; left: 0; height: 2px; width: 0; z-index: 9999;
+    background: var(--accent); box-shadow: 0 0 12px var(--accent-strong); pointer-events: none; }
+
+/* scroll reveal (class is added by JS, so no-JS visitors still see everything) */
+.cx-rv { opacity: 0; transform: translateY(26px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1); }
+.cx-rv.cx-in { opacity: 1; transform: none; }
+
+/* cursor spotlight + tilt on existing cards */
+.cm-do-card, .cm-team-card, .cm-career-card, .cx-tile, .cx-quiz { position: relative; }
+.cx-spot { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+    transition: opacity .3s ease;
+    background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), var(--accent-glow), transparent 70%); }
+.cm-do-card:hover > .cx-spot, .cm-team-card:hover > .cx-spot, .cm-career-card:hover > .cx-spot,
+.cx-tile:hover > .cx-spot, .cx-quiz:hover > .cx-spot { opacity: 1; }
+.cx-tilt { transition: transform .25s ease, border-color .3s ease; will-change: transform; }
+
+/* ticker */
+.cx-ticker { overflow: hidden; border-block: 1px solid var(--border-subtle); margin: 8px 0 24px; padding: 12px 0;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; color: var(--text-secondary);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.cx-ticker-track { display: flex; gap: 48px; width: max-content; animation: cxScroll 38s linear infinite; }
+.cx-ticker:hover .cx-ticker-track { animation-play-state: paused; }
+.cx-ticker span::before { content: '◈'; margin-right: 14px; color: var(--text-primary); }
+@keyframes cxScroll { to { transform: translateX(-50%); } }
+
+/* shared bits */
+.cx-lead { color: var(--text-secondary); max-width: 620px; font-weight: 300; line-height: 1.7; margin-bottom: 32px; }
+
+/* ---------- QUIZ ---------- */
+.cx-quiz { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px;
+    padding: 36px; overflow: hidden; max-width: 860px; }
+.cx-quiz::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-strong), transparent); }
+.cx-q-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; color: var(--text-tertiary); }
+.cx-bars { display: flex; gap: 6px; flex: 1; max-width: 220px; }
+.cx-bars i { flex: 1; height: 3px; background: var(--border-subtle); border-radius: 2px; transition: background .3s, box-shadow .3s; }
+.cx-bars i.on { background: var(--accent); box-shadow: 0 0 8px var(--accent-strong); }
+.cx-q-title { font-size: 28px; font-weight: 500; letter-spacing: -1px; margin-bottom: 24px; line-height: 1.2; }
+.cx-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cx-opt { text-align: left; font: inherit; color: var(--text-primary); cursor: pointer; padding: 16px 18px;
+    background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 10px;
+    display: flex; gap: 12px; align-items: flex-start; transition: border-color .25s, transform .25s, background .25s; }
+.cx-opt:hover, .cx-opt:focus-visible { border-color: var(--accent); transform: translateY(-2px); background: var(--bg-card-hover); outline: none; }
+.cx-opt b { font-family: var(--font-mono); font-weight: 400; font-size: 11px; color: var(--text-tertiary); padding-top: 3px; }
+.cx-step { animation: cxPop .45s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes cxPop { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+
+.cx-result { text-align: center; padding: 8px 0; }
+.cx-res-kicker { font-family: var(--font-mono); font-size: 11px; letter-spacing: 3px; color: var(--text-tertiary); }
+.cx-res-name { font-size: clamp(40px, 8vw, 72px); font-weight: 400; letter-spacing: -3px; line-height: 1; margin: 14px 0;
+    text-transform: uppercase; text-shadow: 0 0 40px var(--accent-strong); }
+.cx-res-team { display: inline-block; font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px;
+    border: 1px solid var(--border-hover); padding: 6px 12px; border-radius: 99px; margin-bottom: 18px; }
+.cx-res-desc { color: var(--text-secondary); max-width: 480px; margin: 0 auto 28px; line-height: 1.7; font-weight: 300; }
+.cx-res-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.cx-res-actions button { font: inherit; cursor: pointer; }
+.cx-match { display: flex; gap: 8px; justify-content: center; margin-top: 26px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; color: var(--text-tertiary); flex-wrap: wrap; }
+.cx-match span { border: 1px dashed var(--border-subtle); padding: 4px 8px; border-radius: 6px; }
+.cx-match span.top { color: var(--text-primary); border-style: solid; border-color: var(--border-hover); }
+
+/* ---------- BENTO ---------- */
+.cx-bento { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.cx-tile { display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; min-height: 190px; padding: 26px;
+    background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; overflow: hidden;
+    color: inherit; text-decoration: none; transition: border-color .3s, transform .3s; }
+.cx-tile:hover { border-color: var(--border-hover); }
+.cx-tile--wide { grid-column: span 2; }
+.cx-tile h3 { font-size: 22px; font-weight: 500; letter-spacing: -.5px; position: relative; }
+.cx-tile p { color: var(--text-secondary); font-size: 14px; line-height: 1.6; font-weight: 300; position: relative; max-width: 360px; }
+.cx-tile-tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--text-tertiary); position: relative; }
+.cx-tile-go { position: absolute; top: 22px; right: 22px; width: 34px; height: 34px; border: 1px solid var(--border-subtle);
+    border-radius: 50%; display: grid; place-items: center; transition: transform .3s, background .3s, color .3s; }
+.cx-tile:hover .cx-tile-go { transform: rotate(-45deg); background: var(--text-primary); color: var(--bg-base); }
+.cx-tile-art { position: absolute; right: 18px; bottom: 0; height: 88%; width: auto; max-width: 46%; object-fit: cover;
+    object-position: top; border-radius: 12px 12px 0 0; opacity: .9; mask-image: linear-gradient(#000 60%, transparent); -webkit-mask-image: linear-gradient(#000 60%, transparent); }
+.cx-tile--spectra p { max-width: 50%; }
+
+@media (max-width: 900px) {
+    .cx-bento { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+    .cx-quiz { padding: 22px; }
+    .cx-opts, .cx-bento { grid-template-columns: 1fr; }
+    .cx-tile--wide { grid-column: auto; }
+    .cx-q-title { font-size: 22px; }
+    .cx-tile--spectra p { max-width: 100%; }
+    .cx-tile-art { opacity: .25; max-width: 60%; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .cx-rv { opacity: 1; transform: none; transition: none; }
+    .cx-ticker-track, .cx-step { animation: none; }
+}

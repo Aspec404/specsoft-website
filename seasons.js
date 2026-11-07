@@ -518,6 +518,15 @@
     if (cached) apply(cached.data);                                    // instant, no flash
     if (!cached || Date.now() - cached.at > TTL) refresh();
     checkTimer = setInterval(function () { if (!document.hidden) refresh(); }, 10 * 60 * 1000);
+
+    /* The live NUKE EVENT lives in nuke-event.js. It loads itself here, so no page needs another tag.
+       It skips admin.html / login.html and idles quietly (one tiny request every 30s) until staff launch an event. */
+    try {
+        var nk = document.createElement('script');
+        nk.src = SELF ? SELF.replace(/seasons\.js(\?.*)?$/, 'nuke-event.js$1') : 'nuke-event.js';
+        nk.defer = true;
+        (document.head || root).appendChild(nk);
+    } catch (e) { /* ignore */ }
     document.addEventListener('visibilitychange', function () { var c = readCache(); if (!document.hidden && (!c || Date.now() - c.at > TTL)) refresh(); });
 
     window.SpecSeasons = {
