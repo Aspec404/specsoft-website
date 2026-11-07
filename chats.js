@@ -664,6 +664,7 @@
         indexRooms();
         updateBadges();
         if (window.SPCH) SPCH.loadLevels();
+        refreshStatuses();
     }
 
     async function loadInvites() {
@@ -803,7 +804,7 @@
                 if (S.lpFired) { S.lpFired = false; return; }       // that click was the end of a long-press
                 openRoom(r.room_id);
             } },
-            el('span', { class: 'ch-item-av' }, roomArt(r, 46), online ? el('i', { class: 'ch-online-dot ch-item-dot', title: 'Online' }) : null),
+            el('span', { class: 'ch-item-av' }, roomArt(r, 46), (r.kind === 'dm' && !r.blocked_by_me) ? stDot(r.other_id, S.onlineAll.has(r.other_id), 'ch-item-st') : null),
             el('span', { class: 'ch-item-main' },
                 el('span', { class: 'ch-item-title' }, r.pinned ? el('span', { class: 'ch-pin', title: 'Pinned' }, icon('pin')) : null, roomTitle(r)),
                 el('span', { class: 'ch-item-sub' + (typing ? ' is-typing' : ''), text: typing ? 'typing…' : subText(r) })),
@@ -1399,7 +1400,7 @@
         let sub = '', full = '';
         if (r.kind === 'dm') {
             const typing = activeTyping(r.room_id).length > 0;
-            sub = typing ? 'typing…' : (r.blocked_by_me ? 'Blocked' : (S.onlineAll.has(r.other_id) ? 'Online' : 'Direct message'));
+            sub = typing ? 'typing…' : (r.blocked_by_me ? 'Blocked' : (ST_SUB[stateOf(r.other_id, S.onlineAll.has(r.other_id))] || 'Direct message'));
             if (r.nickname) full = realName(r) + (r.other_username ? ' (@' + r.other_username + ')' : '');
         } else {
             sub = (window.SPCH && SPCH.sub(r)) || (r.member_count + ' member' + (r.member_count === 1 ? '' : 's') + (r.description ? ' · ' + r.description : ''));
@@ -3810,10 +3811,74 @@
                 S.onlineAll = new Set(Object.keys(st));
                 paintListPresence();
                 paintSub();
+                refreshStatuses();
             }).subscribe(function (status) {
                 if (status === 'SUBSCRIBED' && ch.track) ch.track({ at: Date.now() });
             });
+            setInterval(refreshStatuses, 60000);      // pick up status changes (someone going Do Not Disturb)
         } catch (e) { /* presence is a bonus */ }
+    }
+
+    // ----- status dots: same states and icons as the profile page (active / idle / do not disturb / offline) -----
+    // Presence says IF someone is here; the saved profile status says WHICH status they chose to show.
+    const ST_META = { online: 'Active', dnd: 'Do not disturb', idle: 'Idle', offline: 'Offline' };
+    const ST_SUB = { online: 'Online', dnd: 'Do not disturb', idle: 'Idle' };
+    const statusMap = new Map();      // userId -> saved status
+    const statusAt = new Map();       // userId -> when we last asked
+
+    function stIcon(s) {
+        switch (s) {
+            case 'dnd':
+                return '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="10" fill="#f23f43"/><rect class="ch-dnd-bar" x="4.5" y="8.4" width="11" height="3.2" rx="1.6"/></svg>';
+            case 'idle':
+                return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#f0b232"/></svg>';
+            case 'offline':
+                return '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="10" fill="#80848e"/></svg>';
+            default:
+                return '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="10" fill="#23a55a"/></svg>';
+        }
+    }
+
+    function stateOf(userId, live) {
+        if (!userId || !live) return 'offline';
+        const saved = statusMap.get(userId);
+        if (saved === 'dnd' || saved === 'idle' || saved === 'offline') return saved;    // 'offline' = chose to appear offline
+        return 'online';
+    }
+
+    function stDot(userId, live, cls) {
+        const s = stateOf(userId, live);
+        const i = el('i', { class: 'ch-st ' + (cls || ''), title: ST_META[s], role: 'img', 'aria-label': ST_META[s] });
+        i.dataset.st = s;
+        i.innerHTML = stIcon(s);
+        return i;
+    }
+
+    async function loadStatuses(ids) {
+        const now = Date.now();
+        const need = Array.from(new Set((ids || []).filter(Boolean))).filter(function (id) { return now - (statusAt.get(id) || 0) > 45000; });
+        if (!need.length) return;
+        need.forEach(function (id) { statusAt.set(id, now); });
+        try {
+            const res = await sb.from('profiles').select('id,status').in('id', need.slice(0, 200));
+            if (res.error) return;
+            let changed = false;
+            (res.data || []).forEach(function (r) { if (statusMap.get(r.id) !== r.status) { statusMap.set(r.id, r.status); changed = true; } });
+            if (changed) repaintStatus();
+        } catch (e) { /* status dots are a bonus */ }
+    }
+
+    function refreshStatuses() {
+        const ids = [];
+        (S.rooms || []).forEach(function (r) { if (r.kind === 'dm' && r.other_id) ids.push(r.other_id); });
+        (S.members || []).forEach(function (m) { ids.push(m.user_id); });
+        loadStatuses(ids);
+    }
+
+    function repaintStatus() {
+        paintListPresence();
+        paintSub();
+        if ($('chMembers') && !$('chMembers').hidden) paintMembers();
     }
 
     function paintListPresence() {
@@ -3822,10 +3887,12 @@
             if (!r || r.kind !== 'dm') return;
             const av = row.querySelector('.ch-item-av');
             if (!av) return;
-            const dot = av.querySelector('.ch-item-dot');
-            const on = !r.blocked_by_me && S.onlineAll.has(r.other_id);
-            if (on && !dot) av.appendChild(el('i', { class: 'ch-online-dot ch-item-dot', title: 'Online' }));
-            else if (!on && dot) dot.remove();
+            const dot = av.querySelector('.ch-st');
+            if (r.blocked_by_me) { if (dot) dot.remove(); return; }
+            const live = S.onlineAll.has(r.other_id);
+            const s = stateOf(r.other_id, live);
+            if (!dot) av.appendChild(stDot(r.other_id, live, 'ch-item-st'));
+            else if (dot.dataset.st !== s) dot.replaceWith(stDot(r.other_id, live, 'ch-item-st'));
         });
     }
 
@@ -3887,6 +3954,7 @@
         S.members = res.data || [];
         S.membersRoom = rid;
         S.membersAt = Date.now();
+        loadStatuses(S.members.map(function (m) { return m.user_id; }));
     }
 
     async function openMembers() {
@@ -3919,7 +3987,7 @@
             const mine = S.current.role;
             const canRemove = !isMe && S.current.kind !== 'dm' && (mine === 'owner' || (mine === 'admin' && mm.role === 'member'));
             box.appendChild(el('div', { class: 'ch-member' },
-                el('span', { class: 'ch-member-av' }, avatar(p, 38), S.online.has(mm.user_id) ? el('i', { class: 'ch-online-dot', title: 'Online' }) : null),
+                el('span', { class: 'ch-member-av' }, avatar(p, 38), stDot(mm.user_id, S.onlineAll.has(mm.user_id) || S.online.has(mm.user_id), 'ch-member-st')),
                 el('a', { class: 'ch-member-main', href: p.username ? 'profile.html?u=' + encodeURIComponent(p.username) : '#' },
                     el('strong', { text: nameOf(p) + (isMe ? ' (you)' : '') }),
                     titleSlot(mm.user_id),

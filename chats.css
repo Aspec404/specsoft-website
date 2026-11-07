@@ -1147,7 +1147,7 @@ a.ch-msg-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ch-member { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 12px; }
 .ch-member:hover { background: var(--accent-dim); }
 .ch-member-av { position: relative; display: inline-flex; flex: 0 0 auto; }
-.ch-member-av .ch-online-dot { position: absolute; right: -1px; bottom: -1px; border: 2px solid var(--bg-card); box-sizing: content-box; }
+.ch-member-av .ch-online-dot { position: absolute; right: -1px; bottom: -1px; z-index: 6; border: 2px solid var(--bg-card); box-sizing: content-box; }   /* z-index: stays above profile frames */
 .ch-member-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; color: var(--text-primary); text-decoration: none; }
 .ch-member-main strong { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-member-main small { color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1826,7 +1826,7 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 .ch-unread.is-muted { background: var(--text-secondary); }
 
 .ch-item-av { position: relative; }
-.ch-item-dot { position: absolute; right: -1px; bottom: -1px; border: 2px solid var(--bg-base); box-sizing: content-box; }
+.ch-item-dot { position: absolute; right: -1px; bottom: -1px; z-index: 6; border: 2px solid var(--bg-base); box-sizing: content-box; }   /* z-index: stays above profile frames */
 
 /* "typing…" in the list and in the header */
 .ch-item-sub.is-typing,
@@ -2400,3 +2400,27 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 .ch-title-slot .spt { margin-left: 0; }
 .ch-msg--own .ch-title-slot { order: 0; }
 .ch-member-main .ch-title-slot { align-self: flex-start; font-size: 11.5px; }
+
+/* ==========================================================================
+   STATUS DOTS  (same states and icons as the profile page)
+   active / idle / do not disturb / offline. Sits above profile frames.
+   ========================================================================== */
+.ch-st {
+    position: absolute;
+    z-index: 6;
+    display: grid;
+    place-items: center;
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    border: 2px solid var(--bg-base);
+    border-radius: 50%;
+    background: var(--bg-base);
+    box-sizing: content-box;
+    pointer-events: none;
+}
+.ch-st svg { display: block; width: 100%; height: 100%; }
+.ch-dnd-bar { fill: var(--bg-base); }
+.ch-item-st { right: -3px; bottom: -3px; }
+.ch-member-st { right: -3px; bottom: -3px; border-color: var(--bg-card); background: var(--bg-card); }
+.ch-member-st .ch-dnd-bar { fill: var(--bg-card); }
