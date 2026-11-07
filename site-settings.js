@@ -178,7 +178,7 @@
         for (var i = 0; i < it.options.length; i++) if (String(it.options[i][0]) === String(v)) return it.options[i];
         return null;
     }
-    function isLocked(it, v) { var o = optionOf(it, v); return !!(o && o[2] && !ownedId(it.key + ':' + o[0])); }
+    function isLocked(it, v) { return false; }   // everything is free now: nothing is locked or preview-only
 
 
     /* ------------------------------------------------------------- typing indicator guard
@@ -259,6 +259,7 @@
         if (len > TY_MAX) return { ok: false, error: 'Too long: keep it to ' + TY_MAX + ' characters in total (you have ' + len + ').' };
 
         var ph = t.match(/<@username>/gi) || [];
+        if (!ph.length) return { ok: false, error: 'Your text needs <@username> so your name shows. Example: <@username> is cooking' };
         if (ph.length > 1) return { ok: false, error: 'Use <@username> only once.' };
         var rest = t.replace(/<@username>/gi, '\u0001');
         if (/[<>]/.test(rest)) return { ok: false, error: 'Only <@username> can use the < > symbols. It has to be spelled exactly <@username>.' };
@@ -273,7 +274,7 @@
             return { ok: false, error: 'No links, emails, usernames or phone numbers.' };
         }
         var words = TY_UNI ? (plain.match(TY_UNI.letters) || []).length : (plain.match(/[A-Za-z]/g) || []).length;
-        if (!ph.length && words < 2) return { ok: false, error: 'Add a few real words.' };
+        if (words < 1) return { ok: false, error: 'Add a word or two next to <@username>.' };
         if (tyBad(plain)) return { ok: false, error: 'That text is not allowed. Keep it friendly and fine for everyone.' };
 
         return { ok: true, text: t.replace(/<@username>/gi, '<@username>') };

@@ -349,7 +349,7 @@
         ringBox.style.height = h + 'px';
         ringBox.style.marginLeft = (-w / 2) + 'px';
         ringBox.style.marginTop = (-h / 2) + 'px';
-        ringRot.style.setProperty('--sc-r', radius + 'px');
+        ringBox.style.setProperty('--sc-r', radius + 'px');
     }
 
     function setMagnet(el) {
@@ -360,7 +360,7 @@
         else {
             magnetBox = null;
             ringBox.style.width = ringBox.style.height = ringBox.style.marginLeft = ringBox.style.marginTop = '';
-            ringRot.style.removeProperty('--sc-r');
+            ringBox.style.removeProperty('--sc-r');
         }
     }
 
@@ -753,7 +753,7 @@
 
         // keep the label on-screen
         if (labelText) {
-            var flip = mx > vw - 150, up = my > vh - 50;
+            var flip = labelFlip ? mx > vw - 190 : mx > vw - 150, up = labelUp ? my > vh - 90 : my > vh - 50;   // hysteresis: no flicker at the edge
             if (flip !== labelFlip) { labelFlip = flip; labelEl.classList.toggle('is-flip', flip); }
             if (up !== labelUp) { labelUp = up; labelEl.classList.toggle('is-up', up); }
         }

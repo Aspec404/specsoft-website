@@ -126,7 +126,10 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
 .sc-ring-scale {
     position: absolute;
     inset: 0;
-    transition: transform 0.3s cubic-bezier(.2,.9,.3,1.3), opacity 0.25s ease;
+    border: 1px solid transparent;
+    border-radius: var(--sc-r, 50%);
+    transition: transform 0.3s cubic-bezier(.2,.9,.3,1.3), opacity 0.25s ease,
+                border-color 0.25s ease, background 0.25s ease, border-radius 0.28s ease;
     opacity: 0.6;
 }
 .sc-ring-rot {
@@ -136,7 +139,7 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
     border-radius: var(--sc-r, var(--sc-ring-r, 50%));
     background: transparent;
     animation: scSpin 9s linear infinite;
-    transition: background 0.25s ease, border-radius 0.28s ease;
+    transition: background 0.25s ease, border-radius 0.28s ease, opacity 0.2s ease;
 }
 /* crosshair ticks */
 .sc-ring-rot::before,
@@ -165,7 +168,7 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
    ========================================================================== */
 /* pointer: ring swells and fills, dot shrinks */
 [data-state="pointer"] .sc-ring-scale { transform: scale(1.5); opacity: 1; }
-[data-state="pointer"] .sc-ring-rot   { background: var(--accent-dim, rgba(255,255,255,0.06)); animation-duration: 3s; }
+[data-state="pointer"] .sc-ring-rot   { background: var(--accent-dim, rgba(255,255,255,0.06)); }   /* no animation-duration change: it made the spin jump */
 [data-state="pointer"] .sc-dot-core   { transform: scale(0.55); }
 
 /* text: I-beam replaces the dot, ring melts away */
@@ -206,10 +209,9 @@ html.sc-cursor-on .cursor-reticle { display: none !important; }
 /* ==========================================================================
    MAGNET: ring wraps the button it is snapped to
    ========================================================================== */
-.sc-ring.is-magnet .sc-ring-scale { transform: none !important; opacity: 1; }
-.sc-ring.is-magnet .sc-ring-rot   { animation: none; background: var(--accent-dim, rgba(255,255,255,0.06)); }
-.sc-ring.is-magnet .sc-ring-rot::before,
-.sc-ring.is-magnet .sc-ring-rot::after { opacity: 0; }
+/* the wrap box is drawn on the NON-spinning layer, the spinner just fades out (never removed, so nothing snaps/flips) */
+.sc-ring.is-magnet .sc-ring-scale { transform: none !important; opacity: 1; border-color: currentColor; background: var(--accent-dim, rgba(255,255,255,0.06)); }
+.sc-ring.is-magnet .sc-ring-rot   { opacity: 0; }
 .sc-ring.is-magnet.is-down .sc-ring-scale { transform: scale(0.96) !important; }
 
 /* charge pop: ring flashes outward */
