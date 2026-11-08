@@ -1,0 +1,237 @@
+/* ==========================================================================
+   SPECSOFT® glitchware-event.css  -  styles for glitchware-event.js (loaded by it, only while an event is live)
+   Everything is prefixed gw-. Nothing here touches your normal pages when no event is running.
+   Look: the same modern monochrome HUD as the nuke event. The only colour is the red/cyan channel split
+   you get on a real glitch, plus red for danger.
+   ========================================================================== */
+#gw-root, #gw-credits, #gw-inc, #gw-report, .gw-toast { box-sizing: border-box; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+#gw-root *, #gw-report *, #gw-inc *, .gw-toast * { box-sizing: border-box; }
+#gw-root [hidden], #gw-report [hidden] { display: none !important; }
+
+/* ---------- root layer (never blocks the page, only its own windows / buttons are clickable) ---------- */
+#gw-root { position: fixed; inset: 0; z-index: 2147482900; pointer-events: none; color: #fff; overflow: hidden; }
+#gw-root .gw-hud, #gw-root .gw-win, #gw-root .gw-warn, #gw-root .gw-mini, #gw-root .gw-btn { pointer-events: auto; }
+
+/* ==========================================================================
+   INFECTION OVERLAYS: scanlines, rolling bar, noise, tinted vignette, glitch bars
+   ========================================================================== */
+.gw-scan { position: absolute; inset: 0; opacity: .5; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .0) 0, rgba(0, 0, 0, .0) 2px, rgba(0, 0, 0, .28) 3px); }
+.gw-roll { position: absolute; left: 0; right: 0; top: -20%; height: 18%; background: linear-gradient(180deg, transparent, rgba(255, 255, 255, .07), transparent); animation: gwRoll 5.5s linear infinite; }
+@keyframes gwRoll { to { top: 110%; } }
+.gw-noise { position: absolute; inset: -10%; opacity: .07; mix-blend-mode: screen; animation: gwNoise .45s steps(4) infinite;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.6 -.5'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+@keyframes gwNoise { 0% { transform: translate(0, 0); } 25% { transform: translate(-3%, 2%); } 50% { transform: translate(2%, -3%); } 75% { transform: translate(-2%, -1%); } 100% { transform: translate(3%, 3%); } }
+.gw-vig { position: absolute; inset: 0; background:
+    radial-gradient(ellipse at center, transparent calc(70% - var(--gw-p, 0) * 28%), rgba(0, 0, 0, calc(.3 + var(--gw-p, 0) * .4)) 100%),
+    linear-gradient(90deg, rgba(255, 30, 70, calc(.1 + var(--gw-p, 0) * .12)), transparent 14%, transparent 86%, rgba(0, 240, 255, calc(.1 + var(--gw-p, 0) * .12))); }
+.gw-bars { position: absolute; inset: 0; overflow: hidden; }
+.gw-bars i { position: absolute; left: 0; right: 0; height: var(--h, 6px); top: var(--y, 20%); opacity: 0; background: rgba(255, 255, 255, .16); mix-blend-mode: difference; animation: gwBar var(--t, 3s) steps(1) infinite; animation-delay: var(--d, 0s); }
+@keyframes gwBar { 0%, 90% { opacity: 0; transform: translateX(0); } 91% { opacity: 1; transform: translateX(var(--dx, 30px)); } 94% { opacity: 1; transform: translateX(calc(var(--dx, 30px) * -1)); } 96%, 100% { opacity: 0; transform: translateX(0); } }
+.gw-calm .gw-roll, .gw-calm .gw-noise, .gw-calm .gw-bars { display: none; }
+.gw-calm .gw-scan { opacity: .25; }
+
+/* page glitch burst: JS adds html.gw-burst for a few hundred ms, the channel split lives here */
+html.gw-burst body :is(h1, h2, h3, h4, h5, h6, p, a, li, span, label, button, td, th, small, strong, em, b, i, input, textarea):not(#gw-root *):not(#gw-report *):not(#gw-credits *) { text-shadow: -3px 0 rgba(255, 30, 70, .85), 3px 0 rgba(0, 240, 255, .85) !important; }
+html.gw-burst body :is(img, svg, video):not(#gw-root *):not(#gw-report *):not(#gw-credits *) { filter: drop-shadow(-4px 0 rgba(255, 30, 70, .75)) drop-shadow(4px 0 rgba(0, 240, 255, .75)) !important; }
+html.gw-shake body { animation: gwShake .26s steps(2) 1; }
+@keyframes gwShake { 0% { translate: 0 0; } 25% { translate: -6px 2px; } 50% { translate: 5px -3px; } 75% { translate: -3px -2px; } 100% { translate: 0 0; } }
+/* torn page pieces (offsets are set per element by JS through custom properties, then removed) */
+.gw-tear { transform: translate(var(--tx, 0), var(--ty, 0)) skewX(var(--sk, 0deg)) !important; clip-path: var(--cp, none) !important; }
+
+/* ==========================================================================
+   INTRO TAKEOVER:  THE PAGE HAS BEEN HIJACKED BY GLITCHWARE
+   ========================================================================== */
+.gw-intro { position: absolute; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: center; background: #000; opacity: 1; animation: gwIntro 5.2s linear forwards; }
+@keyframes gwIntro { 0%, 82% { opacity: 1; } 100% { opacity: 0; } }
+.gw-intro-t { font: 700 clamp(22px, 5.4vw, 54px)/1.15 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .14em; color: #fff; position: relative; max-width: 92vw; animation: gwText .5s steps(2) infinite; }
+.gw-intro-t::before, .gw-intro-t::after { content: attr(data-text); position: absolute; left: 0; right: 0; top: 0; overflow: hidden; }
+.gw-intro-t::before { color: #ff1e46; transform: translate(-4px, 0); clip-path: inset(0 0 55% 0); animation: gwSlice1 1.1s steps(1) infinite; }
+.gw-intro-t::after { color: #00f0ff; transform: translate(4px, 0); clip-path: inset(50% 0 0 0); animation: gwSlice2 .9s steps(1) infinite; }
+@keyframes gwText { 0% { transform: translate(0, 0); } 50% { transform: translate(1px, -1px); } 100% { transform: translate(-1px, 1px); } }
+@keyframes gwSlice1 { 0% { clip-path: inset(0 0 70% 0); } 25% { clip-path: inset(30% 0 40% 0); } 50% { clip-path: inset(10% 0 80% 0); } 75% { clip-path: inset(60% 0 10% 0); } 100% { clip-path: inset(0 0 55% 0); } }
+@keyframes gwSlice2 { 0% { clip-path: inset(60% 0 0 0); } 30% { clip-path: inset(10% 0 70% 0); } 60% { clip-path: inset(75% 0 5% 0); } 100% { clip-path: inset(40% 0 30% 0); } }
+.gw-intro-s { font-size: clamp(10px, 2vw, 13px); letter-spacing: .3em; color: rgba(255, 255, 255, .6); }
+.gw-intro-s b { color: #fff; font-weight: 600; }
+.gw-intro-s::after { content: '_'; animation: gwCaret .6s steps(1) infinite; }
+@keyframes gwCaret { 50% { opacity: 0; } }
+.gw-calm .gw-intro-t, .gw-calm .gw-intro-t::before, .gw-calm .gw-intro-t::after { animation: none; }
+
+/* announcements */
+.gw-ann { position: absolute; left: 0; right: 0; top: 36%; text-align: center; font: 700 clamp(18px, 4.2vw, 40px)/1.15 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .2em; color: #fff; text-shadow: -3px 0 rgba(255, 30, 70, .8), 3px 0 rgba(0, 240, 255, .8), 0 2px 24px rgba(0, 0, 0, .8); opacity: 0; transform: translateY(8px); transition: opacity .25s, transform .25s; padding: 0 12px; }
+.gw-ann.is-on { opacity: 1; transform: none; }
+
+/* ==========================================================================
+   HUD (glass card, same family as the nuke HUD)
+   ========================================================================== */
+.gw-hud { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 60; width: min(92vw, 330px); padding: 12px 18px 14px; text-align: center;
+    background: rgba(8, 8, 10, .78); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    border: 1px solid rgba(255, 255, 255, .16); border-radius: 18px; box-shadow: 0 14px 44px rgba(0, 0, 0, .55), -2px 0 0 rgba(255, 30, 70, .35), 2px 0 0 rgba(0, 240, 255, .35); }
+.gw-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gw-tag { font-size: 9px; letter-spacing: .24em; font-weight: 600; color: rgba(255, 255, 255, .62); text-align: left; }
+.gw-tag::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; vertical-align: 1px; border-radius: 50%; background: #ff4d4d; animation: gwDot 1s ease-in-out infinite; }
+@keyframes gwDot { 50% { opacity: .25; } }
+.gw-low .gw-tag::before { animation-duration: .35s; }
+.gw-btns { display: flex; gap: 6px; }
+.gw-mini { font: 600 10px/1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .1em; color: rgba(255, 255, 255, .85); background: rgba(255, 255, 255, .08); border: 0; border-radius: 999px; padding: 6px 10px; cursor: pointer; }
+.gw-mini:hover { background: rgba(255, 255, 255, .2); }
+.gw-time { font: 300 clamp(40px, 8vw, 62px)/1.05 'JetBrains Mono', ui-monospace, monospace; letter-spacing: -.02em; color: #fff; font-variant-numeric: tabular-nums; transition: color .6s; margin-top: 2px; }
+.gw-t60 .gw-time { color: #ffc4c4; }
+.gw-low .gw-time { color: #ff6b6b; }
+.gw-sub { font-size: 8.5px; letter-spacing: .3em; color: rgba(255, 255, 255, .5); margin-top: 1px; }
+.gw-meter { height: 3px; margin: 10px 0 0; background: rgba(255, 255, 255, .12); border-radius: 3px; overflow: hidden; }
+.gw-meter i { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #fff, #00f0ff); transition: width .25s ease-out; }
+.gw-count { margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 11px; letter-spacing: .18em; color: rgba(255, 255, 255, .65); }
+.gw-count img { width: 18px; height: 18px; object-fit: contain; }
+.gw-count b { font: 300 24px/1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0; color: #fff; font-variant-numeric: tabular-nums; }
+.gw-count.is-bump b { animation: gwBump .3s ease-out; }
+@keyframes gwBump { 0% { transform: scale(1.35); color: #00f0ff; } 100% { transform: none; } }
+.gw-scanner { margin-top: 10px; padding: 8px 10px; text-align: left; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 12px; }
+.gw-scanner span { display: block; font-size: 9.5px; letter-spacing: .14em; color: rgba(255, 255, 255, .7); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gw-sig { height: 4px; background: rgba(255, 255, 255, .1); border-radius: 4px; overflow: hidden; }
+.gw-sig i { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #555, #fff 60%, #ff4056); transition: width .12s linear; }
+.gw-reward { margin-top: 9px; font-size: 9.5px; letter-spacing: .08em; color: rgba(255, 255, 255, .55); min-height: 12px; }
+.gw-hud.is-min .gw-sub, .gw-hud.is-min .gw-meter, .gw-hud.is-min .gw-scanner, .gw-hud.is-min .gw-reward { display: none; }
+.gw-hud.is-min .gw-time { font-size: 30px; }
+.gw-hud.is-done { border-color: rgba(98, 255, 154, .5); box-shadow: 0 14px 44px rgba(0, 0, 0, .55); }
+.gw-hud.is-done .gw-time { color: #62ff9a; font-size: 26px; }
+.gw-hud.is-done .gw-tag::before { background: #62ff9a; animation: none; }
+.gw-hud.is-done .gw-sub, .gw-hud.is-done .gw-meter, .gw-hud.is-done .gw-scanner { display: none; }
+
+/* warning pill */
+.gw-warn { position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; max-width: 94vw; padding: 7px 8px 7px 14px; font-size: 10.5px; line-height: 1.35; letter-spacing: .03em; background: rgba(8, 8, 10, .85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, .16); border-radius: 18px; }
+.gw-warn[hidden] { display: none; }
+.gw-warn button { font: inherit; color: #fff; background: rgba(255, 255, 255, .1); border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.gw-warn button:hover { background: rgba(255, 255, 255, .22); }
+
+/* ==========================================================================
+   FAKE WINDOWS  (draggable, closable, 100% fake: nothing on the device is touched)
+   ========================================================================== */
+.gw-win { position: absolute; z-index: 30; width: var(--w, 270px); background: #0e0e11; border: 1px solid rgba(255, 255, 255, .55); border-radius: 6px; box-shadow: 6px 6px 0 rgba(0, 0, 0, .55), -2px 0 0 rgba(255, 30, 70, .55), 2px 0 0 rgba(0, 240, 255, .55); color: #eee; font-size: 11px; animation: gwWinIn .22s steps(3) both; }
+@keyframes gwWinIn { 0% { opacity: 0; transform: scale(.86) translateX(-8px); } 60% { opacity: 1; transform: scale(1.03) translateX(4px); } 100% { opacity: 1; transform: none; } }
+.gw-win.is-out { animation: gwWinOut .16s steps(2) forwards; }
+@keyframes gwWinOut { to { opacity: 0; transform: scale(.8) skewX(12deg); } }
+.gw-win-bar { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 9px; background: linear-gradient(90deg, #fff, #cfcfd4); color: #0a0a0c; font-weight: 700; letter-spacing: .06em; cursor: grab; user-select: none; touch-action: none; border-radius: 5px 5px 0 0; }
+.gw-win-bar:active { cursor: grabbing; }
+.gw-win-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.gw-win-x { font: 700 12px/1 'JetBrains Mono', ui-monospace, monospace; width: 22px; height: 20px; color: #fff; background: #ff1e46; border: 0; border-radius: 3px; cursor: pointer; padding: 0; }
+.gw-win-x:hover { background: #ff5b78; }
+.gw-win-body { display: flex; gap: 10px; align-items: flex-start; padding: 12px 12px 8px; }
+.gw-win-ico { flex: none; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #0a0a0c; background: #fff; border-radius: 50%; }
+.gw-win-msg { flex: 1; min-width: 0; line-height: 1.45; letter-spacing: .02em; white-space: pre-line; word-break: break-word; }
+.gw-win-prog { margin: 2px 12px 8px; height: 10px; border: 1px solid rgba(255, 255, 255, .6); overflow: hidden; }
+.gw-win-prog i { display: block; height: 100%; width: 100%; background: repeating-linear-gradient(90deg, #fff 0 6px, transparent 6px 8px); transform-origin: left center; }
+.gw-win-prog.fwd i { animation: gwProgFwd 6s linear forwards; }
+.gw-win-prog.back i { transform: scaleX(1); animation: gwProgBack 5s linear forwards; }
+.gw-win-prog.stuck i { animation: gwProgStuck 5s ease-out forwards; }
+@keyframes gwProgFwd { from { transform: scaleX(.03); } to { transform: scaleX(1); } }
+@keyframes gwProgBack { from { transform: scaleX(.85); } to { transform: scaleX(.02); } }
+@keyframes gwProgStuck { 0% { transform: scaleX(.2); } 80% { transform: scaleX(.99); } 100% { transform: scaleX(.99); } }
+.gw-win-btns { display: flex; justify-content: flex-end; gap: 6px; padding: 0 10px 10px; flex-wrap: wrap; }
+.gw-win-btns button { font: 600 10px/1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .08em; color: #0a0a0c; background: #fff; border: 1px solid #fff; border-radius: 3px; padding: 6px 12px; cursor: pointer; }
+.gw-win-btns button:hover { background: #00f0ff; border-color: #00f0ff; }
+.gw-win.leak { border-color: #00f0ff; }
+.gw-win.leak .gw-win-bar { background: linear-gradient(90deg, #00f0ff, #bdfaff); }
+.gw-calm .gw-win, .gw-calm .gw-win.is-out { animation: none; }
+
+/* ==========================================================================
+   HIDDEN APEX CREDITS  (live on the page itself, positions come from the seed)
+   ========================================================================== */
+#gw-credits { position: absolute; left: 0; top: 0; width: 100%; height: 0; z-index: 2147482600; pointer-events: none; overflow: visible; }
+.gw-cr { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; opacity: .16; touch-action: manipulation; -webkit-tap-highlight-color: transparent; animation: gwCrFlick 3.4s steps(1) infinite; animation-delay: var(--d, 0s); }
+.gw-cr.v10 { width: 26px; height: 26px; margin: -13px 0 0 -13px; }
+.gw-cr.v25 { width: 32px; height: 32px; margin: -16px 0 0 -16px; }
+.gw-cr img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: grayscale(1) contrast(1.4) drop-shadow(-1px 0 #ff1e46) drop-shadow(1px 0 #00f0ff); }
+.gw-cr.noimg::after { content: '\25C6'; display: block; font-size: 20px; line-height: 22px; text-align: center; color: #fff; }
+.gw-cr:hover, .gw-cr:focus-visible { opacity: 1; animation: none; outline: none; }
+@keyframes gwCrFlick { 0%, 86% { opacity: .16; } 88% { opacity: .7; } 91% { opacity: .16; } 95% { opacity: .5; } 97%, 100% { opacity: .16; } }
+@keyframes gwCrPulse { 0%, 100% { opacity: .3; transform: scale(1); } 50% { opacity: .9; transform: scale(1.18); } }
+#gw-credits.gw-h1 .gw-cr { opacity: .3; animation-name: gwCrFlick; }
+#gw-credits.gw-h2 .gw-cr { opacity: .55; animation: gwCrPulse 1.2s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.gw-cr.is-got { animation: gwCrGot .38s ease-out forwards !important; pointer-events: none; }
+.gw-cr.is-gone { display: none; }
+@keyframes gwCrGot { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(2.4); } }
+.gw-pop { position: absolute; z-index: 2147482650; transform: translate(-50%, -50%); font: 700 14px/1 'JetBrains Mono', ui-monospace, monospace; color: #fff; text-shadow: -2px 0 #ff1e46, 2px 0 #00f0ff; pointer-events: none; animation: gwPop .9s ease-out forwards; }
+@keyframes gwPop { 0% { opacity: 0; margin-top: 0; } 15% { opacity: 1; } 100% { opacity: 0; margin-top: -46px; } }
+.gw-calm-page .gw-cr { animation: none; opacity: .3; }
+.gw-calm-page #gw-credits.gw-h2 .gw-cr { animation: none; opacity: .6; }
+
+/* ==========================================================================
+   PURGED  (the glitch collapses: a clean line sweeps down the screen and wipes it away)
+   ========================================================================== */
+.gw-purge { position: absolute; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; opacity: 0; animation: gwPurgeIn 3.6s ease-in-out forwards; background: radial-gradient(ellipse at center, rgba(0, 0, 0, .78), rgba(0, 0, 0, .35) 70%, transparent); }
+@keyframes gwPurgeIn { 0% { opacity: 0; } 12% { opacity: 1; } 78% { opacity: 1; } 100% { opacity: 0; } }
+.gw-purge h2 { margin: 0; font: 300 clamp(26px, 6vw, 58px)/1.1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .22em; color: #fff; text-shadow: 0 0 30px rgba(98, 255, 154, .6); }
+.gw-purge p { margin: 0; font-size: clamp(11px, 2.2vw, 14px); letter-spacing: .18em; color: #62ff9a; }
+.gw-purge-line { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: #fff; box-shadow: 0 0 22px 6px rgba(98, 255, 154, .8); animation: gwSweep 1.5s cubic-bezier(.5, 0, .3, 1) forwards; }
+@keyframes gwSweep { from { top: 0; } to { top: 100%; } }
+.gw-purging .gw-scan, .gw-purging .gw-roll, .gw-purging .gw-noise, .gw-purging .gw-vig, .gw-purging .gw-bars { transition: opacity 1.2s; opacity: 0 !important; }
+
+/* ==========================================================================
+   LOSS: pile-up, black cut, JUMPSCARE, crash screen
+   ========================================================================== */
+.gw-cut { position: absolute; inset: 0; z-index: 90; background: #000; }
+.gw-scare { position: absolute; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; }
+.gw-scare-in { position: relative; width: min(86vmin, 640px); height: min(86vmin, 640px); display: flex; align-items: center; justify-content: center; animation: gwScare 2s cubic-bezier(.1, .8, .2, 1) forwards; }
+@keyframes gwScare { 0% { transform: scale(.25) skewX(0deg); } 8% { transform: scale(1.5) skewX(-10deg); } 100% { transform: scale(2.2) skewX(4deg); } }
+.gw-scare img, .gw-scare-txt { position: absolute; width: 100%; height: 100%; object-fit: contain; filter: invert(1) contrast(1.4) drop-shadow(-12px 0 rgba(255, 30, 70, .9)) drop-shadow(12px 0 rgba(0, 240, 255, .9)); animation: gwScareJit .08s steps(2) infinite; }
+.gw-scare img.b { opacity: .55; mix-blend-mode: screen; transform: translate(14px, -8px) scale(1.06); animation-duration: .11s; filter: invert(1) hue-rotate(160deg); }
+.gw-scare-txt { display: flex; align-items: center; justify-content: center; font: 700 clamp(30px, 10vw, 90px)/1 'JetBrains Mono', ui-monospace, monospace; color: #fff; filter: drop-shadow(-8px 0 rgba(255, 30, 70, .9)) drop-shadow(8px 0 rgba(0, 240, 255, .9)); }
+@keyframes gwScareJit { 0% { translate: 0 0; } 50% { translate: 9px -6px; } 100% { translate: -8px 5px; } }
+.gw-scare-bars { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 14px, rgba(255, 255, 255, .1) 14px 16px); mix-blend-mode: overlay; animation: gwRoll2 .5s linear infinite; }
+@keyframes gwRoll2 { to { background-position: 0 32px; } }
+.gw-crash { position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; padding: clamp(24px, 8vw, 90px); background: #000; color: #fff; opacity: 0; animation: gwCrashIn .35s steps(3) forwards; }
+@keyframes gwCrashIn { to { opacity: 1; } }
+.gw-crash h2 { margin: 0; font: 300 clamp(40px, 12vw, 110px)/1 'JetBrains Mono', ui-monospace, monospace; }
+.gw-crash h3 { margin: 0; font: 600 clamp(12px, 2.6vw, 20px)/1.4 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .12em; }
+.gw-crash p { margin: 0; max-width: 560px; font-size: clamp(11px, 2.1vw, 14px); line-height: 1.6; letter-spacing: .04em; color: rgba(255, 255, 255, .7); }
+.gw-crash .gw-win-prog { width: min(420px, 100%); margin: 6px 0 0; height: 12px; }
+.gw-crash .gw-win-prog.fwd i { animation-duration: 5s; }
+.gw-fadeout { animation: gwFadeOut .8s ease-in forwards !important; }
+@keyframes gwFadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* ==========================================================================
+   LITTLE BANNERS
+   ========================================================================== */
+#gw-inc { position: fixed; left: 50%; top: calc(10px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 2147482900; max-width: 94vw; padding: 9px 18px; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .16em; color: #fff; pointer-events: none;
+    background: rgba(8, 8, 10, .85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, .18); border-radius: 999px; box-shadow: -2px 0 0 rgba(255, 30, 70, .5), 2px 0 0 rgba(0, 240, 255, .5); }
+#gw-inc::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 10px; vertical-align: 1px; border-radius: 50%; background: #00f0ff; animation: gwDot .8s ease-in-out infinite; }
+.gw-toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 2147483200; max-width: 92vw; padding: 10px 18px; font-size: 12px; letter-spacing: .06em; color: #fff; background: rgba(8, 8, 10, .92); border: 1px solid rgba(255, 255, 255, .2); border-radius: 999px; }
+
+/* ==========================================================================
+   ENDING SCREEN  (event report)
+   ========================================================================== */
+#gw-report { position: fixed; inset: 0; z-index: 2147483100; display: flex; align-items: center; justify-content: center; padding: 18px; color: #fff; opacity: 0; transition: opacity .7s; overflow-y: auto; background: #060607; }
+#gw-report.is-on { opacity: 1; }
+.gw-rep { width: min(560px, 100%); text-align: center; padding: 28px 20px 20px; margin: auto; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .12); border-radius: 22px; }
+.gw-rep img { width: 56px; height: 56px; object-fit: contain; }
+.gw-rep h2 { margin: 12px 0 4px; font-size: clamp(14px, 3.6vw, 18px); letter-spacing: .3em; font-weight: 600; }
+.gw-rep-sub { margin: 0 0 18px; font-size: 10px; letter-spacing: .34em; color: rgba(255, 255, 255, .5); }
+.gw-rep dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0 0 16px; padding: 12px 14px; font-size: 12px; text-align: left; background: rgba(255, 255, 255, .04); border-radius: 12px; }
+.gw-rep dt { color: rgba(255, 255, 255, .5); letter-spacing: .16em; }
+.gw-rep dd { margin: 0; }
+.gw-rep-count { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.gw-rep-count:empty { display: none; }
+.gw-rep-card { padding: 14px 6px 12px; border-radius: 14px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .1); }
+.gw-rep-card b { display: block; font-size: 34px; font-weight: 300; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.gw-rep-card span { display: block; margin-top: 4px; font-size: 10px; letter-spacing: .28em; color: rgba(255, 255, 255, .6); }
+.gw-rep-card.a b { color: #62ff9a; } .gw-rep-card.a { border-color: rgba(98, 255, 154, .35); }
+.gw-rep-card.m b { color: #ff6b6b; } .gw-rep-card.m { border-color: rgba(255, 107, 107, .35); }
+.gw-rep-list { max-height: 36vh; overflow-y: auto; border-radius: 12px; background: rgba(255, 255, 255, .03); padding: 4px 12px; text-align: left; }
+.gw-rep-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 4px; font-size: 13px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.gw-rep-row:last-child { border-bottom: 0; }
+.gw-rep-row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gw-rep-row .s { white-space: nowrap; letter-spacing: .1em; font-weight: 600; font-size: 10px; padding: 3px 9px; border-radius: 999px; }
+.gw-rep-row.is-purged .s { color: #62ff9a; background: rgba(98, 255, 154, .12); } .gw-rep-row.is-infected .s { color: #ff6b6b; background: rgba(255, 107, 107, .12); }
+.gw-rep-row.is-me { background: rgba(255, 255, 255, .07); border-radius: 8px; }
+.gw-rep-empty { padding: 14px 0; font-size: 12px; color: rgba(255, 255, 255, .5); text-align: center; }
+.gw-btn { font: 600 12px/1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .16em; color: #0b0b0d; background: #fff; border: 0; border-radius: 999px; padding: 12px 24px; cursor: pointer; transition: transform .12s, background .12s; }
+.gw-btn:hover { background: #bdfaff; }
+.gw-btn:active { transform: scale(.97); }
+.gw-rep .gw-btn { margin-top: 18px; }
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+    html.gw-shake body { animation: none; }
+    .gw-roll, .gw-noise, .gw-bars, .gw-win, .gw-intro-t, .gw-intro-t::before, .gw-intro-t::after { animation: none; }
+    .gw-cr { animation: none; opacity: .3; }
+}
