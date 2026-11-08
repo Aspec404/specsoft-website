@@ -319,6 +319,9 @@
             var dt = E.last ? Math.min(0.06, (ts - E.last) / 1000) : 0.016; E.last = ts;
             if (ts - E.vt > 250) {
                 E.vt = ts; E.bpm = bpmNow();
+                // the stylesheet can finish loading AFTER the monitor starts (first page load, slow network): re-measure so it never stays tiny
+                var pr0 = plot.getBoundingClientRect();
+                if (Math.max(160, Math.floor(pr0.width)) !== E.w || Math.max(48, Math.floor(pr0.height)) !== E.h) size();
                 if (rd) { rd.textContent = String(E.bpm); rd.classList.toggle('hi', E.bpm >= 150); }
             }
             var cx = E.cx, speed = 150 + (E.bpm - 80) * 1.6, steps = Math.max(1, Math.round(speed * dt));

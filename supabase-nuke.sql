@@ -273,8 +273,8 @@ begin
     if t0 < now() + interval '10 seconds' then return public.admin_fail('nuke_launch', null, p_reason, 'bad_time'); end if;
     if exists (select 1 from public.nuke_events x
                 where x.aborted_at is null
-                  and x.ends_at > t0 - interval '10 minutes'
-                  and x.starts_at < t0 + make_interval(secs => s.countdown_s + s.aftermath_s + 600)) then
+                  and x.ends_at > t0 - interval '60 seconds'
+                  and x.starts_at < t0 + make_interval(secs => s.countdown_s + s.aftermath_s + 60)) then
         return public.admin_fail('nuke_launch', null, p_reason, 'event_overlap');
     end if;
     insert into public.nuke_events (label, starts_at, boom_at, ends_at, countdown_s, aftermath_s, reward_xp, reward_ac,
