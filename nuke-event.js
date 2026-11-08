@@ -9,8 +9,8 @@
        The answer carries SERVER time, so every countdown matches no matter when you joined.
      * Phases, all computed from the server clock:
          wait   small "incoming" bar in the last 30s
-         count  red alarm, rushing effects, big timer, T-1:00 + 0:15 announcements, SAFE PAD tapper
-         after  white flash + shake at 0:00, then darkness + a flashlight cursor, page pieces fall off
+         count  red alarm, rushing effects, ECG heart monitor (BPM climbs), adrenaline vignette, big timer, T-1:00 + 0:15 announcements, SAFE PAD tapper
+         after  WHITE-OUT holds 10s (screen quaking), fades out over 5s, THEN darkness + a flashlight cursor, page pieces fall off
          report ending screen: logo, occurred / ended, @username [ ALIVE ] / [ MISSING ]
      * Survival is decided by the SERVER (nuke_pad_finish). Rewards are paid in the database.
      * Nothing is deleted: the "destruction" is only CSS transforms and everything is restored.
@@ -37,13 +37,14 @@
     };
     var CALM_KEY = 'specsoft.nuke.calm';
     var TILES = 20, GOAL = 210;     // must match nuke_pad_finish in supabase-nuke.sql
+    var HOLD = 10000, FADE = 5000;  // after the boom: white holds 10s (shaking), then fades out over 5s, then the aftermath shows
 
     var S = {
         ev: null, off: 0, phase: 'none', loop: 0, pollT: 0, preview: false,
         user: null, safe: false, hits: 0, glow: -1, joined: false, padStarted: false, finishing: false,
         ann60: false, ann15: false, calm: false, snd: false, blocked: false, auds: {},
         root: null, dark: null, inc: null, rep: null, falls: [], destroyed: false, seen: false, reportShown: false,
-        light: null, annT: 0
+        light: null, annT: 0, ecg: null, revT: 0, quakeT: 0
     };
 
     /* ------------------------------ small helpers ------------------------------ */
@@ -161,6 +162,20 @@
             }
         } catch (e) { /* ignore */ }
     }
+    function thump() {
+        var c = ac();
+        if (!c || !S.snd) return;
+        try {
+            if (c.state === 'suspended') c.resume();
+            var v = 0.55 * (vol() / 0.9);
+            [0, 0.16].forEach(function (dt, k) {
+                var t0 = c.currentTime + dt, o = c.createOscillator(), g = c.createGain();
+                o.type = 'sine'; o.frequency.setValueAtTime(k ? 54 : 74, t0); o.frequency.exponentialRampToValueAtTime(32, t0 + 0.14);
+                g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(v * (k ? 0.7 : 1), t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.17);
+                o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + 0.19);
+            });
+        } catch (e) { /* ignore */ }
+    }
     function speak(text) {
         try {
             if (!window.speechSynthesis) return;
@@ -223,11 +238,143 @@
         return h + '</div>';
     }
 
+    // AFTERMATH builders: radiation motes, spark bursts, cracked-screen overlay
+    function motesHtml() {
+        var h = '<div class="nk-motes">';
+        for (var i = 0; i < 26; i++) h += '<i style="left:' + rand(0, 100).toFixed(1) + '%;--s:' + rand(2, 5).toFixed(1) + 'px;--t:' + rand(9, 18).toFixed(1) + 's;--d:-' + rand(0, 18).toFixed(1) + 's;--dx:' + rand(-60, 60).toFixed(0) + 'px"></i>';
+        return h + '</div>';
+    }
+    function sparksHtml() {
+        var h = '<div class="nk-sparks">';
+        for (var b = 0; b < 8; b++) {
+            var cx = rand(6, 94).toFixed(1), cy = rand(12, 78).toFixed(1), per = rand(3.2, 5.6), off = rand(0, per);
+            for (var k = 0; k < 8; k++) {
+                var a = rand(-78, 78), rad = a * Math.PI / 180, d = rand(50, 170);
+                var dx = Math.sin(rad) * d, dy = -Math.cos(rad) * d * rand(0.45, 1);
+                h += '<i style="--x:' + cx + '%;--y:' + cy + '%;--dx:' + dx.toFixed(0) + 'px;--dy:' + dy.toFixed(0) + 'px;--gy:' + rand(70, 190).toFixed(0) + 'px;--r:' + a.toFixed(0) + 'deg;--h:' + rand(8, 18).toFixed(0) + 'px;--t:' + per.toFixed(2) + 's;--d:-' + (off + rand(0, 0.18)).toFixed(2) + 's"></i>';
+            }
+        }
+        return h + '</div>';
+    }
+    function cracksHtml() {
+        var cx = rand(28, 72), cy = rand(24, 62), kx = 100 / innerWidth, ky = 100 / innerHeight, d = '', n = 14;
+        function walk(x, y, a, segs, branch) {
+            var p = 'M' + x.toFixed(2) + ' ' + y.toFixed(2), extra = '';
+            for (var s = 0; s < segs; s++) {
+                a += rand(-16, 16);
+                var st = rand(26, 80) * (1 - s / (segs + 2) * 0.5);
+                x += Math.cos(a * Math.PI / 180) * st * kx; y += Math.sin(a * Math.PI / 180) * st * ky;
+                p += 'L' + x.toFixed(2) + ' ' + y.toFixed(2);
+                if (!branch && s === 2 && Math.random() < 0.6) extra += walk(x, y, a + (Math.random() < 0.5 ? -1 : 1) * rand(25, 50), 3, true);
+            }
+            return p + extra;
+        }
+        for (var i = 0; i < n; i++) d += walk(cx, cy, i * (360 / n) + rand(-10, 10), Math.floor(rand(5, 9)), false);
+        return '<svg class="nk-cracks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="d" d="' + d + '"/><path class="l" d="' + d + '"/></svg>';
+    }
+
+
+    /* ------------------------------ heart monitor (ECG) + adrenaline ------------------------------ */
+    function gauss(p, c, w) { var d = (p - c) / w; return Math.exp(-d * d); }
+    // one PQRST heartbeat, p = 0..1 through the beat
+    function ecgWave(p) {
+        return 0.10 * gauss(p, .14, .030) - 0.13 * gauss(p, .235, .011) + 1.0 * gauss(p, .27, .009) - 0.28 * gauss(p, .305, .011) + 0.2 * gauss(p, .58, .045);
+    }
+    // BPM climbs from calm to panic across the whole countdown
+    function bpmNow() {
+        if (!S.ev) return 84;
+        var t = nowMs(), s = Date.parse(S.ev.starts_at), b = Date.parse(S.ev.boom_at);
+        var pr = Math.max(0, Math.min(1, (t - s) / Math.max(1000, b - s)));
+        var bpm = 84 + 112 * Math.pow(pr, 1.6);
+        if (b - t < 15000) bpm += rand(-3, 3);
+        return Math.round(bpm);
+    }
+    function beat() {
+        if (S.snd) thump();
+        if (!S.root || S.calm) return;
+        try {
+            var h = S.root.querySelector('.nk-hud'), a = S.root.querySelector('.nk-adr');
+            if (h && h.animate) h.animate([{ transform: 'translateX(-50%) scale(1.03)' }, { transform: 'translateX(-50%) scale(1)' }], { duration: 230, easing: 'ease-out' });
+            if (a && a.animate) a.animate([{ opacity: 1 }, { opacity: .5 }], { duration: 380, easing: 'ease-out' });
+        } catch (e) { /* ignore */ }
+    }
+    function startEcg() {
+        stopEcg();
+        if (!S.root) return;
+        var plot = S.root.querySelector('[data-plot]'), cv = S.root.querySelector('[data-ecgc]'), dot = S.root.querySelector('[data-ecgdot]'), rd = S.root.querySelector('[data-bpm]');
+        if (!plot || !cv || !cv.getContext) return;
+        var E = { cx: cv.getContext('2d'), x: 0, y: 0, ph: 0, last: 0, w: 0, h: 0, bpm: bpmNow(), raf: 0, vt: 0, onr: null };
+        S.ecg = E;
+        function size() {
+            var r = plot.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+            E.w = Math.max(160, Math.floor(r.width)); E.h = Math.max(48, Math.floor(r.height));
+            cv.width = E.w * dpr; cv.height = E.h * dpr; cv.style.width = E.w + 'px'; cv.style.height = E.h + 'px';
+            E.cx.setTransform(dpr, 0, 0, dpr, 0, 0); E.x = 0; E.y = E.h * 0.62;
+        }
+        size();
+        E.onr = size; window.addEventListener('resize', size);
+        function loop(ts) {
+            if (S.ecg !== E) return;
+            E.raf = requestAnimationFrame(loop);
+            var dt = E.last ? Math.min(0.06, (ts - E.last) / 1000) : 0.016; E.last = ts;
+            if (ts - E.vt > 250) {
+                E.vt = ts; E.bpm = bpmNow();
+                if (rd) { rd.textContent = String(E.bpm); rd.classList.toggle('hi', E.bpm >= 150); }
+            }
+            var cx = E.cx, speed = 150 + (E.bpm - 80) * 1.6, steps = Math.max(1, Math.round(speed * dt));
+            var base = E.h * 0.62, amp = E.h * 0.5, cyc = E.bpm / 60, hot = E.bpm >= 150;
+            cx.lineWidth = 2; cx.lineJoin = 'round'; cx.lineCap = 'round';
+            cx.strokeStyle = hot ? '#ff6b6b' : '#ffffff'; cx.shadowColor = hot ? 'rgba(255,64,86,.9)' : 'rgba(255,255,255,.8)'; cx.shadowBlur = 6;
+            for (var i = 0; i < steps; i++) {
+                var prev = E.ph;
+                E.ph += (dt / steps) * cyc;
+                if (E.ph >= 1) E.ph -= 1;
+                if (prev < .27 && E.ph >= .27) beat();
+                var nx = E.x + 1, ny = base - ecgWave(E.ph) * amp + (S.calm ? 0 : rand(-0.5, 0.5));
+                if (nx >= E.w) { nx = 0; E.x = 0; E.y = ny; }
+                cx.clearRect(nx, 0, 26, E.h);
+                if (nx + 26 > E.w) cx.clearRect(0, 0, nx + 26 - E.w, E.h);
+                cx.beginPath(); cx.moveTo(E.x, E.y); cx.lineTo(nx, ny); cx.stroke();
+                E.x = nx; E.y = ny;
+            }
+            if (dot) dot.style.transform = 'translate(' + E.x.toFixed(1) + 'px,' + E.y.toFixed(1) + 'px)';
+        }
+        E.raf = requestAnimationFrame(loop);
+    }
+    function stopEcg() {
+        var E = S.ecg;
+        if (!E) return;
+        S.ecg = null;
+        if (E.raf) cancelAnimationFrame(E.raf);
+        if (E.onr) window.removeEventListener('resize', E.onr);
+    }
+
+    // AFTER THE BOOM: the screen quakes hard while the white holds, then eases off while it fades
+    function stopQuake() {
+        clearTimeout(S.quakeT);
+        ROOT.classList.remove('nk-quake', 'nk-quake-soft');
+    }
+    function startQuake(elapsed) {
+        stopQuake();
+        if (S.calm) return;
+        var strong = HOLD - elapsed, total = HOLD + FADE - elapsed;
+        if (total <= 0) return;
+        if (strong > 0) {
+            ROOT.classList.add('nk-quake');
+            S.quakeT = setTimeout(function () { ROOT.classList.remove('nk-quake'); ROOT.classList.add('nk-quake-soft'); S.quakeT = setTimeout(stopQuake, FADE); }, strong);
+        } else {
+            ROOT.classList.add('nk-quake-soft');
+            S.quakeT = setTimeout(stopQuake, total);
+        }
+    }
+
     function renderCount() {
         mount(); rootClass('');
         S.root.innerHTML =
-            '<div class="nk-alarm"></div><div class="nk-rays"></div>' + rushHtml() + '<div class="nk-pulse"></div><div class="nk-glitch"><i></i><i></i><i></i></div>' +
-            '<div class="nk-hud"><div class="nk-stripe"></div><div class="nk-top"><span class="nk-tag" data-tag>\u2622 NUCLEAR STRIKE INBOUND</span><button type="button" class="nk-mini" data-a="snd"></button></div>' +
+            '<div class="nk-alarm"></div><div class="nk-beacon b1"></div><div class="nk-beacon b2"></div><div class="nk-edge l"></div><div class="nk-edge r"></div><div class="nk-rays"></div>' + rushHtml() + '<div class="nk-adr"></div>' +
+            '<div class="nk-ecg" data-ecg><div class="nk-ecg-read"><i>\u2665</i><b data-bpm>--</b><span>BPM</span></div><div class="nk-ecg-plot" data-plot><canvas data-ecgc></canvas><i class="nk-ecg-dot" data-ecgdot></i></div></div>' +
+            '<div class="nk-whiteout" data-white></div>' +
+            '<div class="nk-hud"><div class="nk-top"><span class="nk-tag" data-tag>NUCLEAR STRIKE INBOUND</span><button type="button" class="nk-mini" data-a="snd"></button></div>' +
             '<div class="nk-time" data-time>--:--</div><div class="nk-sub">TIME TO IMPACT</div><div class="nk-meter"><i data-meter></i></div>' +
             '<div class="nk-actions"><button type="button" class="nk-btn" data-a="pad">SHOW SAFE PAD</button><span class="nk-safe" data-safe hidden>\uD83D\uDEE1 YOU ARE SAFE</span></div>' +
             '<div class="nk-reward" data-reward></div></div>' +
@@ -238,23 +385,43 @@
         if (ev.reward_xp > 0) rw.push('+' + ev.reward_xp + ' XP');
         if (ev.reward_ac > 0) rw.push('+' + ev.reward_ac + ' APEX Credits');
         S.root.querySelector('[data-reward]').textContent = S.preview ? 'PREVIEW \u00B7 nobody else sees this \u00B7 no rewards' : (rw.length ? 'SURVIVE TO EARN ' + rw.join(' \u00B7 ') : 'HIT ' + GOAL + ' TILES ON THE SAFE PAD TO SURVIVE');
-        if (S.preview) S.root.querySelector('[data-tag]').textContent = '\u2622 PREVIEW \u00B7 NUCLEAR STRIKE';
-        paintSoundBtn(); paintPad(); paintSafe();
+        if (S.preview) S.root.querySelector('[data-tag]').textContent = 'PREVIEW \u00B7 NUCLEAR STRIKE';
+        var wn = S.root.querySelector('[data-warn]'); if (wn && ssGet('nk.warnx') === '1') wn.hidden = true;
+        paintSoundBtn(); paintPad(); paintSafe(); startEcg();
     }
 
-    function renderAfter(late) {
+    function renderAfter(late, elapsed) {
+        stopEcg(); ROOT.classList.remove('nk-jit');
         mount(); S.root.innerHTML = '';
         var spared = S.safe && S.ev.spare;
         rootClass('nk-after' + (spared ? ' nk-bunker' : ''));
         var html = '';
-        if (!spared && !S.calm) { html += '<div class="nk-ash">'; for (var i = 0; i < 22; i++) html += '<i style="left:' + rand(0, 100).toFixed(1) + '%;animation-delay:-' + rand(0, 9).toFixed(1) + 's;animation-duration:' + rand(6, 12).toFixed(1) + 's"></i>'; html += '</div>'; }
-        html += '<div class="nk-afterbar" data-bar></div><div class="nk-flash" data-flash></div>';
-        S.root.innerHTML = html;
-        if (!late) {
-            var f = S.root.querySelector('[data-flash]'); void f.offsetWidth; f.classList.add('go');
-            if (!S.calm) { ROOT.classList.add('nk-shake'); setTimeout(function () { ROOT.classList.remove('nk-shake'); }, 1500); }
+        if (!spared) {
+            html += '<div class="nk-radglow"></div><div class="nk-trefoil">\u2622</div>';
+            if (!S.calm) {
+                html += motesHtml();
+                html += '<div class="nk-ash">'; for (var i = 0; i < 22; i++) html += '<i style="left:' + rand(0, 100).toFixed(1) + '%;animation-delay:-' + rand(0, 9).toFixed(1) + 's;animation-duration:' + rand(6, 12).toFixed(1) + 's"></i>'; html += '</div>';
+            }
+            html += cracksHtml();
+            if (!S.calm) html += sparksHtml();
+            html += '<div class="nk-geiger" data-geiger></div>';
         }
-        if (!spared) { startLight(); setTimeout(destroy, late ? 200 : 450); }
+        html += '<div class="nk-afterbar" data-bar></div>';
+        // the white-out: opacity 1 for 10s (the aftermath stays hidden under it), then a slow 5s fade
+        var inWhite = elapsed < HOLD + FADE;
+        if (inWhite) html += '<div class="nk-blast" data-blast><div class="nk-blast-fx"><b></b><b class="r2"></b></div><div class="nk-blast-msg">SHOCKWAVE IN PROGRESS</div></div>';
+        S.root.innerHTML = html;
+        var bl = S.root.querySelector('[data-blast]');
+        if (bl) {
+            bl.style.animationDelay = '-' + (Math.max(0, elapsed) / 1000).toFixed(2) + 's';
+            setTimeout(function () { if (bl.parentNode) bl.parentNode.removeChild(bl); }, Math.max(0, HOLD + FADE - elapsed) + 200);
+            startQuake(elapsed);
+        }
+        // darkness + flashlight + falling pieces start only when the white begins to fade
+        if (!spared) {
+            clearTimeout(S.revT);
+            S.revT = setTimeout(function () { if (S.phase !== 'after') return; rustOn(); startLight(); setTimeout(destroy, 150); }, Math.max(0, HOLD - elapsed));
+        }
     }
 
     /* ------------------------------ clicks ------------------------------ */
@@ -267,8 +434,8 @@
         if (k === 'pad') togglePad(true);
         else if (k === 'padx') togglePad(false);
         else if (k === 'snd') setSound(!S.snd);
-        else if (k === 'calm') { S.calm = true; lsSet(CALM_KEY, '1'); if (S.root) S.root.classList.add('nk-calm'); var w = S.root.querySelector('[data-warn]'); if (w) w.hidden = true; }
-        else if (k === 'warnx') { var w2 = S.root.querySelector('[data-warn]'); if (w2) w2.hidden = true; }
+        else if (k === 'calm') { S.calm = true; lsSet(CALM_KEY, '1'); if (S.root) S.root.classList.add('nk-calm'); var w = S.root.querySelector('[data-warn]'); if (w) w.hidden = true; ssSet('nk.warnx', '1'); ROOT.classList.remove('nk-jit'); }
+        else if (k === 'warnx') { var w2 = S.root.querySelector('[data-warn]'); if (w2) w2.hidden = true; ssSet('nk.warnx', '1'); }
     }
     function onDown(e) {
         var tile = e.target.closest && e.target.closest('.nk-tile');
@@ -382,8 +549,17 @@
         if (!S.root) return;
         var tm = S.root.querySelector('[data-time]');
         if (tm) tm.textContent = mmss(left);
+        var wo = S.root.querySelector('[data-white]');
+        if (wo && left <= 15 && !wo.getAttribute('data-on')) {
+            var msLeft = Math.max(0, Math.min(15000, Date.parse(S.ev.boom_at) - nowMs()));
+            wo.setAttribute('data-on', '1');
+            wo.style.animation = 'nkWhite 15s cubic-bezier(.35, 0, .85, .55) ' + (-(15000 - msLeft) / 1000).toFixed(2) + 's forwards';
+        }
         var mt = S.root.querySelector('[data-meter]');
         if (mt && S.ev.countdown_s) mt.style.width = Math.max(0, Math.min(100, left / S.ev.countdown_s * 100)).toFixed(1) + '%';
+        var pr = S.ev.countdown_s ? 1 - Math.max(0, Math.min(1, left / S.ev.countdown_s)) : 0;
+        S.root.style.setProperty('--adr', pr.toFixed(3));
+        ROOT.classList.toggle('nk-jit', !S.calm && left <= 15 && left > 0);
         S.root.classList.toggle('nk-t60', left <= 60 && left > 15);
         S.root.classList.toggle('nk-t15', left <= 15);
         if (!S.ann60 && S.ev.countdown_s > 60 && left <= 60) { S.ann60 = true; announce('T-MINUS 1 MINUTE', 'One minute to impact.'); }
@@ -422,7 +598,7 @@
         ROOT.classList.remove('nk-calm-page');
     }
 
-    var SKIP = '#nk-root,#nk-dark,#nk-inc,#nk-report,.nk-toast,.ss-toggle,#ss-back,#ss-front,[id*="cursor"],[class*="cursor"],canvas,video,iframe,script,style,link,dialog,[data-nuke-keep]';
+    var SKIP = '#nk-root,#nk-dark,#nk-rust,#nk-inc,#nk-report,.nk-toast,.ss-toggle,#ss-back,#ss-front,[id*="cursor"],[class*="cursor"],canvas,video,iframe,script,style,link,dialog,[data-nuke-keep]';
     var PICK = 'h1,h2,h3,h4,h5,p,li,img,svg,button,figure,table,form,nav,aside,section>div,[class*="card"],[class*="panel"],[class*="tile"],[class*="btn"],[class*="item"],[class*="banner"]';
 
     function pickTargets() {
@@ -439,7 +615,7 @@
             all.push(el);
         }
         for (var j = all.length - 1; j > 0; j--) { var k = Math.floor(Math.random() * (j + 1)), t = all[j]; all[j] = all[k]; all[k] = t; }
-        var max = small() ? 34 : 64, out = [];
+        var max = small() ? 44 : 96, out = [];
         for (var n = 0; n < all.length && out.length < max; n++) {
             var c = all[n], clash = false;
             for (var m = 0; m < out.length; m++) { if (out[m].contains(c) || c.contains(out[m])) { clash = true; break; } }
@@ -448,26 +624,36 @@
         return out;
     }
 
+    function rustOn() {
+        if (document.getElementById('nk-rust')) return;
+        var d = document.createElement('div'); d.id = 'nk-rust'; ROOT.appendChild(d); ROOT.classList.add('nk-rusty');
+    }
+    function rustOff() {
+        var d = document.getElementById('nk-rust'); if (d && d.parentNode) d.parentNode.removeChild(d);
+        ROOT.classList.remove('nk-rusty');
+    }
+
     function destroy() {
         if (S.calm || S.destroyed || S.phase !== 'after') return;
         S.destroyed = true;
         var list = pickTargets(), vh = innerHeight;
         list.forEach(function (el) {
-            S.falls.push({ el: el, style: el.getAttribute('style') });
+            S.falls.push({ el: el, style: el.getAttribute('style') }); el.classList.add('nk-rusted');
             var mode = Math.random(), tx, ty, rot, op, dur;
             var r = el.getBoundingClientRect();
             if (mode < 0.55) { ty = Math.max(60, (vh - r.top) * rand(0.45, 1) + rand(0, 90)); tx = rand(-240, 240); rot = rand(-110, 110); op = rand(0.35, 1); dur = rand(1.0, 2.4); }
             else if (mode < 0.8) { ty = rand(8, 70); tx = rand(-30, 30); rot = rand(-16, 16); op = 1; dur = rand(0.3, 0.8); }
             else { ty = rand(-20, 40); tx = rand(-60, 60); rot = rand(-40, 40); op = rand(0.25, 0.6); dur = rand(0.5, 1.2); }
-            var delay = Math.pow(Math.random(), 1.8) * 20;
+            var delay = Math.random() < 0.35 ? Math.random() * 0.4 : Math.pow(Math.random(), 1.6) * 7;
             el.style.willChange = 'transform';
             el.style.transition = 'transform ' + dur.toFixed(2) + 's cubic-bezier(.55,.02,.85,.45) ' + delay.toFixed(2) + 's, opacity ' + dur.toFixed(2) + 's linear ' + delay.toFixed(2) + 's';
             el.style.transform = 'translate(' + tx.toFixed(0) + 'px,' + ty.toFixed(0) + 'px) rotate(' + rot.toFixed(0) + 'deg)';
             el.style.opacity = op.toFixed(2);
         });
     }
-    function putBack(x) { if (x.style === null) x.el.removeAttribute('style'); else x.el.setAttribute('style', x.style); }
+    function putBack(x) { x.el.classList.remove('nk-rusted'); if (x.style === null) x.el.removeAttribute('style'); else x.el.setAttribute('style', x.style); }
     function restore(fast) {
+        rustOff();
         var f = S.falls; S.falls = []; S.destroyed = false;
         if (!f.length) return;
         if (fast) { f.forEach(putBack); return; }
@@ -562,7 +748,7 @@
         } else if (ph === 'after') {
             removeIncoming();
             var late = (t - b) > 3500;
-            renderAfter(late); joinEvent();
+            renderAfter(late, t - b); joinEvent();
             if (!late) {
                 stopTrack('ost', true); stopTrack('alarm', true);
                 if (S.snd) { var a = S.ev.audio || {}; if (a.boom) track('boom', a.boom, false, 0); else synthBoom(); }
@@ -586,13 +772,16 @@
         else if (ph === 'after' && S.root) {
             var left = Math.ceil((e - t) / 1000), bar = S.root.querySelector('[data-bar]');
             if (bar) bar.textContent = (S.safe && ev.spare ? '\uD83D\uDEE1 SAFE IN THE BUNKER' : '\u2622 AFTERMATH') + ' \u00B7 SYSTEM RECOVERING IN ' + mmss(left);
+            var g = S.root.querySelector('[data-geiger]');
+            if (g) { S.rad = Math.max(2.5, Math.min(14, (S.rad || 6) + rand(-1.4, 1.4))); g.textContent = '\u2622 ' + S.rad.toFixed(2) + ' Sv/h \u00B7 LETHAL'; }
             if (S.dark && left <= 6) S.dark.classList.add('is-dawn');
             if (left <= 3 && S.falls.length && !S.rebuilding) { S.rebuilding = true; restore(false); }
         }
     }
 
     function teardown(abort) {
-        stopAllAudio(); stopLight();
+        stopAllAudio(); stopLight(); stopEcg(); stopQuake(); clearTimeout(S.revT);
+        ROOT.classList.remove('nk-jit');
         restore(!!abort);
         S.rebuilding = false;
         if (S.root && S.root.parentNode) S.root.parentNode.removeChild(S.root);
@@ -661,8 +850,8 @@
         if (S.loop) { clearInterval(S.loop); S.loop = 0; }
         teardown(true);
         var n = Date.now();
-        setEvent({ id: 'preview', label: 'Preview', starts_at: new Date(n + 3000).toISOString(), boom_at: new Date(n + 3000 + 45000).toISOString(), ends_at: new Date(n + 3000 + 45000 + 30000).toISOString(),
-            countdown_s: 45, aftermath_s: 30, spare: false, volume: 70, reward_xp: 0, reward_ac: 0, audio: {} });
+        setEvent({ id: 'preview', label: 'Preview', starts_at: new Date(n + 3000).toISOString(), boom_at: new Date(n + 3000 + 45000).toISOString(), ends_at: new Date(n + 3000 + 45000 + 60000).toISOString(),
+            countdown_s: 45, aftermath_s: 60, spare: false, volume: 70, reward_xp: 0, reward_ac: 0, audio: {} });
         S.off = 0; S.safe = false; S.hits = 0;
     }
 
