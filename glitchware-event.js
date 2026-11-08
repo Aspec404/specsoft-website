@@ -73,7 +73,8 @@
         root: null, cbox: null, items: [], wins: [], inc: null, rep: null, reportShown: false, seen: false,
         burstT: 0, endBurstT: 0, winT: 0, pileI: 0, outT: [], outroOn: false, annT: 0,
         tears: [], scr: [], cand: null, candAt: 0, cx: 0, cy: 0, zTop: 30, vimg: null,
-        ann40: false, ann60: false, ann15: false
+        ann40: false, ann60: false, ann15: false,
+        pending: 0, verifying: false
     };
     S.cx = innerWidth / 2; S.cy = innerHeight / 2;
 
@@ -642,23 +643,52 @@
         popText(b, '+' + val);
         S.pts += val; paintHud(); bumpHud(); saveState();
         if (S.snd) blip();
-        if (S.preview || !S.user) { if (S.pts >= S.ev.goal) doPurge(null); return; }
-        send(i, key, val, 0, b);
+        if (S.preview) { if (S.pts >= S.ev.goal) doPurge(null); return; }
+        if (S.user) { send(i, key, val, 0, b); return; }
+        // FIX: the session may still be loading. Ask first, and only call it practice mode when really signed out
+        S.pending++;
+        loadUser().then(function (u) {
+            S.pending = Math.max(0, S.pending - 1);
+            if (u) send(i, key, val, 0, b);
+            else if (S.pts >= S.ev.goal && !S.purged) doPurge(null);
+        }, function () {
+            S.pending = Math.max(0, S.pending - 1);
+            if (S.pts >= S.ev.goal && !S.purged) doPurge(null);
+        });
     }
     function send(i, key, val, n, b) {
+        S.pending++;
+        var done = false;
+        function fin() { if (!done) { done = true; S.pending = Math.max(0, S.pending - 1); } }
         rpc('glitch_collect', { p_event: S.ev.id, p_page: PAGE, p_idx: i }).then(function (d) {
+            fin();
             if (!d) return;
             if (typeof d.points === 'number') { S.pts = d.points; paintHud(); saveState(); }
+            S.verifying = false;
             if (d.purged && !S.purged) doPurge(d);
         }).catch(function (err) {
             var m = String((err && err.message) || '');
-            if (/too_fast/.test(m) && n < 3) { setTimeout(function () { send(i, key, val, n + 1, b); }, 330); return; }
-            if (/too_fast/.test(m)) {      // the server did not believe it yet: put the credit back
+            if (/too_fast/.test(m) && n < 3) { setTimeout(function () { fin(); send(i, key, val, n + 1, b); }, 330); return; }
+            if (/too_fast/.test(m)) {
+                // FIX: the server wants a real person to take a little time before the WINNING pickup counts.
+                // Do not throw the credit away: keep trying every 2 s until the server accepts it (or the event is over).
+                var closing = S.ev && Date.parse(S.ev.ends_at) + 1800 < nowMs();
+                if (S.ev && S.pts >= S.ev.goal && !S.purged && !closing) {
+                    if (!S.verifying) {
+                        S.verifying = true;
+                        var rw = S.root && S.root.querySelector('[data-reward]');
+                        if (rw) rw.textContent = 'VERIFYING YOUR PURGE WITH THE SERVER...';
+                    }
+                    setTimeout(function () { fin(); if (!S.purged && S.ev) send(i, key, val, 3, b); }, 2000);
+                    return;
+                }
+                fin();
                 delete S.got[key]; S.pts = Math.max(0, S.pts - val); paintHud(); saveState();
                 if (b) { b.classList.remove('is-gone', 'is-got'); }
                 toast('Easy. The server says that was too fast. Try that one again.');
                 return;
             }
+            fin();
             if (/not_signed_in/.test(m)) { S.user = null; }
         });
     }
@@ -706,6 +736,7 @@
     function doPurge(d) {
         if (S.purged || !S.ev) return;
         S.purged = true;
+        if (S.outroOn) cancelOutro();      // FIX: the server's answer can land AFTER the timer hit 0:00
         var parts = [];
         if (d && d.reward_xp > 0) parts.push('+' + d.reward_xp + ' XP');
         if (d && d.reward_ac > 0) parts.push('+' + d.reward_ac + ' APEX Credits');
@@ -739,8 +770,40 @@
     }
 
     /* ------------------------------ LOSS: pile-up, jumpscare, crash ------------------------------ */
+    // undo a loss sequence that is already running (used when a late purge answer arrives)
+    function cancelOutro() {
+        S.outT.forEach(clearTimeout); S.outT = []; clearInterval(S.pileI);
+        S.outroOn = false;
+        stopTrack('scare'); stopTrack('crash');
+        endBurst();
+        if (S.root) ['.gw-cut', '.gw-scare', '.gw-crash'].forEach(function (q) { var n = S.root.querySelector(q); if (n && n.parentNode) n.parentNode.removeChild(n); });
+    }
+    function startLoss() {
+        if (S.purged || S.phase !== 'outro' || !S.ev) return;
+        runOutro(Math.max(0, nowMs() - Date.parse(S.ev.ends_at)));
+    }
+    // FIX: before ANYONE gets the jumpscare, make sure the server does not already count them as PURGED
+    // (a pickup still on its way, a purge earned in another tab, or a page opened after 0:00)
+    function gateOutro() {
+        if (S.preview) { startLoss(); return; }
+        var t0 = Date.now(), fin = false;
+        function go() { if (fin) return; fin = true; startLoss(); }
+        setTimeout(go, 2600);                       // never keep anyone waiting longer than this
+        (function waitPending() {
+            if (S.purged || fin) return;
+            if (S.pending > 0 && Date.now() - t0 < 2600) { setTimeout(waitPending, 120); return; }
+            loadUser().then(function (u) {
+                if (S.purged || fin) return;
+                if (!u) { go(); return; }
+                Promise.resolve(rpc('glitch_join', { p_event: S.ev.id })).then(function (d) {
+                    if (S.purged || fin) return;
+                    if (d && d.ok !== false && d.purged) { fin = true; silentPurge(); } else go();
+                }).catch(go);
+            }).catch(go);
+        })();
+    }
     function runOutro(el) {
-        if (S.outroOn || !S.ev) return;
+        if (S.outroOn || !S.ev || S.purged) return;
         S.outroOn = true;
         clearTimeout(S.burstT); clearTimeout(S.winT); stopTrack('loop', true); stopTrack('panic', true);
         removeCredits();
@@ -890,7 +953,7 @@
         } else if (ph === 'outro') {
             removeIncoming();
             if (S.purged) { clearTimeout(S.burstT); clearTimeout(S.winT); stopAllAudio(); }
-            else runOutro(t - e);
+            else gateOutro();
         } else if (ph === 'report') {
             var wasIn = S.seen;
             teardown(false);
