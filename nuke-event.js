@@ -801,7 +801,11 @@
         S.calm = reducedMotion();
     }
 
+    // glitchware is live (or its jumpscare is running): the nuke event waits, so two events never fight over the screen
+    function glitchBusy() { try { var st = window.SpecGlitch && window.SpecGlitch.state && window.SpecGlitch.state(); return !!st && (st.phase === 'run' || st.phase === 'outro'); } catch (e) { return false; } }
+
     function setEvent(ev) {
+        if (glitchBusy()) return;
         ev.audio = ev.audio || {};
         var isNew = !S.ev || S.ev.id !== ev.id;
         if (isNew && S.ev) { teardown(true); if (S.rep && S.rep.parentNode) S.rep.parentNode.removeChild(S.rep); }

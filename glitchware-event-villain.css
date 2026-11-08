@@ -1,0 +1,37 @@
+/* ==========================================================================
+   SPECSOFT® GLITCHWARE: VILLAIN ART  (ADD THIS BLOCK TO THE END OF glitchware-event.css)
+   Styles for the villain image staff upload in Console > Events > Glitchware:
+   intro takeover, fake-window face, edge peeks, and the jumpscare.
+   ========================================================================== */
+
+/* intro takeover: the villain stares out of the black screen above the title */
+.gw-intro-v { display: block; width: min(34vmin, 260px); height: min(34vmin, 260px); object-fit: contain; pointer-events: none; user-select: none;
+    filter: drop-shadow(-5px 0 rgba(255, 30, 70, .85)) drop-shadow(5px 0 rgba(0, 240, 255, .85)); animation: gwVilJit .14s steps(2) infinite; }
+@keyframes gwVilJit { 0% { translate: 0 0; } 50% { translate: 3px -2px; } 100% { translate: -3px 2px; } }
+
+/* fake windows that show the villain's face instead of the round icon */
+.gw-win-ico.vil { width: 46px; height: 46px; border-radius: 6px; background: transparent; overflow: visible; }
+.gw-win-ico.vil img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none;
+    filter: drop-shadow(-2px 0 rgba(255, 30, 70, .85)) drop-shadow(2px 0 rgba(0, 240, 255, .85)); }
+
+/* the villain pokes in from a screen edge for a split second (--o = where along that edge) */
+.gw-peek { position: absolute; z-index: 20; width: min(26vmin, 190px); height: auto; opacity: 0; pointer-events: none; user-select: none;
+    filter: drop-shadow(-4px 0 rgba(255, 30, 70, .8)) drop-shadow(4px 0 rgba(0, 240, 255, .8)); animation: gwPeek .72s steps(6) forwards; }
+.gw-peek.p0 { left: 0;   top: var(--o);  --a: translate(-100%, -50%) rotate(90deg);  --b: translate(-35%, -50%) rotate(90deg); }
+.gw-peek.p1 { right: 0;  top: var(--o);  --a: translate(100%, -50%) rotate(-90deg);  --b: translate(35%, -50%) rotate(-90deg); }
+.gw-peek.p2 { top: 0;    left: var(--o); --a: translate(-50%, -100%) rotate(180deg); --b: translate(-50%, -35%) rotate(180deg); }
+.gw-peek.p3 { bottom: 0; left: var(--o); --a: translate(-50%, 100%);                 --b: translate(-50%, 35%); }
+@keyframes gwPeek { 0% { opacity: 0; transform: var(--a); } 25%, 70% { opacity: 1; transform: var(--b); } 100% { opacity: 0; transform: var(--a); } }
+.gw-calm .gw-peek { display: none; }
+
+/* jumpscare with the villain image: keep its own colours (the plain logo version is inverted white-on-black) */
+.gw-scare.is-vil img { filter: contrast(1.25) saturate(1.25) drop-shadow(-12px 0 rgba(255, 30, 70, .9)) drop-shadow(12px 0 rgba(0, 240, 255, .9)); }
+.gw-scare.is-vil img.b { filter: hue-rotate(160deg) saturate(1.5); }
+
+/* ending screen: the villain (or logo) a little bigger */
+.gw-rep img { max-width: 120px; max-height: 120px; width: auto; height: 72px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .gw-intro-v { animation: none; }
+    .gw-peek { display: none; }
+}

@@ -497,7 +497,7 @@
         password_create: 'Admin password created', password_change: 'Admin password changed', password_reset: 'Admin password reset',
         panel_unlock: 'Console unlock', hub_hide: 'Hub visibility changed', sanction_details: 'Ban details updated',
         appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered',
-        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
+        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', glitch_settings_set: 'Glitchware settings changed', glitch_launch: 'Glitchware launched', glitch_abort: 'Glitchware aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
         case_assign: 'Case assigned', case_status: 'Case status changed', case_resolve: 'Case closed', case_note: 'Case note added'
     };
 
@@ -1348,7 +1348,7 @@
     ];
     var NUKE_ERR = { bad_countdown: 'Countdown must be 30 to 1800 seconds.', bad_aftermath: 'Aftermath must be 20 to 900 seconds.', bad_reward: 'Rewards must be 0 or more.', bad_volume: 'Volume is 0 to 100.', bad_audio_url: 'That audio link is not from the event-audio bucket.', bad_time: 'Pick a time at least 10 seconds from now.', event_overlap: 'Another nuke event is already scheduled around then.', not_active: 'That event is not running or scheduled any more.' };
 
-    async function viewEvents(root, token) {
+    async function viewNukeEvent(root, token) {
         add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
         var d = await rpc('admin_nuke_get');
         if (stale(token)) return;
@@ -1480,6 +1480,245 @@
                 el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: e.label || 'Nuke event' }),
                     el('div', { class: 'ad-row-sub', text: fmt(e.starts_at) + ' to ' + fmt(e.ends_at) + '  \u00B7  ' + (e.players || 0) + ' signed in, ' + (e.alive || 0) + ' ALIVE, ' + Math.max(0, (e.players || 0) - (e.alive || 0)) + ' MISSING' })),
                 el('div', { class: 'ad-row-end' }, pill(ph[0], ph[1]))));
+        });
+        if (!evs.length) hist.appendChild(el('p', { class: 'ad-help', text: 'No events yet.' }));
+        add(root, panel('History', hist));
+    }
+
+    /* ----------------------------------------------------------------------
+       EVENTS: tabs. One tab per live event (Nuke, Glitchware).
+       ---------------------------------------------------------------------- */
+    async function viewEvents(root, token) {
+        var tab = S.evTab === 'glitch' ? 'glitch' : 'nuke';
+        function tabBtn(id, label) {
+            return el('button', { type: 'button', class: 'ad-btn ad-btn--sm' + (tab === id ? '' : ' ad-btn--ghost'), text: label, onclick: function () {
+                if (tab === id) return;
+                S.evTab = id; viewEvents(clear($('adView')), token);
+            } });
+        }
+        add(root, el('div', { class: 'ad-toolbar' }, tabBtn('nuke', 'Nuke event'), tabBtn('glitch', 'Glitchware')));
+        var body = el('div'); add(root, body);
+        if (tab === 'glitch') return viewGlitchware(body, token);
+        return viewNukeEvent(body, token);
+    }
+
+    /* ----------------------------------------------------------------------
+       EVENTS: GLITCHWARE (live and synced for every visitor)
+       Launch now or schedule it, abort it, set timer / goal / hunt pages / rewards,
+       upload the VILLAIN image (png, webp, gif, jpg: 5 MB max) and 5 OST slots (mp3 / m4a, 15 MB max each).
+       Everything staff change here is audit logged.
+       ---------------------------------------------------------------------- */
+    var GW_MAX_AUDIO = 15 * 1024 * 1024, GW_MAX_IMG = 5 * 1024 * 1024;
+    var GW_SLOTS = [
+        ['loop', 'Main OST (loops)', 'Plays while the page is hijacked, starting at the right spot for people who join late. Your main Glitchware OST goes here.'],
+        ['panic', 'Panic OST (final 30 seconds, loops)', 'Optional. When 30 seconds are left the main OST fades out and this one takes over.'],
+        ['scare', 'Jumpscare sound', 'Plays once when the villain jumpscares people who lost.'],
+        ['crash', 'Crash screen ambience (loops)', 'Optional. Plays on the GLITCHWARE WON crash screen after the jumpscare.'],
+        ['purge', 'Victory sting', 'Plays once when somebody purges the glitchware.']
+    ];
+    var GW_ERR = { bad_duration: 'Timer must be 30 to 1800 seconds.', bad_goal: 'Goal must be 10 to 5000 points.', bad_density: 'Credits per page must be 3 to 12.', bad_intensity: 'Pick low, medium or chaos.', bad_reward: 'Rewards must be 0 or more.', bad_volume: 'Volume is 0 to 100.', bad_audio_url: 'That audio link is not from the glitch-assets bucket.', bad_image_url: 'That image link is not from the glitch-assets bucket.', bad_pages: 'Pages can only use letters, numbers, - and _ (max 30 pages).', bad_time: 'Pick a time at least 10 seconds from now.', no_pages: 'Add at least one hunt page in Settings and save first.', goal_unreachable: 'The goal is too high for the pages and credits per page you set. Add pages, raise credits per page, or lower the goal.', event_overlap: 'Another event (nuke or glitchware) is already scheduled around then.', not_active: 'That event is not running or scheduled any more.' };
+    // must match glitch_value() in supabase-glitchware.sql and valueOf() in glitchware-event.js
+    function gwPts(i) { return i % 6 === 0 ? 25 : (i % 3 === 0 ? 10 : 5); }
+    function gwPerPage(density) { var t = 0; for (var i = 0; i < density; i++) t += gwPts(i); return t; }
+    // "index, Store, chats.html" -> ['index','store','chats']  (page = file name without .html, same as the event script uses)
+    function gwParsePages(str) {
+        var seen = {}, out = [];
+        String(str || '').split(/[\s,]+/).forEach(function (p) {
+            p = p.toLowerCase().replace(/\.html?$/, '').replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+            if (p && !seen[p]) { seen[p] = 1; out.push(p); }
+        });
+        return out;
+    }
+
+    async function viewGlitchware(root, token) {
+        add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
+        var d = await rpc('admin_glitch_get', {}, { quiet: true });
+        if (stale(token)) return;
+        clear(root);
+        if (!d || d.ok === false) {
+            if (d && (d.error === 'locked' || d.error === 'not_staff' || d.error === 'not_authenticated')) return;
+            add(root, el('p', { class: 'ad-help', text: 'Could not load Glitchware. Is supabase-glitchware.sql installed?' })); return;
+        }
+
+        var st = d.settings || {}, evs = d.events || [], nowMs = Date.parse(d.now) || Date.now();
+        var cur = { villain: st.villain_url || null, loop: st.audio_loop || null, panic: st.audio_panic || null, scare: st.audio_scare || null, crash: st.audio_crash || null, purge: st.audio_purge || null };
+        function again() { viewEvents(clear($('adView')), token); }
+        function gfail(r) {
+            if (r && (r.error === 'locked' || r.error === 'not_staff' || r.error === 'not_authenticated')) return;
+            toast(GW_ERR[r && r.error] || (r && r.error === 'server' ? 'The server refused that. Is supabase-glitchware.sql installed?' : ('Action failed: ' + ((r && r.error) || 'unknown'))), true);
+        }
+        function phaseOf(e) {
+            if (e.aborted_at) return ['ABORTED', 'warn'];
+            var s = Date.parse(e.starts_at), en = Date.parse(e.ends_at);
+            if (nowMs < s) return ['SCHEDULED', 'info'];
+            if (nowMs < en) return ['HIJACKED', 'ok'];
+            return ['DONE', null];
+        }
+
+        // ---- settings controls (built first: the preview button reads them) ----
+        function num(v, min, max) { return el('input', { class: 'ad-field', type: 'number', min: String(min), max: String(max), step: '1', value: String(v) }); }
+        var iDur = num(st.duration_s != null ? st.duration_s : 180, 30, 1800);
+        var iGoal = num(st.goal != null ? st.goal : 300, 10, 5000);
+        var iDen = num(st.density != null ? st.density : 8, 3, 12);
+        var iInt = el('select', { class: 'ad-select' }, [['low', 'Low (gentle)'], ['medium', 'Medium'], ['chaos', 'Chaos (wild)']].map(function (o) {
+            var op = el('option', { value: o[0], text: o[1] }); if ((st.intensity || 'medium') === o[0]) op.selected = true; return op;
+        }));
+        var iScare = el('input', { type: 'checkbox' }); iScare.checked = st.jumpscare !== false;
+        var iPages = el('input', { class: 'ad-field', type: 'text', maxlength: '400', placeholder: 'index, store, chats', value: (st.pages || []).join(', ') });
+        var iXp = num(st.reward_xp || 0, 0, 1000000), iAc = num(st.reward_ac || 0, 0, 1000000), iVol = num(st.volume != null ? st.volume : 80, 0, 100);
+        var iWhy = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+        var math = el('p', { class: 'ad-help' });
+        function paintMath() {
+            var pg = gwParsePages(iPages.value), den = parseInt(iDen.value, 10) || 8, ppp = gwPerPage(den), total = pg.length * ppp, maxGoal = Math.floor(total * 0.8), goal = parseInt(iGoal.value, 10) || 0, msg, bad = false;
+            if (!pg.length) { msg = 'Add at least one hunt page or the event cannot launch.'; bad = true; }
+            else {
+                msg = pg.length + (pg.length === 1 ? ' page' : ' pages') + ' x ' + ppp + ' points per page = ' + total + ' points hidden. The goal can be at most ' + maxGoal + ' (80% of what is hidden).';
+                if (goal > maxGoal) { msg += ' Your goal of ' + goal + ' is too high: add pages, raise credits per page, or lower the goal.'; bad = true; }
+            }
+            math.textContent = msg; math.style.color = bad ? '#ff6b6b' : '';
+        }
+        [iPages, iDen, iGoal].forEach(function (i) { i.addEventListener('input', paintMath); }); paintMath();
+
+        async function saveAll(reasonText, quiet) {
+            var r = await rpc('admin_glitch_settings_set', {
+                p_duration: parseInt(iDur.value, 10), p_goal: parseInt(iGoal.value, 10), p_density: parseInt(iDen.value, 10),
+                p_intensity: iInt.value, p_jumpscare: iScare.checked,
+                p_xp: parseInt(iXp.value, 10) || 0, p_ac: parseInt(iAc.value, 10) || 0, p_volume: parseInt(iVol.value, 10) || 0,
+                p_villain: cur.villain, p_pages: gwParsePages(iPages.value),
+                p_loop: cur.loop, p_panic: cur.panic, p_scare: cur.scare, p_crash: cur.crash, p_purge: cur.purge,
+                p_reason: reasonText || iWhy.value.trim() || null }, { quiet: true });
+            if (r && r.ok) { if (!quiet) toast('Saved. Applies to the NEXT launch (a running event keeps its own settings).'); return true; }
+            gfail(r); return false;
+        }
+        // the preview runs in another tab with your CURRENT villain / OSTs / look (even before you save)
+        function openPreview(hash) {
+            try {
+                localStorage.setItem('gw.preview.cfg', JSON.stringify({ villain: cur.villain, audio: { loop: cur.loop, panic: cur.panic, scare: cur.scare, crash: cur.crash, purge: cur.purge },
+                    intensity: iInt.value, jumpscare: iScare.checked, volume: parseInt(iVol.value, 10) || 0 }));
+            } catch (e) { /* storage blocked: the preview just uses the defaults */ }
+            window.open('index.html' + hash, '_blank', 'noopener');
+        }
+
+        // ---- right now ----
+        var active = evs.find(function (e) { return !e.aborted_at && Date.parse(e.ends_at) > nowMs; });
+        var nowBody;
+        if (active) {
+            var ph = phaseOf(active);
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\uD83D\uDDA5\uFE0F' }),
+                el('div', {},
+                    el('div', { class: 'ad-row-title', text: active.label || 'Glitchware' }),
+                    el('div', { class: 'ad-row-sub', text: 'Hijack ' + fmt(active.starts_at) + '  \u00B7  timer ends ' + fmt(active.ends_at) + '  \u00B7  goal ' + active.goal + ' points' })),
+                el('div', { class: 'ad-row-end' }, pill(ph[0], ph[1]), ' ',
+                    el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'ABORT', onclick: function () {
+                        var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (saved in the audit log)' });
+                        dialog({ title: 'Abort Glitchware?', body: el('div', {}, el('p', { class: 'ad-help', text: 'Every open page cleans itself up within a few seconds and the site goes back to normal. Nobody gets rewards after this.' }), field('Reason', why)),
+                            buttons: [{ text: 'Keep it running' }, { text: 'Abort now', kind: 'danger', onClick: async function () {
+                                var r = await rpc('admin_glitch_abort', { p_event: active.id, p_reason: why.value.trim() || null }, { quiet: true });
+                                if (!(r && r.ok)) { gfail(r); return false; }
+                                toast('Event aborted.'); again();
+                            } }] });
+                    } })));
+        } else {
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\u2600\uFE0F' }),
+                el('div', {}, el('div', { class: 'ad-row-title', text: 'No Glitchware running' }), el('div', { class: 'ad-row-sub', text: 'Launch it now, or schedule it for later. Preview it first: nobody else sees the preview.' })),
+                el('div', { class: 'ad-row-end' }, pill('IDLE')));
+        }
+        function launchDialog(scheduled) {
+            var label = el('input', { class: 'ad-field', type: 'text', maxlength: '60', placeholder: 'Name for the ending screen (optional)' });
+            var when = el('input', { class: 'ad-field', type: 'datetime-local' });
+            var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+            var mins = Math.round((st.duration_s || 180) / 60 * 10) / 10, npg = (st.pages || []).length;
+            dialog({ title: scheduled ? 'Schedule Glitchware' : 'Launch Glitchware now?',
+                body: el('div', {}, el('p', { class: 'ad-help', text: (scheduled ? 'It starts at the time you pick. ' : 'The hijack starts in about 45 seconds so every open page can catch it. ') + 'Timer ' + mins + ' min, goal ' + (st.goal || 300) + ' points, hidden on ' + npg + (npg === 1 ? ' page' : ' pages') + '. Rewards: ' + (st.reward_xp || 0) + ' XP and ' + (st.reward_ac || 0) + ' APEX Credits. These are the SAVED settings.' }),
+                    field('Name', label), scheduled ? field('Starts (your local time)', when) : null, field('Reason', why)),
+                buttons: [{ text: 'Cancel' }, { text: scheduled ? 'Schedule' : 'LAUNCH', primary: true, onClick: async function () {
+                    if (scheduled && !when.value) { toast('Pick a start time.', true); return false; }
+                    var r = await rpc('admin_glitch_launch', { p_starts: scheduled ? new Date(when.value).toISOString() : null, p_label: label.value.trim() || null, p_reason: why.value.trim() || null }, { quiet: true });
+                    if (!(r && r.ok)) { gfail(r); return false; }
+                    toast(scheduled ? 'Scheduled.' : 'Launching. The hijack starts in about 45 seconds.'); again();
+                } }] });
+        }
+        add(root, panel('Glitchware', nowBody, el('div', { class: 'ad-row-end' },
+            el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Preview (new tab)', onclick: function () { openPreview('#glitch-preview'); } }), ' ',
+            el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Test jumpscare', onclick: function () { openPreview('#glitch-preview-lose'); } }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Schedule', onclick: function () { launchDialog(true); } }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Launch now', onclick: function () { launchDialog(false); } }))));
+
+        // ---- settings ----
+        add(root, panel('Settings', el('div', {},
+            field('Timer (seconds)', iDur, '180 = 3 minutes. The T-1:00 and 15-second announcements happen automatically, and the panic OST takes over at 30 seconds left.'),
+            field('Goal (points)', iGoal, 'Points people must collect to purge the glitchware. Credits are worth 5, 10 or 25 points each.'),
+            field('Hidden credits per page (3 to 12)', iDen, 'Every hunt page hides this many credits. More credits = more points per page = an easier hunt.'),
+            field('Hunt pages', iPages, 'The pages that hide credits, by file name without .html (index, store, chats...). Only pages that load seasons.js work. Use commas.'),
+            math,
+            field('Glitch intensity', iInt, 'How often the screen tears and how fast fake windows spawn.'),
+            el('label', { class: 'ad-role-opt' }, iScare, el('span', {}, el('b', { text: 'Villain jumpscare' }), el('br'), el('span', { class: 'ad-row-sub', text: 'On: people who fail get the villain jumpscare, then the crash screen. Off: they only see the crash screen. (Anyone who turned on Reduce effects never gets the jumpscare.)' }))),
+            field('Reward for purging: XP', iXp, 'Paid by the database to members who really reach the goal.'),
+            field('Reward for purging: APEX Credits', iAc),
+            field('Sound volume (0 to 100)', iVol),
+            field('Reason', iWhy),
+            el('div', { style: 'margin-top:14px' }, el('button', { type: 'button', class: 'ad-btn', text: 'Save settings', onclick: async function (e) { e.target.disabled = true; await saveAll(); e.target.disabled = false; } })))));
+
+        // ---- upload rows (the villain image and the OSTs work the same way) ----
+        function assetRow(o) {
+            var key = o.key, url = cur[key], isImg = o.kind === 'image';
+            var file = el('input', { type: 'file', accept: isImg ? '.png,.webp,.gif,.jpg,.jpeg,image/png,image/webp,image/gif,image/jpeg' : '.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a', style: 'display:none' });
+            var preview = null;
+            if (url) preview = isImg
+                ? el('img', { src: url, alt: '', style: 'display:block;max-width:180px;max-height:180px;margin-top:8px;border-radius:10px;background:repeating-conic-gradient(#2a2a2e 0% 25%, #1a1a1d 0% 50%) 50% / 16px 16px' })
+                : el('audio', { controls: 'controls', preload: 'none', src: url, style: 'width:100%;max-width:420px;margin-top:6px' });
+            var up = el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: url ? 'Replace' : 'Upload', onclick: function () { file.click(); } });
+            file.addEventListener('change', async function () {
+                var f = file.files && file.files[0];
+                file.value = '';
+                if (!f) return;
+                var ext = ((f.name.match(/\.([A-Za-z0-9]+)$/) || [])[1] || '').toLowerCase();
+                var okExt = isImg ? ['png', 'webp', 'gif', 'jpg', 'jpeg'] : ['mp3', 'm4a'];
+                if (okExt.indexOf(ext) < 0) { toast(isImg ? 'Only .png, .webp, .gif or .jpg images.' : 'Only .mp3 or .m4a files.', true); return; }
+                var max = isImg ? GW_MAX_IMG : GW_MAX_AUDIO;
+                if (f.size > max) { toast('That file is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is ' + (max / 1048576) + ' MB.' + (isImg ? ' Shrink the image (about 1000 px wide is plenty).' : ' Export it smaller (MP3 around 160 kbps).'), true); return; }
+                var ct = { mp3: 'audio/mpeg', m4a: 'audio/mp4', png: 'image/png', webp: 'image/webp', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg' }[ext];
+                up.disabled = true; up.textContent = 'Uploading...';
+                var path = (isImg ? 'villain/' : 'audio/') + key + '-' + Date.now() + '.' + ext;
+                var res = await sb.storage.from('glitch-assets').upload(path, f, { contentType: ct, cacheControl: '31536000', upsert: false });
+                if (res.error) { up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; toast('Upload failed: ' + (res.error.message || 'unknown error') + '. Is supabase-glitchware.sql installed and the console unlocked?', true); return; }
+                var pub = sb.storage.from('glitch-assets').getPublicUrl(path);
+                cur[key] = pub && pub.data && pub.data.publicUrl;
+                var ok = await saveAll('Glitchware asset uploaded: ' + o.title, true);
+                if (ok) { toast('Uploaded and saved. The next launch uses it.'); again(); } else { cur[key] = url; up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; }
+            });
+            var rm = url ? el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'Remove', onclick: async function () {
+                var old = cur[key]; cur[key] = null;
+                if (await saveAll('Glitchware asset removed: ' + o.title, true)) { toast('Removed.'); again(); } else cur[key] = old;
+            } }) : null;
+            return el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: o.title }), el('div', { class: 'ad-row-sub', text: url ? 'Uploaded' : o.empty }), el('div', { class: 'ad-row-sub', text: o.help }), preview),
+                el('div', { class: 'ad-row-end' }, up, ' ', rm, file));
+        }
+
+        add(root, panel('Villain image (png, webp, gif or jpg, 5 MB)', el('div', { class: 'ad-list' }, assetRow({
+            key: 'villain', kind: 'image', title: 'Glitchware villain',
+            empty: 'Nothing uploaded. The SPECSOFT logo is used for the jumpscare instead.',
+            help: 'Shows in the hijack intro, inside some fake error windows, peeking in from the screen edges, as the jumpscare, and on the ending screen. A transparent PNG about 1000 px wide works best.' })),
+            pill('Preview shows your current picture', 'info')));
+
+        var audioList = el('div', { class: 'ad-list' });
+        GW_SLOTS.forEach(function (slot) {
+            audioList.appendChild(assetRow({ key: slot[0], kind: 'audio', title: slot[1], help: slot[2],
+                empty: slot[0] === 'scare' ? 'Nothing uploaded. A built-in screech plays instead.' : (slot[0] === 'purge' ? 'Nothing uploaded. A built-in chime plays instead.' : 'Nothing uploaded. Nothing plays for this one.') }));
+        });
+        add(root, panel('OSTs and sounds (mp3 or m4a, 15 MB each)', audioList, pill('Sound only plays for people who turned sound on', 'info')));
+
+        // ---- history ----
+        var hist = el('div', { class: 'ad-list' });
+        evs.forEach(function (e) {
+            var ph2 = phaseOf(e), pl = e.players || 0, pu = e.purged || 0;
+            hist.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: e.label || 'Glitchware' }),
+                    el('div', { class: 'ad-row-sub', text: fmt(e.starts_at) + ' to ' + fmt(e.ends_at) + '  \u00B7  ' + pl + ' signed in, ' + pu + ' PURGED, ' + Math.max(0, pl - pu) + ' INFECTED' })),
+                el('div', { class: 'ad-row-end' }, pill(ph2[0], ph2[1]))));
         });
         if (!evs.length) hist.appendChild(el('p', { class: 'ad-help', text: 'No events yet.' }));
         add(root, panel('History', hist));

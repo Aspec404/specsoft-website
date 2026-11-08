@@ -527,6 +527,15 @@
         nk.defer = true;
         (document.head || root).appendChild(nk);
     } catch (e) { /* ignore */ }
+
+    /* The live GLITCHWARE EVENT lives in glitchware-event.js. Same deal: it loads itself here, skips admin.html / login.html
+       and idles quietly (one tiny request every 30s) until staff launch an event. */
+    try {
+        var gw = document.createElement('script');
+        gw.src = SELF ? SELF.replace(/seasons\.js(\?.*)?$/, 'glitchware-event.js$1') : 'glitchware-event.js';
+        gw.defer = true;
+        (document.head || root).appendChild(gw);
+    } catch (e) { /* ignore */ }
     document.addEventListener('visibilitychange', function () { var c = readCache(); if (!document.hidden && (!c || Date.now() - c.at > TTL)) refresh(); });
 
     window.SpecSeasons = {
