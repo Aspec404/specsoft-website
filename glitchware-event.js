@@ -203,7 +203,7 @@
         if (!fade) { try { a.pause(); } catch (e) { /* ignore */ } return; }
         var v = a.volume, i = setInterval(function () { v -= 0.08; if (v <= 0) { clearInterval(i); try { a.pause(); } catch (e) { /* ignore */ } } else a.volume = v; }, 80);
     }
-    function stopAllAudio() { stopTrack('loop'); stopTrack('panic'); stopTrack('scare'); stopTrack('crash'); stopTrack('purge'); }
+    function stopAllAudio(keepPurge) { stopTrack('loop'); stopTrack('panic'); stopTrack('scare'); stopTrack('crash'); if (!keepPurge) stopTrack('purge'); }
     function synth(fn) {
         var c = ac();
         if (!c || !S.snd) return;
@@ -881,6 +881,7 @@
         var btn = h('button', 'gw-btn', 'CONTINUE'); btn.type = 'button';
         btn.addEventListener('click', function () {
             lsSet('gw.done.' + ev.id, '1');
+            stopTrack('purge', true);
             wrap.classList.remove('is-on');
             setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); S.rep = null; }, 700);
         });
@@ -952,7 +953,7 @@
             if (S.snd) phaseAudio();
         } else if (ph === 'outro') {
             removeIncoming();
-            if (S.purged) { clearTimeout(S.burstT); clearTimeout(S.winT); stopAllAudio(); }
+            if (S.purged) { clearTimeout(S.burstT); clearTimeout(S.winT); stopAllAudio(true); }
             else gateOutro();
         } else if (ph === 'report') {
             var wasIn = S.seen;
@@ -974,7 +975,7 @@
     }
 
     function teardown(abort) {
-        stopAllAudio();
+        stopAllAudio(abort === false);     // the victory OST rides through to the ending screen
         clearTimeout(S.burstT); clearTimeout(S.winT); clearTimeout(S.annT); clearInterval(S.pileI);
         S.outT.forEach(clearTimeout); S.outT = [];
         endBurst(); removeCredits();
