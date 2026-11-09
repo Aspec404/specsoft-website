@@ -1092,7 +1092,7 @@
                 wrap.appendChild(el('div', { class: 'sx-actions' },
                     el('button', { type: 'button', class: 'sm-btn sm-btn--primary', text: 'Test effects + sound', onclick: test }),
                     el('button', { type: 'button', class: 'sm-btn', text: 'Stop', onclick: function () { SS.stop(); stopPreviewAudio(); } }),
-                    el('span', { class: 'sm-note', text: 'The Test button ignores your mute and Reduce motion settings. Members with Reduce motion on only see the sticker and hear the sound.' })));
+                    el('span', { class: 'sm-note', text: 'Effects and animations also show with Reduce motion on. Only Ultra reduce motion hides them (members then see just the sticker and hear the sound). The Test button ignores your mute and motion settings.' })));
 
                 /* template */
                 var tsel = el('select', { 'aria-label': 'Start from a template' }, [el('option', { value: '', text: 'Start from a template...' })].concat(SS.TEMPLATES.map(function (t) { return el('option', { value: t.id, text: t.name }); })));
@@ -1120,15 +1120,14 @@
                 var impact = el('input', { type: 'checkbox' }); impact.checked = !!D.d.impact; impact.onchange = function () { D.d.impact = impact.checked; test(); };
                 var glow = el('input', { type: 'checkbox' }); glow.checked = D.d.glow; glow.onchange = function () { D.d.glow = glow.checked; paint(); };
                 wrap.appendChild(el('div', { class: 'fd-ctl', style: 'margin-bottom:12px' },
-                    slider('Sticker size (px)', function () { return D.d.size; }, function (v) { D.d.size = v; }, 64, 128, 2),
-                    slider('Sticker tilt (degrees)', function () { return D.d.tilt; }, function (v) { D.d.tilt = v; }, -20, 20, 1),
+                    slider('Sticker size (px)', function () { return D.d.size; }, function (v) { D.d.size = v; }, 48, 128, 2),
                     slider('Effects last (seconds)', function () { return D.d.dur; }, function (v) { D.d.dur = v; }, 1000, 6000, 250, function (v) { return (v / 1000).toFixed(2).replace(/\.?0+$/, '') + 's'; }),
                     el('div', { class: 'fd-s' }, el('label', null, 'Highlight color (picker glow + sticker glow)'), el('div', { class: 'fd-colors' }, hl)),
                     animSel('Intro (when it appears)', SS.INTROS, 'intro'),
                     animSel('Loop (while the effects run)', SS.LOOPS, 'loop'),
                     animSel('Outro (closing move, then it settles back)', SS.OUTROS, 'outro'),
                     el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, impact, 'Impact on landing: shockwave + screen shake (Zoom slam, Dash in, Drop)')),
-                    el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, glow, 'Glow around the sticker'))));
+                    el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, glow, 'Soft glow in the highlight color (off = clean sticker, no outline)'))));
 
                 /* effect layers */
                 var fx = D.d.fx;

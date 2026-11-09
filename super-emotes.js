@@ -7,7 +7,7 @@
      {
        "v": 1,
        "hl": "#a78bfa",                 highlight color (picker glow + sticker glow)
-       "size": 84, "tilt": -6,          sticker size in px (64-128) and tilt in degrees (-20..20)
+       "size": 72, "tilt": 0,           sticker size in px (48-128); tilt is always 0 now (stickers are straight, no outline)
        "intro": "zoom",                 how the sticker appears   (pop bounce wiggle spin zoom dash drop flip rubber glitch fade none)
        "loop": "pulse",                 what it does while the effects run (spin pulse float wiggle heartbeat shake swing tada flicker none)
        "outro": "hop",                  its closing move, then it settles back (spin hop shrink fadedip shake dash none)
@@ -32,7 +32,8 @@
      soundOn()              true unless the member turned Chat sounds off
 
    Rules it follows: effects stay inside the "host" element (the chat pane) and never block clicks;
-   with Reduce motion on, only the sticker and the sound show; the sound follows Settings >
+   they also show with Reduce motion on, and are switched off only by Ultra reduce motion (or the device's own
+   reduced-motion setting), in which case only the sticker and the sound show; the sound follows Settings >
    Chat sounds; every number is clamped and every color must be #rrggbb.
    ========================================================================== */
 (function () {
@@ -46,7 +47,11 @@
         ['burst', 'Burst (from the emote)'], ['confetti', 'Confetti'], ['fire', 'Fire'], ['rain', 'Rain / tears'],
         ['hearts', 'Floating hearts'], ['stars', 'Twinkling stars'], ['snow', 'Snowfall'], ['lightning', 'Lightning'],
         ['shockwave', 'Shockwave rings'], ['shake', 'Screen shake'], ['flash', 'Flash'], ['glitch', 'Glitch'],
-        ['vignette', 'Color pulse (screen edges)']
+        ['vignette', 'Color pulse (screen edges)'],
+        ['sparkles', 'Sparkles'], ['bubbles', 'Bubbles'], ['petals', 'Falling petals'], ['coins', 'Coin shower'],
+        ['meteors', 'Meteor shower'], ['smoke', 'Smoke'], ['fireworks', 'Fireworks'], ['speedlines', 'Anime speed lines'],
+        ['rays', 'Light rays'], ['spotlight', 'Spotlight'], ['matrix', 'Matrix code rain'], ['scanlines', 'CRT scanlines'],
+        ['pixelburst', 'Pixel burst'], ['emojirain', 'Emote rain (uses the emote image)'], ['emojiburst', 'Emote burst (uses the emote image)']
     ];
     var FXID = {}; FX.forEach(function (f) { FXID[f[0]] = true; });
     var INTROS = [['none', 'None'], ['pop', 'Pop in'], ['bounce', 'Bounce in'], ['wiggle', 'Wiggle in'], ['spin', 'Spin in'], ['zoom', 'Zoom slam (impact)'], ['dash', 'Dash in (impact)'], ['drop', 'Drop (impact)'], ['flip', 'Flip in'], ['rubber', 'Rubber band'], ['glitch', 'Glitch in'], ['fade', 'Fade in']];
@@ -54,7 +59,7 @@
     var OUTROS = [['none', 'None'], ['spin', 'Spin'], ['hop', 'Hop'], ['shrink', 'Shrink + spring back'], ['fadedip', 'Fade dip'], ['shake', 'Shake it off'], ['dash', 'Dash away and back']];
     function idMap(list) { var m = {}; list.forEach(function (x) { m[x[0]] = true; }); return m; }
     var INTROID = idMap(INTROS), LOOPID = idMap(LOOPS), OUTROID = idMap(OUTROS);
-    var LIMITS = { size: [64, 128], tilt: [-20, 20], dur: [1000, 6000], vol: [0.05, 1], amount: [1, 10], speed: [1, 10], delay: [0, 2000], layers: 4, colors: 4 };
+    var LIMITS = { size: [48, 128], tilt: [-20, 20], dur: [1000, 6000], vol: [0.05, 1], amount: [1, 10], speed: [1, 10], delay: [0, 2000], layers: 4, colors: 4 };
 
     function num(v, lo, hi, def) { v = Number(v); if (!isFinite(v)) v = def; return Math.min(hi, Math.max(lo, v)); }
     function validSound(u) { return typeof u === 'string' && u.length <= 300 && SOUND_RE.test(u) && u.indexOf('..') < 0; }
@@ -70,13 +75,13 @@
         var out = {
             v: 1,
             hl: typeof d.hl === 'string' && HEX.test(d.hl) ? d.hl : '#a78bfa',
-            size: Math.round(num(d.size, 64, 128, 84)),
-            tilt: Math.round(num(d.tilt, -20, 20, -6)),
+            size: Math.round(num(d.size, 48, 128, 72)),
+            tilt: 0,                                              // stickers are never tilted
             intro: INTROID[d.intro] ? d.intro : (INTROID[d.anim] ? d.anim : 'pop'),      // older designs used "anim"
             loop: LOOPID[d.loop] ? d.loop : 'none',
             outro: OUTROID[d.outro] ? d.outro : 'none',
             impact: d.impact === true,
-            glow: d.glow !== false,
+            glow: d.glow === true,                                // no glow / outline unless asked for
             dur: Math.round(num(d.dur, 1000, 6000, 3000)),
             sound: null,
             fx: []
@@ -92,11 +97,11 @@
         T('inferno', 'Inferno', '#ff6a2b', 3400, [
             { type: 'fire', colors: ['#ff4d1a', '#ffb02e'], amount: 8, speed: 6 }, { type: 'vignette', colors: ['#ff3b1a'], amount: 5, speed: 5 }, { type: 'shake', colors: ['#ffffff'], amount: 4, speed: 5 }], { intro: 'drop', loop: 'pulse', outro: 'shrink', impact: true }),
         T('skull', 'Skull drop', '#ef4444', 2800, [
-            { type: 'shockwave', colors: ['#ff2a2a'], amount: 7, speed: 5 }, { type: 'flash', colors: ['#ff1f1f'], amount: 7, speed: 5 }, { type: 'shake', colors: ['#ffffff'], amount: 8, speed: 5 }, { type: 'vignette', colors: ['#7f0000'], amount: 6, speed: 5 }], { tilt: 8, intro: 'zoom', loop: 'shake', outro: 'shake', impact: true }),
+            { type: 'shockwave', colors: ['#ff2a2a'], amount: 7, speed: 5 }, { type: 'flash', colors: ['#ff1f1f'], amount: 7, speed: 5 }, { type: 'shake', colors: ['#ffffff'], amount: 8, speed: 5 }, { type: 'vignette', colors: ['#7f0000'], amount: 6, speed: 5 }], { intro: 'zoom', loop: 'shake', outro: 'shake', impact: true }),
         T('party', 'Party time', '#f472b6', 3800, [
             { type: 'confetti', colors: ['#f472b6', '#facc15', '#38bdf8', '#4ade80'], amount: 8, speed: 5 }, { type: 'burst', colors: ['#ffffff', '#facc15'], amount: 7, speed: 6 }], { intro: 'bounce', loop: 'tada', outro: 'hop' }),
         T('sadrain', 'Sad rain', '#60a5fa', 4400, [
-            { type: 'rain', colors: ['#7dd3fc', '#60a5fa'], amount: 8, speed: 5 }, { type: 'vignette', colors: ['#1d4ed8'], amount: 4, speed: 5 }], { tilt: -4, intro: 'fade', loop: 'float', outro: 'fadedip' }),
+            { type: 'rain', colors: ['#7dd3fc', '#60a5fa'], amount: 8, speed: 5 }, { type: 'vignette', colors: ['#1d4ed8'], amount: 4, speed: 5 }], { intro: 'fade', loop: 'float', outro: 'fadedip' }),
         T('thunder', 'Thunderstruck', '#facc15', 2600, [
             { type: 'lightning', colors: ['#fde047', '#ffffff'], amount: 8, speed: 5 }, { type: 'flash', colors: ['#ffffff'], amount: 6, speed: 5 }, { type: 'shake', colors: ['#ffffff'], amount: 6, speed: 5 }], { intro: 'dash', loop: 'flicker', outro: 'dash', impact: true }),
         T('glitch', 'Glitch mode', '#22d3ee', 3000, [
@@ -106,12 +111,31 @@
         T('frost', 'Frostbite', '#7dd3fc', 4400, [
             { type: 'snow', colors: ['#ffffff', '#bae6fd'], amount: 8, speed: 5 }, { type: 'stars', colors: ['#e0f2fe'], amount: 5, speed: 5 }, { type: 'vignette', colors: ['#38bdf8'], amount: 4, speed: 4 }], { intro: 'flip', loop: 'swing', outro: 'spin' }),
         T('spinner', 'Spin cycle', '#a78bfa', 3200, [
-            { type: 'burst', colors: ['#a78bfa', '#ffffff'], amount: 6, speed: 6 }, { type: 'stars', colors: ['#ddd6fe'], amount: 6, speed: 5 }], { intro: 'spin', loop: 'spin', outro: 'spin' })
+            { type: 'burst', colors: ['#a78bfa', '#ffffff'], amount: 6, speed: 6 }, { type: 'stars', colors: ['#ddd6fe'], amount: 6, speed: 5 }], { intro: 'spin', loop: 'spin', outro: 'spin' }),
+        T('matrix', 'Matrix', '#22c55e', 3600, [
+            { type: 'matrix', colors: ['#22c55e', '#86efac'], amount: 8, speed: 5 }, { type: 'scanlines', colors: ['#22c55e'], amount: 6, speed: 5 }, { type: 'vignette', colors: ['#052e16'], amount: 5, speed: 5 }], { intro: 'glitch', loop: 'flicker', outro: 'shake' }),
+        T('fireworks', 'Fireworks night', '#f59e0b', 4200, [
+            { type: 'fireworks', colors: ['#f59e0b', '#ef4444', '#38bdf8', '#a3e635'], amount: 7, speed: 5 }, { type: 'sparkles', colors: ['#fde68a'], amount: 5, speed: 5 }, { type: 'vignette', colors: ['#1e1b4b'], amount: 4, speed: 5 }], { intro: 'pop', loop: 'pulse', outro: 'hop' }),
+        T('coins', 'Coin shower', '#facc15', 3600, [
+            { type: 'coins', colors: ['#facc15', '#fbbf24'], amount: 8, speed: 5 }, { type: 'sparkles', colors: ['#fff7cc'], amount: 6, speed: 5 }], { intro: 'bounce', loop: 'tada', outro: 'hop' }),
+        T('anime', 'Anime impact', '#e5e7eb', 2600, [
+            { type: 'speedlines', colors: ['#ffffff'], amount: 8, speed: 5 }, { type: 'shockwave', colors: ['#ffffff'], amount: 6, speed: 5 }, { type: 'flash', colors: ['#ffffff'], amount: 5, speed: 5 }, { type: 'shake', colors: ['#ffffff'], amount: 7, speed: 5 }], { intro: 'zoom', loop: 'shake', outro: 'shake', impact: true }),
+        T('spotlight', 'Spotlight', '#fde68a', 3600, [
+            { type: 'spotlight', colors: ['#fef3c7'], amount: 7, speed: 5 }, { type: 'rays', colors: ['#fef3c7'], amount: 5, speed: 5 }, { type: 'sparkles', colors: ['#ffffff'], amount: 4, speed: 5 }], { intro: 'fade', loop: 'float', outro: 'fadedip' }),
+        T('meteors', 'Meteor shower', '#93c5fd', 4200, [
+            { type: 'meteors', colors: ['#bfdbfe', '#ffffff'], amount: 8, speed: 5 }, { type: 'stars', colors: ['#e0f2fe'], amount: 5, speed: 5 }, { type: 'vignette', colors: ['#1e3a8a'], amount: 4, speed: 5 }], { intro: 'drop', loop: 'float', outro: 'spin', impact: true }),
+        T('petals', 'Petal storm', '#f9a8d4', 4000, [
+            { type: 'petals', colors: ['#f9a8d4', '#fbcfe8', '#fda4af'], amount: 8, speed: 5 }, { type: 'sparkles', colors: ['#ffffff'], amount: 3, speed: 5 }], { intro: 'spin', loop: 'swing', outro: 'spin' }),
+        T('emojirain', 'Emote rain', '#a78bfa', 3800, [
+            { type: 'emojirain', colors: ['#ffffff'], amount: 7, speed: 5 }, { type: 'emojiburst', colors: ['#ffffff'], amount: 6, speed: 5 }], { intro: 'rubber', loop: 'wiggle', outro: 'hop' })
     ];
 
     /* ---- environment checks ---- */
+    // true = effects and sticker animations are OFF. Reduce motion keeps them; only Ultra reduce motion (or the
+    // device's own reduced-motion setting) switches them off.
     function motionOff() {
-        try { var S = window.SpecSettings; if (S && typeof S.get === 'function' && (S.get('reduceMotion') === true || S.get('ultraReduceMotion') === true)) return true; } catch (e) { /* ignore */ }
+        var S = window.SpecSettings;
+        try { if (S && typeof S.get === 'function' && S.get('ultraReduceMotion') === true) return true; } catch (e) { /* ignore */ }
         try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
     }
     function soundOn() {
@@ -123,9 +147,9 @@
     var CSS = '' +
         '.sp-sx-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:40}' +
         '.sp-sx-layer canvas{display:block;width:100%;height:100%}' +
-        '.sp-sticker{--sx-glow:drop-shadow(0 0 0 transparent);width:var(--sx-size,84px);height:var(--sx-size,84px);max-width:none;object-fit:contain;display:inline-block;vertical-align:middle;margin:4px 3px;border-radius:0;' +
+        '.sp-sticker{--sx-glow:none;width:var(--sx-size,72px);height:var(--sx-size,72px);max-width:none;object-fit:contain;display:inline-block;vertical-align:middle;margin:4px 3px;border-radius:0;' +
         'transform:rotate(var(--sx-tilt,0deg));-webkit-user-drag:none;-webkit-touch-callout:none;user-select:none;' +
-        'filter:drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff) drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff) drop-shadow(0 5px 7px rgba(0,0,0,.45)) var(--sx-glow)}' +
+        'filter:var(--sx-glow)}' +
         '.sp-sticker.sp-sx-glow{--sx-glow:drop-shadow(0 0 12px var(--sup,#a78bfa))}' +
         '';
     function ensureCss() {
@@ -224,6 +248,8 @@
     function rnd(a, b) { return a + Math.random() * (b - a); }
     function heartPath(c, s) { c.beginPath(); c.moveTo(0, s * 0.3); c.bezierCurveTo(-s * 0.9, -s * 0.35, -s * 0.5, -s * 0.95, 0, -s * 0.45); c.bezierCurveTo(s * 0.5, -s * 0.95, s * 0.9, -s * 0.35, 0, s * 0.3); c.closePath(); }
     function starPath(c, s) { c.beginPath(); for (var i = 0; i < 10; i++) { var r = i % 2 ? s * 0.45 : s, a = -Math.PI / 2 + i * Math.PI / 5; if (i) c.lineTo(Math.cos(a) * r, Math.sin(a) * r); else c.moveTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); }
+    function sparkPath(c, s) { c.beginPath(); for (var i = 0; i < 8; i++) { var r = i % 2 ? s * 0.22 : s, a = -Math.PI / 2 + i * Math.PI / 4; if (i) c.lineTo(Math.cos(a) * r, Math.sin(a) * r); else c.moveTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); }
+    var MCH = '01<>/\\{}[]=+*#$%&';
     function dropPath(c, s) { c.beginPath(); c.moveTo(0, -s * 1.4); c.quadraticCurveTo(s * 0.9, 0, 0, s * 0.7); c.quadraticCurveTo(-s * 0.9, 0, 0, -s * 1.4); c.closePath(); }
 
     var cur = null;
@@ -283,7 +309,10 @@
 
         var ox = opts.origin && isFinite(opts.origin.x) ? opts.origin.x : W / 2;
         var oy = opts.origin && isFinite(opts.origin.y) ? opts.origin.y : H * 0.72;
-        var parts = [], bolts = [], rings = [], flashes = [], vigs = [], glitches = [], shake = null;
+        var parts = [], bolts = [], rings = [], flashes = [], vigs = [], glitches = [], bgFields = [], fgFields = [], shake = null;
+        var emoImg = null;                                    // the emote's own picture, for Emote rain / burst
+        try { var esrc = opts.imageUrl || (opts.sticker && (opts.sticker.currentSrc || opts.sticker.src)); if (esrc && window.Image) { emoImg = new window.Image(); emoImg.referrerPolicy = 'no-referrer'; emoImg.src = esrc; } } catch (e) { emoImg = null; }
+        function emoReady() { return !!(emoImg && emoImg.complete && emoImg.naturalWidth > 0); }
         var layers = allFx.map(function (l) { return { L: l, started: false, until: 0 }; });
         var spanFor = function (l) { return Math.max(500, d.dur - l.delay); };
         var total = 0; layers.forEach(function (x) { total = Math.max(total, x.L.delay + spanFor(x.L)); });
@@ -322,12 +351,23 @@
                 vigs.push({ col: L.colors[0], peak: Math.min(0.75, 0.2 + L.amount * 0.06), from: t, until: t + spanFor(L), pulses: 1 + Math.floor(L.amount / 4) });
             } else if (L.type === 'glitch') {
                 glitches.push({ L: L, until: t + spanFor(L), bars: [], tick: 0 });
+            } else if (L.type === 'pixelburst') {
+                n = L.amount * 8;
+                for (i = 0; i < n; i++) { a = rnd(0, 6.283); s = (2 + rnd(0, 6)) * sp; add({ x: ox, y: oy, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1.5, ay: 0.18, drag: 0.985, life: rnd(40, 75), size: rnd(4, 9), col: colOf(L), shape: 'pixel' }); }
+            } else if (L.type === 'emojiburst') {
+                if (emoReady()) { n = L.amount * 2 + 6; for (i = 0; i < n; i++) { a = rnd(0, 6.283); s = (3 + rnd(0, 4)) * sp; add({ x: ox, y: oy, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 2, ay: 0.14, drag: 0.99, life: rnd(60, 100), size: rnd(16, 30), col: '#ffffff', shape: 'img', vr: rnd(-0.12, 0.12), rot: rnd(0, 6) }); } }
+            } else if (L.type === 'speedlines') {
+                fgFields.push({ kind: 'speedlines', L: L, from: t, until: t + spanFor(L), tick: 0, lines: [] });
+            } else if (L.type === 'scanlines') {
+                fgFields.push({ kind: 'scanlines', L: L, from: t, until: t + spanFor(L) });
+            } else if (L.type === 'rays' || L.type === 'spotlight') {
+                bgFields.push({ kind: L.type, L: L, from: t, until: t + spanFor(L) });
             }
         }
         function clampX(v) { return Math.min(W * 0.95, Math.max(W * 0.05, v)); }
 
         function emit(x, dtF, t) {
-            var L = x.L, sp = L.speed / 5, rate = 0, n, i;
+            var L = x.L, sp = L.speed / 5, rate = 0, n, i, a2, s2;
             if (t > x.until) return;
             if (L.type === 'fire') rate = L.amount * 0.9;
             else if (L.type === 'rain') rate = L.amount * 0.7;
@@ -335,6 +375,23 @@
             else if (L.type === 'stars') rate = L.amount * 0.3;
             else if (L.type === 'snow') rate = L.amount * 0.5;
             else if (L.type === 'confetti') rate = L.amount * 0.5;
+            else if (L.type === 'sparkles') rate = L.amount * 0.35;
+            else if (L.type === 'bubbles') rate = L.amount * 0.25;
+            else if (L.type === 'petals') rate = L.amount * 0.3;
+            else if (L.type === 'coins') rate = L.amount * 0.3;
+            else if (L.type === 'meteors') rate = L.amount * 0.12;
+            else if (L.type === 'smoke') rate = L.amount * 0.3;
+            else if (L.type === 'matrix') rate = L.amount * 0.6;
+            else if (L.type === 'emojirain') { if (!emoReady()) return; rate = L.amount * 0.3; }
+            else if (L.type === 'fireworks') {
+                x.fw = (x.fw === undefined ? 0 : x.fw) - dtF;
+                if (x.fw <= 0) {
+                    x.fw = rnd(14, 34) / (0.5 + L.amount / 10);
+                    var fx0 = rnd(W * 0.15, W * 0.85), fy0 = rnd(H * 0.12, H * 0.5), fc = colOf(L), nn = 18 + L.amount * 3;
+                    for (i = 0; i < nn; i++) { a2 = rnd(0, 6.283); s2 = rnd(1.5, 4.5) * sp; add({ x: fx0, y: fy0, vx: Math.cos(a2) * s2, vy: Math.sin(a2) * s2, ay: 0.05, drag: 0.975, life: rnd(40, 75), size: rnd(2, 4), col: Math.random() < 0.25 ? '#ffffff' : fc, shape: 'circle', add: true }); }
+                }
+                return;
+            }
             else return;
             rate *= dtF; n = Math.floor(rate) + (Math.random() < rate % 1 ? 1 : 0);
             for (i = 0; i < n; i++) {
@@ -344,6 +401,14 @@
                 else if (L.type === 'stars') add({ x: rnd(0, W), y: rnd(0, H), vx: 0, vy: -0.3, ay: 0, drag: 1, life: rnd(40, 80), size: rnd(4, 12), col: colOf(L), shape: 'star', add: true, vr: rnd(-0.1, 0.1), twinkle: true });
                 else if (L.type === 'snow') add({ x: rnd(0, W), y: -10, vx: rnd(-0.5, 0.5), vy: rnd(1.2, 3.2) * sp, ay: 0, drag: 1, life: (H + 30) / Math.max(0.8, 1.2 * sp), size: rnd(2, 5.5), col: colOf(L), shape: 'circle', wob: true });
                 else if (L.type === 'confetti') add({ x: rnd(0, W), y: -10, vx: rnd(-1.5, 1.5), vy: rnd(2, 5) * sp, ay: 0.02, drag: 0.998, life: (H + 40) / Math.max(1.5, 2 * sp), size: rnd(6, 11), col: colOf(L), shape: 'rect', vr: rnd(-0.25, 0.25), rot: rnd(0, 6) });
+                else if (L.type === 'sparkles') add({ x: rnd(0, W), y: rnd(0, H), vx: 0, vy: 0, ay: 0, drag: 1, life: rnd(25, 50), size: rnd(5, 14), col: colOf(L), shape: 'spark4', add: true, twinkle: true });
+                else if (L.type === 'bubbles') add({ x: rnd(0, W), y: H + 14, vx: 0, vy: -rnd(1, 3.2) * sp, ay: 0, drag: 1, life: (H + 60) / Math.max(1, 1.2 * sp), size: rnd(6, 22), col: colOf(L), shape: 'ring', wob: true });
+                else if (L.type === 'petals') add({ x: rnd(0, W), y: -14, vx: rnd(-0.8, 0.8), vy: rnd(1, 2.6) * sp, ay: 0, drag: 1, life: (H + 40) / Math.max(0.8, 1.2 * sp), size: rnd(5, 10), col: colOf(L), shape: 'petal', wob: true, vr: rnd(-0.06, 0.06), rot: rnd(0, 6) });
+                else if (L.type === 'coins') add({ x: rnd(0, W), y: -20, vx: rnd(-0.6, 0.6), vy: rnd(3, 6) * sp, ay: 0.06, drag: 1, life: (H + 60) / Math.max(2, 3 * sp) + 30, size: rnd(8, 13), col: colOf(L), shape: 'coin' });
+                else if (L.type === 'meteors') add({ x: rnd(W * 0.3, W), y: -20, vx: -rnd(5, 9) * sp, vy: rnd(6, 10) * sp, ay: 0, drag: 1, life: (H + 60) / Math.max(3, 6 * sp), size: rnd(1.5, 3), len: rnd(40, 100), col: colOf(L), shape: 'streak', add: true });
+                else if (L.type === 'smoke') add({ x: ox + rnd(-30, 30), y: oy + rnd(0, 20), vx: rnd(-0.4, 0.4), vy: -rnd(0.6, 1.8) * sp, ay: 0, drag: 0.995, life: rnd(70, 120), size: rnd(10, 18), grow: 0.35, a: 0.3, col: colOf(L), shape: 'glow' });
+                else if (L.type === 'matrix') add({ x: Math.round(rnd(0, W) / 16) * 16, y: -12, vx: 0, vy: rnd(3, 7) * sp, ay: 0, drag: 1, life: (H + 40) / Math.max(2, 3 * sp), size: rnd(11, 16), col: colOf(L), shape: 'char', ch: MCH.charAt((Math.random() * MCH.length) | 0), add: true });
+                else if (L.type === 'emojirain') add({ x: rnd(0, W), y: -30, vx: rnd(-0.5, 0.5), vy: rnd(2.5, 5.5) * sp, ay: 0.02, drag: 1, life: (H + 60) / Math.max(1.5, 3 * sp) + 20, size: rnd(18, 34), col: '#ffffff', shape: 'img', vr: rnd(-0.06, 0.06), rot: rnd(0, 6) });
             }
         }
 
@@ -353,16 +418,34 @@
             var sz = p.shrink ? p.size * (0.3 + 0.7 * k) : p.size;
             ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, al)); ctx.translate(p.x, p.y); if (p.rot) ctx.rotate(p.rot);
             if (p.shape === 'glow') {
-                var g = ctx.createRadialGradient(0, 0, 0, 0, 0, sz);
-                g.addColorStop(0, 'rgba(' + p.rgb + ',1)'); g.addColorStop(1, 'rgba(' + p.rgb + ',0)');
+                var ga = p.a == null ? 1 : p.a, g = ctx.createRadialGradient(0, 0, 0, 0, 0, sz);
+                g.addColorStop(0, 'rgba(' + p.rgb + ',' + ga + ')'); g.addColorStop(1, 'rgba(' + p.rgb + ',0)');
                 ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, sz, 0, 6.283); ctx.fill();
+            } else if (p.shape === 'img') {
+                if (emoReady()) ctx.drawImage(emoImg, -sz / 2, -sz / 2, sz, sz);
+            } else if (p.shape === 'streak') {
+                var ang = Math.atan2(p.vy, p.vx), tx = -Math.cos(ang) * p.len, ty = -Math.sin(ang) * p.len;
+                var sg = ctx.createLinearGradient(0, 0, tx, ty); sg.addColorStop(0, 'rgba(' + p.rgb + ',1)'); sg.addColorStop(1, 'rgba(' + p.rgb + ',0)');
+                ctx.strokeStyle = sg; ctx.lineWidth = sz; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(tx, ty); ctx.stroke();
+            } else if (p.shape === 'char') {
+                ctx.fillStyle = p.col; ctx.font = Math.round(sz) + 'px monospace'; ctx.fillText(p.ch || '0', 0, 0);
+            } else if (p.shape === 'ring') {
+                ctx.strokeStyle = p.col; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(0, 0, sz, 0, 6.283); ctx.stroke();
+                ctx.globalAlpha *= 0.5; ctx.beginPath(); ctx.arc(-sz * 0.35, -sz * 0.35, sz * 0.22, 0, 6.283); ctx.fillStyle = p.col; ctx.fill();
+            } else if (p.shape === 'coin') {
+                ctx.scale(Math.abs(Math.cos(p.ph * 3)) * 0.9 + 0.1, 1);
+                ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(0, 0, sz, 0, 6.283); ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, sz * 0.65, 0, 6.283); ctx.stroke();
             } else {
                 ctx.fillStyle = p.col;
                 if (p.shape === 'rect') ctx.fillRect(-sz / 2, -sz / 3, sz, sz * 0.66);
                 else if (p.shape === 'circle') { ctx.beginPath(); ctx.arc(0, 0, sz, 0, 6.283); ctx.fill(); }
                 else if (p.shape === 'heart') { heartPath(ctx, sz); ctx.fill(); }
                 else if (p.shape === 'star') { starPath(ctx, sz); ctx.fill(); }
+                else if (p.shape === 'spark4') { sparkPath(ctx, sz); ctx.fill(); }
                 else if (p.shape === 'drop') { dropPath(ctx, sz); ctx.fill(); }
+                else if (p.shape === 'pixel') ctx.fillRect(-sz / 2, -sz / 2, sz, sz);
+                else if (p.shape === 'petal') { ctx.beginPath(); ctx.ellipse(0, 0, sz, sz * 0.5, 0, 0, 6.283); ctx.fill(); }
             }
             ctx.restore();
         }
@@ -386,6 +469,28 @@
                 vg.addColorStop(0, 'rgba(' + rgb(v.col) + ',0)'); vg.addColorStop(1, 'rgba(' + rgb(v.col) + ',' + va.toFixed(3) + ')');
                 ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
             }
+            /* background fields: light rays, spotlight */
+            for (i = bgFields.length - 1; i >= 0; i--) {
+                var bf = bgFields[i], bp = (t - bf.from) / (bf.until - bf.from);
+                if (bp >= 1) { bgFields.splice(i, 1); continue; }
+                var env = Math.max(0, Math.min(1, bp * 6, (1 - bp) * 4));
+                if (bf.kind === 'rays') {
+                    var nr = 6 + bf.L.amount, base = (t - bf.from) * 0.0005 * (bf.L.speed / 5), R0 = Math.max(W, H) * 1.5, hw = Math.PI / nr * 0.5;
+                    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+                    ctx.fillStyle = 'rgba(' + rgb(bf.L.colors[0]) + ',' + ((0.05 + bf.L.amount * 0.014) * env).toFixed(3) + ')';
+                    for (var kk = 0; kk < nr; kk++) { var ra = base + kk * 6.283 / nr; ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.cos(ra - hw) * R0, oy + Math.sin(ra - hw) * R0); ctx.lineTo(ox + Math.cos(ra + hw) * R0, oy + Math.sin(ra + hw) * R0); ctx.closePath(); ctx.fill(); }
+                    ctx.restore();
+                } else {
+                    var cw = Math.max(60, Math.min(W, H) * 0.2 * (0.8 + bf.L.amount * 0.05)), fy = oy + 60;
+                    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (0.38 * env).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H);
+                    ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = '#000';
+                    ctx.beginPath(); ctx.moveTo(ox - cw * 0.25, 0); ctx.lineTo(ox + cw * 0.25, 0); ctx.lineTo(ox + cw, fy); ctx.lineTo(ox - cw, fy); ctx.closePath(); ctx.fill();
+                    ctx.beginPath(); ctx.ellipse(ox, fy, cw * 1.1, cw * 0.28, 0, 0, 6.283); ctx.fill();
+                    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(' + rgb(bf.L.colors[0]) + ',' + (0.12 * env).toFixed(3) + ')';
+                    ctx.beginPath(); ctx.moveTo(ox - cw * 0.25, 0); ctx.lineTo(ox + cw * 0.25, 0); ctx.lineTo(ox + cw, fy); ctx.lineTo(ox - cw, fy); ctx.closePath(); ctx.fill();
+                    ctx.restore();
+                }
+            }
             /* particles */
             for (i = parts.length - 1; i >= 0; i--) {
                 p = parts[i]; p.life -= dtF;
@@ -394,7 +499,9 @@
                 p.x += p.vx * dtF; p.y += p.vy * dtF;
                 if (p.vr) p.rot = (p.rot || 0) + p.vr * dtF;
                 p.ph += 0.06 * dtF; if (p.wob) p.x += Math.sin(p.ph) * 0.7 * dtF;
-                if (p.y < -60 || p.y > H + 80) { if (p.vy < 0 && p.y < -60) { parts.splice(i, 1); continue; } if (p.vy > 0 && p.y > H + 80) { parts.splice(i, 1); continue; } }
+                if (p.grow) p.size += p.grow * dtF;
+                if (p.shape === 'char' && Math.random() < 0.08) p.ch = MCH.charAt((Math.random() * MCH.length) | 0);
+                if (p.y < -120 || p.y > H + 100 || p.x < -220 || p.x > W + 220) { parts.splice(i, 1); continue; }
             }
             ctx.globalCompositeOperation = 'source-over';
             for (i = 0; i < parts.length; i++) if (!parts[i].add) drawParticle(parts[i]);
@@ -434,6 +541,29 @@
                 gl.bars.forEach(function (bar) { ctx.globalAlpha = bar.a; ctx.fillStyle = bar.col; ctx.fillRect(bar.x, bar.y, bar.w, bar.h); });
                 ctx.globalAlpha = 1;
             }
+            /* foreground fields: anime speed lines, CRT scanlines */
+            for (i = fgFields.length - 1; i >= 0; i--) {
+                var ff = fgFields[i], fp = (t - ff.from) / (ff.until - ff.from);
+                if (fp >= 1) { fgFields.splice(i, 1); continue; }
+                var fe = Math.max(0, Math.min(1, fp * 8, (1 - fp) * 5));
+                if (ff.kind === 'speedlines') {
+                    ff.tick -= dtF;
+                    if (ff.tick <= 0) {
+                        ff.tick = rnd(2, 4); ff.lines = [];
+                        for (var nl = 18 + ff.L.amount * 5; nl > 0; nl--) { var an = rnd(0, 6.283); ff.lines.push({ a: an, r0: rnd(0.28, 0.55) * Math.min(W, H), len: rnd(0.25, 0.8) * Math.max(W, H), w: rnd(0.8, 2.6), col: ff.L.colors[(Math.random() * ff.L.colors.length) | 0] }); }
+                    }
+                    ctx.save(); ctx.globalAlpha = 0.65 * fe;
+                    ff.lines.forEach(function (ln) { ctx.strokeStyle = ln.col; ctx.lineWidth = ln.w; ctx.beginPath(); ctx.moveTo(ox + Math.cos(ln.a) * ln.r0, oy + Math.sin(ln.a) * ln.r0); ctx.lineTo(ox + Math.cos(ln.a) * (ln.r0 + ln.len), oy + Math.sin(ln.a) * (ln.r0 + ln.len)); ctx.stroke(); });
+                    ctx.restore();
+                } else {
+                    var sc = rgb(ff.L.colors[0]);
+                    ctx.save(); ctx.globalAlpha = 0.5 * fe; ctx.fillStyle = 'rgba(' + sc + ',' + (0.04 + ff.L.amount * 0.008).toFixed(3) + ')';
+                    for (var sy = 0; sy < H; sy += 4) ctx.fillRect(0, sy, W, 1.4);
+                    var by = ((t - ff.from) * 0.35 * (ff.L.speed / 5)) % (H + 80) - 40, sbg = ctx.createLinearGradient(0, by - 40, 0, by + 40);
+                    sbg.addColorStop(0, 'rgba(' + sc + ',0)'); sbg.addColorStop(0.5, 'rgba(' + sc + ',0.22)'); sbg.addColorStop(1, 'rgba(' + sc + ',0)');
+                    ctx.globalAlpha = fe; ctx.fillStyle = sbg; ctx.fillRect(0, by - 40, W, 80); ctx.restore();
+                }
+            }
             /* flashes */
             for (i = flashes.length - 1; i >= 0; i--) {
                 var f = flashes[i];
@@ -448,7 +578,7 @@
             }
             /* done? */
             var allStarted = layers.every(function (x) { return x.started; });
-            var busy = parts.length || bolts.length || rings.length || flashes.length || vigs.length || glitches.length || shake;
+            var busy = parts.length || bolts.length || rings.length || flashes.length || vigs.length || glitches.length || bgFields.length || fgFields.length || shake;
             if (t > 9000 || (allStarted && t > total && !busy)) kill();
         }
         raf = window.requestAnimationFrame(frame);

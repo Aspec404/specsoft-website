@@ -70,7 +70,7 @@ begin
         if f->k is not null then
             if jsonb_typeof(f->k) <> 'number' then return false; end if;
             n := (f->>k)::numeric;
-            if k = 'size' and n not between 64 and 128 then return false; end if;
+            if k = 'size' and n not between 48 and 128 then return false; end if;
             if k = 'tilt' and n not between -20 and 20 then return false; end if;
             if k = 'dur'  and n not between 1000 and 6000 then return false; end if;
         end if;
@@ -95,7 +95,9 @@ begin
             if jsonb_typeof(l) <> 'object' then return false; end if;
             if coalesce(l->>'type', '') not in (
                 'burst', 'confetti', 'fire', 'rain', 'hearts', 'stars', 'snow',
-                'lightning', 'shockwave', 'shake', 'flash', 'glitch', 'vignette') then return false; end if;
+                'lightning', 'shockwave', 'shake', 'flash', 'glitch', 'vignette',
+                'sparkles', 'bubbles', 'petals', 'coins', 'meteors', 'smoke', 'fireworks', 'speedlines',
+                'rays', 'spotlight', 'matrix', 'scanlines', 'pixelburst', 'emojirain', 'emojiburst') then return false; end if;
             if coalesce(jsonb_typeof(l->'colors'), '') <> 'array' then return false; end if;
             if jsonb_array_length(l->'colors') not between 1 and 4 then return false; end if;
             for c in select * from jsonb_array_elements(l->'colors') loop
