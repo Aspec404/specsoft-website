@@ -379,11 +379,12 @@ html.tt-fx .tt-credits:hover { transform: translateY(-2px); }
 
 /* ---------- 5. MUSIC PILL (solid, no blur: cheap on weak GPUs) ---------- */
 .tt-pill {
-    position: fixed; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 9992;
+    /* top right, just under the top bar (under the profile / bell): clear of the sidebar buttons, the corner pills and the page title */
+    position: fixed; top: calc(72px + env(safe-area-inset-top, 0px)); bottom: auto; left: auto; right: max(16px, env(safe-area-inset-right)); width: max-content; max-width: calc(100vw - 32px); z-index: 9992;
     display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 8px; pointer-events: auto;
     background: #1a1a1a; border: 1.5px solid rgba(255, 107, 53, .45); border-radius: 99px; color: #ffffff;
     box-shadow: 0 6px 18px rgba(255, 107, 53, .2); font: 600 12px/1 'Inter', -apple-system, sans-serif;
-    transform: translateY(24px) scale(.92); opacity: 0; transition: transform .45s cubic-bezier(.34, 1.4, .64, 1), opacity .35s ease;
+    transform: translateY(-24px) scale(.92); opacity: 0; transition: transform .45s cubic-bezier(.34, 1.4, .64, 1), opacity .35s ease;
 }
 body.light-mode .tt-pill { background: #ffffff; color: #1a1a1a; }
 .tt-pill.tt-show { transform: none; opacity: 1; }

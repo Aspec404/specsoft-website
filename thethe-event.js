@@ -77,7 +77,7 @@
         root: null, pill: null, credits: null, toastEl: null, mo: null, modeMo: null, outT: 0,
         aud: null, playing: false, blocked: false, gestureArmed: false, btn: null, muteBtn: null, vol: null,
         lastPop: 0, fadeT: 0, mode: 'full', lite: false, key: '', hooked: false,
-        idDone: false, oldTitle: '', oldIcons: [], newIcon: null
+        idDone: false, oldTitle: '', oldIcons: [], newIcon: null, creditSync: null, creditTimer: null
     };
 
     /* ------------------------------ small helpers ------------------------------ */
@@ -380,16 +380,54 @@
     }
 
     /* ------------------------------ credits badge + music pill ------------------------------ */
+    function readApexBalance() {
+        try {
+            var dom = document.querySelector('[data-apex-pill] [data-apex-balance]');
+            if (dom && dom.textContent) {
+                var n = Number(dom.textContent.replace(/[^0-9.-]/g, ''));
+                if (isFinite(n)) return n;
+            }
+        } catch (e) { /* ignore */ }
+        try {
+            if (window.ApexCredits && typeof window.ApexCredits.get === 'function') {
+                var v = Number(window.ApexCredits.get());
+                if (isFinite(v)) return v;
+            }
+        } catch (e) { /* ignore */ }
+        return 0;
+    }
+    function formatApexBalance(n) {
+        try {
+            if (window.ApexCredits && typeof window.ApexCredits.format === 'function') return window.ApexCredits.format(n);
+        } catch (e) { /* ignore */ }
+        n = Number(n) || 0;
+        if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+        return n.toLocaleString('en-US');
+    }
+    function syncCreditsBadge() {
+        if (!S.credits) return;
+        var v = readApexBalance();
+        var b = S.credits.querySelector('b');
+        if (b) b.textContent = formatApexBalance(v);
+        S.credits.setAttribute('aria-label', 'tHE Credits balance: ' + formatApexBalance(v));
+        S.credits.title = 'tHE Credits';
+    }
     function buildBadges() {
-        // the "tHE Credits" badge: balance 0, forever
         var cr = mk('button', 'tt-credits'); cr.type = 'button'; cr.title = 'tHE Credits';
-        cr.appendChild(mk('span', 'tt-coin', '$')); cr.appendChild(mk('b', null, '0')); cr.appendChild(mk('small', null, 'tHE Credits'));
+        cr.setAttribute('aria-label', 'tHE Credits balance');
+        cr.appendChild(mk('span', 'tt-coin', '$')); cr.appendChild(mk('b', null, '')); cr.appendChild(mk('small', null, 'tHE Credits'));
         cr.addEventListener('click', function (e) {
             toast(pick(CREDIT_LINES), 3200);
             if (S.mode === 'full') { var r = cr.getBoundingClientRect(); burstAt(r.left + r.width / 2, r.top, S.lite ? 3 : 7); }
         });
         document.body.appendChild(cr);
         S.credits = cr;
+        syncCreditsBadge();
+        if (S.creditSync) window.removeEventListener('apex:balance', S.creditSync);
+        S.creditSync = function () { syncCreditsBadge(); };
+        window.addEventListener('apex:balance', S.creditSync);
+        if (S.creditTimer) clearInterval(S.creditTimer);
+        S.creditTimer = setInterval(syncCreditsBadge, 1500);
         void cr.offsetWidth;
         cr.classList.add('tt-show');
 
@@ -481,6 +519,8 @@
     function deactivate(announce) {
         if (!S.active) return;
         S.active = false;
+        if (S.creditSync) { window.removeEventListener('apex:balance', S.creditSync); S.creditSync = null; }
+        if (S.creditTimer) { clearInterval(S.creditTimer); S.creditTimer = null; }
         document.removeEventListener('pointerdown', onPop, true);
         stopMusic();
         identity(false);

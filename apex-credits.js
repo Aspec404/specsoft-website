@@ -98,12 +98,23 @@
             }
             var r = await c.rpc('apex_wallet');
             if (r.error) throw r.error;
-            paint(Number(r.data.balance) || 0, true);
+            var v = Number(r.data.balance) || 0;
+            paint(v, true);
+            window.dispatchEvent(new CustomEvent('apex:balance', { detail: { balance: v } }));
             return r.data;
         } catch (e) { return null; }
     }
 
-    window.ApexCredits = { refresh: refresh, set: function (n) { paint(Number(n) || 0, true); }, get: function () { return balance; }, format: fmt };
+    window.ApexCredits = {
+        refresh: refresh,
+        set: function (n) {
+            var v = Number(n) || 0;
+            paint(v, true);
+            window.dispatchEvent(new CustomEvent('apex:balance', { detail: { balance: v } }));
+        },
+        get: function () { return balance; },
+        format: fmt
+    };
     window.addEventListener('apex:balance', function (e) { if (e && e.detail != null) paint(Number(e.detail.balance) || 0, true); });
 
     function start() {

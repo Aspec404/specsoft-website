@@ -465,6 +465,8 @@
         pin_limit: 'This chat already has 50 pinned messages. Unpin one first.',
         message_not_found: 'That message is no longer available.',
         emote_not_owned: 'You can only send emotes you own. Get it in the Store.',
+        super_cooldown: 'Super emotes are recharging. Try again in a few seconds.',
+        super_one_per_message: 'Only one super emote per message.',
         no_send: 'You do not have permission to talk here.',
         timed_out: 'You are in a timeout. You cannot post right now.',
         banned: 'You are banned from this community.',
@@ -995,7 +997,7 @@
                         if (match && match[1].indexOf('url:') === 0) frag.appendChild(makeCustomEmoji(match[1].slice(4), 'Custom emoji', jumboEmoji));
                         else if (match) {
                             const k = match[1].toLowerCase();
-                            if (CUSTOM_EMOJI[k]) frag.appendChild(makeCustomEmoji(CUSTOM_EMOJI[k], ':' + match[1] + ':', jumboEmoji));
+                            if (CUSTOM_EMOJI[k]) frag.appendChild(SUPER[k] && STORE_EMOTE[k] ? makeSuperSticker(k) : makeCustomEmoji(CUSTOM_EMOJI[k], ':' + match[1] + ':', jumboEmoji));
                             else if (FL.byCode[k]) frag.appendChild(makeFluentEmoji(FL.byCode[k], jumboEmoji));
                             else frag.appendChild(document.createTextNode(':' + k + ':'));
                         }
@@ -1860,6 +1862,11 @@
         const room = S.current;
         if (room.kind === 'dm' && (room.blocked_by_me || room.blocked_me)) { toast(ERR.blocked); return false; }
 
+        // super emotes: one per message, and the 10 second cooldown (the server checks both too)
+        const superUsed = S.editing ? [] : superCodesIn(body);
+        if (superUsed.length > 1) { toast(ERR.super_one_per_message); return false; }
+        if (superUsed.length && superLeft() > 0) { toast('Super emotes are recharging: ' + Math.ceil(superLeft() / 1000) + 's left.'); return false; }
+
         // ----- editing -----
         if (S.editing) {
             const target = S.editing;
@@ -1927,6 +1934,7 @@
             const live = S.roomMap.get(room.room_id) || room;
             live.last_body = real.body; live.last_at = real.created_at; live.last_sender = S.me.id;
             bumpRoom(live);
+            if (superUsed.length) superSent(real.id, superUsed[0]);        // effects + sound + start the cooldown
             return true;
         } catch (err) {
             if (temp) {
@@ -1946,6 +1954,8 @@
                 const rr = S.roomMap.get(room.room_id);
                 if (rr) { rr.blocked_me = true; if (sameRoom(rr)) paintComposerLock(); }
             }
+            const cd = /super_cooldown:(\d+)/.exec(String(err && err.message || ''));
+            if (cd) { SUPER_UNTIL = Date.now() + Number(cd[1]) * 1000; startSuperTicker(); }
             toast(friendly(err));
             return false;
         } finally {
@@ -3086,6 +3096,90 @@
     let MY_EMOTES = new Map();                 // emotes this member owns: name -> image url
     let emotesAt = 0;
 
+    /* ----------------------------------------------------------------------
+       SUPER EMOTES (super-emotes.js + supabase-store-super-emotes.sql)
+       A super emote is a store emote shown as a bigger sticker. Sending one plays its effects and
+       sound for everybody who has that chat open. One per message, 10 second cooldown (the server
+       enforces both; the timer here just shows it).
+       ---------------------------------------------------------------------- */
+    const SUPER = Object.create(null);         // super emote name -> its cleaned design
+    let SUPER_UNTIL = 0;                       // when the cooldown ends (ms since 1970)
+    let superTick = null;
+
+    function superSig() { return JSON.stringify(Object.keys(SUPER).sort().map(function (n) { return [n, SUPER[n].hl]; })); }
+
+    function superCodesIn(text) {
+        const out = [], re = /:([a-z0-9_+-]{1,32}):/gi;
+        let m;
+        while ((m = re.exec(String(text || '')))) { const k = m[1].toLowerCase(); if (SUPER[k]) out.push(k); }
+        return out;
+    }
+
+    function superLeft() { return Math.max(0, SUPER_UNTIL - Date.now()); }
+
+    // dims every super emote button and shows the seconds left while the cooldown runs
+    function paintSuperCd() {
+        const left = superLeft();
+        document.querySelectorAll('.ch-emoji-btn.is-super').forEach(function (b) {
+            b.classList.toggle('is-cooling', left > 0);
+            b.setAttribute('aria-disabled', left > 0 ? 'true' : 'false');
+            const t = b.querySelector('.ch-super-timer');
+            if (t) t.textContent = left > 0 ? String(Math.ceil(left / 1000)) : '';
+        });
+        if (left <= 0 && superTick) { clearInterval(superTick); superTick = null; }
+    }
+
+    function startSuperTicker() {
+        paintSuperCd();
+        if (!superTick && superLeft() > 0) superTick = setInterval(paintSuperCd, 250);
+    }
+
+    // the colored highlight + timer on a picker button
+    function superMark(button, k) {
+        const d = SUPER[k];
+        if (!d) return;
+        button.classList.add('is-super');
+        button.style.setProperty('--sup', d.hl);
+        button.appendChild(el('span', { class: 'ch-super-timer', 'aria-hidden': 'true' }));
+    }
+
+    // a super emote inside a message: a bigger sticker
+    function makeSuperSticker(k) {
+        const img = el('img', { class: 'ch-inline-emoji ch-super-sticker', src: STORE_EMOTE[k], alt: ':' + k + ':', title: ':' + k + ':', loading: 'lazy', draggable: 'false', referrerpolicy: 'no-referrer' });
+        if (window.SpecSuper) window.SpecSuper.decorate(img, SUPER[k]);
+        img.onerror = function () { img.replaceWith(document.createTextNode(':' + k + ':')); };
+        return img;
+    }
+
+    // run the effects + sound of a super emote that just landed in the open chat
+    function playSuper(msgId, k) {
+        const d = SUPER[k];
+        const host = $('chMain');
+        if (!d || !host || !window.SpecSuper) return;
+        let origin = null;
+        const node = $('chFeed').querySelector('[data-id="' + msgId + '"] .ch-super-sticker');
+        if (node) {
+            const a = node.getBoundingClientRect(), b = host.getBoundingClientRect();
+            origin = { x: a.left - b.left + a.width / 2, y: a.top - b.top + a.height / 2 };
+        }
+        window.SpecSuper.play(d, { host: host, origin: origin, sticker: node });
+    }
+
+    // my own super emote was accepted: start the cooldown and play it for me too
+    function superSent(msgId, k) {
+        SUPER_UNTIL = Date.now() + (window.SpecSuper ? window.SpecSuper.COOLDOWN_MS : 10000);
+        startSuperTicker();
+        playSuper(msgId, k);
+    }
+
+    // picking a super emote for the message box: refuse during the cooldown, and only one per message
+    function superGuard() {
+        const left = superLeft();
+        if (left > 0) { toast('Super emotes are recharging: ' + Math.ceil(left / 1000) + 's left.'); return false; }
+        if (superCodesIn($('chInput').value).length) { toast(ERR.super_one_per_message); return false; }
+        return true;
+    }
+
     function composerEmojiUrl(name) {
         const k = String(name).toLowerCase();
         if (STORE_EMOTE[k]) return MY_EMOTES.has(k) ? STORE_EMOTE[k] : null;   // not yours: stays plain text
@@ -3095,7 +3189,8 @@
     async function loadEmotes() {
         if (!sb) return false;
         try {
-            const r = await Promise.all([sb.rpc('chat_emotes'), sb.rpc('chat_my_emotes')]);
+            const supBefore = superSig();
+            const r = await Promise.all([sb.rpc('chat_emotes'), sb.rpc('chat_my_emotes'), sb.rpc('chat_super_emotes')]);
             if (r[0].error) return false;                                   // store SQL not installed yet: chats keep working
             (r[0].data || []).forEach(function (e) {
                 const k = String(e.emote_name || '').toLowerCase();
@@ -3108,7 +3203,15 @@
             const sig = function (m) { return Array.from(m.keys()).sort().join('|'); };
             const changed = sig(next) !== sig(MY_EMOTES);
             MY_EMOTES = next; emotesAt = Date.now();
-            return changed;
+            if (!r[2].error) {                                              // super emote SQL not installed yet: they simply stay normal emotes
+                Object.keys(SUPER).forEach(function (n) { delete SUPER[n]; });
+                (r[2].data || []).forEach(function (e) {
+                    const k = String(e.emote_name || '').toLowerCase();
+                    const d = window.SpecSuper ? window.SpecSuper.clean(e.super_data) : null;
+                    if (d && STORE_EMOTE[k]) SUPER[k] = d;
+                });
+            }
+            return changed || superSig() !== supBefore;
         } catch (e) { return false; }
     }
 
@@ -3126,7 +3229,8 @@
         }
         const grid = el('div', { class: 'ch-emoji-grid' });
         names.forEach(function (name) {
-            const button = el('button', { type: 'button', class: 'ch-emoji-btn is-custom', 'aria-label': name, title: ':' + name + ':', onclick: function () { pickEmoji(':' + name + ':'); } });
+            const button = el('button', { type: 'button', class: 'ch-emoji-btn is-custom', 'aria-label': name, title: ':' + name + ':' + (SUPER[name] ? ' (super emote)' : ''), onclick: function () { pickEmoji(':' + name + ':'); } });
+            superMark(button, name);
             const img = el('img', { src: MY_EMOTES.get(name), alt: name, loading: 'lazy', referrerpolicy: 'no-referrer' });
             img.onerror = function () { button.disabled = true; };
             button.appendChild(img);
@@ -3134,6 +3238,7 @@
         });
         grid.appendChild(el('a', { class: 'ch-emoji-btn ch-emoji-more', href: 'store.html#items', title: 'Get more emotes', 'aria-label': 'Get more emotes', text: '+' }));
         box.appendChild(grid);
+        paintSuperCd();
     }
 
     /* seasonal emoji (seasons.js): while a season is on, the picker gets a section of matching emoji */
@@ -3190,6 +3295,7 @@
             }
         }
         const button = el('button', { type: 'button', class: 'ch-emoji-btn' + (url && !ch ? ' is-custom' : ''), 'aria-label': label, title: label, onclick: function () { pickEmoji(value); } });
+        if (m) superMark(button, m[1].toLowerCase());
         if (url && !ch) {
             const img = el('img', { src: url, alt: label, loading: 'lazy' });
             img.onerror = function () { button.disabled = true; };
@@ -3293,6 +3399,8 @@
     }
 
     function pickEmoji(e) {
+        const sm = /^:([a-z0-9_+-]{1,32}):$/i.exec(e);
+        if (!S.pickerFor && sm && SUPER[sm[1].toLowerCase()] && !superGuard()) return;     // super emote: cooldown / one per message
         recentAdd(e);
         if (S.pickerFor) {
             const m = S.byId.get(S.pickerFor);
@@ -3314,6 +3422,7 @@
         $('chEmojiBtn').setAttribute('aria-expanded', String(!box.hidden));
         if (!box.hidden) {
             paintRecent();
+            paintSuperCd();
             box.scrollTop = 0;
             refreshEmotes(false);                            // pick up emotes just bought in the store
             if (pickSearch && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) pickSearch.focus();
@@ -3587,6 +3696,10 @@
             const wasBottom = S.atBottom || atBottomNow();
             addToState(row);
             appendMessage(row);
+            if (!mine && !document.hidden) {                       // somebody sent a super emote: play it (only live ones, never old history)
+                const sc = superCodesIn(row.body);
+                if (sc.length && Date.now() - new Date(row.created_at).getTime() < 20000) playSuper(row.id, sc[0]);
+            }
             if (wasBottom && !document.hidden) { scrollToBottom(); markRead(room.room_id); }
             else if (!mine) { S.newCount++; S.atBottom = false; paintJump(); room.unread++; updateBadges(); }
             if (!mine) {

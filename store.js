@@ -376,7 +376,7 @@
                 el('span', { class: 'st-rarity', text: RARITY[item.rarity] || 'Common' }),
                 item.stock != null ? el('span', { class: 'st-stock', text: item.stock > 0 ? item.stock + ' left' : 'sold out' }) : null),
             el('h3', { text: item.name }),
-            item.category === 'emote' && item.emote_name ? el('div', { class: 'st-emote-code', text: ':' + item.emote_name + ':' }) : null,
+            item.category === 'emote' && item.emote_name ? el('div', { class: 'st-emote-code', text: ':' + item.emote_name + ':' + (item.super_data ? '  \u26A1 SUPER EMOTE' : '') }) : null,
             item.category === 'bundle' ? el('div', { class: 'st-emote-code', text: bundleLine(item) }) : null,
             item.description ? el('p', { text: item.description }) : null,
             el('div', { class: 'st-card-foot' }, priceView(item), buyButton(item, price))));
