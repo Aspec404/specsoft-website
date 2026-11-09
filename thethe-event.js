@@ -15,6 +15,8 @@
          - the browser tab says "tHE THE - Official Homepage" and gets an orange "tT" favicon (both restored after)
          - a "tHE Credits" badge (bottom right, your real APEX balance, click it) and a music pill (bottom left, the OST)
          - meme emoji pop up where you click, and one short emoji rain the first time you see it (full effects only)
+         - Thea and Mirai (the original tHE THE mascots, sprites in assets/the-the/): their avatars on the toasts, a few of them in the
+           rain, and now and then one of their emotes pops up where you click (full effects, normal devices). Ultra reduce motion loads no sprites.
          - the site's custom cursor (cursor.js) turns orange
          - the sidebar / mobile logo says "tHE THE" (with an orange tT mark) instead of SPECSOFT®
          - a floating rounded bottom nav (Home / Projects / Chats / Store / Profile), like the old tHE THE site
@@ -57,6 +59,19 @@
     var ICON = 'data:image/svg+xml,' + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='#FF6B35'/><text x='32' y='44' font-size='34' font-family='Arial,sans-serif' font-weight='700' text-anchor='middle' fill='white'>tT</text></svg>");
     // memes: moai, skull, crying, fire, orange heart, sparkles, laughing
     var MEMES = ['\uD83D\uDDFF', '\uD83D\uDC80', '\uD83D\uDE2D', '\uD83D\uDD25', '\uD83E\uDDE1', '\u2728', '\uD83D\uDE02'];
+    /* Thea and Mirai (the original tHE THE mascots): sprites live in assets/the-the/ next to this script.
+       NAME.png = full size, NAME-s.webp = small version used for pop-ups, rain and the toast avatar. */
+    var ASSET_DIR = SELF ? SELF.replace(/thethe-event\.js(\?.*)?$/, 'assets/the-the/') : 'assets/the-the/';
+    var MASCOTS = {
+        thea:  { icon: 'thea-icon',  emotes: ['thea-angry', 'thea-happy', 'thea-confused', 'thea-sleepy', 'thea-cat', 'thea-silent'] },
+        mirai: { icon: 'mirai-icon', emotes: ['mirai-excited', 'mirai-angry', 'mirai-confused', 'mirai-love', 'mirai-surprised', 'mirai-sleepy'] }
+    };
+    var MASCOT_LINES = [
+        ['thea', 'Thea: ...finally. you took forever \uD83D\uDE24'],
+        ['mirai', 'Mirai: WELCOME BACK!! \uD83D\uDD25'],
+        ['thea', 'Thea: hi. (don\u2019t make it weird)'],
+        ['mirai', 'Mirai: did you miss us?? \uD83E\uDDE1']
+    ];
     var POPS = [0, 3, 5, 8];      // click pop-ups per click, by effects level
     var RAIN = [0, 0, 14, 26];    // opening emoji rain, by effects level
     var LINES = [
@@ -81,7 +96,7 @@
 
     var S = {
         ev: null, off: 0, active: false, preview: false, pollT: 0, tickT: 0,
-        root: null, pill: null, credits: null, crB: null, bal: null, balFn: null, balT: 0, bn: null, bnFn: null, bnY: 0, toastEl: null, mo: null, modeMo: null, outT: 0,
+        root: null, pill: null, credits: null, imgs: {}, crB: null, bal: null, balFn: null, balT: 0, bn: null, bnFn: null, bnY: 0, toastEl: null, mo: null, modeMo: null, outT: 0,
         aud: null, playing: false, blocked: false, gestureArmed: false, btn: null, muteBtn: null, vol: null,
         lastPop: 0, fadeT: 0, mode: 'full', lite: false, key: '', hooked: false,
         idDone: false, oldTitle: '', oldIcons: [], newIcon: null
@@ -124,6 +139,7 @@
     function applyMode() {
         S.mode = mode();
         S.lite = S.mode === 'full' && lite();
+        preloadSprites();
         S.key = modeKey();
         var c = ROOT.classList;
         c.remove('tt-fx'); c.remove('tt-rm'); c.remove('tt-min'); c.remove('tt-lite');
@@ -142,10 +158,39 @@
     }
 
     /* ------------------------------ toast ------------------------------ */
-    function toast(msg, ms) {
+    /* ------------------------------ Thea + Mirai sprites ------------------------------ */
+    function spr(n) { return ASSET_DIR + n + '-s.webp'; }
+    function mascotImg(cls, name, px) {
+        var im = document.createElement('img');
+        im.className = cls; im.alt = ''; im.decoding = 'async'; im.draggable = false; im.src = spr(name);
+        if (px) im.style.width = px + 'px';
+        return im;
+    }
+    function anyIcon() { return pick([MASCOTS.thea.icon, MASCOTS.mirai.icon]); }
+    // icons straight away (tiny); the emotes a moment later, full effects on normal devices only. Ultra reduce motion loads nothing.
+    function preloadSprites() {
+        if (!S.active || S.mode === 'min') return;
+        function load(n) { if (S.imgs[n]) return; var im = new Image(); im.decoding = 'async'; im.src = spr(n); S.imgs[n] = im; }
+        load(MASCOTS.thea.icon); load(MASCOTS.mirai.icon);
+        if (S.mode === 'full' && !S.lite) {
+            setTimeout(function () {
+                if (!S.active || S.mode !== 'full') return;
+                MASCOTS.thea.emotes.concat(MASCOTS.mirai.emotes).forEach(load);
+            }, 1800);
+        }
+    }
+    function readyEmote() {
+        var n = pick(MASCOTS.thea.emotes.concat(MASCOTS.mirai.emotes)), im = S.imgs[n];
+        return (im && im.complete && im.naturalWidth) ? n : null;
+    }
+
+    function toast(msg, ms, face) {
         if (!document.body) return;
         if (!S.toastEl) { S.toastEl = mk('div', 'tt-toast'); S.toastEl.setAttribute('role', 'status'); document.body.appendChild(S.toastEl); }
-        S.toastEl.textContent = msg;
+        S.toastEl.textContent = '';
+        if (face && S.mode !== 'min') { S.toastEl.appendChild(mascotImg('tt-face', face, 34)); S.toastEl.classList.add('tt-has-face'); }
+        else S.toastEl.classList.remove('tt-has-face');
+        S.toastEl.appendChild(mk('span', null, msg));
         void S.toastEl.offsetWidth;
         S.toastEl.classList.add('tt-show');
         clearTimeout(S.toastEl._t);
@@ -349,6 +394,19 @@
 
     /* ------------------------------ meme pop-ups + opening rain ------------------------------ */
     function burstAt(x, y, count) {
+        if (S.mode === 'full' && !S.lite && count > 1 && Math.random() < 0.3) {
+            var en = readyEmote();
+            if (en) {
+                var mp = mascotImg('tt-pop tt-mascot', en, Math.round(rand(64, 92)));
+                mp.style.left = x + 'px'; mp.style.top = y + 'px';
+                mp.style.setProperty('--tt-x', Math.round(rand(-40, 40)) + 'px');
+                mp.style.setProperty('--tt-y', Math.round(rand(-110, -60)) + 'px');
+                mp.style.setProperty('--tt-r', Math.round(rand(-14, 14)) + 'deg');
+                document.body.appendChild(mp);
+                setTimeout(function () { if (mp.parentNode) mp.parentNode.removeChild(mp); }, 1000);
+                count -= 1;
+            }
+        }
         for (var i = 0; i < count; i++) {
             var p = mk('span', 'tt-pop', pick(MEMES));
             p.style.left = x + 'px'; p.style.top = y + 'px';
@@ -375,9 +433,9 @@
         var n = RAIN[Math.max(0, Math.min(3, S.ev.fx | 0))] || 0;
         if (small()) n = Math.round(n * 0.6);
         for (var i = 0; i < n; i++) {
-            var d = mk('span', 'tt-drop', pick(MEMES));
+            var d = (i % 7 === 3) ? mascotImg('tt-drop', anyIcon(), Math.round(rand(34, 52))) : mk('span', 'tt-drop', pick(MEMES));
             d.style.left = rand(0, 96).toFixed(1) + '%';
-            d.style.fontSize = Math.round(rand(18, 34)) + 'px';
+            if (d.tagName !== 'IMG') d.style.fontSize = Math.round(rand(18, 34)) + 'px';
             d.style.setProperty('--tt-d', rand(3.2, 5.5).toFixed(1) + 's');
             d.style.setProperty('--tt-delay', rand(0, 2.2).toFixed(1) + 's');
             d.style.setProperty('--tt-sway', Math.round(rand(-60, 60)) + 'px');
@@ -471,7 +529,7 @@
         cr.appendChild(mk('span', 'tt-coin', '$')); cr.appendChild(S.crB); cr.appendChild(mk('small', null, 'tHE Credits'));
         loadBalance();
         cr.addEventListener('click', function (e) {
-            toast(pick((S.bal || 0) > 0 ? CREDIT_LINES_REAL : CREDIT_LINES), 3200);
+            toast(pick((S.bal || 0) > 0 ? CREDIT_LINES_REAL : CREDIT_LINES), 3200, anyIcon());
             if (S.mode === 'full') { var r = cr.getBoundingClientRect(); burstAt(r.left + r.width / 2, r.top, S.lite ? 3 : 7); }
         });
         document.body.appendChild(cr);
@@ -551,6 +609,7 @@
         document.body.appendChild(S.root);
         buildBadges();
         buildBottomNav();
+        preloadSprites();
         document.addEventListener('pointerdown', onPop, true);
         hookWatchers();
 
@@ -561,8 +620,11 @@
         if (first) {
             ssSet(tk, '1');
             rain();
-            var line = S.ev.label ? S.ev.label + ' \uD83D\uDDFF' : pick(LINES);
-            toast(S.preview ? 'tHE THE preview \uD83D\uDDFF only you can see this' : (line + (S.ev.audio && S.ev.audio.ost && lsGet(K_SND) !== '1' ? '  \u00B7  tap \u266A for the OST' : '')), 5200);
+            var line, face = anyIcon();
+            if (S.ev.label) line = S.ev.label + ' \uD83D\uDDFF';
+            else if (S.mode !== 'min' && Math.random() < 0.6) { var ml = pick(MASCOT_LINES); line = ml[1]; face = MASCOTS[ml[0]].icon; }
+            else line = pick(LINES);
+            toast(S.preview ? 'tHE THE preview \uD83D\uDDFF only you can see this' : (line + (S.ev.audio && S.ev.audio.ost && lsGet(K_SND) !== '1' ? '  \u00B7  tap \u266A for the OST' : '')), 5200, face);
         }
     }
     function deactivate(announce) {

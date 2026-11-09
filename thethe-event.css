@@ -432,6 +432,10 @@ html.tt-min #tt-root { display: none !important; }
     100% { transform: translate3d(var(--tt-sway, 30px), 112vh, 0) rotate(var(--tt-rot, 200deg)); opacity: 0; }
 }
 
+/* Thea / Mirai sprites: emotes that pop where you click, icons that fall with the emoji rain */
+.tt-mascot { height: auto; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .28)); user-select: none; -webkit-user-drag: none; }
+img.tt-drop { height: auto; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .25)); }
+
 /* click pop-ups (meme emojis) */
 .tt-pop { position: fixed; z-index: 9991; pointer-events: none; line-height: 1; animation: tt-pop .9s cubic-bezier(.2, .8, .3, 1) forwards; }
 @keyframes tt-pop {
@@ -492,6 +496,10 @@ html.tt-rm .tt-btn.tt-ask, html.tt-min .tt-btn.tt-ask { outline: 3px solid rgba(
     transition: transform .5s cubic-bezier(.34, 1.4, .64, 1), opacity .35s ease;
 }
 .tt-toast.tt-show { transform: translate(-50%, 0); opacity: 1; }
+/* Thea / Mirai avatar on the toast */
+.tt-toast { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.tt-face { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 10px; object-fit: contain; background: rgba(255, 255, 255, .22); }
+.tt-toast.tt-has-face { padding: 8px 18px 8px 10px; text-align: left; }
 
 /* ---------- 7. SAFETY NET: if the OS asks for reduced motion before the script has run, nothing moves ---------- */
 @media (prefers-reduced-motion: reduce) {
