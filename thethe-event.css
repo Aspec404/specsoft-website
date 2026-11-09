@@ -331,9 +331,10 @@ html body.tt-on.ch-body .ch-gate-card { background: var(--tt-surface); border-co
 html body.tt-on.ch-body .ch-spinner { border-color: var(--accent-dim); border-top-color: var(--accent); }
 html body.tt-on.ch-body .ch-empty-art span { border-color: var(--accent-strong); }
 
-/* the little tHE THE pills must not sit on top of the composer / sidebar buttons here */
+/* the little tHE THE pills must not sit on top of the composer / profile / sidebar buttons here: the music pill goes small, top right, under the header */
 html body.tt-on.ch-body .tt-credits { display: none; }
-html body.tt-on.ch-body .tt-pill { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+html body.tt-on.ch-body .tt-pill { top: calc(76px + env(safe-area-inset-top, 0px)); right: 14px; bottom: auto; left: auto; padding: 5px 6px; gap: 6px; }
+html body.tt-on.ch-body .tt-pill .tt-lbl, html body.tt-on.ch-body .tt-pill .tt-vol { display: none; }
 
 /* ---------- 3. THE LAYER (only used for the opening emoji rain; never blocks clicks) ---------- */
 #tt-root, #tt-root * { box-sizing: border-box; }
