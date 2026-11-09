@@ -143,13 +143,19 @@ end $$;
 -- ---------- members: join (the server rolls THEIR route of pages) ---------------
 create or replace function public.blackout_join(p_event uuid)
 returns json language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); e public.blackout_events; p public.blackout_participants; r text[];
+declare uid uuid := auth.uid(); e public.blackout_events; p public.blackout_participants; r text[] := '{}'; shuf text[]; n int; want int;
 begin
     if uid is null then raise exception 'not_signed_in'; end if;
     select * into e from public.blackout_events where id = p_event and aborted_at is null;
     if not found or now() < e.starts_at - interval '40 seconds' or now() > e.ends_at or e.won_at is not null then return json_build_object('ok', false); end if;
-    select coalesce(array_agg(q.pg), '{}') into r
-      from (select pg from unnest(e.pages) as pg order by random() limit least(e.per_player_max, cardinality(e.pages))) q;
+    -- the route can be LONGER than the number of pages: pages are reshuffled round after round (never the same page twice in a row)
+    n := cardinality(e.pages); want := e.per_player_max;
+    while cardinality(r) < want loop
+        select array_agg(pg order by random()) into shuf from unnest(e.pages) as pg;
+        if cardinality(r) > 0 and shuf[1] = r[cardinality(r)] and n > 1 then shuf := shuf[2:n] || shuf[1]; end if;
+        r := r || shuf;
+    end loop;
+    r := r[1:want];
     insert into public.blackout_participants (event_id, user_id, route) values (p_event, uid, r) on conflict do nothing;
     select * into p from public.blackout_participants where event_id = p_event and user_id = uid;
     return json_build_object('ok', true, 'dead', p.dead_at is not null, 'fixed', p.fixed, 'quota', cardinality(p.route));
@@ -391,7 +397,7 @@ begin
     if v_pages is null or cardinality(v_pages) not between 2 and 30 or exists (select 1 from unnest(v_pages) pg where pg !~ '^[a-z0-9_-]{1,30}$') then
         return public.admin_fail('blackout_settings_set', null, p_reason, 'bad_pages');
     end if;
-    if v_max is null or v_max not between 1 and 30 or v_max > cardinality(v_pages) then return public.admin_fail('blackout_settings_set', null, p_reason, 'bad_per_player'); end if;
+    if v_max is null or v_max not between 1 and 30 then return public.admin_fail('blackout_settings_set', null, p_reason, 'bad_per_player'); end if;
     foreach k in array array['ost', 'danger', 'gen', 'dead', 'win', 'fail'] loop
         if nullif(p_cfg->'audio'->>k, '') is not null and (p_cfg->'audio'->>k) !~ v_re then
             return public.admin_fail('blackout_settings_set', null, p_reason, 'bad_audio_url');

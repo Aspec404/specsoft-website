@@ -328,7 +328,7 @@
             var d = Math.sqrt((cx - L.x) * (cx - L.x) + (cy - L.y) * (cy - L.y));
             var o = clamp(1 - (d - lr * 0.35) / (lr * 0.75), 0, 1);
             var hintHere = S.me && S.me.hint === PAGE;
-            S.pad.style.opacity = String(Math.max(o, hintHere ? 0.42 : 0.07));
+            S.pad.style.opacity = String(Math.max(o, hintHere ? 0.6 : 0.16));
             if (o > 0.5 && S.snd && ts - S.buzzAt > 1600) { S.buzzAt = ts; sfxBuzz(); }
         }
     }
@@ -369,7 +369,7 @@
         else if (!S.user && !S.preview) task = 'LOG IN TO HELP FIX THE GENERATORS';
         else if (!me || !me.joined) task = 'CONNECTING TO THE GRID...';
         else if (me.fixed >= me.quota) task = 'YOUR GENERATORS ' + me.fixed + '/' + me.quota + ' DONE. STAY ALIVE AND KEEP WATCHING THE GRID.';
-        else task = 'YOUR GENERATORS ' + me.fixed + '/' + me.quota + ' \u00B7 ' + (me.hint ? 'SIGNAL DETECTED ON: ' + pretty(me.hint) : 'EXPLORE THE PAGES AND FIND THE NEXT ONE WITH YOUR LIGHT.');
+        else task = 'YOUR GENERATORS ' + me.fixed + '/' + me.quota + ' \u00B7 ' + (me.here ? 'A GENERATOR IS HIDDEN ON THIS PAGE. SWEEP YOUR LIGHT AROUND AND SCROLL.' : me.hint ? 'SIGNAL DETECTED ON: ' + pretty(me.hint) : 'EXPLORE THE PAGES AND FIND THE NEXT ONE WITH YOUR LIGHT.');
         txt('[data-task]', task);
         if (S.phase === 'run') {
             var pc = goal ? tot / goal : 0;
@@ -382,7 +382,8 @@
     /* ------------------------------ the generator pad ------------------------------ */
     function padPos() {
         var uid = (S.user && S.user.id) || 'guest', r = mulberry(hashStr(uid + ':' + S.ev.id + ':' + PAGE));
-        var W = Math.max(innerWidth, 320), H = Math.max(document.documentElement.scrollHeight, innerHeight);
+        var W = Math.max(innerWidth, 320), H = Math.min(Math.max(document.documentElement.scrollHeight, innerHeight), innerHeight * 3);   // never buried deep in a super long page
+        var n = (S.me && S.me.fixed) || 0; r = mulberry(hashStr(uid + ':' + S.ev.id + ':' + PAGE + ':' + n));                                 // new spot for every generator, even on the same page
         return { x: 14 + r() * (W - 100), y: 150 + r() * Math.max(120, H - 300) };
     }
     function syncPad() {
@@ -394,7 +395,7 @@
         removePad();
         var b = document.createElement('button'); b.type = 'button'; b.className = 'bo-pad'; b.id = 'bo-pad'; b.setAttribute('aria-label', 'Generator control panel');
         b.innerHTML = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 3 43 14v20L24 45 5 34V14z"/><path d="M26 11 16 26h7l-2 11 11-16h-7z"/></svg><i class="bo-led"></i>';
-        var p = padPos(); b.style.left = p.x.toFixed(0) + 'px'; b.style.top = p.y.toFixed(0) + 'px'; b.style.opacity = '0.07';
+        var p = padPos(); b.style.left = p.x.toFixed(0) + 'px'; b.style.top = p.y.toFixed(0) + 'px'; b.style.opacity = '0.16';
         b.addEventListener('click', openPad);
         ROOT.appendChild(b); S.pad = b; S.padKey = key;
     }
