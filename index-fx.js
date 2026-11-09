@@ -18,6 +18,10 @@
     'use strict';
 
     function reduceMotion() {
+        try {
+            var s = JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {};
+            if (s.reduceMotion === true || s.ultraReduceMotion === true) return true;   // Settings > Appearance
+        } catch (e) { /* ignore */ }
         return !!(window.matchMedia && (
             window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
             window.matchMedia('(hover: none)').matches

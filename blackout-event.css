@@ -1,0 +1,180 @@
+/* ==========================================================================
+   SPECSOFT® blackout-event.css  -  styles for blackout-event.js (loaded by it, only while an event is live)
+   Everything is prefixed bo-. Nothing here touches your normal pages when no event is running.
+   Look: the site is nearly black, your light is the only way to see. Red = danger. Same monochrome HUD as the nuke event.
+   Layers (bottom to top): page < dark < red < flash < HUD < generator pad < wire puzzle < terminated screen < report
+   ========================================================================== */
+#bo-root, #bo-inc, #bo-report, .bo-toast, .bo-pad, .bo-wire { box-sizing: border-box; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+#bo-root *, #bo-report *, #bo-inc *, .bo-wire *, .bo-toast * { box-sizing: border-box; }
+
+/* ---------- root layer: never blocks the page, only its own buttons are clickable ---------- */
+#bo-root { position: fixed; inset: 0; z-index: 2147482900; pointer-events: none; color: #fff; overflow: hidden; }
+#bo-root .bo-hud, #bo-root .bo-warn, #bo-root .bo-mini, #bo-root .bo-btn, #bo-root .bo-dead, #bo-root .bo-spec { pointer-events: auto; }
+
+/* ---------- darkness: a hole of light follows the cursor / finger ---------- */
+.bo-dark { position: absolute; inset: 0; opacity: 1; transition: opacity 3.2s ease-in; pointer-events: none;
+    background: radial-gradient(circle var(--fr, 190px) at var(--fx, 50%) var(--fy, 50%), rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .34) 50%, rgba(0, 0, 0, .965) 100%); }
+.bo-restored .bo-dark { opacity: 0; }
+
+/* ---------- red light: glow from the edges, brighter and brighter (JS sets --rl 0..1 and --ex 0..1) ---------- */
+.bo-red { position: absolute; inset: 0; pointer-events: none; opacity: var(--rl, 0); mix-blend-mode: screen; transition: opacity .12s linear;
+    background: radial-gradient(ellipse 55% 50% at var(--rx, 20%) var(--ry, 30%), rgba(255, 26, 50, .8), rgba(255, 26, 50, 0) 70%),
+                radial-gradient(ellipse 120% 90% at 50% 118%, rgba(255, 0, 30, .55), rgba(255, 0, 30, 0) 66%);
+    box-shadow: inset 0 0 calc(60px + var(--ex, 0) * 190px) calc(var(--ex, 0) * 36px) rgba(255, 0, 30, calc(.28 + var(--ex, 0) * .62)); }
+.bo-calm .bo-red { transition: opacity .6s ease; }
+.bo-restored .bo-red { opacity: 0 !important; }
+
+/* ---------- one-shot flashes ---------- */
+.bo-flash { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.bo-flash.is-slam { background: #fff; animation: boSlam 1.2s ease-out; }
+.bo-flash.is-gen { background: radial-gradient(circle at 50% 50%, rgba(120, 255, 190, .55), rgba(120, 255, 190, 0) 70%); animation: boGen .9s ease-out; }
+.bo-flash.is-dead { background: rgba(255, 0, 30, .75); animation: boGen 1.3s ease-out; }
+.bo-flash.is-win { background: #fff; animation: boWin 2.4s ease-out; }
+@keyframes boSlam { 0% { opacity: 0; } 8% { opacity: 1; } 22% { opacity: 0; } 30% { opacity: .7; } 55% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes boGen { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes boWin { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+html.bo-shake body { animation: boShake .24s steps(2, end) infinite; }
+@keyframes boShake { 0% { transform: translate(1.5px, -1px); } 50% { transform: translate(-1.5px, 1px); } 100% { transform: translate(1px, 1.5px); } }
+
+/* ---------- HUD ---------- */
+.bo-hud { position: absolute; left: 50%; top: calc(10px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); width: min(560px, 94vw); padding: 10px 14px 12px;
+    background: rgba(6, 6, 8, .84); border: 1px solid rgba(255, 255, 255, .18); border-radius: 14px; backdrop-filter: blur(6px); font-size: 11px; letter-spacing: .08em; }
+.bo-hud-top, .bo-power { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bo-tag { font-weight: 700; letter-spacing: .24em; color: #fff; }
+.bo-clock { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: .1em; font-variant-numeric: tabular-nums; }
+.bo-mini { border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .06); color: #fff; font: inherit; font-size: 10px; letter-spacing: .1em; padding: 5px 9px; border-radius: 999px; cursor: pointer; }
+.bo-mini:hover { background: rgba(255, 255, 255, .16); }
+.bo-power { margin-top: 8px; font-size: 12px; }
+.bo-alive { opacity: .65; font-size: 10px; }
+.bo-bar, .bo-exbar { height: 6px; margin-top: 6px; border-radius: 99px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.bo-bar i { display: block; height: 100%; width: 0; background: #fff; box-shadow: 0 0 12px rgba(255, 255, 255, .7); transition: width .8s ease; }
+.bo-task { margin-top: 8px; font-size: 10px; line-height: 1.5; opacity: .8; }
+.bo-ex { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 10px; color: #ff6b7a; }
+.bo-ex[hidden] { display: none; }
+.bo-exbar { flex: 1; margin: 0; background: rgba(255, 60, 80, .18); }
+.bo-exbar i { display: block; height: 100%; width: 0; background: #ff2a3d; box-shadow: 0 0 10px #ff2a3d; }
+.bo-restored .bo-hud { border-color: #fff; box-shadow: 0 0 30px rgba(255, 255, 255, .35); }
+
+.bo-danger { position: absolute; left: 50%; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: 94vw; padding: 10px 18px; border-radius: 999px; text-align: center;
+    font-size: 11px; font-weight: 700; letter-spacing: .14em; color: #fff; background: rgba(255, 20, 40, .92); box-shadow: 0 0 28px rgba(255, 20, 40, .6); animation: boBlink .8s steps(2, end) infinite; }
+.bo-danger[hidden], .bo-warn[hidden] { display: none; }
+.bo-calm .bo-danger { animation: none; }
+@keyframes boBlink { 50% { opacity: .55; } }
+.bo-warn { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: 94vw; padding: 6px 8px 6px 14px; border-radius: 999px; font-size: 10px; letter-spacing: .04em;
+    background: rgba(8, 8, 10, .9); border: 1px solid rgba(255, 255, 255, .2); display: flex; align-items: center; gap: 8px; }
+.bo-warn button { border: 0; background: rgba(255, 255, 255, .12); color: #fff; font: inherit; border-radius: 999px; padding: 4px 9px; cursor: pointer; }
+.bo-ann { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) scale(.92); width: 94vw; text-align: center; font-size: clamp(14px, 3.2vw, 24px); font-weight: 700; letter-spacing: .2em; opacity: 0; pointer-events: none;
+    text-shadow: 0 0 22px rgba(255, 255, 255, .55); transition: opacity .35s, transform .35s; }
+.bo-ann.is-big { font-size: clamp(22px, 6vw, 48px); font-weight: 800; }
+.bo-ann.is-on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+/* ---------- the generator pad (nearly invisible until your light finds it) ---------- */
+.bo-pad { position: absolute; z-index: 2147482910; width: 54px; height: 54px; padding: 0; border: 0; background: none; cursor: pointer; color: #fff; opacity: .07; transition: opacity .1s; touch-action: manipulation; }
+.bo-pad svg { width: 100%; height: 100%; fill: rgba(10, 10, 14, .92); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 0 8px rgba(255, 255, 255, .6)); }
+.bo-pad svg path + path { fill: #fff; stroke: none; }
+.bo-pad:focus-visible { opacity: 1 !important; outline: 2px solid #fff; outline-offset: 3px; }
+.bo-led { position: absolute; right: 5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: #35ff8a; box-shadow: 0 0 10px #35ff8a; animation: boLed 1.7s steps(2, end) infinite; }
+@keyframes boLed { 0%, 60% { opacity: 1; } 61%, 100% { opacity: .15; } }
+
+/* ---------- the wire puzzle ---------- */
+.bo-wire { position: fixed; inset: 0; z-index: 2147482950; display: flex; align-items: center; justify-content: center; padding: 16px; color: #fff; touch-action: none; background: rgba(0, 0, 0, .74); backdrop-filter: blur(3px); }
+.bo-wire-card { width: min(520px, 100%); padding: 16px; background: #0a0a0c; border: 1px solid rgba(255, 255, 255, .22); border-radius: 18px; box-shadow: 0 20px 60px rgba(0, 0, 0, .7); transition: box-shadow .3s, border-color .3s; }
+.bo-wire-card .bo-mini { color: #fff; }
+.bo-wire.is-done .bo-wire-card { border-color: #35ff8a; box-shadow: 0 0 50px rgba(53, 255, 138, .45); }
+.bo-wire-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; letter-spacing: .14em; }
+.bo-board { position: relative; display: flex; justify-content: space-between; height: 290px; margin: 14px 0 10px; padding: 6px 4px; }
+.bo-col { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-around; align-items: center; width: 46px; }
+.bo-wsvg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; overflow: visible; }
+.bo-wsvg path { fill: none; stroke-width: 6; stroke-linecap: round; filter: drop-shadow(0 0 5px rgba(255, 255, 255, .45)); }
+.bo-wsvg path.tmp { opacity: .75; }
+.bo-n { width: 32px; height: 32px; padding: 0; border-radius: 50%; border: 3px solid var(--c); background: #0a0a0c; box-shadow: 0 0 12px var(--c); cursor: pointer; transition: transform .12s, background .12s; touch-action: none; }
+.bo-n:hover, .bo-n.is-hold, .bo-n.is-sel { transform: scale(1.18); background: var(--c); }
+.bo-n.ok { background: var(--c); cursor: default; transform: none; }
+.bo-n.bad { animation: boBad .3s linear; }
+@keyframes boBad { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.bo-wnote { font-size: 10px; letter-spacing: .06em; opacity: .7; text-align: center; min-height: 14px; }
+
+/* ---------- terminated: locked out, chat + spectating stay ---------- */
+.bo-is-dead .bo-dark, .bo-is-dead .bo-red, .bo-is-dead .bo-hud, .bo-is-dead .bo-danger, .bo-is-dead .bo-warn, .bo-is-dead .bo-flash.is-slam { display: none; }
+.bo-dead { position: absolute; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 18px; overflow-y: auto; background: radial-gradient(ellipse at center, rgba(78, 0, 12, .94), #050005 76%); }
+.bo-dead-card { width: min(460px, 100%); text-align: center; }
+.bo-dead-x { font-size: 12px; font-weight: 700; letter-spacing: .5em; color: #ff4d5e; animation: boBlink 1.2s steps(2, end) infinite; }
+.bo-dead h2 { margin: 10px 0 8px; font-size: clamp(22px, 6vw, 32px); letter-spacing: .12em; }
+.bo-dead p { margin: 0 0 14px; font-size: 12px; line-height: 1.6; opacity: .75; }
+.bo-dead-time { font-size: 34px; font-weight: 700; letter-spacing: .1em; font-variant-numeric: tabular-nums; }
+.bo-dead-pw { margin: 8px 0 12px; font-size: 11px; letter-spacing: .14em; opacity: .8; }
+.bo-spec-body { text-align: left; margin: 8px 0 14px; }
+.bo-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; font-size: 11px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.bo-row.is-me { background: rgba(255, 255, 255, .1); }
+.bo-row.is-dead { opacity: .5; }
+.bo-btn { display: inline-block; border: 1px solid #fff; background: #fff; color: #000; font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .16em; padding: 11px 22px; border-radius: 999px; cursor: pointer; text-decoration: none; }
+.bo-btn:hover { background: transparent; color: #fff; }
+.bo-spec { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 100; }
+.bo-spec-btn { border: 1px solid rgba(255, 90, 100, .6); background: rgba(20, 0, 4, .92); color: #fff; font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .12em; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+.bo-spec-btn i { font-style: normal; opacity: .7; margin-left: 6px; }
+.bo-spec-body { display: none; width: min(320px, 92vw); max-height: 50vh; overflow-y: auto; margin: 0 0 8px; background: rgba(6, 6, 8, .95); border: 1px solid rgba(255, 255, 255, .18); border-radius: 12px; }
+.bo-spec.is-open .bo-spec-body { display: block; }
+.bo-spec { display: flex; flex-direction: column-reverse; }
+.bo-dead .bo-spec-body { display: block; width: 100%; max-height: none; background: none; border: 0; }
+
+/* ---------- incoming banner, toast ---------- */
+#bo-inc { position: fixed; left: 50%; top: calc(10px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 2147482950; max-width: 94vw; padding: 9px 18px; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .16em; color: #fff;
+    pointer-events: none; background: rgba(40, 0, 6, .92); border: 1px solid rgba(255, 70, 90, .7); border-radius: 999px; animation: boBlink 1s steps(2, end) infinite; }
+.bo-toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 2147483200; max-width: 92vw; padding: 10px 18px; font-size: 12px; letter-spacing: .06em; color: #fff;
+    background: rgba(8, 8, 10, .92); border: 1px solid rgba(255, 255, 255, .2); border-radius: 999px; }
+
+/* ---------- ending screen ---------- */
+#bo-report { position: fixed; inset: 0; z-index: 2147483100; display: flex; align-items: center; justify-content: center; padding: 18px; color: #fff; opacity: 0; transition: opacity .6s; overflow-y: auto; background: #060607; }
+#bo-report.is-on { opacity: 1; }
+.bo-rep { width: min(480px, 100%); margin: auto; text-align: center; }
+.bo-rep img { width: 56px; height: 56px; object-fit: contain; margin-bottom: 8px; }
+.bo-rep h2 { margin: 0; font-size: 18px; letter-spacing: .24em; }
+.bo-rep-sub { margin: 6px 0 14px; font-size: 11px; letter-spacing: .2em; opacity: .65; }
+.bo-rep-res { margin-bottom: 14px; font-size: 20px; font-weight: 800; letter-spacing: .14em; min-height: 26px; }
+#bo-report.is-lost .bo-rep-res { color: #ff4d5e; }
+.bo-rep dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 14px; font-size: 11px; text-align: left; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; }
+.bo-rep dt { opacity: .55; letter-spacing: .14em; } .bo-rep dd { margin: 0; text-align: right; }
+.bo-rep-count { display: flex; gap: 10px; margin-bottom: 12px; }
+.bo-rep-card { flex: 1; padding: 12px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; display: flex; flex-direction: column; gap: 4px; }
+.bo-rep-card b { font-size: 24px; } .bo-rep-card span { font-size: 10px; letter-spacing: .18em; opacity: .65; }
+.bo-rep-card.m b { color: #ff4d5e; }
+.bo-rep-list { max-height: 34vh; overflow-y: auto; margin-bottom: 16px; text-align: left; border: 1px solid rgba(255, 255, 255, .1); border-radius: 12px; }
+.bo-rep-row { display: flex; gap: 10px; padding: 8px 12px; font-size: 11px; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+.bo-rep-row .n { flex: 1; overflow: hidden; text-overflow: ellipsis; } .bo-rep-row .g { opacity: .7; }
+.bo-rep-row.is-me { background: rgba(255, 255, 255, .1); }
+.bo-rep-row.is-dead .s { color: #ff4d5e; }
+.bo-rep-empty { padding: 14px; font-size: 11px; opacity: .6; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+    .bo-flash, .bo-led, .bo-danger, .bo-dead-x, #bo-inc, .bo-n.bad { animation: none !important; }
+    html.bo-shake body { animation: none !important; }
+    .bo-dark { transition-duration: .01s; }
+}
+
+/* ==========================================================================
+   PHONES: a slim pill at the top instead of a card. Tap it to open the details (alive count, your generators, hints).
+   The pill is the only thing at the top that catches taps, so the site header and its buttons stay usable.
+   ========================================================================== */
+@media (max-width: 700px) {
+    #bo-root .bo-hud { pointer-events: none; top: calc(6px + env(safe-area-inset-top, 0px)); width: auto; max-width: 94vw; padding: 6px 12px 7px; border-radius: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 3px 10px; letter-spacing: .04em; }
+    #bo-root .bo-hud .bo-power, #bo-root .bo-hud .bo-clock, #bo-root .bo-hud .bo-mini { pointer-events: auto; }
+    .bo-hud-top { display: contents; }
+    .bo-tag, .bo-alive, .bo-task { display: none; }
+    .bo-power { order: 1; margin: 0; font-size: 11px; gap: 0; }
+    .bo-clock { order: 2; margin: 0; font-size: 15px; }
+    .bo-hud-top .bo-mini { order: 3; padding: 4px 8px; }
+    .bo-bar { order: 4; flex: 0 0 100%; height: 3px; margin: 2px 0 0; }
+    .bo-task { order: 5; flex: 0 0 100%; margin: 4px 0 0; text-align: center; }
+    .bo-ex { order: 6; flex: 0 0 100%; margin: 2px 0 0; }
+    .bo-hud.is-open { pointer-events: auto; }
+    .bo-hud.is-open .bo-alive, .bo-hud.is-open .bo-task { display: block; }
+    .bo-hud.is-open .bo-alive { order: 7; flex: 0 0 100%; text-align: center; }
+    .bo-ann { top: 34%; }
+    .bo-danger { bottom: calc(52px + env(safe-area-inset-bottom, 0px)); font-size: 10px; padding: 8px 14px; letter-spacing: .08em; }
+    .bo-warn { font-size: 9px; }
+    #bo-inc { top: calc(6px + env(safe-area-inset-top, 0px)); padding: 6px 12px; font-size: 10px; letter-spacing: .08em; }
+    .bo-board { height: 250px; }
+    .bo-wire-card { padding: 12px; }
+    .bo-n { width: 36px; height: 36px; }
+    .bo-spec-btn { font-size: 9px; padding: 7px 11px; }
+}

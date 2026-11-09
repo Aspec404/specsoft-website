@@ -20,6 +20,15 @@
         return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     }
 
+    // Settings page switches. The CSS (.ss-no-3d / .ss-reduce-motion / .ss-urm) only HIDES the canvas, and a hidden
+    // WebGL canvas still renders every frame, so skip building the scene at all when any of them is on.
+    function settingsOff() {
+        try {
+            var s = JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {};
+            return s.fx3d === false || s.reduceMotion === true || s.ultraReduceMotion === true;
+        } catch (e) { return false; }
+    }
+
     function supportsWebGL() {
         try {
             var c = document.createElement('canvas');
@@ -28,7 +37,7 @@
     }
 
     function start() {
-        if (reduceMotion() || !supportsWebGL() || typeof THREE === 'undefined') return;
+        if (settingsOff() || reduceMotion() || !supportsWebGL() || typeof THREE === 'undefined') return;
 
         try {
             run();

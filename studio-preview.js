@@ -3,7 +3,10 @@
    "JavaScript (page)" files run inside the page. Graph-logic JavaScript does NOT go into the page.
    SECURITY: The page runs in <iframe sandbox="allow-scripts allow-pointer-lock"> (pointer lock lets 3D games capture the mouse; opaque origin: no cookies, no storage, no access to
    Studio or your Supabase session, no popups, no top navigation) with a Content-Security-Policy that blocks ALL
-   network access, remote images/scripts/fonts, frames, objects and form posts. Only data: and blob: sources work.
+   network access by default (remote images/scripts/fonts, frames, objects, form posts). Only data: and blob: sources work.
+   OPTIONAL NETWORK ACCESS (off by default, per project, this browser only): a toggle in the Preview bar switches to a second policy that
+   allows scripts from a short CDN list, Google Fonts, https images/media and fetch() to https sites. The sandbox does not change: still no cookies,
+   no storage, no access to Studio or your Supabase session.
    Messages from the page are accepted only from that frame, with a secret token, and are validated, size-capped
    and rate-limited. A heartbeat watchdog stops a page that stops responding. Preview never publishes anything. */
 (function () {
@@ -12,6 +15,7 @@
     var G = window.StudioGraph, MAX_DOC = 5 * 1024 * 1024, MAX_LOGS = 1000, RATE = 100, BEAT_LIMIT = 5000;
     var LEVELS = { log: 'info', info: 'info', debug: 'info', warn: 'warn', error: 'error' };
     var CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; worker-src blob:";
+    var NET_CSP = "default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com; style-src 'unsafe-inline' https://fonts.googleapis.com; img-src data: blob: https:; font-src data: https://fonts.gstatic.com; media-src data: blob: https:; connect-src https:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; worker-src blob:";
     var P = window.StudioPreview = {}, ui = {}, st = { seq: 0, hostOrigin: '', doc: '', sent: false, running: false, token: '', frame: null, logs: 0, errors: 0, win: [], warned: 0, beat: 0, wd: 0, map: [], timer: 0 };
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
@@ -23,6 +27,7 @@
         });
         window.addEventListener('error', function (e) { send({ t: 'error', msg: String(e.message || 'Error').slice(0, 300), line: e.lineno | 0 }); });
         window.addEventListener('unhandledrejection', function (e) { send({ t: 'error', msg: 'Unhandled promise rejection: ' + fmt((e.reason && e.reason.message) || e.reason).slice(0, 300), line: 0 }); });
+        document.addEventListener('securitypolicyviolation', function (e) { send({ t: 'log', level: 'warn', args: ['Blocked by security policy: ' + String(e.blockedURI || '').slice(0, 200) + ' (' + e.violatedDirective + ')'] }); });
         document.addEventListener('click', function (e) {
             var a = e.target && e.target.closest && e.target.closest('a[href]');
             if (a && a.getAttribute('href').charAt(0) !== '#') { e.preventDefault(); send({ t: 'log', level: 'warn', args: ['Blocked link to ' + a.getAttribute('href').slice(0, 200)] }); }
@@ -32,7 +37,7 @@
     }
 
     /* Turns a saved/draft graph into one page. Pure function (no DOM), so it can be tested. */
-    P.assemble = function (g, assets) {
+    P.assemble = function (g, assets, net) {
         assets = assets || { images: {}, texts: {} };
         function sub(code) { return code.replace(/asset:([A-Za-z0-9._-]{1,60})/g, function (m, n) { return Object.prototype.hasOwnProperty.call(assets.images, n) ? assets.images[n] : m; }); }      // asset:logo.png becomes a data: address
         var files = [];
@@ -49,7 +54,7 @@
         var js = files.filter(function (f) { return f.lang === 'pagejs'; });
         var libScripts = (assets.libs || []).map(function (l) { return '<script>' + String(l.code).replace(/<\/script/gi, '<\\/script') + '<\/script>'; });      // libraries run before the page's own scripts
         var prelude = '<script>window.studioAsset=function(n){var a=' + JSON.stringify(assets.texts).replace(/</g, '\\u003c') + ';return Object.prototype.hasOwnProperty.call(a,n)?a[n]:null};<\/script>';
-        var parts = ['<!DOCTYPE html>', '<html><head><meta charset="UTF-8">', '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">',
+        var parts = ['<!DOCTYPE html>', '<html><head><meta charset="UTF-8">', '<meta http-equiv="Content-Security-Policy" content="' + (net ? NET_CSP : CSP) + '">',
             '<script>(' + bridge.toString() + ')("__STUDIO_TOKEN__")<\/script>', prelude].concat(libScripts, ['<style>', css, '</style></head><body>', html]), map = [], line = 1;
         parts.forEach(function (p) { line += p.split('\n').length; });
         js.forEach(function (f) { parts.push('<script>'); line++; map.push({ id: f.id, label: f.label, start: line, count: f.code.split('\n').length }); parts.push(f.code); line += f.code.split('\n').length; parts.push('<\/script>'); line++; });
@@ -99,6 +104,14 @@
             ui.info.appendChild(el('span', 'pv-chip', { html: 'HTML', css: 'CSS', pagejs: 'Page JS' }[l] + ': ' + f.map(function (x) { return x.label; }).join(', ')));
         });
     }
+    /* Network access: stored per project in THIS browser only (never in the project, so a shared or published project cannot switch it on for anyone else). */
+    function netKey() { var c = window.StudioProject && StudioProject.current(); return c ? 'studio-net:' + c.id : ''; }
+    function netOn() { return !!(ui.net && ui.net.checked); }
+    function syncNet() {
+        if (!ui.net) return; var k = netKey(), on = false;
+        try { on = !!k && localStorage.getItem(k) === '1'; } catch (e) {}
+        ui.net.checked = on; ui.netLabel.classList.toggle('on', on);
+    }
     P.stop = function (quiet) {
         st.seq++; clearInterval(st.wd); clearTimeout(st.timer); window.removeEventListener('message', onMsg);
         if (st.frame) { st.frame.remove(); st.frame = null; }
@@ -109,20 +122,21 @@
     P.run = async function () {
         P.stop(true); var seq = st.seq;
         if (!G.isOpen()) { G.log('warn', 'preview', 'Open a project first'); return; }
+        syncNet();
         if (P.beforeRun) P.beforeRun();                    // Studio keeps a recovery copy of your draft before every run
         var g = sourceGraph(); if (!g) return;
-        var a = P.assemble(g); info(a);
+        var net = netOn(), a = P.assemble(g, undefined, net); info(a);
         if (!a.hasHtml) { G.log('warn', 'preview', 'Nothing to show yet: add an HTML file (Code Editor, New, HTML)'); status('Add an HTML file'); return; }
         if (window.StudioAssets) {                       // images and text files from the Assets page are put straight into the page
             try {
                 var refs = StudioAssets.refs(a.files);
-                if (refs.any) { status('Loading assets...'); var ld = await StudioAssets.load(refs); if (seq !== st.seq) return; ld.notes.forEach(function (m) { G.log('warn', 'preview', m); }); a = P.assemble(g, ld); info(a); }
+                if (refs.any) { status('Loading assets...'); var ld = await StudioAssets.load(refs); if (seq !== st.seq) return; ld.notes.forEach(function (m) { G.log('warn', 'preview', m); }); a = P.assemble(g, ld, net); info(a); }
             } catch (e) { if (seq !== st.seq) return; G.log('warn', 'preview', 'Assets could not be loaded: ' + String((e && e.message) || e).slice(0, 200)); }
         }
         if (window.StudioLibs && StudioLibs.enabled().length) {                         // vetted libraries (Dependencies page) are put into the page too
             try {
                 var lb = await StudioLibs.load(); if (seq !== st.seq) return; lb.notes.forEach(function (m) { G.log('warn', 'preview', m); });
-                if (lb.libs.length) { a = P.assemble(g, { images: (ld && ld.images) || {}, texts: (ld && ld.texts) || {}, libs: lb.libs }); info(a); }
+                if (lb.libs.length) { a = P.assemble(g, { images: (ld && ld.images) || {}, texts: (ld && ld.texts) || {}, libs: lb.libs }, net); info(a); }
             } catch (e) { if (seq !== st.seq) return; G.log('warn', 'preview', 'Libraries could not be loaded: ' + String((e && e.message) || e).slice(0, 200)); }
         }
         if (seq !== st.seq) return;
@@ -135,6 +149,7 @@
         else { f.setAttribute('sandbox', 'allow-scripts allow-pointer-lock'); f.srcdoc = a.doc(st.token); }
         st.frame = f; st.running = true; window.addEventListener('message', onMsg);
         ui.host.appendChild(f); ui.empty.hidden = true; buttons(); status();
+        if (net) G.log('warn', 'preview', 'Network access is ON: this page can load scripts from cdnjs / jsDelivr / jQuery, Google Fonts, and call https sites');
         G.log('info', 'preview', 'Preview started (' + a.files.length + ' file(s), ' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, ' + (ui.source.value === 'saved' ? 'last saved version' : 'current draft') + ')');
         st.wd = setInterval(function () {                  // watchdog: a page that stops answering is removed
             if (Date.now() - st.beat > BEAT_LIMIT) { G.log('error', 'preview', 'The page stopped responding and was removed'); P.stop(true); status('Not responding, stopped'); }
@@ -144,7 +159,7 @@
         if (!ui.auto || !ui.auto.checked || !st.running || ui.source.value !== 'draft' || !ui.root.offsetParent) return;
         clearTimeout(st.timer); st.timer = setTimeout(P.run, 700);
     };
-    P.mount = function (container) { container.appendChild(ui.root); if (st.running) P.run(); else info(P.assemble(G.isOpen() ? G.get() : {})); };
+    P.mount = function (container) { container.appendChild(ui.root); syncNet(); if (st.running) P.run(); else info(P.assemble(G.isOpen() ? G.get() : {})); };
     P.isRunning = function () { return st.running; };
 
     function build() {
@@ -155,11 +170,21 @@
         ui.source = el('select'); ui.source.setAttribute('aria-label', 'Preview source');
         [['draft', 'Current draft'], ['saved', 'Last saved version']].forEach(function (x) { var o = el('option', '', x[1]); o.value = x[0]; ui.source.appendChild(o); }); bar.appendChild(ui.source);
         var l = el('label', 'pv-auto'); ui.auto = el('input'); ui.auto.type = 'checkbox'; l.appendChild(ui.auto); l.appendChild(el('span', '', 'Auto-refresh while I edit')); bar.appendChild(l);
+        ui.netLabel = el('label', 'pv-auto pv-net'); ui.net = el('input'); ui.net.type = 'checkbox'; ui.netLabel.appendChild(ui.net); ui.netLabel.appendChild(el('span', '', 'Network access')); bar.appendChild(ui.netLabel);
+        ui.net.addEventListener('change', function () {
+            var k = netKey();
+            if (!k) { ui.net.checked = false; G.log('warn', 'preview', 'Open a project first'); return; }
+            if (ui.net.checked && !window.confirm('Turn on network access for this project?\n\nThe page will be able to load scripts from cdnjs, jsDelivr and jQuery, Google Fonts, and https images, and call any https website.\nIt still cannot touch Studio or your account. Only turn this on for code you trust.')) { ui.net.checked = false; return; }
+            try { localStorage.setItem(k, ui.net.checked ? '1' : '0'); } catch (e) {}
+            ui.netLabel.classList.toggle('on', ui.net.checked);
+            G.log(ui.net.checked ? 'warn' : 'ok', 'preview', ui.net.checked ? 'Network access ON for this project (press Run preview)' : 'Network access OFF for this project');
+            if (st.running) P.run();
+        });
         ui.status = el('span', 'pv-status', 'Not running'); bar.appendChild(ui.status);
         ui.note = el('p', 'pv-note', window.STUDIO_PREVIEW_HOST ? 'Running on a separate origin: a frozen page cannot freeze Studio.' : 'Heads up: a page stuck in an endless loop can freeze this tab. Studio keeps a recovery copy of your draft before every run.');
-        ui.info = el('div', 'pv-info'); ui.host = el('div', 'pv-host'); ui.empty = el('p', 'pv-empty', 'Press Run preview. The page runs in a locked-down sandbox: no network, no access to Studio or your account.'); ui.host.appendChild(ui.empty);
+        ui.info = el('div', 'pv-info'); ui.host = el('div', 'pv-host'); ui.empty = el('p', 'pv-empty', 'Press Run preview. The page runs in a locked-down sandbox: no network unless you turn on Network access, and never any access to Studio or your account.'); ui.host.appendChild(ui.empty);
         ui.root.appendChild(bar); ui.root.appendChild(ui.note); ui.root.appendChild(ui.info); ui.root.appendChild(ui.host); buttons();
     }
-    G.ext.preview = { load: function () { P.stop(true); info(P.assemble(G.isOpen() ? G.get() : {})); } };    // no save(): nothing here is stored
+    G.ext.preview = { load: function () { P.stop(true); syncNet(); info(P.assemble(G.isOpen() ? G.get() : {})); } };    // no save(): nothing here is stored
     build();
 })();

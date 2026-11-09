@@ -536,6 +536,15 @@
         gw.defer = true;
         (document.head || root).appendChild(gw);
     } catch (e) { /* ignore */ }
+
+    /* The live BLACKOUT EVENT lives in blackout-event.js. Same deal: it loads itself here, skips admin.html / login.html
+       and idles quietly (one tiny request every 30s) until staff launch an event. */
+    try {
+        var bo = document.createElement('script');
+        bo.src = SELF ? SELF.replace(/seasons\.js(\?.*)?$/, 'blackout-event.js$1') : 'blackout-event.js';
+        bo.defer = true;
+        (document.head || root).appendChild(bo);
+    } catch (e) { /* ignore */ }
     document.addEventListener('visibilitychange', function () { var c = readCache(); if (!document.hidden && (!c || Date.now() - c.at > TTL)) refresh(); });
 
     window.SpecSeasons = {

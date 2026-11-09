@@ -85,7 +85,8 @@
             sl('theme', 'Theme', 'Dark, light, or follow your device.', 'dark', [['dark', 'Dark'], ['light', 'Light'], ['system', 'Match my device']], { read: themeMode, write: themeWrite }),
             sl('accent', 'Accent color', 'Tints highlights, borders and buttons. The default keeps the black and white look.', 'default',
                [['default', 'White / black (default)'], ['blue', 'Blue'], ['green', 'Green'], ['purple', 'Purple'], ['red', 'Red'], ['amber', 'Amber']]),
-            tg('reduceMotion', 'Reduce motion', 'Calms animations and turns off the motion-heavy effects. Your device setting is respected too. This one is per device.', false, { cls: 'ss-reduce-motion', clsOn: true, reload: true, local: true }),
+            tg('reduceMotion', 'Reduce motion', 'Calms animations and turns off the motion-heavy effects, but keeps your look: glow, blur, shadows and the custom cursor all stay. Your device setting is respected too. This one is per device.', false, { cls: 'ss-reduce-motion', clsOn: true, reload: true, local: true }),
+            tg('ultraReduceMotion', 'Ultra reduce motion', 'The most optimized mode, for weak PCs. The site becomes a plain, flat, static page: no animations, effects, blur, glow or shadows, no 3D background, no custom cursor (you get your normal system cursor) and no custom chat backgrounds. Chats also load fewer messages. Your other choices are kept and come back when you turn this off. This one is per device.', false, { cls: 'ss-urm', clsOn: true, reload: true, local: true }),
             tg('autoReduceMotion', 'Auto reduce motion when lag', 'If your page drops to 10 FPS or below, low detail mode switches on by itself so the site stays usable.', true)
           ] },
         { id: 'effects', title: 'Effects', blurb: 'The HUD and motion layers. Turn off anything that feels heavy.',
@@ -98,6 +99,8 @@
             tg('fxCrosshairs', 'HUD corner crosshairs', 'The corner marks on every page.', true, { cls: 'ss-no-crosshairs' }),
             tg('fx3d', '3D background', 'The WebGL background. Turning it off also saves battery.', true, { cls: 'ss-no-3d', reload: true }),
             tg('fxHover', 'Hover effects', 'Card tilt and glare, magnetic buttons and the radar glow.', true, { reload: true }),
+            tg('fxSpotlight', 'Card spotlight', 'A glowing edge on cards that follows your cursor.', true, { cls: 'ss-no-spotlight', reload: true }),
+            tg('fxProgress', 'Scroll progress bar', 'A thin glowing bar at the top that fills as you scroll down a page.', true, { cls: 'ss-no-progress', reload: true }),
             tg('fxReveal', 'Scroll animations', 'Sections fading in as you scroll, plus the pulsing lines.', true, { reload: true }),
             tg('transitions', 'Page transitions', 'The fade and scan sweep between pages.', true),
             tg('intro', 'Intro animation', 'Play the SPECSOFT intro when you open the site.', true)
@@ -302,7 +305,31 @@
         return undefined;
     }
 
-    function get(key) {
+    /* ------------------------------------------------------------- Ultra Reduce Motion
+       While ultraReduceMotion is on, get() answers with the values below for these keys, so every
+       file that asks SpecSettings.get(...) (cursor.js, site-fx.js, touch, transitions...) behaves as if
+       the visitor had switched those things off. The visitor's REAL choices are never touched: rawGet()
+       and snapshot() still see them, they never sync to the account, and they come back when URM goes off.
+       Add a key here to make URM switch another setting off.                                          */
+    var URM_FORCE = {
+        fxScanlines: false, fxVignette: false, fxGlow: false, fxShapes: false, fxCrosshairs: false,
+        fx3d: false, fxHover: false, fxSpotlight: false, fxProgress: false, fxReveal: false, transitions: false, intro: false,
+        cursor: false,
+        tapFx: 'none', tapTrail: 'off', tapHold: false, tapVibrate: false
+    };
+    function urmOn() { return rawGet('ultraReduceMotion') === true; }
+    function forcedByUrm(key) { return key !== 'ultraReduceMotion' && Object.prototype.hasOwnProperty.call(URM_FORCE, key) && urmOn(); }
+    function get(key) { return forcedByUrm(key) ? URM_FORCE[key] : rawGet(key); }
+
+    // why a control is locked (empty string = usable). settings.js greys the row out and shows this text.
+    function disabledReason(it) {
+        if (!it) return '';
+        if (forcedByUrm(it.key)) return 'Off while Ultra reduce motion is on.';
+        if (it.dep && !get(it.dep)) return forcedByUrm(it.dep) ? 'Off while Ultra reduce motion is on.' : 'Turn on \u201c' + ITEMS[it.dep].label + '\u201d to change this.';
+        return '';
+    }
+
+    function rawGet(key) {
         var it = ITEMS[key];
         if (!it || it.type === 'action') return undefined;
         if (it.read) return it.read();
@@ -323,8 +350,15 @@
         else if (it.ls) lsSet(it.ls.key, v ? it.ls.on : it.ls.off);
         else { var s = readStore(); s[key] = v; writeStore(s); }
         if (!o.noStamp) lsSet(AT, String(Date.now()));
+        // Reduce motion and Ultra reduce motion are two separate modes: turning one on turns the other off
+        var flipped = null;
+        if (v === true && (key === 'reduceMotion' || key === 'ultraReduceMotion')) {
+            var other = key === 'reduceMotion' ? 'ultraReduceMotion' : 'reduceMotion';
+            if (rawGet(other) === true) { var s2 = readStore(); s2[other] = false; writeStore(s2); flipped = other; }
+        }
         applyAll();
         emit(key, v);
+        if (flipped) emit(flipped, false);
         if (it.after) { try { it.after(v); } catch (e) { /* ignore */ } }
         if (!o.noPush) queuePush();
         return true;
@@ -332,7 +366,7 @@
 
     function snapshot() {
         var out = {};
-        LIST.forEach(function (it) { if (it.type !== 'action' && !it.local) out[it.key] = get(it.key); });
+        LIST.forEach(function (it) { if (it.type !== 'action' && !it.local) out[it.key] = rawGet(it.key); });
         return out;
     }
 
@@ -372,6 +406,9 @@
     var SHARE_KEYS = CURSOR_KEYS.concat(TAP_KEYS);
     var CURSOR_DEFAULTS = {};
     CURSOR_KEYS.forEach(function (k) { CURSOR_DEFAULTS[k] = ITEMS[k].def; });
+    // everything that styles the custom cursor is locked while the Custom cursor switch is off
+    // (touch-screen options stay free: they do not use the custom cursor)
+    CURSOR_KEYS.concat(['c_pad', 'c_presets', 'c_code']).forEach(function (k) { if (ITEMS[k]) ITEMS[k].dep = 'cursor'; });
 
     function preset(id, name, desc, over) { return { id: id, name: name, desc: desc, map: Object.assign({}, CURSOR_DEFAULTS, over) }; }
     var PRESETS = [
@@ -574,6 +611,7 @@
     function reset() {
         LIST.forEach(function (it) { if (it.type !== 'action' && !it.local) set(it.key, it.def, { noPush: true, noStamp: true }); });
         set('reduceMotion', false, { noPush: true, noStamp: true });      // per device, so it is not in the loop above
+        set('ultraReduceMotion', false, { noPush: true, noStamp: true });
         lsSet(AT, String(Date.now()));
         queuePush();
         emit('__reset');
@@ -589,7 +627,7 @@
     var LAG_FPS = 10, LAG_WINDOWS = 3, LAG_GRACE = 4000, lagRunning = false;
     function ssGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
     function ssPut(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* ignore */ } }
-    function lagEligible() { return get('autoReduceMotion') === true && get('reduceMotion') !== true && ssGet('ss.lagcool') !== '1'; }
+    function lagEligible() { return get('autoReduceMotion') === true && get('reduceMotion') !== true && !urmOn() && ssGet('ss.lagcool') !== '1'; }
 
     function lagBanner() {
         if (!document.body || document.getElementById('ssLagBanner')) return;
@@ -657,7 +695,7 @@
     /* ------------------------------------------------------------------ boot */
     window.SpecSettings = {
         CATS: CATS, PRESETS: PRESETS, fmtTime: fmtTime, fmtDate: fmtDate, dayKey: dayKey, get: get, view: view, set: set,
-        item: function (k) { return ITEMS[k]; }, isLocked: isLocked, typingCheck: typingCheck,
+        item: function (k) { return ITEMS[k]; }, isLocked: isLocked, disabledReason: disabledReason, typingCheck: typingCheck,
         setPreview: setPreview, clearPreview: clearPreview, previewing: previewing,
         applyPreset: applyPreset, resetCursor: resetCursor, exportCursorCode: exportCursorCode, importCursorCode: importCursorCode, all: snapshot, reset: reset, exportJSON: exportJSON, importJSON: importJSON,
         on: function (fn) { listeners.push(fn); },
@@ -665,6 +703,7 @@
         sync: sync
     };
 
+    if (rawGet('reduceMotion') === true && rawGet('ultraReduceMotion') === true) { var sBoot = readStore(); sBoot.reduceMotion = false; writeStore(sBoot); }
     applyAll();
     function ready() { applyAll(); sync(); lagKick(); }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();

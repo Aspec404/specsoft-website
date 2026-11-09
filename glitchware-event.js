@@ -134,6 +134,7 @@
         ROOT.appendChild(t);
         setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 5200);
     }
+    function blackoutBusy() { try { var st = window.SpecBlackout && window.SpecBlackout.state && window.SpecBlackout.state(); return !!st && (st.phase === 'run' || st.phase === 'win'); } catch (e) { return false; } }
     function nukeBusy() { try { var st = window.SpecNuke && window.SpecNuke.state && window.SpecNuke.state(); return !!st && (st.phase === 'count' || st.phase === 'after'); } catch (e) { return false; } }
     // load the villain picture early so the jumpscare never waits for a download
     function preloadVillain(url) { if (!url) return; try { var im = new Image(); im.src = url; S.vimg = im; } catch (e) { /* ignore */ } }
@@ -388,7 +389,7 @@
     }
 
     /* ------------------------------ glitch bursts (tearing, scrambling, channel split) ------------------------------ */
-    var SKIP = '#gw-root,#gw-credits,#gw-report,#gw-inc,.gw-toast,#nk-root,#nk-dark,#nk-rust,#nk-inc,#nk-report,.nk-toast,.ss-toggle,#ss-back,#ss-front,[id*="cursor"],[class*="cursor"],canvas,video,iframe,script,style,link,dialog,[data-nuke-keep],[data-glitch-keep]';
+    var SKIP = '#gw-root,#gw-credits,#gw-report,#gw-inc,.gw-toast,#nk-root,#nk-dark,#nk-rust,#nk-inc,#nk-report,.nk-toast,#bo-root,#bo-pad,#bo-inc,#bo-report,.bo-toast,.bo-wire,.ss-toggle,#ss-back,#ss-front,[id*="cursor"],[class*="cursor"],canvas,video,iframe,script,style,link,dialog,[data-nuke-keep],[data-glitch-keep]';
     var PICK = 'h1,h2,h3,h4,p,li,img,svg,button,figure,table,form,nav,aside,section>div,[class*="card"],[class*="panel"],[class*="tile"],[class*="btn"],[class*="item"],[class*="banner"]';
     var TXT = 'h1,h2,h3,h4,h5,p,li,a,button,span,label,td,th,small,strong';
     var GL = '\u2588\u2593\u2592\u2591#@%&?!<>/\\|01';
@@ -695,6 +696,8 @@
 
     /* the scanner: tells you how close the nearest hidden credit is to your pointer / finger */
     document.addEventListener('pointermove', function (e) { S.cx = e.clientX; S.cy = e.clientY; }, { passive: true });
+    function touchPos(e) { var t = e.touches && e.touches[0]; if (t) { S.cx = t.clientX; S.cy = t.clientY; } }   // a SCROLLING finger fires no pointermove
+    document.addEventListener('touchstart', touchPos, { passive: true }); document.addEventListener('touchmove', touchPos, { passive: true });
     var ARROWS = ['\u2192', '\u2198', '\u2193', '\u2199', '\u2190', '\u2196', '\u2191', '\u2197'];
     function scanTick() {
         if (!S.root || S.purged) return;
@@ -994,7 +997,7 @@
     }
 
     function setEvent(ev) {
-        if (nukeBusy()) return;
+        if (nukeBusy() || blackoutBusy()) return;
         ev.audio = ev.audio || {};
         ev.pages = Array.isArray(ev.pages) ? ev.pages : [];
         ev.villain = ev.villain || '';

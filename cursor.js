@@ -29,7 +29,7 @@
 (function () {
     'use strict';
     function ssRead() { try { return JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {}; } catch (e) { return {}; } }
-    function ssOff(k) { return ssRead()[k] === false; }
+    function ssOff(k) { var o = ssRead(); return o.ultraReduceMotion === true || o[k] === false; }   // Ultra reduce motion = every effect off
     function ssOn(k) { return ssRead()[k] === true; }
 
     if (window.__scCursor) return;

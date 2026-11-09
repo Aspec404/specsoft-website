@@ -308,3 +308,24 @@ html.gw-shake body { animation: gwShake .26s steps(2) 1; }
     .gw-intro-v { animation: none; }
     .gw-peek { display: none; }
 }
+
+/* ==========================================================================
+   PHONES: when the panel is shrunk (it starts shrunk on phones) or the event is purged, it becomes a slim pill.
+   Only the pill's buttons catch taps, so the site header underneath stays usable. Tap the dash button to grow the full card.
+   ========================================================================== */
+@media (max-width: 700px) {
+    #gw-root .gw-hud.is-min, #gw-root .gw-hud.is-done { pointer-events: none; top: calc(6px + env(safe-area-inset-top, 0px)); width: auto; max-width: 94vw; padding: 6px 12px; border-radius: 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 8px; text-align: left; }
+    #gw-root .gw-hud.is-min .gw-mini, #gw-root .gw-hud.is-done .gw-mini { pointer-events: auto; }
+    .gw-hud.is-min .gw-top, .gw-hud.is-done .gw-top { display: contents; }
+    .gw-hud.is-min .gw-tag, .gw-hud.is-done .gw-tag { order: 1; font-size: 0; letter-spacing: 0; }
+    .gw-hud.is-min .gw-tag::before, .gw-hud.is-done .gw-tag::before { margin-right: 0; }
+    .gw-hud.is-min .gw-time, .gw-hud.is-done .gw-time { order: 2; margin: 0; font-size: 22px; line-height: 1; }
+    .gw-hud.is-min .gw-count { order: 3; margin: 0; font-size: 10px; letter-spacing: .08em; }
+    .gw-hud.is-min .gw-count b { font-size: 16px; }
+    .gw-hud.is-min .gw-count img { width: 14px; height: 14px; }
+    .gw-hud.is-min .gw-btns, .gw-hud.is-done .gw-btns { order: 4; }
+    .gw-hud.is-done .gw-count { display: none; }
+    .gw-hud.is-done .gw-reward { display: block; order: 5; flex: 0 0 100%; margin: 2px 0 0; text-align: center; font-size: 9px; }
+    #gw-inc { top: calc(6px + env(safe-area-inset-top, 0px)); padding: 6px 12px; font-size: 10px; letter-spacing: .08em; }
+}
+

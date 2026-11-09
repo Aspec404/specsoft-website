@@ -226,6 +226,7 @@ footer,.site-footer,.footer-cta{display:none!important}  /* no footer on Studio 
 .pv-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--border-subtle,#2a2a2a)}
 .pv-bar select{background:var(--bg-base,#000);color:var(--text-primary);border:1px solid var(--border-subtle,#333);padding:5px 8px;font:400 .75rem var(--font-mono,monospace)}
 .pv-auto{display:flex;align-items:center;gap:6px;color:var(--text-secondary);font:400 .75rem var(--font-mono,monospace)}
+.pv-net.on{color:#ffb020}
 .pv-status{margin-left:auto;color:var(--text-secondary);font:300 .75rem var(--font-mono,monospace)}
 .pv-info{display:flex;gap:6px;flex-wrap:wrap;padding:6px 12px;color:var(--text-secondary);font:400 .75rem var(--font-mono,monospace);min-height:18px}
 .pv-chip{border:1px solid var(--border-subtle,#333);padding:2px 8px}

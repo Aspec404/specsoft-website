@@ -103,12 +103,12 @@
         if (it.reload) label.appendChild(h('span', { class: 'sx-tag', text: 'RELOAD', title: 'Needs a page reload to fully apply' }));
         var text = h('div', { class: 'sx-row-text' }, [label, h('div', { class: 'sx-row-desc', text: it.desc })]);
         var tag = it.type === 'toggle' ? 'label' : 'div';      // a label makes the whole row tappable
-        return h(tag, { class: 'sx-row sx-row--' + it.type }, [text, control(it)]);
+        return h(tag, { class: 'sx-row sx-row--' + it.type, 'data-row': it.key }, [text, control(it)]);
     }
 
     /* ------------------------------------------------------- full-width blocks */
     function block(it, kids) {
-        return h('div', { class: 'sx-block sx-block--' + it.type }, [
+        return h('div', { class: 'sx-block sx-block--' + it.type, 'data-row': it.key }, [
             h('div', { class: 'sx-row-label', text: it.label }),
             h('div', { class: 'sx-row-desc', text: it.desc })
         ].concat(kids));
@@ -290,6 +290,30 @@
         });
         if (!shown) panel.appendChild(h('div', { class: 'sx-empty', text: 'No settings match "' + query.trim() + '".' }));
         paintBanner();
+        paintDisabled();
+    }
+
+    // greys out + locks rows that depend on another setting or on Ultra reduce motion
+    // (S.disabledReason(it) says why, and that text is shown under the description)
+    function paintDisabled() {
+        panel.querySelectorAll('[data-row]').forEach(function (n) {
+            var it = S.item(n.getAttribute('data-row')), why = (it && S.disabledReason) ? S.disabledReason(it) : '';
+            n.classList.toggle('is-disabled', !!why);
+            if (why) n.setAttribute('aria-disabled', 'true'); else n.removeAttribute('aria-disabled');
+            n.querySelectorAll('input, select, button, textarea').forEach(function (c) {
+                if (why) { if (!c.disabled) { c.disabled = true; c.setAttribute('data-ss-dis', '1'); } }
+                else if (c.getAttribute('data-ss-dis')) { c.disabled = false; c.removeAttribute('data-ss-dis'); }
+            });
+            var note = n.querySelector('.sx-row-note');
+            if (why) {
+                if (!note) {
+                    note = h('div', { class: 'sx-row-note' });
+                    var d = n.querySelector('.sx-row-desc');
+                    if (d && d.parentNode) d.parentNode.insertBefore(note, d.nextSibling); else n.appendChild(note);
+                }
+                if (note.textContent !== why) note.textContent = why;
+            } else if (note) note.remove();
+        });
     }
 
     // shown while locked styles are being previewed
@@ -323,6 +347,7 @@
         panel.querySelectorAll('[data-presets]').forEach(paintPresets);
         panel.querySelectorAll('[data-code]').forEach(function (inp) { if (document.activeElement !== inp) inp.value = S.exportCursorCode(); });
         paintBanner();
+        paintDisabled();
         checkReload();
     }
 

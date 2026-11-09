@@ -34,7 +34,7 @@
 (function () {
     'use strict';
     function ssRead() { try { return JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}') || {}; } catch (e) { return {}; } }
-    function ssOff(k) { return ssRead()[k] === false; }
+    function ssOff(k) { var o = ssRead(); return o.ultraReduceMotion === true || o[k] === false; }   // Ultra reduce motion = every effect off
     function ssOn(k) { return ssRead()[k] === true; }
     if (window.SpecFX) return;
 
@@ -292,6 +292,72 @@
             try { initReveal(); } catch (e) {}
             try { initLinePulse(); } catch (e) {}
         }
+        if (!ssOff('fxSpotlight')) {
+            try { initSpotlight(); } catch (e) {}
+        }
+        if (!ssOff('fxProgress')) {
+            try { initProgress(); } catch (e) {}
+        }
+    }
+
+    /* ----------------------------------------------------------------------
+       7. CARD SPOTLIGHT — a glowing edge that follows the cursor around a card.
+          One delegated listener; the edge element is created the first time you hover a card,
+          so cards a page builds later (after a fetch) work with no registration.
+       ---------------------------------------------------------------------- */
+    var SPOT_SEL = '.project-card, .clan-card, .pillar-card, .build-card, .voice-card, .team-card, .stat-tile, [data-spotlight]';
+    function initSpotlight() {
+        if (reduceMotion()) return;
+        var raf = null, host = null, px = 0, py = 0;
+        function paint() {
+            raf = null;
+            if (!host) return;
+            var r = host.getBoundingClientRect();
+            host.style.setProperty('--spot-x', (px - r.left).toFixed(1) + 'px');
+            host.style.setProperty('--spot-y', (py - r.top).toFixed(1) + 'px');
+        }
+        document.addEventListener('mousemove', function (e) {
+            var c = e.target && e.target.closest ? e.target.closest(SPOT_SEL) : null;
+            if (!c) return;
+            if (!c.__fxSpot) {
+                c.__fxSpot = true;
+                if (getComputedStyle(c).position === 'static') c.style.position = 'relative';
+                var edge = document.createElement('div');
+                edge.className = 'fx-spotline';
+                edge.setAttribute('aria-hidden', 'true');
+                c.appendChild(edge);
+                c.classList.add('fx-spot');
+            }
+            host = c; px = e.clientX; py = e.clientY;
+            if (!raf) raf = requestAnimationFrame(paint);
+        }, { passive: true });
+    }
+
+    /* ----------------------------------------------------------------------
+       8. SCROLL PROGRESS — thin bar at the top that fills as the page scrolls.
+          Stays hidden on pages that do not scroll the window (like chats).
+       ---------------------------------------------------------------------- */
+    function initProgress() {
+        if (ssOn('reduceMotion') || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+        if (document.getElementById('fxProgress') || !document.body) return;
+        var bar = document.createElement('div');
+        bar.id = 'fxProgress';
+        bar.className = 'fx-progress';
+        bar.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(bar);
+        var raf = null;
+        function update() {
+            raf = null;
+            var max = document.documentElement.scrollHeight - window.innerHeight;
+            if (max < 24) { bar.style.opacity = '0'; return; }
+            var p = Math.min(1, Math.max(0, window.scrollY / max));
+            bar.style.opacity = '1';
+            bar.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+        }
+        function queue() { if (!raf) raf = requestAnimationFrame(update); }
+        window.addEventListener('scroll', queue, { passive: true });
+        window.addEventListener('resize', queue);
+        update();
     }
 
     window.SpecFX = {

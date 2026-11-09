@@ -2424,3 +2424,12 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 .ch-item-st { right: -3px; bottom: -3px; }
 .ch-member-st { right: -3px; bottom: -3px; border-color: var(--bg-card); background: var(--bg-card); }
 .ch-member-st .ch-dnd-bar { fill: var(--bg-card); }
+
+/* ==========================================================================
+   Ultra Reduce Motion (Settings > Appearance). Global rules live in site-settings.css;
+   these are the chat-only extras.
+   ========================================================================== */
+/* the translucent bars only looked right with the blur; without it make them solid */
+.ss-urm body.ch-body { --ch-glass: var(--bg-base); }
+/* loading spinners keep spinning so people can tell something is happening (tiny and cheap) */
+.ss-urm .ch-spin, .ss-urm .ch-spinner { animation-duration: 0.8s !important; animation-iteration-count: infinite !important; }

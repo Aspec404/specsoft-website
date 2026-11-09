@@ -205,7 +205,7 @@
     function paintSoundBtn() {
         if (!S.root) return;
         var b = S.root.querySelector('[data-a="snd"]');
-        if (b) b.textContent = S.snd ? '\uD83D\uDD0A SOUND ON' : '\uD83D\uDD07 SOUND OFF';
+        if (b) b.textContent = small() ? (S.snd ? '\uD83D\uDD0A' : '\uD83D\uDD07') : (S.snd ? '\uD83D\uDD0A SOUND ON' : '\uD83D\uDD07 SOUND OFF');
     }
     document.addEventListener('pointerdown', function () { if (S.snd && S.blocked) phaseAudio(); }, true);
 
@@ -577,9 +577,11 @@
         S.dark = d;
         S.light = { x: innerWidth / 2, y: innerHeight / 2, tx: innerWidth / 2, ty: innerHeight / 2, moved: false, raf: 0 };
         window.addEventListener('pointermove', onMove, { passive: true });
+        window.addEventListener('touchstart', onTouchMove, { passive: true }); window.addEventListener('touchmove', onTouchMove, { passive: true });   // a SCROLLING finger fires no pointermove
         S.light.raf = requestAnimationFrame(lightLoop);
     }
-    function onMove(e) { if (!S.light) return; S.light.tx = e.clientX; S.light.ty = e.clientY; S.light.moved = true; }
+    function onMove(e) { if (!S.light) return; S.light.tx = e.clientX; S.light.ty = e.clientY - (e.pointerType === 'touch' ? 52 : 0); S.light.moved = true; }
+    function onTouchMove(e) { var t = e.touches && e.touches[0]; if (!t || !S.light) return; S.light.tx = t.clientX; S.light.ty = t.clientY - 52; S.light.moved = true; }
     function lightLoop(ts) {
         var L = S.light;
         if (!L || !S.dark) return;
@@ -593,7 +595,7 @@
         S.dark.style.setProperty('--fr', (base * fl).toFixed(1) + 'px');
     }
     function stopLight() {
-        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointermove', onMove); window.removeEventListener('touchstart', onTouchMove); window.removeEventListener('touchmove', onTouchMove);
         if (S.light && S.light.raf) cancelAnimationFrame(S.light.raf);
         S.light = null;
         if (S.dark && S.dark.parentNode) S.dark.parentNode.removeChild(S.dark);
@@ -802,7 +804,10 @@
     }
 
     // glitchware is live (or its jumpscare is running): the nuke event waits, so two events never fight over the screen
-    function glitchBusy() { try { var st = window.SpecGlitch && window.SpecGlitch.state && window.SpecGlitch.state(); return !!st && (st.phase === 'run' || st.phase === 'outro'); } catch (e) { return false; } }
+    function glitchBusy() {
+        try { var bo = window.SpecBlackout && window.SpecBlackout.state && window.SpecBlackout.state(); if (bo && (bo.phase === 'run' || bo.phase === 'win')) return true; } catch (e) { /* ignore */ }   // the blackout is live too
+        try { var st = window.SpecGlitch && window.SpecGlitch.state && window.SpecGlitch.state(); return !!st && (st.phase === 'run' || st.phase === 'outro'); } catch (e) { return false; }
+    }
 
     function setEvent(ev) {
         if (glitchBusy()) return;

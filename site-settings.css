@@ -25,6 +25,39 @@
 .ss-reduce-motion .ambient-glow-2 { animation: none !important; }
 .ss-reduce-motion #bg3d { display: none !important; }
 
+/* ---------- Ultra Reduce Motion (class ss-urm on <html>) ----------
+   Weak-PC mode. Pure CSS, so it applies the instant the class is set:
+   no animations or transitions, no blur layers, no background decoration. The custom cursor is
+   switched off in JS (cursor.js asks SpecSettings.get('cursor'), which URM answers with false). */
+.ss-urm *,
+.ss-urm *::before,
+.ss-urm *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+    -webkit-backdrop-filter: none !important;
+            backdrop-filter: none !important;
+    text-shadow: none !important;
+    will-change: auto !important;
+}
+.ss-urm .grid-bg, .ss-urm .grid-glow, .ss-urm .scanlines, .ss-urm .scanner-line, .ss-urm .vignette,
+.ss-urm .ambient-glow, .ss-urm .ambient-glow-2, .ss-urm .geo-shape, .ss-urm .geo-dot-grid,
+.ss-urm .crosshair, .ss-urm #bg3d { display: none !important; }
+
+/* flat, static look: no shadows or glows, no blend modes, no hover-effect leftovers.
+   Focus rings were box-shadows in places, so give keyboard users a plain outline instead. */
+.ss-urm *, .ss-urm *::before, .ss-urm *::after { box-shadow: none !important; mix-blend-mode: normal !important; }
+.ss-urm :focus-visible { outline: 2px solid var(--accent, currentColor) !important; outline-offset: 2px; }
+.ss-urm .fx-glare, .ss-urm .fx-reticle, .ss-urm .fx-reticle-ring, .ss-urm .fx-sweep, .ss-urm .fx-pulse,
+.ss-urm .fx-spotline, .ss-urm .fx-progress { display: none !important; }
+
+/* settings page: rows locked by another setting or by Ultra reduce motion */
+.sx-row-note { margin-top: 4px; font-family: var(--font-mono); font-size: 11px; line-height: 1.4; color: var(--text-secondary); }
+.is-disabled > :not(.sx-row-text):not(.sx-row-label):not(.sx-row-desc):not(.sx-row-note) { opacity: 0.4; pointer-events: none; }
+.is-disabled .sx-row-label, .is-disabled .sx-row-desc { opacity: 0.65; }
+
 /* accent colors: html[data-accent] wins over :root and body.light-mode */
 html[data-accent="blue"]   body { --ss-rgb: 59, 130, 246; }
 html[data-accent="green"]  body { --ss-rgb: 34, 197, 94; }
@@ -358,4 +391,27 @@ label.sx-row:hover { background: var(--accent-dim); }
     display: block; padding: 12px 14px; box-sizing: border-box;
     border: 1px dashed var(--border-hover); border-radius: 10px;
     font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); overflow-wrap: anywhere;
+}
+
+/* ---------- extra effects (made by site-fx.js; each has its own switch in Settings > Effects) ---------- */
+.ss-no-spotlight .fx-spotline, .ss-no-progress .fx-progress { display: none !important; }
+
+/* card spotlight: a 1px glowing edge that follows the cursor around a card */
+.fx-spotline {
+    position: absolute; inset: 0; z-index: 2; padding: 1px; border-radius: inherit;
+    pointer-events: none; opacity: 0; transition: opacity 0.25s ease;
+    background: radial-gradient(260px circle at var(--spot-x, 50%) var(--spot-y, 50%), var(--accent, currentColor), transparent 65%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask-composite: exclude;
+}
+.fx-spot:hover > .fx-spotline { opacity: 0.9; }
+
+/* scroll progress: thin bar at the very top of the page */
+.fx-progress {
+    position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; height: 2px; z-index: 9999;
+    transform: scaleX(0); transform-origin: 0 50%; opacity: 0; pointer-events: none;
+    background: var(--accent, currentColor); box-shadow: 0 0 10px var(--accent, transparent);
+    transition: opacity 0.2s ease;
 }

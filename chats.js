@@ -6,7 +6,19 @@
     'use strict';
 
     const CFG = window.SPECSOFT_CONFIG || {};
-    const PAGE = 40;
+    // Ultra reduce motion (Settings > Appearance) loads fewer messages at a time, so weak PCs have less to draw.
+    // Read straight from storage because this file loads before the settings engine.
+    const URM = (function () { try { return JSON.parse(localStorage.getItem('specsoft.settings.v1') || '{}').ultraReduceMotion === true; } catch (e) { return false; } })();
+    window.SS_URM = URM;     // other chat files (chats-community-settings.js...) can check this to skip images and GIFs
+    const PAGE = URM ? 20 : 40;
+    // true when the visitor wants less motion: device setting, Reduce motion, or Ultra reduce motion
+    function noMotion() {
+        try {
+            if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+            const cl = document.documentElement.classList;
+            return cl.contains('ss-reduce-motion') || cl.contains('ss-urm');
+        } catch (e) { return false; }
+    }
 
     /* ----------------------------------------------------------------------
        1. HELPERS (pure functions)
@@ -1373,7 +1385,7 @@
         S.opening = false;
         markRead(room.room_id);
         if (window.SPCH) SPCH.afterOpen();
-        if (window.SPCS && window.SPCS.onOpen) window.SPCS.onOpen(room);       // chat background
+        if (!URM && window.SPCS && window.SPCS.onOpen) window.SPCS.onOpen(room);       // chat background (skipped by Ultra reduce motion: no images or GIFs)
         if (!opts.keepRoomCh || !S.roomCh) joinRoomChannel(room.room_id);
         loadSeen(room.room_id);
         holdHint();
@@ -1474,7 +1486,7 @@
     function jumpToMessage(id) {
         const node = $('chFeed').querySelector('[data-id="' + id + '"]');
         if (!node) { toast('That message is further back. Scroll up to load more.'); return; }
-        node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        node.scrollIntoView({ block: 'center', behavior: noMotion() ? 'auto' : 'smooth' });
         node.classList.add('is-flash');
         setTimeout(function () { node.classList.remove('is-flash'); }, 1600);
     }
@@ -3271,7 +3283,7 @@
                 type: 'button', class: 'ch-emoji-tab', title: s.label, 'aria-label': s.label,
                 onclick: function () {
                     if (search.value) { search.value = ''; runPickerSearch(); }
-                    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    const reduce = noMotion();
                     s.node.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
                 }
             }, tabIcon(s.icon)));

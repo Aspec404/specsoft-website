@@ -497,7 +497,7 @@
         password_create: 'Admin password created', password_change: 'Admin password changed', password_reset: 'Admin password reset',
         panel_unlock: 'Console unlock', hub_hide: 'Hub visibility changed', sanction_details: 'Ban details updated',
         appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered',
-        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', glitch_settings_set: 'Glitchware settings changed', glitch_launch: 'Glitchware launched', glitch_abort: 'Glitchware aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
+        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', glitch_settings_set: 'Glitchware settings changed', glitch_launch: 'Glitchware launched', glitch_abort: 'Glitchware aborted', blackout_settings_set: 'Blackout settings changed', blackout_launch: 'Blackout launched', blackout_abort: 'Blackout aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
         case_assign: 'Case assigned', case_status: 'Case status changed', case_resolve: 'Case closed', case_note: 'Case note added'
     };
 
@@ -1486,19 +1486,191 @@
     }
 
     /* ----------------------------------------------------------------------
-       EVENTS: tabs. One tab per live event (Nuke, Glitchware).
+       EVENTS: BLACKOUT (live and synced for every visitor)
+       Launch now or schedule it, abort it, tune the goal / red lights / rewards, upload the OSTs (mp3 / m4a, 15 MB max).
+       Everything staff change here is audit logged.
+       ---------------------------------------------------------------------- */
+    var BO_SLOTS = [
+        ['ost', 'Main OST (loops)', 'Plays the whole blackout, starting at the right spot for people who join late. Your main Blackout OST goes here.'],
+        ['danger', 'Red light danger loop (loops)', 'Optional. Starts silent and fades in as the red light on the page you are on gets stronger, then fades back out.'],
+        ['gen', 'Generator online sting', 'Optional. Plays once when you fix a generator. A built-in sound plays if empty.'],
+        ['dead', 'Terminated sting', 'Optional. Plays once when the red light terminates you.'],
+        ['win', 'Power restored sting', 'Optional. Plays once when the community reaches the goal.'],
+        ['fail', 'Blackout failed sting', 'Optional. Plays once when time runs out before the goal.']
+    ];
+    var BO_ERR = { bad_value: 'One of the numbers is not a number.', bad_duration: 'Duration must be 120 to 3600 seconds.', bad_goal: 'Goal must be 1 to 5000 generators.', bad_red_level: 'Red light level is 1 to 5.', bad_kill: 'Seconds in strong red must be 2 to 15.', bad_hint: 'Hint delay must be 0 to 1800 seconds (0 = never).', bad_cooldown: 'Cooldown must be 0 to 300 seconds.', bad_volume: 'Volume is 0 to 100.', bad_reward: 'Rewards must be 0 or more.', bad_pages: 'Add 2 to 30 pages. Page names can only use lowercase letters, numbers, - and _ (index, projects, community ...).', bad_per_player: 'Generators per player must be 1 or more and cannot be higher than the number of pages.', bad_audio_url: 'That audio link is not from the event-audio bucket.', bad_time: 'Pick a time at least 10 seconds from now.', event_overlap: 'Another event (blackout, nuke or glitchware) is already scheduled around then.', not_active: 'That event is not running or scheduled any more.' };
+
+    async function viewBlackout(root, token) {
+        add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
+        var d = await rpc('admin_blackout_get', {}, { quiet: true });
+        if (stale(token)) return;
+        clear(root);
+        if (!d || d.ok === false) { add(root, el('p', { class: 'ad-help', text: 'Could not load Blackout. Is supabase-blackout.sql installed?' })); return; }
+
+        var st = d.settings || {}, evs = d.events || [], nowMs = Date.parse(d.now) || Date.now();
+        var cur = { ost: st.audio_ost || null, danger: st.audio_danger || null, gen: st.audio_gen || null, dead: st.audio_dead || null, win: st.audio_win || null, fail: st.audio_fail || null };
+        function again() { viewEvents(clear($('adView')), token); }
+        function berr(r) { return BO_ERR[r && r.error] || null; }
+        function phaseOf(e) {
+            if (e.aborted_at) return ['ABORTED', 'warn'];
+            var s = Date.parse(e.starts_at), en = Date.parse(e.ends_at);
+            if (nowMs < s) return ['SCHEDULED', 'info'];
+            if (nowMs >= en) return e.won_at ? ['WON', 'ok'] : ['FAILED', null];
+            return e.won_at ? ['POWER RESTORED', 'ok'] : ['BLACKOUT', 'ok'];
+        }
+
+        // ---- right now ----
+        var active = evs.find(function (e) { return !e.aborted_at && Date.parse(e.ends_at) > nowMs; });
+        var nowBody;
+        if (active) {
+            var ph = phaseOf(active);
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\uD83D\uDD26' }),
+                el('div', {},
+                    el('div', { class: 'ad-row-title', text: active.label || 'Blackout' }),
+                    el('div', { class: 'ad-row-sub', text: 'Lights out ' + fmt(active.starts_at) + '  \u00B7  ends ' + fmt(active.ends_at) + '  \u00B7  ' + (active.fixed_total || 0) + '/' + active.goal + ' generators, ' + (active.players || 0) + ' players, ' + Math.max(0, (active.players || 0) - (active.alive || 0)) + ' terminated' })),
+                el('div', { class: 'ad-row-end' }, pill(ph[0], ph[1]), ' ',
+                    el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'ABORT', onclick: function () {
+                        var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (saved in the audit log)' });
+                        dialog({ title: 'Abort the blackout?', body: el('div', {}, el('p', { class: 'ad-help', text: 'Every open page cleans itself up within a few seconds and the site goes back to normal. Nobody gets rewards after this.' }), field('Reason', why)),
+                            buttons: [{ text: 'Keep it running' }, { text: 'Abort now', kind: 'danger', onClick: async function () {
+                                var r = await rpc('admin_blackout_abort', { p_event: active.id, p_reason: why.value.trim() || null }, { quiet: true });
+                                if (!(r && r.ok)) { toast(berr(r) || 'Could not abort that one.', true); return false; }
+                                toast('Event aborted.'); again();
+                            } }] });
+                    } })));
+        } else {
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\uD83D\uDCA1' }),
+                el('div', {}, el('div', { class: 'ad-row-title', text: 'No blackout running' }), el('div', { class: 'ad-row-sub', text: 'Launch one now, or schedule it for later. Preview it first: nobody else sees the preview.' })),
+                el('div', { class: 'ad-row-end' }, pill('IDLE')));
+        }
+        function launchDialog(scheduled) {
+            var label = el('input', { class: 'ad-field', type: 'text', maxlength: '60', placeholder: 'Name for the ending screen (optional)' });
+            var when = el('input', { class: 'ad-field', type: 'datetime-local' });
+            var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+            var mins = Math.round((st.duration_s || 600) / 60 * 10) / 10;
+            dialog({ title: scheduled ? 'Schedule the blackout' : 'Launch the blackout now?',
+                body: el('div', {}, el('p', { class: 'ad-help', text: (scheduled ? 'Lights go out at the time you pick. ' : 'Lights go out in about 45 seconds so every open page can catch it. ') + 'Goal ' + (st.goal || 50) + ' generators in ' + mins + ' min, ' + (st.per_player_max || 4) + ' per player, red light level ' + (st.red_level || 3) + '.' }),
+                    field('Name', label), scheduled ? field('Starts (your local time)', when) : null, field('Reason', why)),
+                buttons: [{ text: 'Cancel' }, { text: scheduled ? 'Schedule' : 'LAUNCH', primary: true, onClick: async function () {
+                    if (scheduled && !when.value) { toast('Pick a start time.', true); return false; }
+                    var r = await rpc('admin_blackout_launch', { p_starts: scheduled ? new Date(when.value).toISOString() : null, p_label: label.value.trim() || null, p_reason: why.value.trim() || null }, { quiet: true });
+                    if (!(r && r.ok)) { toast(berr(r) || 'Could not launch. Is supabase-blackout.sql installed?', true); return false; }
+                    toast(scheduled ? 'Scheduled.' : 'Launching. Lights go out in about 45 seconds.'); again();
+                } }] });
+        }
+
+        // ---- settings ----
+        function num(v, min, max) { return el('input', { class: 'ad-field', type: 'number', min: String(min), max: String(max), step: '1', value: String(v) }); }
+        var iDur = num(st.duration_s != null ? st.duration_s : 600, 120, 3600), iGoal = num(st.goal != null ? st.goal : 50, 1, 5000), iMax = num(st.per_player_max != null ? st.per_player_max : 4, 1, 30);
+        var iLvl = el('select', { class: 'ad-select' }, [['1', '1 - slow, gentle'], ['2', '2'], ['3', '3 - default'], ['4', '4'], ['5', '5 - three pages hot at once']].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        iLvl.value = String(st.red_level || 3);
+        var iKill = num(st.red_kill_s != null ? st.red_kill_s : 5, 2, 15), iHint = num(st.hint_after_s != null ? st.hint_after_s : 120, 0, 1800), iCool = num(st.fix_cooldown_s != null ? st.fix_cooldown_s : 15, 0, 300);
+        var iPages = el('textarea', { class: 'ad-area', rows: '3', placeholder: 'index, projects, community, spectra-ai, settings' }); iPages.value = (st.pages || []).join(', ');
+        var iGx = num(st.reward_gen_xp || 0, 0, 1000000), iGa = num(st.reward_gen_ac || 0, 0, 1000000), iWx = num(st.reward_win_xp || 0, 0, 1000000), iWa = num(st.reward_win_ac || 0, 0, 1000000), iVol = num(st.volume != null ? st.volume : 80, 0, 100);
+        var iWhy = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+        function pagesList() { return iPages.value.split(/[\s,;]+/).map(function (x) { return x.trim().toLowerCase().replace(/\.html?$/, ''); }).filter(Boolean); }
+        function cfgNow() {
+            return { duration_s: parseInt(iDur.value, 10), goal: parseInt(iGoal.value, 10), per_player_max: parseInt(iMax.value, 10), red_level: parseInt(iLvl.value, 10), red_kill_s: parseInt(iKill.value, 10), hint_after_s: parseInt(iHint.value, 10),
+                fix_cooldown_s: parseInt(iCool.value, 10), pages: pagesList(), reward_gen_xp: parseInt(iGx.value, 10) || 0, reward_gen_ac: parseInt(iGa.value, 10) || 0, reward_win_xp: parseInt(iWx.value, 10) || 0, reward_win_ac: parseInt(iWa.value, 10) || 0,
+                volume: parseInt(iVol.value, 10) || 0, audio: { ost: cur.ost, danger: cur.danger, gen: cur.gen, dead: cur.dead, win: cur.win, fail: cur.fail } };
+        }
+        async function saveAll(reasonText, quiet) {
+            var r = await rpc('admin_blackout_settings_set', { p_cfg: cfgNow(), p_reason: reasonText || iWhy.value.trim() || null }, { quiet: true });
+            if (r && r.ok) { if (!quiet) toast('Saved. Applies to the NEXT launch (a running event keeps its own settings).'); return true; }
+            toast(berr(r) || 'The server refused that. Is supabase-blackout.sql installed?', true);
+            return false;
+        }
+        // the preview runs in another tab with your CURRENT OSTs and red light settings (even before you save)
+        function openPreview() {
+            try { var c = cfgNow(); localStorage.setItem('bo.preview.cfg', JSON.stringify({ audio: c.audio, red_level: c.red_level, red_kill_s: c.red_kill_s, volume: c.volume })); } catch (e) { /* storage blocked: the preview uses defaults */ }
+            window.open('index.html#blackout-preview', '_blank', 'noopener');
+        }
+        add(root, panel('Blackout', nowBody, el('div', { class: 'ad-row-end' },
+            el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Preview (new tab)', onclick: openPreview }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Schedule', onclick: function () { launchDialog(true); } }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Launch now', onclick: function () { launchDialog(false); } }))));
+
+        add(root, panel('Settings', el('div', {},
+            field('Goal (generators the whole community must fix)', iGoal, 'Players online x generators per player must be at least this, or nobody can win. 50 is great for a busy night, lower it when fewer people are around.'),
+            field('Generators per player (max)', iMax, 'Each player gets their OWN random pages in their OWN order, one generator per page. Cannot be higher than the number of pages below.'),
+            field('Blackout length (seconds)', iDur, '600 = 10 minutes. If the goal is reached early the power comes back and the event ends about 35 seconds later.'),
+            field('Red light level', iLvl, 'Higher = shorter cycles and more pages glowing at once. The last minute always adds one more hot page. The first 25 seconds are always calm.'),
+            field('Seconds in STRONG red before termination', iKill, '5 = five seconds. The glow and the flicker stages are free warnings: only the strong stage counts. Exposure drains when you leave.'),
+            field('Hint after (seconds)', iHint, 'If a player is stuck this long, the HUD names the page that holds their next generator. 0 = never.'),
+            field('Generator cooldown (seconds)', iCool, 'Minimum wait between two repairs by the same player.'),
+            field('Pages with generators and red lights', iPages, 'Page file names without .html, separated by commas. Pages NOT listed here (like chats) are safe: no red light, no generators. Terminated players can still use chats.'),
+            field('Reward per generator: XP', iGx, 'Paid by the database the moment a generator is really fixed.'),
+            field('Reward per generator: APEX Credits', iGa),
+            field('Power restored bonus: XP', iWx, 'Paid once to players who are still alive when the goal is reached and fixed at least one generator.'),
+            field('Power restored bonus: APEX Credits', iWa),
+            field('Music volume (0 to 100)', iVol),
+            field('Reason', iWhy),
+            el('div', { style: 'margin-top:14px' }, el('button', { type: 'button', class: 'ad-btn', text: 'Save settings', onclick: async function (e) { e.target.disabled = true; await saveAll(); e.target.disabled = false; } })))));
+
+        // ---- audio ----
+        var audioList = el('div', { class: 'ad-list' });
+        BO_SLOTS.forEach(function (slot) {
+            var key = slot[0], url = cur[key];
+            var file = el('input', { type: 'file', accept: '.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a', style: 'display:none' });
+            var player = url ? el('audio', { controls: 'controls', preload: 'none', src: url, style: 'width:100%;max-width:420px;margin-top:6px' }) : null;
+            var up = el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: url ? 'Replace' : 'Upload', onclick: function () { file.click(); } });
+            file.addEventListener('change', async function () {
+                var f = file.files && file.files[0];
+                file.value = '';
+                if (!f) return;
+                var ext = ((f.name.match(/\.([A-Za-z0-9]+)$/) || [])[1] || '').toLowerCase();
+                if (ext !== 'mp3' && ext !== 'm4a') { toast('Only .mp3 or .m4a files.', true); return; }
+                if (f.size > NUKE_MAX_BYTES) { toast('That file is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 15 MB. Export it smaller (MP3 around 160 kbps).', true); return; }
+                up.disabled = true; up.textContent = 'Uploading...';
+                var path = 'blackout/' + key + '-' + Date.now() + '.' + ext;
+                var res = await sb.storage.from('event-audio').upload(path, f, { contentType: ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4', cacheControl: '31536000', upsert: false });
+                if (res.error) { up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; toast('Upload failed: ' + (res.error.message || 'unknown error') + '. Is supabase-nuke.sql installed and the console unlocked?', true); return; }
+                var pub = sb.storage.from('event-audio').getPublicUrl(path);
+                var old = cur[key];
+                cur[key] = pub && pub.data && pub.data.publicUrl;
+                var ok = await saveAll('Blackout audio uploaded: ' + slot[1], true);
+                if (ok) { toast('Uploaded and saved. The next launch uses it.'); again(); } else { cur[key] = old; up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; }
+            });
+            var rm = url ? el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'Remove', onclick: async function () {
+                var old = cur[key]; cur[key] = null;
+                if (await saveAll('Blackout audio removed: ' + slot[1], true)) { toast('Removed.'); again(); } else cur[key] = old;
+            } }) : null;
+            audioList.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: slot[1] }), el('div', { class: 'ad-row-sub', text: url ? 'Uploaded' : 'Nothing uploaded.' }), el('div', { class: 'ad-row-sub', text: slot[2] }), player),
+                el('div', { class: 'ad-row-end' }, up, ' ', rm, file)));
+        });
+        add(root, panel('OSTs (mp3 or m4a, 15 MB each)', audioList, pill('Sound only plays for people who turned sound on', 'info')));
+
+        // ---- history ----
+        var hist = el('div', { class: 'ad-list' });
+        evs.forEach(function (e) {
+            var p = phaseOf(e);
+            hist.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: e.label || 'Blackout' }),
+                    el('div', { class: 'ad-row-sub', text: fmt(e.starts_at) + ' to ' + fmt(e.ends_at) + '  \u00B7  ' + (e.fixed_total || 0) + '/' + e.goal + ' generators  \u00B7  ' + (e.players || 0) + ' signed in, ' + (e.alive || 0) + ' survived, ' + Math.max(0, (e.players || 0) - (e.alive || 0)) + ' terminated' })),
+                el('div', { class: 'ad-row-end' }, pill(p[0], p[1]))));
+        });
+        if (!evs.length) hist.appendChild(el('p', { class: 'ad-help', text: 'No events yet.' }));
+        add(root, panel('History', hist));
+    }
+
+    /* ----------------------------------------------------------------------
+       EVENTS: tabs. One tab per live event (Nuke, Glitchware, Blackout).
        ---------------------------------------------------------------------- */
     async function viewEvents(root, token) {
-        var tab = S.evTab === 'glitch' ? 'glitch' : 'nuke';
+        var tab = S.evTab === 'glitch' ? 'glitch' : S.evTab === 'blackout' ? 'blackout' : 'nuke';
         function tabBtn(id, label) {
             return el('button', { type: 'button', class: 'ad-btn ad-btn--sm' + (tab === id ? '' : ' ad-btn--ghost'), text: label, onclick: function () {
                 if (tab === id) return;
                 S.evTab = id; viewEvents(clear($('adView')), token);
             } });
         }
-        add(root, el('div', { class: 'ad-toolbar' }, tabBtn('nuke', 'Nuke event'), tabBtn('glitch', 'Glitchware')));
+        add(root, el('div', { class: 'ad-toolbar' }, tabBtn('nuke', 'Nuke event'), tabBtn('glitch', 'Glitchware'), tabBtn('blackout', 'Blackout')));
         var body = el('div'); add(root, body);
         if (tab === 'glitch') return viewGlitchware(body, token);
+        if (tab === 'blackout') return viewBlackout(body, token);
         return viewNukeEvent(body, token);
     }
 
