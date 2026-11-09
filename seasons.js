@@ -545,6 +545,24 @@
         bo.defer = true;
         (document.head || root).appendChild(bo);
     } catch (e) { /* ignore */ }
+
+    /* The live KAWAII THEME EVENT (a theme / chill event) lives in kawaii-event.js. Same deal: it loads itself here, skips
+       admin.html / login.html and idles quietly (one tiny request every 30s) until staff launch an event. */
+    try {
+        var kk = document.createElement('script');
+        kk.src = SELF ? SELF.replace(/seasons\.js(\?.*)?$/, 'kawaii-event.js$1') : 'kawaii-event.js';
+        kk.defer = true;
+        (document.head || root).appendChild(kk);
+    } catch (e) { /* ignore */ }
+
+    /* The live tHE THE THEME EVENT (a theme / chill event, the old meme website's look) lives in thethe-event.js. Same deal:
+       it loads itself here, skips admin.html / login.html and idles quietly until staff launch an event. */
+    try {
+        var tt = document.createElement('script');
+        tt.src = SELF ? SELF.replace(/seasons\.js(\?.*)?$/, 'thethe-event.js$1') : 'thethe-event.js';
+        tt.defer = true;
+        (document.head || root).appendChild(tt);
+    } catch (e) { /* ignore */ }
     document.addEventListener('visibilitychange', function () { var c = readCache(); if (!document.hidden && (!c || Date.now() - c.at > TTL)) refresh(); });
 
     window.SpecSeasons = {

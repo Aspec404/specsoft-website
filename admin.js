@@ -497,7 +497,7 @@
         password_create: 'Admin password created', password_change: 'Admin password changed', password_reset: 'Admin password reset',
         panel_unlock: 'Console unlock', hub_hide: 'Hub visibility changed', sanction_details: 'Ban details updated',
         appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered',
-        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', glitch_settings_set: 'Glitchware settings changed', glitch_launch: 'Glitchware launched', glitch_abort: 'Glitchware aborted', blackout_settings_set: 'Blackout settings changed', blackout_launch: 'Blackout launched', blackout_abort: 'Blackout aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
+        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', glitch_settings_set: 'Glitchware settings changed', glitch_launch: 'Glitchware launched', glitch_abort: 'Glitchware aborted', blackout_settings_set: 'Blackout settings changed', blackout_launch: 'Blackout launched', blackout_abort: 'Blackout aborted', kawaii_settings_set: 'Kawaii settings changed', kawaii_launch: 'Kawaii event launched', kawaii_abort: 'Kawaii event aborted', thethe_settings_set: 'tHE THE settings changed', thethe_launch: 'tHE THE event launched', thethe_abort: 'tHE THE event aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
         case_assign: 'Case assigned', case_status: 'Case status changed', case_resolve: 'Case closed', case_note: 'Case note added'
     };
 
@@ -1657,20 +1657,327 @@
     }
 
     /* ----------------------------------------------------------------------
-       EVENTS: tabs. One tab per live event (Nuke, Glitchware, Blackout).
+       EVENTS: KAWAII THEME (a "theme / chill" event, live and synced for every visitor)
+       Launch now or schedule it, abort it, set the length / volume / sparkles, upload the music (mp3 / m4a, 15 MB max).
+       No countdown and no rewards: the whole site turns white + pastel for everybody, then goes back to normal.
+       Everything staff change here is audit logged.
+       ---------------------------------------------------------------------- */
+    var KK_ERR = { bad_value: 'One of the numbers is not a number.', bad_duration: 'Length must be 5 to 1440 minutes.', bad_volume: 'Volume is 0 to 100.', bad_sparkles: 'Sparkles is 0 to 3.', bad_audio_url: 'That music file is not from the event-audio bucket.', bad_time: 'Pick a start time at least 10 seconds from now.', event_overlap: 'There is already a kawaii event in that time slot.', not_active: 'That event is not running any more.' };
+
+    async function viewKawaii(root, token) {
+        add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
+        var d = await rpc('admin_kawaii_get', {}, { quiet: true });
+        if (stale(token)) return;
+        clear(root);
+        if (!d || d.ok === false) { add(root, el('p', { class: 'ad-help', text: 'Could not load Kawaii. Is supabase-kawaii.sql installed?' })); return; }
+
+        var st = d.settings || {}, evs = d.events || [], nowMs = Date.parse(d.now) || Date.now();
+        var cur = { ost: st.audio_ost || null };
+        function again() { viewEvents(clear($('adView')), token); }
+        function kerr(r) { return KK_ERR[r && r.error] || null; }
+        function phaseOf(e) {
+            if (e.aborted_at) return ['ABORTED', 'warn'];
+            var s = Date.parse(e.starts_at), en = Date.parse(e.ends_at);
+            if (nowMs < s) return ['SCHEDULED', 'info'];
+            if (nowMs >= en) return ['ENDED', null];
+            return ['LIVE', 'ok'];
+        }
+        function lenText(sec) { var m = Math.round(sec / 60); return m >= 120 ? (Math.round(m / 6) / 10) + ' h' : m + ' min'; }
+
+        // ---- right now ----
+        var active = evs.find(function (e) { return !e.aborted_at && Date.parse(e.ends_at) > nowMs; });
+        var nowBody;
+        if (active) {
+            var ph = phaseOf(active);
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\uD83C\uDF38' }),
+                el('div', {},
+                    el('div', { class: 'ad-row-title', text: active.label || 'Kawaii theme' }),
+                    el('div', { class: 'ad-row-sub', text: 'Starts ' + fmt(active.starts_at) + '  \u00B7  ends ' + fmt(active.ends_at) + '  \u00B7  ' + lenText(active.duration_s) })),
+                el('div', { class: 'ad-row-end' }, pill(ph[0], ph[1]), ' ',
+                    el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'ABORT', onclick: function () {
+                        var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (saved in the audit log)' });
+                        dialog({ title: 'Abort the kawaii event?', body: el('div', {}, el('p', { class: 'ad-help', text: 'Every open page switches back to its normal look within a few seconds. Everybody keeps their own saved light / dark choice.' }), field('Reason', why)),
+                            buttons: [{ text: 'Keep it running' }, { text: 'Abort now', kind: 'danger', onClick: async function () {
+                                var r = await rpc('admin_kawaii_abort', { p_event: active.id, p_reason: why.value.trim() || null }, { quiet: true });
+                                if (!(r && r.ok)) { toast(kerr(r) || 'Could not abort that one.', true); return false; }
+                                toast('Event aborted.'); again();
+                            } }] });
+                    } })));
+        } else {
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\uD83C\uDF80' }),
+                el('div', {}, el('div', { class: 'ad-row-title', text: 'No kawaii event running' }), el('div', { class: 'ad-row-sub', text: 'Launch it now, or schedule it for later. Preview it first: nobody else sees the preview.' })),
+                el('div', { class: 'ad-row-end' }, pill('IDLE')));
+        }
+        function launchDialog(scheduled) {
+            var label = el('input', { class: 'ad-field', type: 'text', maxlength: '60', placeholder: 'Name (optional), shown in the welcome message' });
+            var when = el('input', { class: 'ad-field', type: 'datetime-local' });
+            var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+            dialog({ title: scheduled ? 'Schedule the kawaii event' : 'Launch the kawaii event now?',
+                body: el('div', {}, el('p', { class: 'ad-help', text: (scheduled ? 'The whole site turns kawaii at the time you pick. ' : 'The whole site turns kawaii in about 30 seconds. ') + 'It lasts ' + lenText(st.duration_s || 3600) + ', sparkles level ' + (st.sparkles != null ? st.sparkles : 2) + (cur.ost ? ', with music.' : ', no music uploaded yet.') }),
+                    field('Name', label), scheduled ? field('Starts (your local time)', when) : null, field('Reason', why)),
+                buttons: [{ text: 'Cancel' }, { text: scheduled ? 'Schedule' : 'LAUNCH', primary: true, onClick: async function () {
+                    if (scheduled && !when.value) { toast('Pick a start time.', true); return false; }
+                    var r = await rpc('admin_kawaii_launch', { p_starts: scheduled ? new Date(when.value).toISOString() : null, p_label: label.value.trim() || null, p_reason: why.value.trim() || null }, { quiet: true });
+                    if (!(r && r.ok)) { toast(kerr(r) || 'Could not launch. Is supabase-kawaii.sql installed?', true); return false; }
+                    toast(scheduled ? 'Scheduled.' : 'Launching. The site turns kawaii in about 30 seconds.'); again();
+                } }] });
+        }
+
+        // ---- settings ----
+        function num(v, min, max, step) { return el('input', { class: 'ad-field', type: 'number', min: String(min), max: String(max), step: String(step || 1), value: String(v) }); }
+        var iLen = num(Math.round((st.duration_s != null ? st.duration_s : 3600) / 60), 5, 1440);
+        var iVol = num(st.volume != null ? st.volume : 60, 0, 100);
+        var iSpk = el('select', { class: 'ad-select' }, [['0', '0 - none'], ['1', '1 - a few'], ['2', '2 - default'], ['3', '3 - lots']].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        iSpk.value = String(st.sparkles != null ? st.sparkles : 2);
+        var iWhy = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+        function cfgNow() {
+            return { duration_s: Math.round((parseFloat(iLen.value) || 0) * 60), volume: parseInt(iVol.value, 10), sparkles: parseInt(iSpk.value, 10), audio: { ost: cur.ost } };
+        }
+        async function saveAll(reasonText, quiet) {
+            var r = await rpc('admin_kawaii_settings_set', { p_cfg: cfgNow(), p_reason: reasonText || iWhy.value.trim() || null }, { quiet: true });
+            if (r && r.ok) { if (!quiet) toast('Saved. Applies to the NEXT launch (a running event keeps its own settings).'); return true; }
+            toast(kerr(r) || 'The server refused that. Is supabase-kawaii.sql installed?', true);
+            return false;
+        }
+        // the preview runs in another tab with your CURRENT music, volume and sparkles (even before you save)
+        function openPreview() {
+            try { var c = cfgNow(); localStorage.setItem('kk.preview.cfg', JSON.stringify({ audio: c.audio, volume: c.volume, sparkles: c.sparkles })); } catch (e) { /* storage blocked: the preview uses defaults */ }
+            window.open('index.html#kawaii-preview', '_blank', 'noopener');
+        }
+        add(root, panel('Kawaii theme', nowBody, el('div', { class: 'ad-row-end' },
+            el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Preview (new tab)', onclick: openPreview }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Schedule', onclick: function () { launchDialog(true); } }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Launch now', onclick: function () { launchDialog(false); } }))));
+
+        add(root, panel('Settings', el('div', {},
+            field('Event length (minutes)', iLen, '60 = one hour, 1440 = a full day. The site goes back to normal by itself when the time is up.'),
+            field('Sparkles', iSpk, 'Floating hearts and stars. Visitors with reduce motion on never see them.'),
+            field('Music volume (0 to 100)', iVol, 'Visitors also get their own volume slider and mute button.'),
+            field('Reason', iWhy),
+            el('div', { style: 'margin-top:14px' }, el('button', { type: 'button', class: 'ad-btn', text: 'Save settings', onclick: async function (e) { e.target.disabled = true; await saveAll(); e.target.disabled = false; } })))));
+
+        // ---- music ----
+        var audioList = el('div', { class: 'ad-list' });
+        (function () {
+            var key = 'ost', url = cur[key], title = 'Kawaii site music (loops)';
+            var file = el('input', { type: 'file', accept: '.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a', style: 'display:none' });
+            var player = url ? el('audio', { controls: 'controls', preload: 'none', src: url, style: 'width:100%;max-width:420px;margin-top:6px' }) : null;
+            var up = el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: url ? 'Replace' : 'Upload', onclick: function () { file.click(); } });
+            file.addEventListener('change', async function () {
+                var f = file.files && file.files[0];
+                file.value = '';
+                if (!f) return;
+                var ext = ((f.name.match(/\.([A-Za-z0-9]+)$/) || [])[1] || '').toLowerCase();
+                if (ext !== 'mp3' && ext !== 'm4a') { toast('Only .mp3 or .m4a files.', true); return; }
+                if (f.size > NUKE_MAX_BYTES) { toast('That file is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 15 MB. Export it smaller (MP3 around 160 kbps).', true); return; }
+                up.disabled = true; up.textContent = 'Uploading...';
+                var path = 'kawaii/' + key + '-' + Date.now() + '.' + ext;
+                var res = await sb.storage.from('event-audio').upload(path, f, { contentType: ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4', cacheControl: '31536000', upsert: false });
+                if (res.error) { up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; toast('Upload failed: ' + (res.error.message || 'unknown error') + '. Is supabase-nuke.sql installed and the console unlocked?', true); return; }
+                var pub = sb.storage.from('event-audio').getPublicUrl(path);
+                var old = cur[key];
+                cur[key] = pub && pub.data && pub.data.publicUrl;
+                var ok = await saveAll('Kawaii music uploaded', true);
+                if (ok) { toast('Uploaded and saved. The next launch uses it.'); again(); } else { cur[key] = old; up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; }
+            });
+            var rm = url ? el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'Remove', onclick: async function () {
+                var old = cur[key]; cur[key] = null;
+                if (await saveAll('Kawaii music removed', true)) { toast('Removed.'); again(); } else cur[key] = old;
+            } }) : null;
+            audioList.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: title }), el('div', { class: 'ad-row-sub', text: url ? 'Uploaded' : 'Nothing uploaded.' }),
+                    el('div', { class: 'ad-row-sub', text: 'Plays on every page while the event runs. It loops and stays in sync with the server clock. Visitors tap the music button once to start it (browsers block sound that starts by itself).' }), player),
+                el('div', { class: 'ad-row-end' }, up, ' ', rm, file)));
+        })();
+        add(root, panel('Music (mp3 or m4a, 15 MB)', audioList, pill('Sound only plays for people who tap play', 'info')));
+
+        // ---- history ----
+        var hist = el('div', { class: 'ad-list' });
+        evs.forEach(function (e) {
+            var p = phaseOf(e);
+            hist.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: e.label || 'Kawaii theme' }),
+                    el('div', { class: 'ad-row-sub', text: fmt(e.starts_at) + ' to ' + fmt(e.ends_at) + '  \u00B7  ' + lenText(e.duration_s) })),
+                el('div', { class: 'ad-row-end' }, pill(p[0], p[1]))));
+        });
+        if (!evs.length) hist.appendChild(el('p', { class: 'ad-help', text: 'No events yet.' }));
+        add(root, panel('History', hist));
+    }
+
+    /* ----------------------------------------------------------------------
+       EVENTS: tHE THE THEME (a "theme / chill" event, live and synced for every visitor)
+       Launch now or schedule it, abort it, set the length / volume / fx, upload the music (mp3 / m4a, 15 MB max).
+       No countdown and no rewards: the whole site gets the look of the old tHE THE website (orange, Inter, meme pop-ups, a tHE Credits badge) for everybody, then goes back to normal.
+       Everything staff change here is audit logged.
+       ---------------------------------------------------------------------- */
+    var TT_ERR = { bad_value: 'One of the numbers is not a number.', bad_duration: 'Length must be 5 to 1440 minutes.', bad_volume: 'Volume is 0 to 100.', bad_fx: 'Sparkles is 0 to 3.', bad_audio_url: 'That music file is not from the event-audio bucket.', bad_time: 'Pick a start time at least 10 seconds from now.', event_overlap: 'There is already a tHE THE event in that time slot.', not_active: 'That event is not running any more.' };
+
+    async function viewTheThe(root, token) {
+        add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
+        var d = await rpc('admin_thethe_get', {}, { quiet: true });
+        if (stale(token)) return;
+        clear(root);
+        if (!d || d.ok === false) { add(root, el('p', { class: 'ad-help', text: 'Could not load tHE THE. Is supabase-thethe.sql installed?' })); return; }
+
+        var st = d.settings || {}, evs = d.events || [], nowMs = Date.parse(d.now) || Date.now();
+        var cur = { ost: st.audio_ost || null };
+        function again() { viewEvents(clear($('adView')), token); }
+        function kerr(r) { return TT_ERR[r && r.error] || null; }
+        function phaseOf(e) {
+            if (e.aborted_at) return ['ABORTED', 'warn'];
+            var s = Date.parse(e.starts_at), en = Date.parse(e.ends_at);
+            if (nowMs < s) return ['SCHEDULED', 'info'];
+            if (nowMs >= en) return ['ENDED', null];
+            return ['LIVE', 'ok'];
+        }
+        function lenText(sec) { var m = Math.round(sec / 60); return m >= 120 ? (Math.round(m / 6) / 10) + ' h' : m + ' min'; }
+
+        // ---- right now ----
+        var active = evs.find(function (e) { return !e.aborted_at && Date.parse(e.ends_at) > nowMs; });
+        var nowBody;
+        if (active) {
+            var ph = phaseOf(active);
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\uD83E\uDDE1' }),
+                el('div', {},
+                    el('div', { class: 'ad-row-title', text: active.label || 'tHE THE theme' }),
+                    el('div', { class: 'ad-row-sub', text: 'Starts ' + fmt(active.starts_at) + '  \u00B7  ends ' + fmt(active.ends_at) + '  \u00B7  ' + lenText(active.duration_s) })),
+                el('div', { class: 'ad-row-end' }, pill(ph[0], ph[1]), ' ',
+                    el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'ABORT', onclick: function () {
+                        var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (saved in the audit log)' });
+                        dialog({ title: 'Abort the tHE THE event?', body: el('div', {}, el('p', { class: 'ad-help', text: 'Every open page switches back to the normal SPECSOFT look within a few seconds. Everybody keeps their own saved light / dark choice.' }), field('Reason', why)),
+                            buttons: [{ text: 'Keep it running' }, { text: 'Abort now', kind: 'danger', onClick: async function () {
+                                var r = await rpc('admin_thethe_abort', { p_event: active.id, p_reason: why.value.trim() || null }, { quiet: true });
+                                if (!(r && r.ok)) { toast(kerr(r) || 'Could not abort that one.', true); return false; }
+                                toast('Event aborted.'); again();
+                            } }] });
+                    } })));
+        } else {
+            nowBody = el('div', { class: 'ad-now' },
+                el('div', { class: 'ad-now-emoji', text: '\uD83D\uDDFF' }),
+                el('div', {}, el('div', { class: 'ad-row-title', text: 'No tHE THE event running' }), el('div', { class: 'ad-row-sub', text: 'Launch it now, or schedule it for later. Preview it first: nobody else sees the preview. If the tHE THE event is running at the same time, whichever started first keeps the site and the other waits.' })),
+                el('div', { class: 'ad-row-end' }, pill('IDLE')));
+        }
+        function launchDialog(scheduled) {
+            var label = el('input', { class: 'ad-field', type: 'text', maxlength: '60', placeholder: 'Name (optional), shown in the welcome message' });
+            var when = el('input', { class: 'ad-field', type: 'datetime-local' });
+            var why = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+            dialog({ title: scheduled ? 'Schedule the tHE THE event' : 'Launch the tHE THE event now?',
+                body: el('div', {}, el('p', { class: 'ad-help', text: (scheduled ? 'The whole site turns into tHE THE at the time you pick. ' : 'The whole site turns into tHE THE in about 30 seconds. ') + 'It lasts ' + lenText(st.duration_s || 3600) + ', effects level ' + (st.fx != null ? st.fx : 2) + (cur.ost ? ', with music.' : ', no music uploaded yet.') }),
+                    field('Name', label), scheduled ? field('Starts (your local time)', when) : null, field('Reason', why)),
+                buttons: [{ text: 'Cancel' }, { text: scheduled ? 'Schedule' : 'LAUNCH', primary: true, onClick: async function () {
+                    if (scheduled && !when.value) { toast('Pick a start time.', true); return false; }
+                    var r = await rpc('admin_thethe_launch', { p_starts: scheduled ? new Date(when.value).toISOString() : null, p_label: label.value.trim() || null, p_reason: why.value.trim() || null }, { quiet: true });
+                    if (!(r && r.ok)) { toast(kerr(r) || 'Could not launch. Is supabase-thethe.sql installed?', true); return false; }
+                    toast(scheduled ? 'Scheduled.' : 'Launching. The site turns into tHE THE in about 30 seconds.'); again();
+                } }] });
+        }
+
+        // ---- settings ----
+        function num(v, min, max, step) { return el('input', { class: 'ad-field', type: 'number', min: String(min), max: String(max), step: String(step || 1), value: String(v) }); }
+        var iLen = num(Math.round((st.duration_s != null ? st.duration_s : 3600) / 60), 5, 1440);
+        var iVol = num(st.volume != null ? st.volume : 60, 0, 100);
+        var iSpk = el('select', { class: 'ad-select' }, [['0', '0 - colours only'], ['1', '1 - light'], ['2', '2 - default'], ['3', '3 - party']].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        iSpk.value = String(st.fx != null ? st.fx : 2);
+        var iWhy = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+        function cfgNow() {
+            return { duration_s: Math.round((parseFloat(iLen.value) || 0) * 60), volume: parseInt(iVol.value, 10), fx: parseInt(iSpk.value, 10), audio: { ost: cur.ost } };
+        }
+        async function saveAll(reasonText, quiet) {
+            var r = await rpc('admin_thethe_settings_set', { p_cfg: cfgNow(), p_reason: reasonText || iWhy.value.trim() || null }, { quiet: true });
+            if (r && r.ok) { if (!quiet) toast('Saved. Applies to the NEXT launch (a running event keeps its own settings).'); return true; }
+            toast(kerr(r) || 'The server refused that. Is supabase-thethe.sql installed?', true);
+            return false;
+        }
+        // the preview runs in another tab with your CURRENT music, volume and fx (even before you save)
+        function openPreview() {
+            try { var c = cfgNow(); localStorage.setItem('tt.preview.cfg', JSON.stringify({ audio: c.audio, volume: c.volume, fx: c.fx })); } catch (e) { /* storage blocked: the preview uses defaults */ }
+            window.open('index.html#thethe-preview', '_blank', 'noopener');
+        }
+        add(root, panel('tHE THE theme', nowBody, el('div', { class: 'ad-row-end' },
+            el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Preview (new tab)', onclick: openPreview }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: 'Schedule', onclick: function () { launchDialog(true); } }), ' ',
+            active ? null : el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Launch now', onclick: function () { launchDialog(false); } }))));
+
+        add(root, panel('Settings', el('div', {},
+            field('Event length (minutes)', iLen, '60 = one hour, 1440 = a full day. The site goes back to normal by itself when the time is up.'),
+            field('Effects level', iSpk, 'Meme emoji pop-ups where people click, plus one short emoji rain when they first see it. 0 = only the colours and the music. Visitors with reduce motion on never see the movement.'),
+            field('Music volume (0 to 100)', iVol, 'Visitors also get their own volume slider and mute button.'),
+            field('Reason', iWhy),
+            el('div', { style: 'margin-top:14px' }, el('button', { type: 'button', class: 'ad-btn', text: 'Save settings', onclick: async function (e) { e.target.disabled = true; await saveAll(); e.target.disabled = false; } })))));
+
+        // ---- music ----
+        var audioList = el('div', { class: 'ad-list' });
+        (function () {
+            var key = 'ost', url = cur[key], title = 'tHE THE OST (loops)';
+            var file = el('input', { type: 'file', accept: '.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a', style: 'display:none' });
+            var player = url ? el('audio', { controls: 'controls', preload: 'none', src: url, style: 'width:100%;max-width:420px;margin-top:6px' }) : null;
+            var up = el('button', { type: 'button', class: 'ad-btn ad-btn--ghost ad-btn--sm', text: url ? 'Replace' : 'Upload', onclick: function () { file.click(); } });
+            file.addEventListener('change', async function () {
+                var f = file.files && file.files[0];
+                file.value = '';
+                if (!f) return;
+                var ext = ((f.name.match(/\.([A-Za-z0-9]+)$/) || [])[1] || '').toLowerCase();
+                if (ext !== 'mp3' && ext !== 'm4a') { toast('Only .mp3 or .m4a files.', true); return; }
+                if (f.size > NUKE_MAX_BYTES) { toast('That file is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 15 MB. Export it smaller (MP3 around 160 kbps).', true); return; }
+                up.disabled = true; up.textContent = 'Uploading...';
+                var path = 'thethe/' + key + '-' + Date.now() + '.' + ext;
+                var res = await sb.storage.from('event-audio').upload(path, f, { contentType: ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4', cacheControl: '31536000', upsert: false });
+                if (res.error) { up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; toast('Upload failed: ' + (res.error.message || 'unknown error') + '. Is supabase-nuke.sql installed and the console unlocked?', true); return; }
+                var pub = sb.storage.from('event-audio').getPublicUrl(path);
+                var old = cur[key];
+                cur[key] = pub && pub.data && pub.data.publicUrl;
+                var ok = await saveAll('tHE THE music uploaded', true);
+                if (ok) { toast('Uploaded and saved. The next launch uses it.'); again(); } else { cur[key] = old; up.disabled = false; up.textContent = url ? 'Replace' : 'Upload'; }
+            });
+            var rm = url ? el('button', { type: 'button', class: 'ad-btn ad-btn--danger ad-btn--sm', text: 'Remove', onclick: async function () {
+                var old = cur[key]; cur[key] = null;
+                if (await saveAll('tHE THE music removed', true)) { toast('Removed.'); again(); } else cur[key] = old;
+            } }) : null;
+            audioList.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: title }), el('div', { class: 'ad-row-sub', text: url ? 'Uploaded' : 'Nothing uploaded.' }),
+                    el('div', { class: 'ad-row-sub', text: 'Plays on every page while the event runs. It loops and stays in sync with the server clock. Visitors tap the music button once to start it (browsers block sound that starts by itself).' }), player),
+                el('div', { class: 'ad-row-end' }, up, ' ', rm, file)));
+        })();
+        add(root, panel('Music (mp3 or m4a, 15 MB)', audioList, pill('Sound only plays for people who tap play', 'info')));
+
+        // ---- history ----
+        var hist = el('div', { class: 'ad-list' });
+        evs.forEach(function (e) {
+            var p = phaseOf(e);
+            hist.appendChild(el('div', { class: 'ad-row' },
+                el('div', { class: 'ad-row-main' }, el('div', { class: 'ad-row-title', text: e.label || 'tHE THE theme' }),
+                    el('div', { class: 'ad-row-sub', text: fmt(e.starts_at) + ' to ' + fmt(e.ends_at) + '  \u00B7  ' + lenText(e.duration_s) })),
+                el('div', { class: 'ad-row-end' }, pill(p[0], p[1]))));
+        });
+        if (!evs.length) hist.appendChild(el('p', { class: 'ad-help', text: 'No events yet.' }));
+        add(root, panel('History', hist));
+    }
+
+    /* ----------------------------------------------------------------------
+       EVENTS: tabs, in two groups.
+         Chaos events:            Nuke, Glitchware, Blackout
+         Theme / chill events:    Kawaii
        ---------------------------------------------------------------------- */
     async function viewEvents(root, token) {
-        var tab = S.evTab === 'glitch' ? 'glitch' : S.evTab === 'blackout' ? 'blackout' : 'nuke';
+        var tab = S.evTab === 'glitch' ? 'glitch' : S.evTab === 'blackout' ? 'blackout' : S.evTab === 'kawaii' ? 'kawaii' : S.evTab === 'thethe' ? 'thethe' : 'nuke';
         function tabBtn(id, label) {
             return el('button', { type: 'button', class: 'ad-btn ad-btn--sm' + (tab === id ? '' : ' ad-btn--ghost'), text: label, onclick: function () {
                 if (tab === id) return;
                 S.evTab = id; viewEvents(clear($('adView')), token);
             } });
         }
+        add(root, el('div', { class: 'ad-help', text: 'Chaos events' }));
         add(root, el('div', { class: 'ad-toolbar' }, tabBtn('nuke', 'Nuke event'), tabBtn('glitch', 'Glitchware'), tabBtn('blackout', 'Blackout')));
+        add(root, el('div', { class: 'ad-help', style: 'margin-top:10px', text: 'Theme / chill events' }));
+        add(root, el('div', { class: 'ad-toolbar' }, tabBtn('kawaii', 'Kawaii'), tabBtn('thethe', 'tHE THE')));
         var body = el('div'); add(root, body);
         if (tab === 'glitch') return viewGlitchware(body, token);
         if (tab === 'blackout') return viewBlackout(body, token);
+        if (tab === 'kawaii') return viewKawaii(body, token);
+        if (tab === 'thethe') return viewTheThe(body, token);
         return viewNukeEvent(body, token);
     }
 

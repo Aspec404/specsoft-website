@@ -1,0 +1,214 @@
+/* ==========================================================================
+   SPECSOFT® thethe-event.css  -  styles for thethe-event.js (loaded by it, only while the event is live)
+   The tHE THE theme: the look of the old tHE THE website (2022). Orange #FF6B35, Inter, clean white or near-black
+   cards, rounded corners, a "tHE Credits" badge. Everything new is prefixed tt-.
+
+   It follows the visitor's own light / dark choice (the old site had both too), so we never touch their theme class:
+   dark = the old dark mode, light = the old light mode. When the event ends there is nothing to restore.
+
+   MOTION MODES (thethe-event.js sets exactly one of these classes on <html> and switches live when Settings change):
+     tt-fx    full effects. Add  tt-lite  on weak devices: fewer pop-ups, no opening emoji rain.
+     tt-rm    Reduce motion: same look, nothing moves.
+     tt-min   Ultra reduce motion: palette + music pill + credits badge only. No layers, no extra font, nothing moving.
+   Only transform + opacity are animated, no blend modes, no blur, and the effect layer is contained.
+   ========================================================================== */
+
+/* ---------- 1. PALETTE (dark = the site default, then light on top) ---------- */
+html body.tt-on {
+    --bg-base: #0f0f0f;
+    --bg-card: #1a1a1a;
+    --bg-card-hover: #222222;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --text-tertiary: #8a8a8a;
+    --border-subtle: #2a2a2a;
+    --border-hover: #4a4a4a;
+
+    --accent: #ff6b35;
+    --accent-dim: rgba(255, 107, 53, 0.12);
+    --accent-glow: rgba(255, 107, 53, 0.25);
+    --accent-strong: rgba(255, 107, 53, 0.45);
+
+    --grid-line: rgba(255, 107, 53, 0.06);
+    --grid-line-bright: rgba(255, 107, 53, 0.16);
+    --glow-color: rgba(255, 107, 53, 0.10);
+    --ambient-glow: rgba(255, 142, 83, 0.10);
+
+    --code-bg: #161616;
+    --code-header-bg: #1f1f1f;
+    --code-text: #ffd2bd;
+
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+    background-color: var(--bg-base);
+}
+html body.tt-on.light-mode {
+    --bg-base: #ffffff;
+    --bg-card: #f8f9fa;
+    --bg-card-hover: #fff3ec;
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --text-tertiary: #999999;
+    --border-subtle: #e1e5e9;
+    --border-hover: #ffb08f;
+
+    --accent: #e55a2b;
+    --accent-dim: rgba(255, 107, 53, 0.10);
+    --accent-glow: rgba(255, 107, 53, 0.22);
+    --accent-strong: rgba(255, 107, 53, 0.40);
+
+    --grid-line: rgba(255, 107, 53, 0.07);
+    --grid-line-bright: rgba(255, 107, 53, 0.18);
+    --glow-color: rgba(255, 107, 53, 0.08);
+    --ambient-glow: rgba(255, 142, 83, 0.10);
+
+    --code-bg: #fff6f1;
+    --code-header-bg: #ffeadf;
+    --code-text: #7a3418;
+}
+/* the Settings accent colour (html[data-accent]) would clash with the orange: the event wins while it runs */
+html body.tt-on, html[data-accent] body.tt-on { --ss-rgb: 255, 107, 53; }
+
+/* the old site was clean: no terminal decoration (this also makes the page cheaper to draw) */
+html body.tt-on .scanlines, html body.tt-on .scanner-line, html body.tt-on .vignette,
+html body.tt-on .crosshair, html body.tt-on .geo-shape, html body.tt-on .geo-dot-grid,
+html body.tt-on .grid-bg, html body.tt-on .grid-glow { display: none !important; }
+
+/* orange selection + scrollbar */
+html body.tt-on ::selection { background: #ff6b35; color: #ffffff; }
+html.tt-on { scrollbar-color: #ff6b35 transparent; }
+html.tt-on ::-webkit-scrollbar { width: 12px; height: 12px; }
+html.tt-on ::-webkit-scrollbar-track { background: transparent; }
+html.tt-on ::-webkit-scrollbar-thumb { background: #ff6b35; border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
+
+/* the site's custom cursor (cursor.js) goes orange: same dot and ring, just the colour */
+html.tt-on { --sc-color: #ff6b35; }
+
+/* ---------- 2. ROUNDED CARDS + ORANGE HOVER (add more selectors here to restyle more things) ---------- */
+html body.tt-on .project-card,
+html body.tt-on .clan-card,
+html body.tt-on .ph-card,
+html body.tt-on .cm-do-card,
+html body.tt-on .cm-team-card,
+html body.tt-on .cm-career-card,
+html body.tt-on .cm-carousel-card,
+html body.tt-on .cm-credit-card { border-radius: 12px; }
+html body.tt-on .status-badge,
+html body.tt-on .sp-chip,
+html body.tt-on .cm-career-tag { border-radius: 99px; }
+html body.tt-on .nav-item { border-radius: 10px; }
+html body.tt-on .nav-item.active, html body.tt-on .nav-item[aria-current="page"] { background: #ff6b35; color: #ffffff; }
+html body.tt-on .ph-search input, html body.tt-on .ph-select select { border-radius: 10px; }
+
+html body.tt-on .project-card:hover,
+html body.tt-on .clan-card:hover,
+html body.tt-on .ph-card:hover,
+html body.tt-on .cm-do-card:hover,
+html body.tt-on .cm-team-card:hover,
+html body.tt-on .cm-career-card:hover { border-color: #ff6b35; }
+
+/* lift on hover: full effects only (Reduce motion and Ultra reduce motion get no movement) */
+html.tt-fx body.tt-on .project-card,
+html.tt-fx body.tt-on .clan-card,
+html.tt-fx body.tt-on .ph-card,
+html.tt-fx body.tt-on .cm-do-card,
+html.tt-fx body.tt-on .cm-team-card,
+html.tt-fx body.tt-on .cm-career-card,
+html.tt-fx body.tt-on .nav-item { transition: transform .3s ease, box-shadow .3s ease, background-color .3s ease, border-color .3s ease; }
+html.tt-fx body.tt-on .project-card:hover,
+html.tt-fx body.tt-on .clan-card:hover,
+html.tt-fx body.tt-on .ph-card:hover,
+html.tt-fx body.tt-on .cm-do-card:hover,
+html.tt-fx body.tt-on .cm-team-card:hover,
+html.tt-fx body.tt-on .cm-career-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(255, 107, 53, .18); }
+html.tt-fx body.tt-on .nav-item:hover { transform: translateX(5px); }
+
+/* the old hero title: orange gradient text (h1 only). Ultra reduce motion gets plain orange text. */
+html body.tt-on h1 {
+    background: linear-gradient(135deg, #ff6b35, #ff8e53);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+}
+html.tt-min body.tt-on h1 { background: none; -webkit-text-fill-color: currentColor; color: var(--accent); }
+
+/* ---------- 3. THE LAYER (only used for the opening emoji rain; never blocks clicks) ---------- */
+#tt-root, #tt-root * { box-sizing: border-box; }
+#tt-root { position: fixed; inset: 0; z-index: 9990; pointer-events: none; overflow: hidden; contain: strict; }
+html.tt-min #tt-root { display: none !important; }
+#tt-root.tt-paused, #tt-root.tt-paused * { animation-play-state: paused !important; }
+
+.tt-drop {
+    position: absolute; top: -8vh; left: 0; line-height: 1; opacity: 0; user-select: none; will-change: transform, opacity;
+    animation: tt-fall var(--tt-d, 4s) cubic-bezier(.3, .1, .6, 1) var(--tt-delay, 0s) 1 forwards;
+}
+@keyframes tt-fall {
+    0%   { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translate3d(var(--tt-sway, 30px), 112vh, 0) rotate(var(--tt-rot, 200deg)); opacity: 0; }
+}
+
+/* click pop-ups (meme emojis) */
+.tt-pop { position: fixed; z-index: 9991; pointer-events: none; line-height: 1; animation: tt-pop .9s cubic-bezier(.2, .8, .3, 1) forwards; }
+@keyframes tt-pop {
+    0%   { transform: translate(-50%, -50%) scale(.4); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--tt-x, 0px)), calc(-50% + var(--tt-y, -70px))) scale(1.2) rotate(var(--tt-r, 30deg)); opacity: 0; }
+}
+
+/* ---------- 4. "tHE Credits" BADGE (bottom right, like the old header pill) ---------- */
+.tt-credits {
+    position: fixed; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 9992;
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 10px; border-radius: 99px; cursor: pointer;
+    font: 700 13px/1 'Inter', -apple-system, sans-serif; letter-spacing: .01em;
+    background: rgba(255, 107, 53, .12); color: #ff8e53; border: 1.5px solid rgba(255, 107, 53, .45);
+    box-shadow: 0 6px 18px rgba(255, 107, 53, .22);
+    transform: translateY(24px) scale(.92); opacity: 0; transition: transform .45s cubic-bezier(.34, 1.4, .64, 1), opacity .35s ease;
+}
+body.light-mode .tt-credits { background: #fff3ec; color: #e55a2b; }
+.tt-credits.tt-show { transform: none; opacity: 1; }
+.tt-coin { width: 20px; height: 20px; border-radius: 50%; border: 2px solid currentColor; display: grid; place-items: center; font-size: 11px; font-weight: 800; flex: 0 0 auto; }
+.tt-credits b { font-size: 14px; }
+.tt-credits small { font-size: 11px; font-weight: 600; opacity: .85; }
+html.tt-fx .tt-credits:hover { transform: translateY(-2px); }
+@media (max-width: 520px) { .tt-credits small { display: none; } }
+
+/* ---------- 5. MUSIC PILL (solid, no blur: cheap on weak GPUs) ---------- */
+.tt-pill {
+    position: fixed; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 9992;
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 8px; pointer-events: auto;
+    background: #1a1a1a; border: 1.5px solid rgba(255, 107, 53, .45); border-radius: 99px; color: #ffffff;
+    box-shadow: 0 6px 18px rgba(255, 107, 53, .2); font: 600 12px/1 'Inter', -apple-system, sans-serif;
+    transform: translateY(24px) scale(.92); opacity: 0; transition: transform .45s cubic-bezier(.34, 1.4, .64, 1), opacity .35s ease;
+}
+body.light-mode .tt-pill { background: #ffffff; color: #1a1a1a; }
+.tt-pill.tt-show { transform: none; opacity: 1; }
+.tt-btn {
+    width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center; flex: 0 0 auto;
+    background: linear-gradient(135deg, #ff6b35, #ff8e53); color: #fff; font-size: 15px; line-height: 1;
+    box-shadow: 0 3px 10px rgba(255, 107, 53, .4);
+}
+html.tt-fx .tt-btn { transition: transform .2s ease; }
+html.tt-fx .tt-btn:hover { transform: scale(1.1); }
+html.tt-fx .tt-btn:active { transform: scale(.94); }
+html.tt-fx .tt-btn.tt-ask { animation: tt-bounce 1.1s ease-in-out infinite; }
+html.tt-rm .tt-btn.tt-ask, html.tt-min .tt-btn.tt-ask { outline: 3px solid rgba(255, 107, 53, .45); outline-offset: 2px; }
+@keyframes tt-bounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.1); } }
+.tt-lbl { white-space: nowrap; }
+.tt-vol { width: 70px; accent-color: #ff6b35; cursor: pointer; }
+.tt-mute { background: transparent; color: #ff8e53; box-shadow: none; border: 1.5px solid rgba(255, 107, 53, .45); width: 30px; height: 30px; font-size: 14px; }
+@media (max-width: 520px) { .tt-vol { display: none; } .tt-lbl { display: none; } }
+
+/* ---------- 6. TOAST ---------- */
+.tt-toast {
+    position: fixed; top: max(16px, env(safe-area-inset-top)); left: 50%; z-index: 9993; pointer-events: none;
+    transform: translate(-50%, -30px); opacity: 0; max-width: min(92vw, 440px); text-align: center;
+    padding: 12px 18px; border-radius: 12px; background: linear-gradient(135deg, #ff6b35, #ff8e53); color: #ffffff;
+    box-shadow: 0 8px 24px rgba(255, 107, 53, .35); font: 600 14px/1.35 'Inter', -apple-system, sans-serif;
+    transition: transform .5s cubic-bezier(.34, 1.4, .64, 1), opacity .35s ease;
+}
+.tt-toast.tt-show { transform: translate(-50%, 0); opacity: 1; }
+
+/* ---------- 7. SAFETY NET: if the OS asks for reduced motion before the script has run, nothing moves ---------- */
+@media (prefers-reduced-motion: reduce) {
+    .tt-drop, .tt-pop { display: none !important; }
+    .tt-btn.tt-ask { animation: none !important; }
+}

@@ -25,6 +25,8 @@
        cursor on the nearest edge
    - API: SCCursor.busy(true|false)  SCCursor.setState('loading'|null)
           SCCursor.burst(x, y)       SCCursor.config
+   - KAWAII THEME EVENT: while <html> has the class kk-hc (set by kawaii-event.js) the dot is a heart (CSS),
+       the ring turns pastel, click bursts and trail markers are hearts, and the dot stops stretching.
    ========================================================================== */
 (function () {
     'use strict';
@@ -98,6 +100,8 @@
 
     var NS = 'http://www.w3.org/2000/svg';
     var root = document.documentElement;
+    function hc() { return root.classList.contains('kk-hc'); }          // kawaii theme event: heart cursor
+    var HEART_PAL = ['#ff6fb1', '#b48cff', '#7fcdf7', '#ffb36b'];
     var vw = window.innerWidth, vh = window.innerHeight;
     var mx = vw / 2, my = vh / 2;     // real pointer (clamped to viewport)
     var rx = mx, ry = my;             // eased ring
@@ -505,7 +509,10 @@
         svg.setAttribute('width', size); svg.setAttribute('height', size);
         svg.setAttribute('viewBox', '0 0 20 20');
         var el;
-        if (kind === 'tri') {
+        if (kind === 'heart') {
+            el = document.createElementNS(NS, 'path');
+            el.setAttribute('d', 'M10 17.4C4.2 12.4 2.2 9.9 2.2 7.2 2.2 4.9 4 3.2 6.1 3.2c1.5 0 2.9.8 3.9 2.1 1-1.3 2.4-2.1 3.9-2.1 2.1 0 3.9 1.7 3.9 4 0 2.7-2 5.2-7.8 10.2z');
+        } else if (kind === 'tri') {
             el = document.createElementNS(NS, 'polygon'); el.setAttribute('points', '10,2 18,17 2,17');
         } else if (kind === 'sq') {
             el = document.createElementNS(NS, 'rect');
@@ -514,7 +521,7 @@
             el = document.createElementNS(NS, 'circle');
             el.setAttribute('cx', 10); el.setAttribute('cy', 10); el.setAttribute('r', 7);
         }
-        el.setAttribute('fill', 'none'); el.setAttribute('stroke', 'currentColor');
+        el.setAttribute('fill', kind === 'heart' ? 'currentColor' : 'none'); el.setAttribute('stroke', 'currentColor');
         el.setAttribute('stroke-width', '1.6'); el.setAttribute('stroke-linejoin', 'round');
         svg.appendChild(el);
         return svg;
@@ -556,13 +563,14 @@
     }
 
     function burst(x, y, count) {
-        var kinds = ['tri', 'sq', 'circ'];
+        var heartMode = hc();
+        var kinds = heartMode ? ['heart'] : ['tri', 'sq', 'circ'];
         count = count || 6;
         if (STYLE.burstKind === 'sparks') { sparks(x, y, count); return; }
         if (lite) count = Math.min(count, 3);
         var offset = Math.random() * Math.PI * 2;
         for (var i = 0; i < count; i++) {
-            var size = 9 + Math.random() * 5;
+            var size = (heartMode ? 13 : 9) + Math.random() * 5;
             var angle = offset + (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
             var dist = (count > 6 ? 50 : 34) + Math.random() * (count > 6 ? 50 : 34);
             var tx = x + Math.cos(angle) * dist, ty = y + Math.sin(angle) * dist;
@@ -570,6 +578,7 @@
 
             var s = document.createElement('div');
             s.className = 'sc-shape';
+            if (heartMode) s.style.color = HEART_PAL[i % HEART_PAL.length];
             s.style.marginLeft = s.style.marginTop = (-size / 2) + 'px';
             s.appendChild(svgShape(kinds[i % kinds.length], size));
             document.body.appendChild(s);
@@ -634,7 +643,7 @@
             if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
             if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
         }
-        var bp = ts === 'glow' ? 20 : 10;
+        var bp = ts === 'glow' ? 20 : (hc() ? 16 : 10);
         var box = { x: x0 - bp, y: y0 - bp, w: x1 - x0 + bp * 2, h: y1 - y0 + bp * 2 };
         var ux = box.x, uy = box.y, uw = box.w, uh = box.h;
         if (prevBox) {
@@ -674,8 +683,18 @@
             var sz = mark.r * 2 * (0.6 + ml * 0.6);
             ctx.save();
             ctx.translate(mark.x, mark.y);
-            ctx.rotate((1 - ml) * 1.2);
-            ctx.strokeRect(-sz / 2, -sz / 2, sz, sz);
+            if (hc()) {
+                var hs = sz * 1.5;
+                ctx.fillStyle = 'rgba(' + trailRGB + ',' + (ml * 0.45).toFixed(3) + ')';
+                ctx.beginPath();
+                ctx.moveTo(0, hs * 0.42);
+                ctx.bezierCurveTo(-hs * 0.95, -hs * 0.2, -hs * 0.55, -hs * 0.75, 0, -hs * 0.3);
+                ctx.bezierCurveTo(hs * 0.55, -hs * 0.75, hs * 0.95, -hs * 0.2, 0, hs * 0.42);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+            } else {
+                ctx.rotate((1 - ml) * 1.2);
+                ctx.strokeRect(-sz / 2, -sz / 2, sz, sz);
+            }
             ctx.restore();
         }
     }
@@ -693,7 +712,7 @@
         var allow = CFG.stretch && !magnetEl && (state === 'default' || state === 'pointer');
         var k = allow ? Math.min(spd / 28, 1) : 0;
 
-        var dotT = k > 0.03 ? 'rotate(' + ang.toFixed(3) + 'rad) scale(' + (1 + k * 1.7).toFixed(3) + ',' + (1 - k * 0.35).toFixed(3) + ')' : '';
+        var dotT = (k > 0.03 && !hc()) ? 'rotate(' + ang.toFixed(3) + 'rad) scale(' + (1 + k * 1.7).toFixed(3) + ',' + (1 - k * 0.35).toFixed(3) + ')' : '';
         if (dotT !== lastStretch) { dotStretch.style.transform = dotT; lastStretch = dotT; }
 
         var ringT = k > 0.03 ? 'rotate(' + ang.toFixed(3) + 'rad) scale(' + (1 + k * 0.22).toFixed(3) + ',' + (1 - k * 0.14).toFixed(3) + ')' : '';

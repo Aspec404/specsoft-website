@@ -1,0 +1,267 @@
+/* ==========================================================================
+   SPECSOFT® kawaii-event.css  -  styles for kawaii-event.js (loaded by it, only while the event is live)
+   A white + pastel kawaii anime theme. Everything new is prefixed kk-.
+   The theme is just CSS variables + a few overrides on  html body.kk-on  so nothing is deleted
+   and the visitor's saved light / dark choice is restored the moment the event ends.
+
+   MOTION MODES (kawaii-event.js sets exactly one of these classes on <html>, and switches live when the
+   visitor changes Settings, no reload needed):
+     kk-fx    full effects (default). Add  kk-lite  on weak devices: fewer particles, no shimmer / heartbeat.
+     kk-rm    Reduce motion (settings or OS): same pastel look and decorations, but everything is STILL.
+     kk-min   Ultra reduce motion (ss-urm): palette + the music pill only. No layers, no extra font, nothing moving.
+   Performance rules used here: only transform + opacity are animated, no blend modes, no blur, no glows on
+   particles, the effects layer is contained (contain: strict) and pauses itself when the tab is hidden.
+   ========================================================================== */
+
+/* ---------- 1. PALETTE: overrides BOTH :root (dark) and body.light-mode ---------- */
+html body.kk-on {
+    --bg-base: #fff6fb;
+    --bg-card: #ffffff;
+    --bg-card-hover: #fff0f8;
+    --text-primary: #5a3a66;
+    --text-secondary: #8a6b97;
+    --text-tertiary: #c4adcf;
+    --border-subtle: #f6d3e8;
+    --border-hover: #eaaed1;
+
+    --accent: #d9488d;
+    --accent-dim: rgba(255, 126, 182, 0.12);
+    --accent-glow: rgba(255, 126, 182, 0.22);
+    --accent-strong: rgba(217, 72, 141, 0.38);
+
+    --grid-line: rgba(255, 150, 200, 0.14);
+    --grid-line-bright: rgba(255, 150, 200, 0.34);
+    --glow-color: rgba(255, 150, 200, 0.12);
+    --ambient-glow: rgba(190, 160, 255, 0.14);
+
+    --code-bg: #fff4fa;
+    --code-header-bg: #ffe8f4;
+    --code-text: #6b4a73;
+
+    --font-sans: 'Quicksand', 'Space Grotesk', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+
+    color-scheme: light;
+    background-color: var(--bg-base);
+}
+/* the Settings accent colour (html[data-accent]) would clash with the pink: the event wins while it runs */
+html body.kk-on, html[data-accent] body.kk-on { --ss-rgb: 217, 72, 141; }
+
+/* the dark scanlines do not belong in candyland */
+html body.kk-on .scanlines { display: none !important; }
+
+/* logos: always the dark-on-light one, whatever the saved theme is */
+html body.kk-on .logo-img.logo-light,
+html body.kk-on .footer-logo.logo-light { display: none !important; }
+html body.kk-on .logo-img.logo-dark,
+html body.kk-on .footer-logo.logo-dark { display: block !important; }
+
+/* soft pink selection + scrollbar */
+html body.kk-on ::selection { background: #ffc4e1; color: #5a3a66; }
+html.kk-on { scrollbar-color: #f3a8cf #fff0f8; }
+html.kk-on ::-webkit-scrollbar { width: 12px; height: 12px; }
+html.kk-on ::-webkit-scrollbar-track { background: #fff0f8; }
+html.kk-on ::-webkit-scrollbar-thumb { background: #f3a8cf; border-radius: 99px; border: 3px solid #fff0f8; }
+
+/* ---------- 2. ROUND CARDS (add more selectors here if you want more things cute) ---------- */
+html body.kk-on .project-card,
+html body.kk-on .clan-card,
+html body.kk-on .ph-card,
+html body.kk-on .cm-do-card,
+html body.kk-on .cm-team-card,
+html body.kk-on .cm-career-card,
+html body.kk-on .cm-carousel-card,
+html body.kk-on .cm-credit-card { border-radius: 22px; box-shadow: 0 6px 22px rgba(255, 126, 182, .14); }
+html body.kk-on .status-badge,
+html body.kk-on .sp-chip,
+html body.kk-on .cm-career-tag { border-radius: 99px; }
+html body.kk-on .nav-item { border-radius: 16px; }
+html body.kk-on .sidebar { border-radius: 0 26px 26px 0; }
+html body.kk-on .ph-search input,
+html body.kk-on .ph-select select { border-radius: 99px; }
+
+/* bouncy hover: FULL effects only (Reduce motion and Ultra reduce motion get no movement at all) */
+html.kk-fx body.kk-on .project-card,
+html.kk-fx body.kk-on .clan-card,
+html.kk-fx body.kk-on .ph-card,
+html.kk-fx body.kk-on .cm-do-card,
+html.kk-fx body.kk-on .cm-team-card,
+html.kk-fx body.kk-on .cm-career-card,
+html.kk-fx body.kk-on .nav-item {
+    transition: transform .35s cubic-bezier(.34, 1.56, .64, 1), box-shadow .35s ease, background-color .3s ease, border-color .3s ease;
+}
+html.kk-fx body.kk-on .project-card:hover,
+html.kk-fx body.kk-on .clan-card:hover,
+html.kk-fx body.kk-on .ph-card:hover,
+html.kk-fx body.kk-on .cm-do-card:hover,
+html.kk-fx body.kk-on .cm-team-card:hover,
+html.kk-fx body.kk-on .cm-career-card:hover { transform: translateY(-4px) scale(1.012); box-shadow: 0 14px 34px rgba(255, 126, 182, .26); }
+html.kk-fx body.kk-on .nav-item:hover { transform: translateX(4px); }
+
+/* ---------- 3. THE LAYERS (never block clicks) ---------- */
+#kk-root, #kk-root * { box-sizing: border-box; }
+#kk-root {
+    position: fixed; inset: 0; z-index: 9990; pointer-events: none; overflow: hidden;
+    contain: strict;                                   /* the browser never has to re-layout the page because of us */
+    font-family: 'Quicksand', 'Space Grotesk', sans-serif;
+}
+html.kk-min #kk-root { display: none !important; }
+/* tab hidden: freeze every animation so a background tab costs nothing */
+#kk-root.kk-paused, #kk-root.kk-paused * { animation-play-state: paused !important; }
+
+/* soft pastel wash: plain alpha (no blend mode, so it also survives Ultra reduce motion's "mix-blend-mode: normal") */
+.kk-wash {
+    position: absolute; inset: 0; opacity: 0; transition: opacity 1.2s ease;
+    background:
+        radial-gradient(60vmax 60vmax at 8% 6%, rgba(255, 183, 222, .17), transparent 62%),
+        radial-gradient(55vmax 55vmax at 96% 12%, rgba(190, 214, 255, .15), transparent 60%),
+        radial-gradient(60vmax 60vmax at 80% 100%, rgba(214, 190, 255, .15), transparent 62%),
+        radial-gradient(50vmax 50vmax at 0% 100%, rgba(190, 255, 232, .12), transparent 60%);
+}
+#kk-root.kk-in .kk-wash { opacity: 1; }
+#kk-root.kk-out .kk-wash { opacity: 0; }
+
+/* floating sparkles / hearts / stars (full effects only: kawaii-event.js does not even create them in the calm modes) */
+.kk-fx { position: absolute; inset: 0; }
+.kk-bit {
+    position: absolute; bottom: -8vh; left: 0; line-height: 1; user-select: none;
+    color: #ff9ccb; opacity: 0; will-change: transform, opacity;
+    animation: kk-float var(--kk-d, 14s) linear var(--kk-delay, 0s) infinite;
+}
+.kk-bit.c2 { color: #b9a4ff; }
+.kk-bit.c3 { color: #7fcdf7; }
+.kk-bit.c4 { color: #ffc95e; }
+@keyframes kk-float {
+    0%   { transform: translate3d(0, 0, 0) rotate(0deg) scale(.6); opacity: 0; }
+    10%  { opacity: .9; }
+    50%  { transform: translate3d(var(--kk-sway, 30px), -55vh, 0) rotate(160deg) scale(1); }
+    90%  { opacity: .75; }
+    100% { transform: translate3d(calc(var(--kk-sway, 30px) * -1), -112vh, 0) rotate(320deg) scale(.8); opacity: 0; }
+}
+
+/* click burst */
+.kk-pop { position: fixed; z-index: 9991; pointer-events: none; line-height: 1; animation: kk-pop .85s cubic-bezier(.2, .8, .3, 1) forwards; }
+@keyframes kk-pop {
+    0%   { transform: translate(-50%, -50%) scale(.4); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--kk-x, 0px)), calc(-50% + var(--kk-y, -60px))) scale(1.15) rotate(var(--kk-r, 40deg)); opacity: 0; }
+}
+
+/* ---------- 4. MUSIC PILL (solid, no blur: cheap on weak GPUs) ---------- */
+.kk-pill {
+    position: fixed; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 9992;
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 8px; pointer-events: auto;
+    background: rgba(255, 255, 255, .97); border: 2px solid #f6c4e0; border-radius: 99px;
+    box-shadow: 0 6px 18px rgba(255, 126, 182, .25); color: #5a3a66; font: 600 12px/1 'Quicksand', 'Space Grotesk', sans-serif;
+    transform: translateY(24px) scale(.9); opacity: 0; transition: transform .5s cubic-bezier(.34, 1.56, .64, 1), opacity .4s ease;
+}
+.kk-pill.kk-show { transform: none; opacity: 1; }
+.kk-btn {
+    width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center; flex: 0 0 auto;
+    background: linear-gradient(135deg, #ff9ccb, #c5a8ff); color: #fff; font-size: 16px; line-height: 1;
+    box-shadow: 0 3px 10px rgba(217, 72, 141, .35);
+}
+html.kk-fx .kk-btn { transition: transform .25s cubic-bezier(.34, 1.56, .64, 1); }
+html.kk-fx .kk-btn:hover { transform: scale(1.12) rotate(-6deg); }
+html.kk-fx .kk-btn:active { transform: scale(.94); }
+html.kk-fx .kk-btn.kk-ask { animation: kk-bounce 1.1s ease-in-out infinite; }
+/* calm modes: the "tap me" hint is a steady ring instead of a bounce */
+html.kk-rm .kk-btn.kk-ask, html.kk-min .kk-btn.kk-ask { outline: 3px solid #ffb3d9; outline-offset: 2px; }
+@keyframes kk-bounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.1); } }
+.kk-lbl { white-space: nowrap; letter-spacing: .02em; }
+.kk-vol { width: 70px; accent-color: #e85fa6; cursor: pointer; }
+.kk-mute { background: #fff0f8; color: #d9488d; box-shadow: none; border: 2px solid #f6c4e0; width: 30px; height: 30px; font-size: 14px; }
+@media (max-width: 520px) { .kk-vol { display: none; } .kk-lbl { display: none; } }
+
+/* ---------- 5. TOAST ---------- */
+.kk-toast {
+    position: fixed; top: max(16px, env(safe-area-inset-top)); left: 50%; z-index: 9993; pointer-events: none;
+    transform: translate(-50%, -30px) scale(.9); opacity: 0; max-width: min(92vw, 420px); text-align: center;
+    padding: 12px 18px; border-radius: 99px; background: linear-gradient(135deg, #ffe0f0, #e6dcff); border: 2px solid #fff;
+    box-shadow: 0 8px 22px rgba(217, 72, 141, .28); color: #5a3a66; font: 700 14px/1.3 'Quicksand', 'Space Grotesk', sans-serif;
+    transition: transform .55s cubic-bezier(.34, 1.56, .64, 1), opacity .4s ease;
+}
+.kk-toast.kk-show { transform: translate(-50%, 0) scale(1); opacity: 1; }
+
+/* ---------- 5b. EXTRA GIRLISH ---------- */
+
+/* NATIVE heart cursor: pink for normal, lilac on things you can click. It is the fallback for when the site's custom cursor
+   (cursor.js) is not running. When cursor.js IS running its own rule (cursor: none !important) wins, so two cursors never fight. */
+html.kk-heart, html.kk-heart body { cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2730%27 height=%2730%27 viewBox=%270 0 24 24%27%3E%3Cpath fill=%27%23ff6fb1%27 stroke=%27%23ffffff%27 stroke-width=%271.4%27 d=%27M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z%27/%3E%3C/svg%3E") 7 4, auto; }
+html.kk-heart a, html.kk-heart button, html.kk-heart [role="button"], html.kk-heart summary, html.kk-heart select, html.kk-heart label[for],
+html.kk-heart input[type="submit"], html.kk-heart input[type="checkbox"], html.kk-heart input[type="radio"], html.kk-heart input[type="range"] { cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2734%27 height=%2734%27 viewBox=%270 0 24 24%27%3E%3Cpath fill=%27%23b48cff%27 stroke=%27%23ffffff%27 stroke-width=%271.4%27 d=%27M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z%27/%3E%3C/svg%3E") 8 4, pointer; }
+
+/* pastel headings (only h1 / h2): a still gradient everywhere, it only MOVES in full effects on a normal device.
+   Ultra reduce motion gets plain coloured text (no gradient text clipping at all). */
+html body.kk-on h1, html body.kk-on h2 {
+    background: linear-gradient(90deg, #d9488d, #b48cff, #5fb8ff, #ff8fc4, #d9488d);
+    background-size: 240% 100%; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+}
+html.kk-fx:not(.kk-lite) body.kk-on h1, html.kk-fx:not(.kk-lite) body.kk-on h2 { animation: kk-shimmer 8s linear infinite; }
+@keyframes kk-shimmer { to { background-position: 240% 0; } }
+html.kk-min body.kk-on h1, html.kk-min body.kk-on h2 { background: none; -webkit-text-fill-color: currentColor; color: var(--text-primary); }
+
+/* the logo gives a little heartbeat (full effects, normal devices) */
+html.kk-fx:not(.kk-lite) body.kk-on .logo-img.logo-dark { animation: kk-beat 2.6s ease-in-out infinite; transform-origin: center; }
+@keyframes kk-beat { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.09); } 24% { transform: scale(1); } 36% { transform: scale(1.06); } 48% { transform: scale(1); } }
+
+/* lace edge along the top of the screen (scalloped, thin) */
+.kk-lace {
+    position: absolute; left: 0; right: 0; top: 0; height: 14px; opacity: .95;
+    background: radial-gradient(circle at 10px 0, #ffd3ea 0 7px, #ff9ccb 7px 8.5px, transparent 9px) 0 0 / 20px 14px repeat-x;
+}
+
+/* bows: one bottom right, one on the left edge (they only wiggle in full effects) */
+.kk-bow { position: absolute; line-height: 1; transform: rotate(var(--kk-tilt, 10deg)); }
+.kk-bow.b1 { right: max(10px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); font-size: 44px; }
+.kk-bow.b2 { left: 2px; top: 46%; font-size: 30px; --kk-tilt: -18deg; opacity: .9; }
+html.kk-fx .kk-bow { transform-origin: 50% 60%; animation: kk-wiggle 3.2s ease-in-out infinite; }
+html.kk-fx .kk-bow.b2 { animation-delay: -1.4s; }
+@keyframes kk-wiggle { 0%, 100% { transform: rotate(var(--kk-tilt, 10deg)) scale(1); } 50% { transform: rotate(calc(var(--kk-tilt, 10deg) * -0.6)) scale(1.08); } }
+
+/* cherry blossom petals drifting down (flat rotation only: no 3D, so no extra GPU layers) */
+.kk-petal {
+    position: absolute; top: -6vh; left: 0; width: var(--kk-s, 12px); height: calc(var(--kk-s, 12px) * 1.15); opacity: 0; will-change: transform, opacity;
+    background: linear-gradient(135deg, #fff, #ffc4e1 55%, #ff9ccb); border-radius: 150% 0 150% 0;
+    animation: kk-fall var(--kk-d, 16s) linear var(--kk-delay, 0s) infinite;
+}
+@keyframes kk-fall {
+    0%   { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+    8%   { opacity: .95; }
+    50%  { transform: translate3d(var(--kk-sway, 40px), 55vh, 0) rotate(210deg); }
+    92%  { opacity: .8; }
+    100% { transform: translate3d(calc(var(--kk-sway, 40px) * -0.6), 108vh, 0) rotate(420deg); opacity: 0; }
+}
+
+/* sparkle trail behind the mouse */
+.kk-trail { position: fixed; z-index: 9991; pointer-events: none; line-height: 1; animation: kk-trail .75s ease-out forwards; }
+@keyframes kk-trail {
+    0%   { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: .95; }
+    100% { transform: translate(calc(-50% + var(--kk-dx, 0px)), calc(-50% + 26px)) scale(.2) rotate(120deg); opacity: 0; }
+}
+
+/* ---------- 5c. HEART CUSTOM CURSOR (the site's cursor.js: dot becomes a heart, ring turns pastel) ----------
+   Active the whole event (html.kk-hc, set by kawaii-event.js). cursor.js itself adds hearts to the click burst and the
+   trail and stops the dot from stretching. It only runs on mouse / trackpad, and not at all in Ultra reduce motion
+   (Settings > Cursor off, or URM): those visitors get the native heart above instead (or nothing, in the URM case where cursor.js is off). */
+html.kk-hc { --sc-color: #ff6fb1; }
+html.kk-hc .sc-dot-core {
+    --kk-hs: calc(var(--sc-dot, 6px) * 3.4);              /* follows the dot-size setting, a heart needs to be bigger than a dot */
+    width: var(--kk-hs); height: var(--kk-hs);
+    margin: calc(var(--kk-hs) / -2) 0 0 calc(var(--kk-hs) / -2);
+    border-radius: 0; rotate: none; box-shadow: none;
+    background: linear-gradient(135deg, #ff9ccb, #ff5fa8 55%, #b48cff);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z%27/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z%27/%3E%3C/svg%3E") center / contain no-repeat;
+}
+html.kk-hc .sc-ring-rot { border: 2px dotted currentColor; }                 /* soft dotted ring instead of the technical one */
+html.kk-hc .sc-ring-rot::before, html.kk-hc .sc-ring-rot::after { display: none; }   /* no crosshair ticks */
+/* resting heart gives a heartbeat (full effects on a normal device only; never while pressed so the press squish still works) */
+html.kk-fx:not(.kk-lite).kk-hc .sc-dot[data-state="default"]:not(.is-down) .sc-dot-core { animation: kk-heartbeat 1.4s ease-in-out infinite; }
+@keyframes kk-heartbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.22); } 30% { transform: scale(1); } 45% { transform: scale(1.14); } 60% { transform: scale(1); } }
+
+/* ---------- 6. SAFETY NET: if the OS asks for reduced motion before the script has run, nothing moves ---------- */
+@media (prefers-reduced-motion: reduce) {
+    .kk-fx, .kk-pop, .kk-trail, .kk-petals { display: none !important; }
+    .kk-bow, .kk-btn.kk-ask, .kk-bit, .kk-petal { animation: none !important; }
+    html body.kk-on h1, html body.kk-on h2, html body.kk-on .logo-img.logo-dark { animation: none !important; }
+}
