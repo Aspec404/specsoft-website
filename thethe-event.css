@@ -6,6 +6,11 @@
    It follows the visitor's own light / dark choice (the old site had both too), so we never touch their theme class:
    dark = the old dark mode, light = the old light mode. When the event ends there is nothing to restore.
 
+   REBRAND: the sidebar logo becomes "tHE THE" + an orange tT mark, the APEX Credits pill becomes a tHE Credits pill (section 2c / 4).
+   ROUNDED: section 2b rounds buttons, inputs, cards, panels, menus, code blocks ... (one knob: --tt-r / --tt-r-sm below).
+
+   CHATS: section 8 dresses chats.html like the old tHE THE chats (round avatars, pill composer, orange-gradient own bubbles ...).
+
    MOTION MODES (thethe-event.js sets exactly one of these classes on <html> and switches live when Settings change):
      tt-fx    full effects. Add  tt-lite  on weak devices: fewer pop-ups, no opening emoji rain.
      tt-rm    Reduce motion: same look, nothing moves.
@@ -129,6 +134,206 @@ html body.tt-on h1 {
     -webkit-text-fill-color: transparent; color: transparent;
 }
 html.tt-min body.tt-on h1 { background: none; -webkit-text-fill-color: currentColor; color: var(--accent); }
+
+/* ---------- 2b. ROUND EVERYTHING + MODERN SOFT LOOK ----------
+   One knob each: --tt-r (big things) and --tt-r-sm (controls). Circles (avatars, round icon buttons, switches) are left alone. */
+html body.tt-on { --tt-r: 14px; --tt-r-sm: 10px; }
+
+/* controls: buttons, inputs, selects, textareas */
+html body.tt-on:not(.ch-body) :is(button, a[class*="btn"], [class*="button"], input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]), select, textarea):not(.hamburger):not([class*="round"]):not([class*="circle"]):not([class*="avatar"]):not([class*="close"]):not([class*="icon"]):not([class*="tt-"]) {
+    border-radius: var(--tt-r-sm);
+}
+
+/* boxes: cards, panels, menus, pop-ups, notices, code blocks */
+html body.tt-on:not(.ch-body) :is([class*="card"], [class*="panel"], [class*="popover"], [class*="dropdown"], [class*="widget"], [class*="tile"],
+                    [class$="-box"], [class*="modal-content"], [class*="modal-box"], [class*="modal-dialog"], [class*="toast"],
+                    [class*="notice"], [class*="alert"], [class*="callout"], [class*="code-block"], dialog, details, pre, blockquote):not([class*="grid"]):not([class*="list"]):not([class*="wrap"]):not([class*="container"]):not([class*="avatar"]):not([class*="circle"]):not([class*="overlay"]):not([class*="backdrop"]):not([class*="tt-"]) {
+    border-radius: var(--tt-r);
+}
+html body.tt-on :not(pre) > code { border-radius: 6px; }
+
+/* soft, modern depth on light mode (dark mode keeps the flat look of the old dark theme) */
+html body.tt-on.light-mode :is(.project-card, .clan-card, .ph-card, .cm-do-card, .cm-team-card, .cm-career-card, .cm-carousel-card, .cm-credit-card) {
+    box-shadow: 0 2px 14px rgba(26, 26, 26, .06);
+}
+
+/* ---------- 2c. REBRAND: sidebar / mobile logo says "tHE THE" (the text itself is swapped by thethe-event.js) ---------- */
+html body.tt-on .logo .logo-img { display: none !important; }
+html body.tt-on .logo {
+    font-family: var(--font-sans); font-weight: 800; letter-spacing: -.02em; text-transform: none;
+    color: var(--text-primary);
+}
+html body.tt-on .logo::before {
+    content: 'tT'; display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 8px; vertical-align: middle;
+    flex: 0 0 auto; border-radius: 9px; background: linear-gradient(135deg, #ff6b35, #ff8e53); color: #ffffff;
+    font: 800 14px/1 'Inter', -apple-system, sans-serif; letter-spacing: 0; box-shadow: 0 3px 10px rgba(255, 107, 53, .35);
+}
+
+/* ---------- 2d. REBRAND: the APEX Credits pill (apex-credits.js) becomes the tHE Credits pill, real balance kept ---------- */
+html body.tt-on .apex-pill { border-radius: 99px; color: var(--accent); background: var(--accent-dim); border-color: rgba(255, 107, 53, .45); }
+html body.tt-on .apex-pill .apex-ico { display: none !important; }
+html body.tt-on .apex-pill::before {
+    content: 'tT'; display: inline-grid; place-items: center; width: 20px; height: 20px; flex: 0 0 auto; border-radius: 50%;
+    border: 2px solid currentColor; font: 800 9px/1 'Inter', -apple-system, sans-serif; letter-spacing: 0;
+}
+html body.tt-on .apex-pill-n { font-family: var(--font-sans); font-weight: 700; }
+/* a signed-in member already has the real tHE Credits pill in the topbar: the joke badge steps aside (guests still get it) */
+html.tt-on body:has(.apex-pill:not([hidden])) .tt-credits { display: none; }
+
+/* ---------- 8. CHATS PAGE (chats.html): the SPECSOFT chats dressed like the old tHE THE chats ----------
+   Same palette (slate + orange #f97316), Inter everywhere, solid white / black panels, round avatars, pill composer,
+   18px bubbles with an orange gradient for your own messages, pill buttons. Only active while the event runs.
+   Colours: change the five lines at the top of the two palette blocks. Shapes: --tt-r / --tt-r-sm. */
+html body.tt-on.ch-body {
+    --bg-base: #0a0a0a; --bg-card: #1a1a1a; --bg-card-hover: #222222;
+    --text-primary: #f1f5f9; --text-secondary: #94a3b8; --text-tertiary: #64748b;
+    --border-subtle: #2a2a2a; --border-hover: #3a3a3a;
+    --accent: #f97316; --accent-dim: rgba(249, 115, 22, 0.12); --accent-glow: rgba(249, 115, 22, 0.25); --accent-strong: rgba(249, 115, 22, 0.45);
+    --ss-rgb: 249, 115, 22;
+    --tt-surface: #111111; --tt-input: #0a0a0a; --tt-grad: linear-gradient(135deg, #f97316, #fbbf24);
+    --tt-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    --tt-r: 16px; --tt-r-sm: 10px;
+    --ch-ok: #10b981; --ch-error: #ef4444; --ch-glass: #111111;
+}
+html body.tt-on.ch-body.light-mode {
+    --bg-base: #f8fafc; --bg-card: #f1f5f9; --bg-card-hover: #e9eef5;
+    --text-primary: #0f172a; --text-secondary: #475569; --text-tertiary: #94a3b8;
+    --border-subtle: #e2e8f0; --border-hover: #cbd5e1;
+    --accent: #f97316;
+    --tt-surface: #ffffff; --tt-input: #ffffff;
+    --tt-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    --ch-glass: #ffffff;
+}
+/* the old chats were plain: no terminal layers, no blur */
+html body.tt-on.ch-body .ambient-glow { display: none !important; }
+html body.tt-on.ch-body .ch-side, html body.tt-on.ch-body .ch-list, html body.tt-on.ch-body .ch-convo-head, html body.tt-on.ch-body .ch-gate { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html body.tt-on.ch-body .ch-main { background: var(--bg-base); }
+html body.tt-on.ch-body .ch-side, html body.tt-on.ch-body .ch-list, html body.tt-on.ch-body .ch-convo-head, html body.tt-on.ch-body .ch-composer { background: var(--tt-surface); }
+html body.tt-on.ch-body .ch-convo-head::after { display: none; }
+html body.tt-on.ch-body .ch-composer { border-top: 1px solid var(--border-subtle); padding: 8px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+
+/* Inter instead of the mono labels (real code keeps a real monospace) */
+html body.tt-on.ch-body .ch-app, html body.tt-on.ch-body .ch-dlg { --font-mono: var(--font-sans); }
+html body.tt-on.ch-body .ch-code, html body.tt-on.ch-body .ch-codeblock, html body.tt-on.ch-body .ch-codeblock *, html body.tt-on.ch-body .ch-codeline code { --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+html body.tt-on.ch-body .ch-app h1, html body.tt-on.ch-body .ch-app h2 { background: none; -webkit-text-fill-color: currentColor; color: var(--text-primary); }
+html body.tt-on.ch-body .ch-brand-text, html body.tt-on.ch-body .ch-day, html body.tt-on.ch-body .ch-new, html body.tt-on.ch-body .ch-btn, html body.tt-on.ch-body .ch-emoji-cat, html body.tt-on.ch-body .ch-me-text small, html body.tt-on.ch-body .ch-list-title, html body.tt-on.ch-body .ch-empty h2 { letter-spacing: 0; }
+
+/* sidebar: tHE THE brand (the words are swapped by thethe-event.js) */
+html body.tt-on.ch-body .ch-side, html body.tt-on.ch-body .ch-list { border-right-color: var(--border-subtle); }
+html body.tt-on.ch-body .ch-brand-mark { border: 0; border-radius: 12px; background: var(--tt-grad); color: #ffffff; font: 800 15px/1 'Inter', -apple-system, sans-serif; box-shadow: 0 3px 10px var(--accent-glow); }
+html body.tt-on.ch-body .ch-brand-mark::after { display: none; }
+html body.tt-on.ch-body .ch-brand-text { font-weight: 800; font-size: 1.15rem; background: var(--tt-grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+html body.tt-on.ch-body .ch-brand-text sup { display: none; }
+html body.tt-on.ch-body .ch-brand-text em { font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; -webkit-text-fill-color: var(--text-tertiary); color: var(--text-tertiary); }
+
+/* nav + chat list rows: 10px radius, grey hover, bordered active row */
+html body.tt-on.ch-body .ch-nav-item, html body.tt-on.ch-body .ch-item { border: 1px solid transparent; border-radius: var(--tt-r-sm); }
+html body.tt-on.ch-body .ch-nav-item:hover, html body.tt-on.ch-body .ch-item:hover { background: var(--bg-card); color: var(--text-primary); }
+html body.tt-on.ch-body .ch-nav-item.is-active, html body.tt-on.ch-body .ch-item.is-active { background: var(--bg-card); border-color: var(--border-subtle); color: var(--text-primary); }
+html body.tt-on.ch-body .ch-nav-item.is-active::before, html body.tt-on.ch-body .ch-item.is-active::before { display: none; }
+html body.tt-on.ch-body .ch-nav-sub { border-left-color: var(--border-subtle); }
+html body.tt-on.ch-body .ch-side-foot { border-top-color: var(--border-subtle); }
+html body.tt-on.ch-body .ch-me { border-radius: var(--tt-r-sm); }
+html body.tt-on.ch-body .ch-me:hover { background: var(--bg-card); }
+html body.tt-on.ch-body .ch-item-title { font-weight: 600; font-size: 0.9rem; }
+html body.tt-on.ch-body .ch-item.is-unread .ch-item-title { font-weight: 700; }
+html body.tt-on.ch-body .ch-item-sub { font-size: 0.75rem; color: var(--text-tertiary); }
+html body.tt-on.ch-body .ch-item.is-unread .ch-item-sub { color: var(--text-secondary); }
+html body.tt-on.ch-body .ch-item-meta time, html body.tt-on.ch-body .ch-msg-time, html body.tt-on.ch-body .ch-edited { font-size: 0.65rem; opacity: 0.75; }
+/* room icons become round orange avatars, like the old room-avatar */
+html body.tt-on.ch-body .ch-art { border: 0; border-radius: 50%; background: var(--accent); color: #ffffff; }
+html body.tt-on.ch-body .ch-card-icon { border: 0; border-radius: 50%; background: var(--accent); color: #ffffff; }
+html body.tt-on.ch-body .ch-badge, html body.tt-on.ch-body .ch-unread { background: var(--accent); color: #ffffff; font-family: inherit; }
+html body.tt-on.ch-body .ch-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+html body.tt-on.ch-body .ch-card { border-radius: var(--tt-r); }
+html body.tt-on.ch-body .ch-card:hover { border-color: var(--accent); }
+
+/* headers + search */
+html body.tt-on.ch-body .ch-list-title { font-size: 1.2rem; font-weight: 700; }
+html body.tt-on.ch-body .ch-room-meta h2 { font-weight: 600; }
+html body.tt-on.ch-body .ch-room-meta p { font-size: 0.7rem; font-weight: 500; color: var(--text-tertiary); }
+html body.tt-on.ch-body .ch-search input { background: var(--tt-input); border-radius: 99px; }
+html body.tt-on.ch-body .ch-search input:hover { border-color: var(--border-hover); }
+html body.tt-on.ch-body .ch-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+html body.tt-on.ch-body .ch-online { border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.12); color: #10b981; font-weight: 600; font-size: 0.7rem; }
+html body.tt-on.ch-body .ch-iconbtn { border-radius: 50%; }
+html body.tt-on.ch-body .ch-iconbtn:hover { background: var(--bg-card); color: var(--text-primary); }
+html body.tt-on.ch-body .ch-iconbtn--danger:hover { background: rgba(239, 68, 68, 0.15); }
+
+/* the feed */
+html body.tt-on.ch-body .ch-feed { padding: 16px 20px 8px; scrollbar-width: thin; scrollbar-color: var(--border-subtle) transparent; }
+html body.tt-on.ch-body .ch-feed::-webkit-scrollbar { width: 5px; }
+html body.tt-on.ch-body .ch-feed::-webkit-scrollbar-track { background: transparent; }
+html body.tt-on.ch-body .ch-feed::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 10px; border: 0; }
+html body.tt-on.ch-body .ch-day span { background: var(--bg-base); font-weight: 600; }
+html body.tt-on.ch-body .ch-new { color: var(--accent); }
+html body.tt-on.ch-body .ch-new::before { background: var(--accent); }
+html body.tt-on.ch-body .ch-new span { border-color: var(--accent); }
+html body.tt-on.ch-body .ch-msg { border-radius: 12px; }
+html body.tt-on.ch-body .ch-msg:hover { background: transparent; }
+html body.tt-on.ch-body .ch-msg.is-mentioned::before { background: var(--accent); }
+html body.tt-on.ch-body .ch-msg-name { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+
+/* bubbles: 18px, grey card; yours = orange gradient with a small corner */
+html body.tt-on.ch-body .ch-bubble:not(.ch-bubble--emoji-only):not(.ch-bubble--image-only) {
+    padding: 10px 16px; border-radius: 18px; font-family: inherit; font-size: 0.9rem; line-height: 1.5;
+    background: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-primary);
+}
+html body.tt-on.ch-body .ch-msg--own .ch-bubble:not(.ch-bubble--emoji-only):not(.ch-bubble--image-only) {
+    background: var(--tt-grad); border-color: transparent; color: #ffffff; border-radius: 18px 18px 4px 18px;
+}
+html body.tt-on.ch-body .ch-msg--own .ch-deleted { color: #ffffff; }
+html body.tt-on.ch-body .ch-code { background: rgba(128, 128, 128, 0.18); }
+html body.tt-on.ch-body .ch-msg--own .ch-bubble a.ch-link { color: #ffffff; }
+html body.tt-on.ch-body .ch-mention.is-me { background: var(--accent); color: #ffffff; }
+html body.tt-on.ch-body .ch-attachment-link { border-radius: 12px; background: var(--tt-surface); }
+html body.tt-on.ch-body .ch-attachment-image { border-radius: 12px; }
+
+/* reply quote + reactions + hover toolbar */
+html body.tt-on.ch-body .ch-replyq { background: rgba(128, 128, 128, 0.12); border-left: 2px solid rgba(128, 128, 128, 0.4); border-radius: 8px; }
+html body.tt-on.ch-body .ch-msg--own .ch-replyq { border-left: 0; border-right: 2px solid rgba(128, 128, 128, 0.4); }
+html body.tt-on.ch-body .ch-replyq:hover { border-left-color: var(--accent); }
+html body.tt-on.ch-body .ch-react.is-mine { border-color: var(--accent); background: var(--accent-dim); }
+html body.tt-on.ch-body .ch-react:hover { border-color: var(--accent); }
+html body.tt-on.ch-body .ch-tools { background: color-mix(in srgb, var(--tt-surface) 92%, transparent); border-color: var(--border-subtle); border-radius: 20px; padding: 2px 6px; box-shadow: var(--tt-shadow); }
+html body.tt-on.ch-body .ch-tool { border-radius: 12px; }
+html body.tt-on.ch-body .ch-tool:hover { background: var(--bg-card); color: var(--text-primary); }
+html body.tt-on.ch-body .ch-tool--danger:hover { background: rgba(239, 68, 68, 0.15); }
+html body.tt-on.ch-body .ch-jump { background: var(--accent); color: #ffffff; font-family: inherit; box-shadow: 0 8px 22px var(--accent-glow); }
+html body.tt-on.ch-body .ch-typing-pill { background: var(--bg-card); }
+
+/* composer: one round pill, orange glow when focused */
+html body.tt-on.ch-body .ch-compose-row { align-items: center; background: var(--tt-input); border: 1px solid var(--border-subtle); border-radius: 24px; padding: 6px 8px 6px 10px; }
+html body.tt-on.ch-body .ch-compose-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+html body.tt-on.ch-body .ch-compose-row .ch-iconbtn { width: 36px; height: 36px; }
+html body.tt-on.ch-body .ch-input.is-empty::before { color: var(--text-tertiary); }
+html body.tt-on.ch-body .ch-send { width: 36px; height: 36px; background: transparent; color: var(--accent); }
+html body.tt-on.ch-body .ch-send:not(:disabled):hover { background: var(--accent); color: #ffffff; box-shadow: none; }
+html body.tt-on.ch-body .ch-replybar { background: var(--bg-card); border: 0; border-left: 4px solid var(--accent); border-radius: var(--tt-r-sm); }
+html body.tt-on.ch-body .ch-emoji, html body.tt-on.ch-body .ch-gif, html body.tt-on.ch-body .ch-devmenu { background: var(--tt-surface); border-color: var(--border-subtle); border-radius: var(--tt-r); box-shadow: var(--tt-shadow); }
+html body.tt-on.ch-body .ch-emoji-btn, html body.tt-on.ch-body .ch-devitem { border-radius: var(--tt-r-sm); }
+html body.tt-on.ch-body .ch-emoji-btn:hover, html body.tt-on.ch-body .ch-devitem:hover, html body.tt-on.ch-body .ch-devitem:focus-visible { background: var(--bg-card); }
+
+/* buttons: the old pill buttons, orange */
+html body.tt-on.ch-body .ch-btn { background: var(--accent); border-color: var(--accent); color: #ffffff; border-radius: 20px; font-family: inherit; font-weight: 600; }
+html body.tt-on.ch-body .ch-btn:hover { background: #ea580c; border-color: #ea580c; opacity: 1; }
+html body.tt-on.ch-body .ch-btn--ghost { background: transparent; border-color: var(--border-subtle); color: var(--text-primary); }
+html body.tt-on.ch-body .ch-btn--ghost:hover { background: var(--accent-dim); border-color: var(--accent); }
+html body.tt-on.ch-body .ch-btn--danger { background: transparent; border-color: var(--ch-error); color: var(--ch-error); }
+html body.tt-on.ch-body .ch-btn--danger:hover { background: rgba(239, 68, 68, 0.12); border-color: var(--ch-error); }
+
+/* dialogs, gate, empty state */
+html body.tt-on.ch-body .ch-dlg { background: var(--tt-surface); border-color: var(--border-subtle); border-radius: var(--tt-r); box-shadow: var(--tt-shadow); }
+html body.tt-on.ch-body .ch-dlg-head, html body.tt-on.ch-body .ch-dlg-foot { border-color: var(--border-subtle); }
+html body.tt-on.ch-body .ch-dlg :is(input, textarea, select):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), html body.tt-on.ch-body .ch-field { background: var(--tt-input); border-color: var(--border-subtle); border-radius: var(--tt-r-sm); }
+html body.tt-on.ch-body .ch-dlg :is(input, textarea, select):focus, html body.tt-on.ch-body .ch-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); outline: none; }
+html body.tt-on.ch-body .ch-gate-card { background: var(--tt-surface); border-color: var(--border-subtle); border-radius: var(--tt-r); box-shadow: var(--tt-shadow); }
+html body.tt-on.ch-body .ch-spinner { border-color: var(--accent-dim); border-top-color: var(--accent); }
+html body.tt-on.ch-body .ch-empty-art span { border-color: var(--accent-strong); }
+
+/* the little tHE THE pills must not sit on top of the composer / sidebar buttons here */
+html body.tt-on.ch-body .tt-credits { display: none; }
+html body.tt-on.ch-body .tt-pill { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
 
 /* ---------- 3. THE LAYER (only used for the opening emoji rain; never blocks clicks) ---------- */
 #tt-root, #tt-root * { box-sizing: border-box; }

@@ -16,6 +16,10 @@
          - a "tHE Credits" badge (bottom right, balance 0, click it) and a music pill (bottom left, the OST)
          - meme emoji pop up where you click, and one short emoji rain the first time you see it (full effects only)
          - the site's custom cursor (cursor.js) turns orange
+         - the sidebar / mobile logo says "tHE THE" (with an orange tT mark) instead of SPECSOFT®
+         - the Chats page (chats.html): brand "tHE THE CHATS" + tT mark, and thethe-event.css section 8 restyles it like the old chats
+         - "APEX Credits" becomes "tHE Credits" everywhere on the page (the topbar pill, the store ...), same balance
+           (only what you SEE changes: every original text is remembered and put back when the event ends)
        Music NEVER starts by itself on a first visit (browsers block that, and it is rude): the visitor taps play
        once, and after that it keeps playing on every page, in sync with the server clock.
      * When the event ends (or staff abort it) everything is removed. Nothing is ever deleted.
@@ -139,6 +143,80 @@
         S.toastEl.classList.add('tt-show');
         clearTimeout(S.toastEl._t);
         S.toastEl._t = setTimeout(function () { if (S.toastEl) S.toastEl.classList.remove('tt-show'); }, ms || 4200);
+    }
+
+    /* ------------------------------ rebrand: SPECSOFT -> tHE THE, APEX Credits -> tHE Credits ------------------------------ */
+    // Only visible text changes, nothing is saved. Every original is remembered and put back when the event ends.
+    // New content (the sidebar is injected by main.js, the credits pill by apex-credits.js) is caught by a small observer.
+    var RB = { log: [], mo: null, q: [], raf: 0, on: false };
+    function rbApex(s) {
+        return s.replace(/APEX[\s\u00a0]+Credits/gi, function (m) { return m === m.toUpperCase() ? 'tHE CREDITS' : 'tHE Credits'; });
+    }
+    function rbText(n) {
+        var v = n.nodeValue, p = n.parentNode;
+        if (!v || !p || p.nodeType !== 1) return;
+        var t = p.nodeName;
+        if (t === 'SCRIPT' || t === 'STYLE' || t === 'TEXTAREA' || t === 'NOSCRIPT') return;
+        var out = v;
+        if (/apex/i.test(out)) out = rbApex(out);
+        if (/specsoft/i.test(out) && p.closest && p.closest('.logo, .ch-brand-text')) out = out.replace(/SPECSOFT\u00ae?/i, 'tHE THE');
+        else if (v.trim() === 'S' && p.closest && p.closest('.ch-brand-mark')) out = v.replace('S', 'tT');       // chats sidebar mark
+        if (out !== v) { RB.log.push({ n: n, v: v, o: out }); n.nodeValue = out; }
+    }
+    function rbAttrs(el) {
+        if (!el.getAttribute) return;
+        ['title', 'aria-label'].forEach(function (a) {
+            var v = el.getAttribute(a);
+            if (v && /apex[\s\u00a0]+credits/i.test(v)) { var o = rbApex(v); RB.log.push({ el: el, a: a, v: v, o: o }); el.setAttribute(a, o); }
+        });
+    }
+    function rbScan(root) {
+        if (!root) return;
+        if (root.nodeType === 3) { rbText(root); return; }
+        if (root.nodeType !== 1) return;
+        var t = root.nodeName, i, l;
+        if (t === 'SCRIPT' || t === 'STYLE') return;
+        rbAttrs(root);
+        try { l = root.querySelectorAll('[title*="apex" i],[aria-label*="apex" i]'); for (i = 0; i < l.length; i++) rbAttrs(l[i]); } catch (e) { /* ignore */ }
+        var w = document.createTreeWalker(root, 4, null), n;      // 4 = SHOW_TEXT
+        while ((n = w.nextNode())) rbText(n);
+    }
+    function rbFlush() {
+        RB.raf = 0;
+        var q = RB.q; RB.q = [];
+        if (!RB.on) return;
+        for (var i = 0; i < q.length; i++) if (q[i].isConnected) rbScan(q[i]);
+    }
+    function rebrand(on) {
+        if (on) {
+            if (RB.on || !document.body) return;
+            RB.on = true;
+            rbScan(document.body);
+            if (window.MutationObserver && !RB.mo) {
+                RB.mo = new MutationObserver(function (muts) {
+                    for (var i = 0; i < muts.length; i++) {
+                        var a = muts[i].addedNodes;
+                        for (var j = 0; j < a.length; j++) RB.q.push(a[j]);
+                    }
+                    if (RB.q.length && !RB.raf) RB.raf = requestAnimationFrame(rbFlush);
+                });
+                RB.mo.observe(document.body, { childList: true, subtree: true });
+            }
+        } else {
+            if (!RB.on) return;
+            RB.on = false;
+            if (RB.mo) { RB.mo.disconnect(); RB.mo = null; }
+            if (RB.raf) { cancelAnimationFrame(RB.raf); RB.raf = 0; }
+            RB.q = [];
+            for (var i = RB.log.length - 1; i >= 0; i--) {
+                var r = RB.log[i];
+                try {
+                    if (r.n) { if (r.n.nodeValue === r.o) r.n.nodeValue = r.v; }
+                    else if (r.el.getAttribute(r.a) === r.o) r.el.setAttribute(r.a, r.v);
+                } catch (e) { /* ignore */ }
+            }
+            RB.log = [];
+        }
     }
 
     /* ------------------------------ theme on / off ------------------------------ */
@@ -380,6 +458,7 @@
         loadAssets();
         setTheme(true);
         identity(true);
+        rebrand(true);
 
         S.root = mk('div'); S.root.id = 'tt-root'; S.root.setAttribute('aria-hidden', 'true');
         if (document.hidden) S.root.classList.add('tt-paused');
@@ -405,6 +484,7 @@
         document.removeEventListener('pointerdown', onPop, true);
         stopMusic();
         identity(false);
+        rebrand(false);
         if (S.pill) S.pill.classList.remove('tt-show');
         if (S.credits) S.credits.classList.remove('tt-show');
         var root = S.root, pill = S.pill, credits = S.credits;
