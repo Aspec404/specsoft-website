@@ -13,10 +13,11 @@
          - html + body get the class  tt-on  (thethe-event.css swaps the palette to the old tHE THE look)
          - it FOLLOWS the visitor's own light / dark choice (the old site had both), we never touch their theme class
          - the browser tab says "tHE THE - Official Homepage" and gets an orange "tT" favicon (both restored after)
-         - a "tHE Credits" badge (bottom right, balance 0, click it) and a music pill (bottom left, the OST)
+         - a "tHE Credits" badge (bottom right, your real APEX balance, click it) and a music pill (bottom left, the OST)
          - meme emoji pop up where you click, and one short emoji rain the first time you see it (full effects only)
          - the site's custom cursor (cursor.js) turns orange
          - the sidebar / mobile logo says "tHE THE" (with an orange tT mark) instead of SPECSOFT®
+         - a floating rounded bottom nav (Home / Projects / Chats / Store / Profile), like the old tHE THE site
          - the Chats page (chats.html): brand "tHE THE CHATS" + tT mark, and thethe-event.css section 8 restyles it like the old chats
          - "APEX Credits" becomes "tHE Credits" everywhere on the page (the topbar pill, the store ...), same balance
            (only what you SEE changes: every original text is remembered and put back when the event ends)
@@ -65,6 +66,12 @@
         'you came from tHE THE, didn\u2019t you \uD83D\uDC40',
         'tHE THE is live. the memes have returned \uD83D\uDD25'
     ];
+    var CREDIT_LINES_REAL = [
+        'your APEX balance, wearing a tHE THE costume \uD83D\uDC80',
+        'tHE Credits are real now. go spend them \uD83E\uDDE1',
+        'rich in tHE Credits, poor in 2022 memories \uD83D\uDE2D',
+        'you were supposed to spend those \uD83E\uDDE1'
+    ];
     var CREDIT_LINES = [
         'tHE Credits moved out. balance: 0 \uD83D\uDDFF',
         '0 tHE Credits. same as 2022 \uD83D\uDC80',
@@ -74,10 +81,10 @@
 
     var S = {
         ev: null, off: 0, active: false, preview: false, pollT: 0, tickT: 0,
-        root: null, pill: null, credits: null, toastEl: null, mo: null, modeMo: null, outT: 0,
+        root: null, pill: null, credits: null, crB: null, bal: null, balFn: null, balT: 0, bn: null, bnFn: null, bnY: 0, toastEl: null, mo: null, modeMo: null, outT: 0,
         aud: null, playing: false, blocked: false, gestureArmed: false, btn: null, muteBtn: null, vol: null,
         lastPop: 0, fadeT: 0, mode: 'full', lite: false, key: '', hooked: false,
-        idDone: false, oldTitle: '', oldIcons: [], newIcon: null, creditSync: null, creditTimer: null
+        idDone: false, oldTitle: '', oldIcons: [], newIcon: null
     };
 
     /* ------------------------------ small helpers ------------------------------ */
@@ -143,6 +150,83 @@
         S.toastEl.classList.add('tt-show');
         clearTimeout(S.toastEl._t);
         S.toastEl._t = setTimeout(function () { if (S.toastEl) S.toastEl.classList.remove('tt-show'); }, ms || 4200);
+    }
+
+    /* ------------------------------ the tHE Credits badge = your real APEX balance ------------------------------ */
+    // Same wallet as the APEX pill (apex_wallet RPC). Uses the site's own signed-in client, so nothing new is stored.
+    // Order: what apex-credits.js already knows, then the number it cached for you, then a fresh read from the database.
+    function fmtBal(n) {
+        n = Number(n) || 0;
+        if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+        return n.toLocaleString('en-US');
+    }
+    function paintBal(n) {
+        n = Number(n);
+        if (!isFinite(n)) return;
+        S.bal = n;
+        if (S.crB) S.crB.textContent = fmtBal(n);
+    }
+    function loadBalance() {
+        try { if (window.ApexCredits && window.ApexCredits.get && window.ApexCredits.get() != null) paintBal(window.ApexCredits.get()); } catch (e) { /* ignore */ }
+        if (S.bal == null) {
+            try {
+                for (var i = 0; i < localStorage.length; i++) {
+                    var k = localStorage.key(i);
+                    if (k && k.indexOf('apex.bal.') === 0) { paintBal(localStorage.getItem(k)); break; }
+                }
+            } catch (e) { /* storage blocked */ }
+        }
+        if (!S.balFn) {
+            S.balFn = function (e) { if (e && e.detail && e.detail.balance != null) paintBal(e.detail.balance); };
+            window.addEventListener('apex:balance', S.balFn);
+        }
+        var c = null;
+        try { c = window.getSupabaseClient ? window.getSupabaseClient() : null; } catch (e) { c = null; }
+        if (c && c.auth && c.rpc) {
+            c.auth.getSession().then(function (s) {
+                var u = s && s.data && s.data.session && s.data.session.user;
+                if (!u) return null;
+                return c.rpc('apex_wallet').then(function (r) { if (r && !r.error && r.data) paintBal(r.data.balance); });
+            }).catch(function () { /* signed out, offline, or the store SQL is not installed: keep what we have */ });
+        }
+        clearTimeout(S.balT);
+        if (S.bal == null) S.balT = setTimeout(function () { if (S.credits) loadBalance(); }, 3000);   // the sign-in can land a moment after the page
+    }
+
+    /* ------------------------------ floating bottom nav (like the old tHE THE site) ------------------------------ */
+    // A rounded bar at the bottom centre: Home, Projects, Chats, Store, Profile. Not on the Chats page (it has its own composer).
+    // Full effects: it slides away when you scroll down and comes back when you scroll up. Other modes: always there, nothing moves.
+    var BN_ITEMS = [
+        ['index.html', 'Home', '<path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>'],
+        ['projects.html', 'Projects', '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>'],
+        ['chats.html', 'Chats', '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/>'],
+        ['store.html', 'Store', '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'],
+        ['profile.html', 'Profile', '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>']
+    ];
+    function buildBottomNav() {
+        if (S.bn || !document.body || document.body.classList.contains('ch-body')) return;
+        var here = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+        if (here === 'chats.html' || here === 'login.html' || here === 'intro.html') return;
+        var nav = mk('nav', 'tt-bottomnav');
+        nav.setAttribute('aria-label', 'Quick navigation');
+        BN_ITEMS.forEach(function (it) {
+            var a = mk('a', 'tt-bn-item' + (here === it[0] ? ' tt-active' : ''));
+            a.href = it[0];
+            if (here === it[0]) a.setAttribute('aria-current', 'page');
+            a.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + it[2] + '</svg><span>' + it[1] + '</span>';
+            nav.appendChild(a);
+        });
+        document.body.appendChild(nav);
+        S.bn = nav;
+        S.bnY = window.pageYOffset || 0;
+        S.bnFn = function () {
+            if (!S.bn || S.mode !== 'full') { if (S.bn) S.bn.classList.remove('tt-hide'); return; }
+            var y = window.pageYOffset || 0, d = y - S.bnY;
+            if (Math.abs(d) < 8) return;
+            S.bn.classList.toggle('tt-hide', d > 0 && y > 120);
+            S.bnY = y;
+        };
+        window.addEventListener('scroll', S.bnFn, { passive: true });
     }
 
     /* ------------------------------ rebrand: SPECSOFT -> tHE THE, APEX Credits -> tHE Credits ------------------------------ */
@@ -380,54 +464,18 @@
     }
 
     /* ------------------------------ credits badge + music pill ------------------------------ */
-    function readApexBalance() {
-        try {
-            var dom = document.querySelector('[data-apex-pill] [data-apex-balance]');
-            if (dom && dom.textContent) {
-                var n = Number(dom.textContent.replace(/[^0-9.-]/g, ''));
-                if (isFinite(n)) return n;
-            }
-        } catch (e) { /* ignore */ }
-        try {
-            if (window.ApexCredits && typeof window.ApexCredits.get === 'function') {
-                var v = Number(window.ApexCredits.get());
-                if (isFinite(v)) return v;
-            }
-        } catch (e) { /* ignore */ }
-        return 0;
-    }
-    function formatApexBalance(n) {
-        try {
-            if (window.ApexCredits && typeof window.ApexCredits.format === 'function') return window.ApexCredits.format(n);
-        } catch (e) { /* ignore */ }
-        n = Number(n) || 0;
-        if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
-        return n.toLocaleString('en-US');
-    }
-    function syncCreditsBadge() {
-        if (!S.credits) return;
-        var v = readApexBalance();
-        var b = S.credits.querySelector('b');
-        if (b) b.textContent = formatApexBalance(v);
-        S.credits.setAttribute('aria-label', 'tHE Credits balance: ' + formatApexBalance(v));
-        S.credits.title = 'tHE Credits';
-    }
     function buildBadges() {
+        // the "tHE Credits" badge: your REAL APEX balance (0 for guests), under the tHE Credits name
         var cr = mk('button', 'tt-credits'); cr.type = 'button'; cr.title = 'tHE Credits';
-        cr.setAttribute('aria-label', 'tHE Credits balance');
-        cr.appendChild(mk('span', 'tt-coin', '$')); cr.appendChild(mk('b', null, '')); cr.appendChild(mk('small', null, 'tHE Credits'));
+        S.crB = mk('b', null, '0');
+        cr.appendChild(mk('span', 'tt-coin', '$')); cr.appendChild(S.crB); cr.appendChild(mk('small', null, 'tHE Credits'));
+        loadBalance();
         cr.addEventListener('click', function (e) {
-            toast(pick(CREDIT_LINES), 3200);
+            toast(pick((S.bal || 0) > 0 ? CREDIT_LINES_REAL : CREDIT_LINES), 3200);
             if (S.mode === 'full') { var r = cr.getBoundingClientRect(); burstAt(r.left + r.width / 2, r.top, S.lite ? 3 : 7); }
         });
         document.body.appendChild(cr);
         S.credits = cr;
-        syncCreditsBadge();
-        if (S.creditSync) window.removeEventListener('apex:balance', S.creditSync);
-        S.creditSync = function () { syncCreditsBadge(); };
-        window.addEventListener('apex:balance', S.creditSync);
-        if (S.creditTimer) clearInterval(S.creditTimer);
-        S.creditTimer = setInterval(syncCreditsBadge, 1500);
         void cr.offsetWidth;
         cr.classList.add('tt-show');
 
@@ -502,6 +550,7 @@
         if (document.hidden) S.root.classList.add('tt-paused');
         document.body.appendChild(S.root);
         buildBadges();
+        buildBottomNav();
         document.addEventListener('pointerdown', onPop, true);
         hookWatchers();
 
@@ -519,19 +568,21 @@
     function deactivate(announce) {
         if (!S.active) return;
         S.active = false;
-        if (S.creditSync) { window.removeEventListener('apex:balance', S.creditSync); S.creditSync = null; }
-        if (S.creditTimer) { clearInterval(S.creditTimer); S.creditTimer = null; }
         document.removeEventListener('pointerdown', onPop, true);
         stopMusic();
         identity(false);
         rebrand(false);
         if (S.pill) S.pill.classList.remove('tt-show');
         if (S.credits) S.credits.classList.remove('tt-show');
-        var root = S.root, pill = S.pill, credits = S.credits;
-        S.root = null; S.pill = null; S.credits = null; S.btn = null; S.muteBtn = null; S.vol = null;
+        if (S.bnFn) { window.removeEventListener('scroll', S.bnFn); S.bnFn = null; }
+        if (S.balFn) { window.removeEventListener('apex:balance', S.balFn); S.balFn = null; }
+        clearTimeout(S.balT); S.crB = null;
+        if (S.bn) S.bn.classList.add('tt-hide');
+        var root = S.root, pill = S.pill, credits = S.credits, bn = S.bn;
+        S.root = null; S.pill = null; S.credits = null; S.bn = null; S.btn = null; S.muteBtn = null; S.vol = null;
         clearTimeout(S.outT);
         S.outT = setTimeout(function () {
-            [root, pill, credits].forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
+            [root, pill, credits, bn].forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
             if (!S.active) setTheme(false);
         }, 900);
         if (announce) toast('tHE THE is over. back to SPECSOFT \uD83E\uDDE1');

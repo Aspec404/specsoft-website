@@ -9,6 +9,7 @@
    REBRAND: the sidebar logo becomes "tHE THE" + an orange tT mark, the APEX Credits pill becomes a tHE Credits pill (section 2c / 4).
    ROUNDED: section 2b rounds buttons, inputs, cards, panels, menus, code blocks ... (one knob: --tt-r / --tt-r-sm below).
 
+   LAYOUT: section 9 = Inter everywhere, clean sidebar + top bar, centred gradient hero, orange buttons, floating bottom nav (all pages except Chats).
    CHATS: section 8 dresses chats.html like the old tHE THE chats (round avatars, pill composer, orange-gradient own bubbles ...).
 
    MOTION MODES (thethe-event.js sets exactly one of these classes on <html> and switches live when Settings change):
@@ -335,6 +336,84 @@ html body.tt-on.ch-body .ch-empty-art span { border-color: var(--accent-strong);
 html body.tt-on.ch-body .tt-credits { display: none; }
 html body.tt-on.ch-body .tt-pill { top: calc(76px + env(safe-area-inset-top, 0px)); right: 14px; bottom: auto; left: auto; padding: 5px 6px; gap: 6px; }
 html body.tt-on.ch-body .tt-pill .tt-lbl, html body.tt-on.ch-body .tt-pill .tt-vol { display: none; }
+
+/* ---------- 9. tHE THE LAYOUT on every page except Chats: Inter everywhere, clean sidebar, clean top bar, centred gradient hero,
+   orange buttons, floating bottom nav. (The Chats page has its own section 8.) ---------- */
+html body.tt-on:not(.ch-body) { --font-mono: var(--font-sans); }
+html body.tt-on:not(.ch-body) pre, html body.tt-on:not(.ch-body) code, html body.tt-on:not(.ch-body) kbd, html body.tt-on:not(.ch-body) .code-window, html body.tt-on:not(.ch-body) .code-window * { --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* sidebar: Inter, sentence case, rounded rows, orange active row, no numbers / "systems online" */
+html body.tt-on:not(.ch-body) .sidebar { box-shadow: none; }
+html body.tt-on:not(.ch-body) .status-indicator, html body.tt-on:not(.ch-body) .nav-item .nav-num { display: none; }
+html body.tt-on:not(.ch-body) .nav-item, html body.tt-on:not(.ch-body) .nav-subitem { font-family: var(--font-sans); font-size: 0.92rem; font-weight: 500; letter-spacing: 0; text-transform: capitalize; border-radius: 10px; }
+html body.tt-on:not(.ch-body) .nav-item::before { display: none; }
+html body.tt-on:not(.ch-body) .nav-item:hover { background: var(--bg-card); border-color: transparent; color: var(--accent); }
+html body.tt-on:not(.ch-body) .nav-item.active { background: var(--accent-dim); border-color: transparent; color: var(--accent); font-weight: 600; }
+html body.tt-on:not(.ch-body) .nav-item:hover .nav-icon, html body.tt-on:not(.ch-body) .nav-item.active .nav-icon { color: var(--accent); filter: none; }
+html body.tt-on:not(.ch-body) .nav-subitem:hover { background: var(--bg-card); color: var(--accent); }
+html body.tt-on:not(.ch-body) .logo { background: linear-gradient(135deg, #ff6b35, #ff8e53); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; text-shadow: none; font-size: 1.25rem; }
+html body.tt-on:not(.ch-body) .logo::before { -webkit-text-fill-color: #ffffff; }
+html body.tt-on:not(.ch-body) .theme-toggle { font-family: var(--font-sans); font-size: 0.85rem; font-weight: 500; letter-spacing: 0; text-transform: capitalize; border-radius: 10px; border-width: 1.5px; }
+html body.tt-on:not(.ch-body) .theme-toggle:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); box-shadow: none; }
+html body.tt-on:not(.ch-body) .social-links a { border-radius: 10px; }
+html body.tt-on:not(.ch-body) .hamburger { border-radius: 10px; }
+html body.tt-on:not(.ch-body) .mobile-header .logo { font-size: 1.15rem; }
+
+/* top bar: just the account chip + credits on the right, like the old header */
+html body.tt-on:not(.ch-body) .hud-bar { min-height: 70px; padding: 12px 0; justify-content: flex-end; font-family: var(--font-sans); }
+html body.tt-on:not(.ch-body) .hud-left, html body.tt-on:not(.ch-body) .hud-bar .hud-item { display: none; }
+html body.tt-on:not(.ch-body) .hud-right { margin-left: auto; gap: 12px; }
+
+/* hero: centred, shimmer gradient title, gradient + ghost buttons */
+html body.tt-on:not(.ch-body) .hero-section { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 36px; min-height: 0; padding: 64px 0 56px; max-width: 760px; margin: 0 auto; }
+html body.tt-on:not(.ch-body) .hero-section::before, html body.tt-on:not(.ch-body) .hero-section::after { display: none; }
+html body.tt-on:not(.ch-body) .hero-left { display: flex; flex-direction: column; align-items: center; }
+html body.tt-on:not(.ch-body) .status-badge { font-family: var(--font-sans); font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 6px 16px; border-radius: 999px; margin-bottom: 20px;
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.14), rgba(255, 180, 71, 0.08)); border-color: rgba(255, 107, 53, 0.25); color: var(--accent); box-shadow: none; }
+html body.tt-on:not(.ch-body) .status-badge .dot { background: var(--accent); box-shadow: 0 0 10px var(--accent-strong); }
+html body.tt-on:not(.ch-body) .hero-section h1 {
+    font-family: var(--font-sans); font-size: clamp(2.3rem, 6.2vw, 3.6rem); font-weight: 900; letter-spacing: -1.5px; line-height: 1.1; margin-bottom: 16px; text-shadow: none;
+    background: linear-gradient(135deg, #ffffff 0%, #ff8c5a 40%, #fbbf24 70%, #ffd700 100%); background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+}
+html body.tt-on:not(.ch-body).light-mode .hero-section h1 { background-image: linear-gradient(135deg, #1a1a1a 0%, #ff6b35 40%, #f59e0b 70%, #b77900 100%); }
+html.tt-fx body.tt-on:not(.ch-body) .hero-section h1 { animation: tt-shimmer 4s linear infinite; }
+@keyframes tt-shimmer { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
+html body.tt-on:not(.ch-body) .text-outline { position: static; display: inline; -webkit-text-stroke: 0; color: inherit; transition: none; }
+html body.tt-on:not(.ch-body) .text-outline::before, html body.tt-on:not(.ch-body) .text-outline::after { display: none; }
+html body.tt-on:not(.ch-body) .hero-desc { font-family: var(--font-sans); font-size: 1.1rem; font-weight: 400; max-width: 450px; margin: 0 auto 32px; }
+html body.tt-on:not(.ch-body) .hero-actions { justify-content: center; gap: 12px; margin-bottom: 36px; }
+html body.tt-on:not(.ch-body) .tech-stack { justify-content: center; }
+html body.tt-on:not(.ch-body) .tech-tag { font-family: var(--font-sans); letter-spacing: 0; border-radius: 99px; }
+html body.tt-on:not(.ch-body) .hero-right { width: 100%; max-width: 560px; text-align: left; }
+
+/* buttons everywhere (not Chats): the old orange gradient + ghost */
+html body.tt-on:not(.ch-body) .btn-primary { font-family: var(--font-sans); font-size: 0.95rem; font-weight: 700; letter-spacing: 0; padding: 14px 28px; border-radius: 14px; border: 0;
+    background: linear-gradient(135deg, #ff6b35, #f59e0b); color: #ffffff; box-shadow: 0 8px 24px rgba(255, 107, 53, 0.3); }
+html body.tt-on:not(.ch-body) .btn-primary::before { display: none; }
+html body.tt-on:not(.ch-body) .btn-primary:hover { background: linear-gradient(135deg, #ff6b35, #f59e0b); color: #ffffff; box-shadow: 0 14px 32px rgba(255, 107, 53, 0.4); }
+html body.tt-on:not(.ch-body) .btn-secondary { font-family: var(--font-sans); font-size: 0.95rem; font-weight: 700; letter-spacing: 0; padding: 14px 28px; border-radius: 14px; border: 1.5px solid var(--border-hover); color: var(--text-secondary); }
+html body.tt-on:not(.ch-body) .btn-secondary:hover { border-color: #ff6b35; color: #ff6b35; background: rgba(255, 107, 53, 0.06); box-shadow: none; }
+html.tt-fx body.tt-on:not(.ch-body) .btn-primary, html.tt-fx body.tt-on:not(.ch-body) .btn-secondary { transition: transform .3s ease, box-shadow .3s ease, background-color .3s ease, border-color .3s ease, color .3s ease; }
+html.tt-fx body.tt-on:not(.ch-body) .btn-primary:hover, html.tt-fx body.tt-on:not(.ch-body) .btn-secondary:hover { transform: translateY(-3px); }
+
+/* the floating bottom nav (built by thethe-event.js) */
+html body.tt-on:not(.ch-body) .main-content { padding-bottom: 96px; }
+.tt-bottomnav {
+    position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 9989; transform: translateX(-50%);
+    display: flex; gap: 6px; padding: 8px 10px; max-width: calc(100vw - 24px); border-radius: 18px;
+    background: #ffffff; border: 1px solid #e1e5e9; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.14);
+}
+body:not(.light-mode) .tt-bottomnav { background: #1a1a1a; border-color: #2a2a2a; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); }
+.tt-bn-item { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 58px; padding: 7px 10px; border-radius: 12px; text-decoration: none; color: #999999; font: 600 0.65rem/1 'Inter', -apple-system, sans-serif; }
+.tt-bn-item:hover { color: #ff6b35; background: rgba(255, 107, 53, 0.08); }
+.tt-bn-item.tt-active { color: #ff6b35; background: rgba(255, 107, 53, 0.12); }
+html.tt-fx .tt-bottomnav { transition: transform .35s ease, opacity .3s ease; }
+html.tt-fx .tt-bn-item { transition: color .2s ease, background-color .2s ease, transform .2s ease; }
+html.tt-fx .tt-bn-item:hover { transform: translateY(-2px); }
+.tt-bottomnav.tt-hide { transform: translate(-50%, 140%); opacity: 0; pointer-events: none; }
+html.tt-rm .tt-bottomnav.tt-hide, html.tt-min .tt-bottomnav.tt-hide { transform: translateX(-50%); }
+@media (max-width: 700px) { .tt-credits { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); } .tt-bn-item { min-width: 52px; padding: 7px 8px; } }
 
 /* ---------- 3. THE LAYER (only used for the opening emoji rain; never blocks clicks) ---------- */
 #tt-root, #tt-root * { box-sizing: border-box; }
