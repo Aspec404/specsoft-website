@@ -1847,6 +1847,59 @@
         $('chInput').focus();
     }
 
+    // ----- upload with a live progress bar (falls back to the normal upload if anything is missing) -----
+    function setUploadProgress(pct, done) {
+        const box = $('chFilePreview');
+        if (!box || box.hidden) return;
+        let bar = $('chUploadBar');
+        if (!bar) {
+            bar = el('div', { id: 'chUploadBar', class: 'ch-upload-bar', 'aria-hidden': 'true' }, el('i', {}));
+            box.insertBefore(bar, box.querySelector('.ch-iconbtn') || null);
+        }
+        const p = Math.max(0, Math.min(100, Math.round(pct)));
+        bar.firstChild.style.width = p + '%';
+        const f = S.pendingFile;
+        if (f) $('chFileName').textContent = (done ? 'Sending… ' : 'Uploading ' + p + '% · ') + f.name + ' · ' + formatBytes(f.size);
+    }
+
+    function clearUploadProgress() {
+        const bar = $('chUploadBar');
+        if (bar) bar.remove();
+        if (S.pendingFile) paintPendingFile();
+    }
+
+    async function uploadWithProgress(path, file, onProgress) {
+        const plain = function () {
+            return sb.storage.from('chat-attachments').upload(path, file, { cacheControl: '3600', upsert: false, contentType: fileMime(file) });
+        };
+        let token, base, key;
+        try {
+            const sess = await sb.auth.getSession();
+            token = sess && sess.data && sess.data.session && sess.data.session.access_token;
+            base = (sb.storage && sb.storage.url) || (CFG && CFG.SUPABASE_URL ? CFG.SUPABASE_URL + '/storage/v1' : '');
+            key = sb.supabaseKey || (CFG && CFG.SUPABASE_ANON_KEY);
+        } catch (e) { /* fall back below */ }
+        if (!token || !base || !key || typeof XMLHttpRequest === 'undefined') return plain();
+        return new Promise(function (resolve) {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', base + '/object/chat-attachments/' + path.split('/').map(encodeURIComponent).join('/'));
+            xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+            xhr.setRequestHeader('apikey', key);
+            xhr.setRequestHeader('x-upsert', 'false');
+            xhr.setRequestHeader('cache-control', 'max-age=3600');
+            xhr.setRequestHeader('Content-Type', fileMime(file));
+            xhr.upload.onprogress = function (ev) { if (ev.lengthComputable) onProgress((ev.loaded / ev.total) * 100); };
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 300) { resolve({ error: null }); return; }
+                let m = 'Upload failed (' + xhr.status + ')';
+                try { const j = JSON.parse(xhr.responseText); m = j.message || j.error || m; } catch (e) { /* keep default */ }
+                resolve({ error: new Error(m) });
+            };
+            xhr.onerror = function () { resolve({ error: new Error('Failed to fetch') }); };
+            xhr.send(file);
+        });
+    }
+
     async function sendMessage() {
         if (!S.current || !sb || S.sending) return;
         if (chatOpt('chatEmoticons')) emoticonAtEnd();
@@ -1894,11 +1947,10 @@
                     ? window.crypto.randomUUID()
                     : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
                 uploadedPath = room.room_id + '/' + S.me.id + '/' + uniqueId + '-' + safeName;
-                if (isVideoFile(file)) toast('Uploading video… keep this tab open.');
-                const uploaded = await sb.storage.from('chat-attachments').upload(uploadedPath, file, {
-                    cacheControl: '3600', upsert: false, contentType: fileMime(file)
-                });
+                setUploadProgress(0);
+                const uploaded = await uploadWithProgress(uploadedPath, file, setUploadProgress);
                 if (uploaded.error) throw uploaded.error;
+                setUploadProgress(100, true);
             }
 
             temp = { id: 'tmp-' + (++S.tmp), room_id: room.room_id, sender_id: S.me.id, body: body, reply_to: reply ? reply.id : null,
@@ -1956,10 +2008,13 @@
             }
             const cd = /super_cooldown:(\d+)/.exec(String(err && err.message || ''));
             if (cd) { SUPER_UNTIL = Date.now() + Number(cd[1]) * 1000; startSuperTicker(); }
-            toast(friendly(err));
+            let outMsg = friendly(err);
+            if (outMsg === 'Something went wrong. Please try again.' && err && err.message) outMsg = 'Send failed: ' + err.message;
+            toast(outMsg);
             return false;
         } finally {
             S.sending = false;
+            clearUploadProgress();
         }
     }
 

@@ -2449,3 +2449,7 @@ select.ch-field { appearance: auto; padding-right: 10px; cursor: pointer; }
 .ch-emoji-btn.is-super.is-cooling::after { opacity: 0.4; }
 .ch-super-timer { position: absolute; inset: 0; display: none; place-items: center; font: 700 14px var(--font-mono, monospace); color: #fff; text-shadow: 0 1px 3px #000, 0 0 8px #000; pointer-events: none; }
 .ch-emoji-btn.is-cooling .ch-super-timer { display: grid; }
+
+/* upload progress bar in the pending-file chip */
+.ch-upload-bar { flex: 0 0 90px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.14); overflow: hidden; }
+.ch-upload-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--text-primary, #fff); transition: width .15s linear; }
