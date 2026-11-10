@@ -29,7 +29,7 @@ let atts = [], pendingImgs = [];
 const modes = () => ({ think: false, search: false, research: false, ...LS('sa.modes', {}) });
 const THINK = 'Think through the problem step by step, double-check your work, then give a clear final answer.';
 const backend = () => LS('sa.dev', null) ? 'direct' : LAUNCH;
-const CFG = () => ({ nick: '', expr: true, typing: true, persona: '', enter: true, autotitle: true, memOn: true, notif: false, sound: false, shortcuts: true, len: 'normal', emo: 'normal', fs: 1, art: true, grid: true, calm: false, ...LS('sa.cfg', {}) });
+const CFG = () => ({ nick: '', expr: true, typing: true, persona: '', enter: true, autotitle: true, memOn: true, recall: true, automem: true, notif: false, sound: false, shortcuts: true, len: 'normal', emo: 'normal', fs: 1, art: true, grid: true, calm: false, ...LS('sa.cfg', {}) });
 const PERSONAS = [
   { id: 'custom', n: 'Use my custom one', i: 'pen', p: '' },
   { id: 'spectra', n: 'Spectra (Default)', i: 'spark', p: '' },
@@ -301,7 +301,7 @@ function msgEl(m, last) {
     }
     const ut = document.createElement('div'); ut.className = 'sa-ut'; ut.innerHTML = md(tx); b.appendChild(ut); return d;
   }
-  d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div>' + srcHtml(m) + '<div class="sa-act">' +
+  d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div>' + srcHtml(m) + memqHtml(m) + '<div class="sa-act">' +
     '<button data-a="copy" title="Copy">' + ico('copy') + '</button><button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
     '<div class="sa-pop"><button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
   return d;
@@ -443,11 +443,12 @@ async function ask(h, onTok, signal, onMeta) {
     url = window.SPECSOFT_CONFIG.SUPABASE_URL + '/functions/v1/spectra-chat'; hd.Authorization = 'Bearer ' + s.access_token; hd.apikey = window.SPECSOFT_CONFIG.SUPABASE_ANON_KEY;
     const imgs = pendingImgs; pendingImgs = [];
     const nm = (CFG().nick || (($('[data-user-name]') || {}).textContent || '')).trim().slice(0, 20);
-    const md3 = modes(); body = { messages: h, persona: persona().id, custom: persona().id === 'custom' ? (CFG().persona || '').slice(0, 400) : '', model: model().id, think: !!md3.think && !md3.research, search: !!md3.search, research: !!md3.research, nick: nm, hour: new Date().getHours(), memory: CFG().memOn ? mem().map(m => m.t) : [], style: { len: CFG().len, emo: CFG().emo } }; if (imgs.length) body.images = imgs;
+    const md3 = modes(); body = { messages: h, persona: persona().id, custom: persona().id === 'custom' ? (CFG().persona || '').slice(0, 400) : '', model: model().id, think: !!md3.think && !md3.research, search: !!md3.search, research: !!md3.research, nick: nm, hour: new Date().getHours(), memory: CFG().memOn ? mem().map(m => m.t) : [], recent: recentCtx(), style: { len: CFG().len, emo: CFG().emo } }; if (imgs.length) body.images = imgs;
   }
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
   const lf = r.headers.get('X-Spectra-Left'), lm = r.headers.get('X-Spectra-Limit');
   if (lf !== null && lm !== null && !isNaN(+lf) && +lm > 0) SS('sa.left', { left: +lf, limit: +lm, day: new Date().toISOString().slice(0, 10) });
+  const gf = +r.headers.get('X-Spectra-Gift'); if (gf > 0 && onMeta) onMeta({ gift: gf });
   if (!r.ok || !r.body) { const tx = await r.text().catch(() => ''); throw new Error(errCode(r.status, tx, !!body.images)); }
   if (onMeta && r.headers.get('X-Spectra-Search') === 'failed') onMeta({ nosearch: 1 });
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -487,6 +488,7 @@ async function sendMsg(t) {
   const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; const wm = modes(), web = backend() === 'supabase' && (wm.research || wm.search);
   body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>' + (web ? '<span class="sa-stat">' + (wm.research ? 'Researching the web\u2026' : 'Searching the web\u2026') + '</span>' : '');
   const onMeta = j => {
+    if (j.gift) { toast('Spectra gifted you ' + j.gift + ' APEX Credits'); try { if (window.ApexCredits) window.ApexCredits.refresh(); } catch (e) { } setMood('joy'); }
     if (j.sources) { ai.sources = j.sources; ai.queries = j.queries || []; paintSrc(el, ai); down(); }
     else if (j.queries && j.queries.length) { const st = body.querySelector('.sa-stat'); if (st) st.textContent = 'Reading: ' + j.queries[0].slice(0, 40); }
     if (j.nosearch) toast('Search was unavailable, so I answered without it');
@@ -502,7 +504,7 @@ async function sendMsg(t) {
     const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null;
     if (!err && !ai.content && !gone && backend() !== 'demo') err = ERR.FAIL;
     if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else setMood(mm || 'joy');
-    save(); renderChat(); if (!err && ai.content) { autoTitle(chat); notifyDone(ai.content); }
+    save(); renderChat(); if (!err && ai.content) { autoTitle(chat); notifyDone(ai.content); maybeNote(chat, ai, t); }
   };
   const h = cur.messages.slice(0, -1).map(m => ({ role: m.role, content: sanitizeSpecsoftLinks(m.content) }));
   if (backend() === 'demo') { const txt = demo(t); let i = 0; timer = setInterval(() => { onTok(txt.slice(i, i += 3)); if (i >= txt.length) { clearInterval(timer); timer = null; end(); } }, 16); return; }
@@ -538,7 +540,8 @@ msgsEl.addEventListener('click', e => {
     const a = LS('sa.assets', []); a.unshift({ lang: box.querySelector('.sa-code-h span').textContent, code, t: Date.now() }); SS('sa.assets', a.slice(0, 60)); return toast('Saved to Assets');
   }
   const a = b.dataset.a; if (!a || !m) return;
-  if (a === 'copy') copy(m.content);
+  if (a === 'memyes' || a === 'memno') { if (a === 'memyes') addMem(m.memq); delete m.memq; save(); const q = b.closest('.sa-mq'); if (q) q.remove(); }
+  else if (a === 'copy') copy(m.content);
   else if (a === 'up' || a === 'down') { m.fb = m.fb === a ? null : a; save(); $$('.sa-pop.open').forEach(p => p.classList.remove('open')); const bs = w.querySelectorAll('[data-a=up],[data-a=down]'); bs[0].classList.toggle('on', m.fb === 'up'); bs[1].classList.toggle('on', m.fb === 'down'); if (m.fb) setMood(m.fb === 'up' ? 'love' : 'sad'); }
   else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; cur.messages.pop(); const u = cur.messages.pop(); if (u._imgs && u._imgs.length) atts = u._imgs.map((d, k) => ({ kind: 'image', name: 'image ' + (k + 1), data: d })); sendMsg(u.content); }
   else if (a === 'more') b.parentNode.querySelector('.sa-pop').classList.toggle('open');
@@ -698,6 +701,33 @@ function addMem(t) {
   if (a.length >= 20) { toast('Memory is full (20 notes). Delete one first'); return false; }
   a.push({ t, ts: Date.now() }); SS('sa.mem', a); toast(CFG().memOn ? 'Saved to memory' : 'Saved (memory is off in Settings)'); return true;
 }
+/* ---- Memory across chats: digest of your latest other chats + suggested notes ---- */
+function recentCtx() {
+  if (!CFG().recall || !cur) return [];
+  if (cur.messages.filter(x => x.role === 'user').length > 6) return [];
+  return chats.filter(c => c !== cur && !c.arch && c.messages && c.messages.some(x => x.role === 'assistant' && x.content && !x.err)).slice(0, 2)
+    .map(c => ({ title: String(c.title || '').slice(0, 40), msgs: c.messages.filter(x => !x.err && x.content).slice(-4).map(x => ({ role: x.role, content: String(x.show || x.content).slice(0, 220) })) }));
+}
+function memqHtml(m) {
+  return m.memq && !m.err ? '<div class="sa-mq"><span>Remember <b>' + esc(m.memq) + '</b> for next time?</span><button type="button" data-a="memyes">Save</button><button type="button" data-a="memno">No</button></div>' : '';
+}
+async function maybeNote(chat, ai, text) {
+  const c = CFG();
+  if (!c.automem || !c.memOn || backend() !== 'supabase' || ai.err || ai.memq) return;
+  if (text.length < 15 || text.length > 400 || text[0] === '/' || !/\b(i am|i'm|im|i like|i love|i use|i make|i build|i prefer|i work|i play|i study|i want|i need|i code|my name|my favorite|my fave|my game|my project|my server|my team|call me)\b/i.test(text)) return;
+  if (mem().length >= 20 || Date.now() - (+LS('sa.memt', 0) || 0) < 90000) return;
+  SS('sa.memt', Date.now());
+  try {
+    const q = await sbReq(), rs = await fetch(q.url, { method: 'POST', headers: q.headers, body: JSON.stringify({ mode: 'memory', user: text.slice(0, 400) }) });
+    const j = rs.ok ? await rs.json() : null, n = j && typeof j.note === 'string' ? j.note.trim().slice(0, 100) : '';
+    if (!n || mem().some(x => x.t.toLowerCase() === n.toLowerCase())) return;
+    ai.memq = n; save();
+    if (cur === chat && !busy && cur.messages[cur.messages.length - 1] === ai) {
+      const col = msgsEl.lastElementChild && msgsEl.lastElementChild.querySelector('.sa-col'), act = col && col.querySelector('.sa-act');
+      if (act && !col.querySelector('.sa-mq')) act.insertAdjacentHTML('beforebegin', memqHtml(ai));
+    }
+  } catch (e) { }
+}
 function applyCfg() {
   const c = CFG();
   app.style.setProperty('--sa-fs', c.fs);
@@ -766,6 +796,8 @@ const PANES = {
     const c = CFG(), a = mem();
     return sec('Memory') +
       r('Use memory', 'Spectra reads these notes in every chat while this is on. Notes only change what she knows about you, never her rules.', sw('memOn', c.memOn)) +
+      r('Recall recent chats', 'At the start of a new chat, Spectra can see a short digest of your latest two chats, so she can pick up where you left off.', sw('recall', c.recall)) +
+      r('Suggest notes', 'When you tell her something lasting about yourself, she offers to save it. Nothing is saved unless you tap Save.', sw('automem', c.automem)) +
       sec('Saved notes (' + a.length + '/20)') +
       (a.length ? a.map((m, i) => '<div class="sx-mi"><span>' + esc(m.t) + '</span><button type="button" data-act="memdel" data-i="' + i + '" aria-label="Delete note">\u00d7</button></div>').join('') : '<div class="sx-empty">Nothing saved yet. Add a note below, or type <b>/remember your note</b> in the chat box.</div>') +
       '<div class="sx-add"><input class="sx-in" id="sxMemIn" maxlength="160" placeholder="e.g. I make Roblox obbies"><button type="button" class="sx-btn main" data-act="memadd">Add</button></div>' +

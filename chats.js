@@ -409,6 +409,7 @@
     const S = {
         me: null, profile: null,
         rooms: [], roomMap: new Map(),
+        streaks: new Map(), streaksReady: false, streakPop: null, restoreInfo: null,
         invites: [], inbox: [], discover: [],
         nav: 'mine', query: '',
         current: null,              // the room object that is open
@@ -678,8 +679,318 @@
         indexRooms();
         updateBadges();
         if (window.SPCH) SPCH.loadLevels();
+        loadStreaks();
         refreshStatuses();
     }
+
+    /* ----------------------------------------------------------------------
+       CHAT STREAKS (DMs only)
+       The server (supabase-chat-streaks.sql) does the counting, the restores
+       and the milestones. Here we load the numbers, draw the flame, open the
+       streak sheet and celebrate.
+       Tiers: 1-19 yellow | 20-69 yellow+orange | 70-199 orange+red |
+              200-299 red fire | 300-399 blue fire | 400+ violet fire
+       ---------------------------------------------------------------------- */
+    const STREAK_NAMES = ['', 'Spark', 'Blaze', 'Inferno', 'Wildfire', 'Blue Flame', 'Violet Flame'];
+    const STREAK_TIER_AT = [0, 1, 20, 70, 200, 300, 400];
+    const STREAK_MILESTONES = [3, 7, 14, 20, 30, 50, 70, 100, 150, 200, 250, 300, 365, 400, 500];   // keep in sync with chat_streak_is_milestone()
+    const FLAME_PATH = 'M12 1.5c.6 3.2 2.6 4.6 4.4 6.9 1.7 2.1 3.1 4.4 3.1 7.2A7.5 7.5 0 0 1 12 22.5a7.5 7.5 0 0 1-7.5-6.9c0-2.2.9-3.9 2.1-5.3.5 1.1 1.2 1.8 2 2.2C8.2 9 9.7 4.4 12 1.5z';
+    const FLAME_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+        '<path class="sk-o" d="' + FLAME_PATH + '"/>' +
+        '<path class="sk-m" transform="translate(12 22.5) scale(.68) translate(-12 -22.5)" d="' + FLAME_PATH + '"/>' +
+        '<path class="sk-c" transform="translate(12 22.5) scale(.38) translate(-12 -22.5)" d="' + FLAME_PATH + '"/></svg>';
+    let streakTimer = null, streakBusy = false, streakAgain = false;
+
+    function streakTier(n) { return n >= 400 ? 6 : n >= 300 ? 5 : n >= 200 ? 4 : n >= 70 ? 3 : n >= 20 ? 2 : 1; }
+    function nextMilestone(n) {
+        for (let i = 0; i < STREAK_MILESTONES.length; i++) if (STREAK_MILESTONES[i] > n) return STREAK_MILESTONES[i];
+        return (Math.floor(n / 100) + 1) * 100;
+    }
+    function flameEl(extra) {
+        const f = el('span', { class: 'ch-flame' + (extra ? ' ' + extra : '') });
+        f.innerHTML = FLAME_SVG;                       // constant markup, no user data
+        return f;
+    }
+    function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+    function streakInfo(r) {
+        if (!r || r.kind !== 'dm' || r.blocked_by_me || r.blocked_me) return null;
+        return S.streaks.get(r.room_id) || null;
+    }
+
+    function streakTip(r, s) {
+        const who = r.other_display || r.other_username || 'them';
+        if (s.streak <= 0) return 'Your ' + plural(s.restorable, 'day') + ' streak with ' + who + ' ended. Tap to restore it';
+        let t = plural(s.streak, 'day') + ' streak with ' + who + ' (' + STREAK_NAMES[s.tier] + ')';
+        if (s.best > s.streak) t += ' · best ' + s.best;
+        t += s.risk ? (s.meToday ? ' · waiting for ' + who + ' to chat today' : s.otherToday ? ' · ' + who + ' chatted, your turn' : ' · you both need to chat today') : ' · today is done';
+        if (s.restorable > 0) t += ' · restore available';
+        return t;
+    }
+
+    function streakChip(r, head) {
+        const s = streakInfo(r);
+        if (!s) return null;
+        const broken = s.streak <= 0;
+        const n = broken ? s.restorable : s.streak;
+        const tip = streakTip(r, s);
+        const chip = el(head ? 'button' : 'span', {
+            type: head ? 'button' : null,
+            class: 'ch-streak' + (head ? ' ch-streak--head' : '') + (s.risk && !broken ? ' is-risk' : '') + (broken ? ' is-broken' : '') + (S.streakPop === r.room_id ? ' is-pop' : ''),
+            dataset: { tier: String(broken ? streakTier(n) : s.tier) }, title: tip, 'aria-label': tip, role: head ? null : 'img'
+        }, flameEl(), el('b', { text: String(n) }), (head && s.restorable > 0) ? el('span', { class: 'ch-sk-pill', text: 'Restore' }) : null);
+        if (head) chip.addEventListener('click', function (e) { e.stopPropagation(); openStreakDlg(r); });
+        return chip;
+    }
+
+    function paintStreakHead() {
+        const h = $('chRoomName');
+        if (!h) return;
+        const chip = S.current ? streakChip(S.current, true) : null;
+        if (!chip && !h.classList.contains('has-streak')) return;
+        h.textContent = '';
+        if (chip) {
+            h.classList.add('has-streak');
+            h.appendChild(el('span', { class: 'ch-room-name-text', text: roomTitle(S.current) }));
+            h.appendChild(chip);
+        } else {
+            h.classList.remove('has-streak');
+            if (S.current) h.textContent = roomTitle(S.current);
+        }
+    }
+
+    /* ---- seen-milestone bookkeeping (so a celebration plays once per device) ---- */
+    function seenKey(id) { return 'specsoft.streak.seen.' + (S.me ? S.me.id : '') + '.' + id; }
+    function getSeen(id) { try { return localStorage.getItem(seenKey(id)); } catch (e) { return null; } }
+    function setSeen(id, at) { try { localStorage.setItem(seenKey(id), at); } catch (e) { /* ignore */ } }
+
+    function celebrateMilestone(room, s) {
+        if (document.querySelector('.ch-sk-cele')) return;
+        const who = roomTitle(room);
+        const tier = streakTier(s.milestone);
+        const tierUp = STREAK_TIER_AT.indexOf(s.milestone) > 1;
+        let timer = null;
+        const close = function () {
+            clearTimeout(timer);
+            document.removeEventListener('keydown', onKey);
+            root.classList.add('is-out');
+            setTimeout(function () { root.remove(); }, noMotion() ? 0 : 220);
+        };
+        const onKey = function (e) { if (e.key === 'Escape') close(); };
+        const btn = el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: close, text: 'Keep it burning' });
+        const root = el('div', { class: 'ch-sk-cele ch-sk-theme', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Streak milestone', dataset: { tier: String(tier) } },
+            el('div', { class: 'ch-sk-cele-card' },
+                flameEl('ch-sk-cele-flame'),
+                el('div', { class: 'ch-sk-cele-kicker', text: tierUp ? 'STREAK LEVEL UP!' : 'STREAK MILESTONE!' }),
+                el('div', { class: 'ch-sk-cele-num', text: String(s.milestone) }),
+                el('div', { class: 'ch-sk-cele-sub', text: 'days in a row with ' + who }),
+                tierUp ? el('div', { class: 'ch-sk-cele-tier', text: STREAK_NAMES[tier] + ' unlocked' }) : null,
+                btn));
+        if (!noMotion()) {
+            const box = el('div', { class: 'ch-sk-embers', 'aria-hidden': 'true' });
+            for (let i = 0; i < 16; i++) {
+                box.appendChild(el('i', { style: 'left:' + Math.round(Math.random() * 100) + '%;animation-delay:' + (Math.random() * 2.2).toFixed(2) + 's;animation-duration:' + (2.4 + Math.random() * 2).toFixed(2) + 's;width:' + (3 + Math.round(Math.random() * 4)) + 'px;height:' + (3 + Math.round(Math.random() * 4)) + 'px' }));
+            }
+            root.insertBefore(box, root.firstChild);
+        }
+        root.addEventListener('click', function (e) { if (e.target === root) close(); });
+        document.addEventListener('keydown', onKey);
+        document.body.appendChild(root);
+        btn.focus();
+        timer = setTimeout(close, 9000);
+    }
+
+    function announceStreaks(prev, next, skipId) {
+        let done = false;
+        next.forEach(function (s, id) {
+            if (done || id === skipId) return;
+            const before = prev.get(id);
+            const room = S.roomMap.get(id);
+            const who = room ? roomTitle(room) : 'your friend';
+            if (before && before.streak > 0 && s.streak <= 0 && s.restorable > 0) {
+                done = true;
+                toast('💔 Your streak with ' + who + ' ended. You can restore it!');
+                return;
+            }
+            if (!before || s.streak <= before.streak) return;
+            done = true;
+            S.streakPop = id;
+            setTimeout(function () { if (S.streakPop === id) S.streakPop = null; }, 1800);
+            toast(s.tier > before.tier
+                ? '🔥 STREAK LEVEL UP! ' + STREAK_NAMES[s.tier] + ' unlocked with ' + who + ' (' + s.streak + ')'
+                : '🔥 Streak up! ' + s.streak + ' with ' + who);
+        });
+    }
+
+    function syncTimezone() {
+        if (S.tzSent) return;
+        S.tzSent = true;
+        try {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (tz) sb.rpc('chat_set_timezone', { p_tz: tz }).then(function () {}, function () {});
+        } catch (e) { /* ignore */ }
+    }
+
+    async function loadStreaks() {
+        if (!S.me) return;
+        syncTimezone();
+        if (streakBusy) { streakAgain = true; return; }
+        streakBusy = true;
+        try {
+            const res = await sb.rpc('chat_my_streaks');
+            if (res.error) throw res.error;
+            const next = new Map();
+            (res.data || []).forEach(function (row) {
+                const n = Number(row.streak) || 0, rest = Number(row.restorable) || 0;
+                if (n <= 0 && rest <= 0) return;
+                next.set(row.room_id, {
+                    streak: n, best: Math.max(Number(row.best) || 0, n), done: !!row.done_today, risk: !!row.at_risk, tier: streakTier(n > 0 ? n : rest),
+                    meToday: !!row.me_today, otherToday: !!row.other_today, tz: row.tz || 'Asia/Manila', resetAt: Date.now() + (Number(row.resets_in) || 0) * 1000,
+                    restorable: rest, daysLeft: Number(row.restore_days_left) || 0,
+                    milestone: Number(row.milestone) || 0, milestoneAt: row.milestone_at || null
+                });
+            });
+            const prev = S.streaks;
+            S.streaks = next;
+
+            // a milestone nobody has seen yet on this device? celebrate it (one at a time)
+            let cele = null;
+            next.forEach(function (s, id) {
+                if (!s.milestone || !s.milestoneAt || s.streak < s.milestone) return;
+                const seen = getSeen(id);
+                if (seen && new Date(s.milestoneAt) <= new Date(seen)) return;
+                setSeen(id, s.milestoneAt);
+                if (!cele && Date.now() - new Date(s.milestoneAt).getTime() < 24 * 3600 * 1000) cele = { id: id, s: s };
+            });
+
+            if (S.streaksReady) announceStreaks(prev, next, cele ? cele.id : null);
+            S.streaksReady = true;
+            renderList();
+            paintStreakHead();
+            if (cele && S.roomMap.get(cele.id)) celebrateMilestone(S.roomMap.get(cele.id), cele.s);
+            const dlg = document.querySelector('.ch-sk-dlg');
+            if (dlg && dlg._repaint) dlg._repaint();
+        } catch (e) { /* streak SQL not installed yet: chats keep working without flames */ }
+        finally {
+            streakBusy = false;
+            if (streakAgain) { streakAgain = false; loadStreaksSoon(); }
+        }
+    }
+    function loadStreaksSoon() { clearTimeout(streakTimer); streakTimer = setTimeout(loadStreaks, 500); }
+
+    async function loadRestoreInfo() {
+        try {
+            const res = await sb.rpc('chat_streak_restores_left');
+            if (res.error) throw res.error;
+            const row = (res.data || [])[0];
+            if (row) S.restoreInfo = { left: Number(row.restores_left) || 0, total: Number(row.restores_total) || 7, refill: row.refill_day || null };
+        } catch (e) { /* keep the old numbers */ }
+    }
+
+    function fmtRefill(d) {
+        if (!d) return 'the 1st of next month';
+        const t = new Date(d + 'T00:00:00');
+        return isNaN(t) ? 'the 1st of next month' : t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    function closeStreakDlg() { const d = document.querySelector('.ch-sk-dlg'); if (d) d.close(); }
+
+    function openStreakDlg(r) {
+        if (!streakInfo(r)) return;
+        closeStreakDlg();
+        const dlg = el('dialog', { class: 'ch-dlg ch-dlg--small ch-sk-dlg', 'aria-labelledby': 'chSkTitle' });
+        const x = el('button', { type: 'button', class: 'ch-iconbtn', 'aria-label': 'Close', onclick: function () { dlg.close(); } });
+        x.innerHTML = ICON.close;
+        const body = el('div', { class: 'ch-dlg-body ch-sk-body' });
+        dlg.appendChild(el('header', { class: 'ch-dlg-head' }, el('h2', { id: 'chSkTitle', text: 'Streak with ' + roomTitle(r) }), x));
+        dlg.appendChild(body);
+        dlg._repaint = function () { paintStreakBody(body, r, dlg); };
+        dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+        dlg.addEventListener('close', function () { dlg.remove(); });
+        dlg._repaint();
+        document.body.appendChild(dlg);
+        if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+        loadRestoreInfo().then(function () { if (dlg.isConnected) dlg._repaint(); });
+    }
+
+    function paintStreakBody(body, r, dlg) {
+        const s = streakInfo(r);
+        if (!s) { dlg.close(); return; }
+        const broken = s.streak <= 0;
+        const n = broken ? s.restorable : s.streak;
+        const tier = broken ? streakTier(n) : s.tier;
+        const info = S.restoreInfo;
+        body.textContent = '';
+
+        body.appendChild(el('div', { class: 'ch-sk-hero ch-sk-theme' + (broken ? ' is-broken' : (s.risk ? ' is-pending' : '')), dataset: { tier: String(tier) } },
+            flameEl('ch-sk-hero-flame'),
+            el('div', { class: 'ch-sk-hero-n', text: String(n) }),
+            el('div', { class: 'ch-sk-hero-t', text: broken ? 'Streak ended' : STREAK_NAMES[tier] })));
+
+        const who = roomTitle(r);
+        body.appendChild(el('p', { class: 'ch-sk-status' + (s.risk && !broken ? ' is-risk' : ''),
+            text: broken ? 'Your ' + plural(n, 'day') + ' streak with ' + who + ' ended.'
+                : s.done ? '✅ Today is done. You both chatted.'
+                : s.meToday ? '✅ You chatted today. Waiting for ' + who + '. The streak only goes up when you BOTH chat.'
+                : s.otherToday ? '✅ ' + who + ' already chatted. Your turn! Send a message to keep the streak.'
+                : '⏳ Neither of you has chatted yet today. You both need to send a message.' }));
+        if (!broken) {
+            const left = Math.max(0, Math.round((s.resetAt - Date.now()) / 60000));
+            body.appendChild(el('p', { class: 'ch-sk-reset', text: 'The day resets at 12:00 AM (' + s.tz.replace(/_/g, ' ') + '), in ' + Math.floor(left / 60) + 'h ' + (left % 60) + 'm.' }));
+        }
+
+        if (!broken) {
+            const next = nextMilestone(s.streak);
+            const prevMs = STREAK_MILESTONES.filter(function (m) { return m <= s.streak; }).pop() || 0;
+            const pct = Math.max(4, Math.min(100, Math.round(((s.streak - prevMs) / (next - prevMs)) * 100)));
+            body.appendChild(el('div', { class: 'ch-sk-prog ch-sk-theme', dataset: { tier: String(tier) } },
+                el('div', { class: 'ch-sk-prog-top' }, el('span', { text: 'Next milestone' }), el('b', { text: plural(next - s.streak, 'day') + ' to go' })),
+                el('div', { class: 'ch-sk-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(next), 'aria-valuenow': String(s.streak) }, el('i', { style: 'width:' + pct + '%' })),
+                el('div', { class: 'ch-sk-prog-sub', text: s.streak + ' / ' + next + (tier < 6 ? '  ·  next flame: ' + STREAK_NAMES[tier + 1] + ' at ' + STREAK_TIER_AT[tier + 1] : '') })));
+        }
+
+        body.appendChild(el('div', { class: 'ch-sk-stats' },
+            el('div', null, el('b', { text: String(Math.max(s.best, n)) }), el('span', { text: 'Best streak' })),
+            el('div', null, el('b', { text: info ? info.left + '/' + info.total : '...' }), el('span', { text: 'Restores left' }))));
+
+        if (s.restorable > 0) {
+            const out = info && info.left <= 0;
+            const btn = el('button', { type: 'button', class: 'ch-btn', disabled: out ? true : null,
+                text: out ? 'No restores left' : 'Restore streak' + (info ? ' (' + info.left + ' left)' : '') });
+            btn.addEventListener('click', function () { doRestore(btn, r, dlg); });
+            body.appendChild(el('div', { class: 'ch-sk-restore' },
+                el('strong', { text: 'Restore it' }),
+                el('p', { text: 'Bring back ' + plural(s.restorable, 'day') + (s.streak > 0 ? ' on top of your current ' + s.streak : '') + '. ' +
+                    'You have ' + plural(s.daysLeft, 'day') + ' left to do it. One restore is taken from YOUR monthly restores, and they refill on ' + fmtRefill(info && info.refill) + '.' }),
+                btn));
+        } else {
+            body.appendChild(el('p', { class: 'ch-sk-foot', text: (info ? 'You have ' + info.left + ' of ' + info.total + ' streak restores this month. They refill on ' + fmtRefill(info.refill) + '.' : 'Streak restores refill every month.') }));
+        }
+    }
+
+    async function doRestore(btn, r, dlg) {
+        setLoading(btn, true);
+        try {
+            const res = await sb.rpc('chat_restore_streak', { p_room: r.room_id });
+            if (res.error) throw res.error;
+            const row = (res.data || [])[0];
+            if (row && S.restoreInfo) S.restoreInfo.left = Number(row.restores_left) || 0;
+            toast('🔥 Streak restored! You are back at ' + (row ? row.streak : 'it'));
+            S.streakPop = r.room_id;
+            setTimeout(function () { if (S.streakPop === r.room_id) S.streakPop = null; }, 1800);
+            await loadStreaks();
+            if (dlg.isConnected) dlg.close();
+        } catch (e) {
+            setLoading(btn, false);
+            const m = String((e && e.message) || '');
+            toast(m.indexOf('no_restores') >= 0 ? 'No restores left this month. They refill on the 1st.'
+                : m.indexOf('nothing_to_restore') >= 0 ? 'Too late, that streak can not be restored anymore.'
+                : m.indexOf('blocked') >= 0 ? 'You can not restore a streak with a blocked user.'
+                : 'Could not restore the streak. Try again.');
+            loadStreaks();
+        }
+    }
+
 
     async function loadInvites() {
         const res = await sb.rpc('chat_my_invites');
@@ -811,6 +1122,7 @@
         const active = S.current && S.current.room_id === r.room_id;
         const typing = activeTyping(r.room_id).length > 0;
         const online = r.kind === 'dm' && !r.blocked_by_me && S.onlineAll.has(r.other_id);
+        const sk = streakChip(r, false);
 
         const item = el('button', { type: 'button', 'aria-label': 'Open chat with ' + roomTitle(r), class: 'ch-item' + (active ? ' is-active' : '') + (r.unread ? ' is-unread' : '') + (r.muted ? ' is-muted' : ''), dataset: typing ? { room: r.room_id, typing: '1' } : { room: r.room_id },
             onclick: function (e) {
@@ -820,7 +1132,7 @@
             } },
             el('span', { class: 'ch-item-av' }, roomArt(r, 46), (r.kind === 'dm' && !r.blocked_by_me) ? stDot(r.other_id, S.onlineAll.has(r.other_id), 'ch-item-st') : null),
             el('span', { class: 'ch-item-main' },
-                el('span', { class: 'ch-item-title' }, r.pinned ? el('span', { class: 'ch-pin', title: 'Pinned' }, icon('pin')) : null, roomTitle(r)),
+                el('span', { class: 'ch-item-title' + (sk ? ' has-streak' : '') }, r.pinned ? el('span', { class: 'ch-pin', title: 'Pinned' }, icon('pin')) : null, sk ? el('span', { class: 'ch-item-name', text: roomTitle(r) }) : roomTitle(r), sk),
                 el('span', { class: 'ch-item-sub' + (typing ? ' is-typing' : ''), text: typing ? 'typing…' : subText(r) })),
             el('span', { class: 'ch-item-meta' },
                 el('time', { text: fmtListTime(r.last_at) }),
@@ -1446,6 +1758,7 @@
         const r = S.current;
         if (!r) return;
         $('chRoomName').textContent = roomTitle(r);
+        paintStreakHead();
         const icn = $('chRoomIcon');
         icn.textContent = '';
         icn.appendChild(roomArt(r, 40));
@@ -3702,6 +4015,8 @@
             })
             // people joining / leaving / being removed: member counts, new chats, "you were removed"
             .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_members' }, function () { refreshRoomsSoon(); })
+            // a streak grew, broke, was restored or hit a milestone
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_streaks' }, function () { loadStreaksSoon(); })
             // pin / mute / nickname changed from another device
             .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_prefs', filter: 'user_id=eq.' + uid }, function () { refreshRoomsSoon(); })
             .subscribe(onGlobalStatus);
@@ -4668,6 +4983,51 @@
        12c. CHAT MENU
             three dots, hover, right-click or long-press on a chat in the list
        ---------------------------------------------------------------------- */
+    /* ----------------------------------------------------------------------
+       HEADER THREE-DOT MENU
+       The image / members / settings buttons fold into one menu (saves space on
+       phones). The old buttons stay in the page, hidden, and the menu clicks them,
+       so all their old behaviour keeps working.
+       ---------------------------------------------------------------------- */
+    ICON.image = ICON.image || svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>');
+    ICON.flame = ICON.flame || svg('<path d="M12 2c.6 3.2 2.6 4.6 4.4 6.9 1.7 2.1 3.1 4.4 3.1 7.2A7.5 7.5 0 0 1 12 22.5a7.5 7.5 0 0 1-7.5-6.9c0-2.2.9-3.9 2.1-5.3.5 1.1 1.2 1.8 2 2.2C8.2 9 9.7 4.4 12 2z"/>');
+    ICON.userplus = ICON.userplus || ICON.user;
+
+    function headMenuItems(r) {
+        const list = [];
+        const own = { chInviteBtn: 1, chMembersBtn: 1, chSettingsBtn: 1, chHeadMore: 1 };
+        // any other button living in the header (the custom chat image / background one) joins the menu
+        Array.from(document.querySelectorAll('.ch-head-actions button')).forEach(function (b) {
+            if (own[b.id] || b.hidden) return;
+            const label = b.getAttribute('aria-label') || b.title || '';
+            const isImg = /image|background|wallpaper|photo|picture/i.test(label) || !label;
+            list.push({ ico: 'image', label: isImg ? 'Set Custom Image' : label, run: function () { b.click(); } });
+        });
+        const members = $('chMembers');
+        list.push({ ico: 'users', label: members && !members.hidden ? 'Hide Members' : 'See Members', run: function () { $('chMembersBtn').click(); } });
+        if (!$('chInviteBtn').hidden) list.push({ ico: 'userplus', label: 'Invite Someone', run: function () { $('chInviteBtn').click(); } });
+        list.push({ ico: 'settings', label: 'Chat Settings', run: function () { $('chSettingsBtn').click(); } });
+        if (r.kind === 'dm') {
+            list.push({ ico: 'flame', label: 'See Streak Milestone', run: function () {
+                if (streakInfo(r)) openStreakDlg(r);
+                else toast('No streak yet. You both need to chat on the same day to start one 🔥');
+            } });
+        }
+        return list;
+    }
+
+    function initHeadMenu() {
+        const box = document.querySelector('.ch-head-actions');
+        if (!box || $('chHeadMore')) return;
+        const b = el('button', { type: 'button', class: 'ch-iconbtn ch-kebab', id: 'chHeadMore', 'aria-label': 'More options', 'aria-haspopup': 'menu', title: 'More' });
+        b.innerHTML = ICON.more;
+        b.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (S.current) openRoomMenu(S.current, b, null, headMenuItems(S.current));
+        });
+        box.appendChild(b);
+    }
+
     function closeMenu() {
         const m = S.menu;
         if (!m) return;
@@ -4699,7 +5059,7 @@
         return list;
     }
 
-    function openRoomMenu(r, anchor, point) {
+    function openRoomMenu(r, anchor, point, items) {
         if (!r) return;
         closeMenu();
         const sheet = !!(window.matchMedia && window.matchMedia('(max-width: 700px), (pointer: coarse)').matches);
@@ -4707,7 +5067,7 @@
 
         if (sheet) menu.appendChild(el('div', { class: 'ch-menu-head' }, el('span', { class: 'ch-menu-art' }, roomArt(r, 36)), el('strong', { text: roomTitle(r) })));
 
-        menuItems(r).forEach(function (it) {
+        (items || menuItems(r)).forEach(function (it) {
             if (it === 'sep') { menu.appendChild(el('div', { class: 'ch-menu-sep', role: 'separator' })); return; }
             menu.appendChild(el('button', {
                 type: 'button', role: 'menuitem', disabled: it.disabled,
@@ -5637,7 +5997,7 @@
     function wire() {
         setIcon('chSideClose', 'close'); setIcon('chMenuBtn', 'menu'); setIcon('chMenuBtnConvo', 'menu'); setIcon('chBack', 'back');
         setIcon('chEmojiBtn', 'smile'); setIcon('chSend', 'send'); setIcon('chReplyCancel', 'close'); setIcon('chAttachBtn', 'attach'); setIcon('chFileClear', 'close');
-        setIcon('chInviteBtn', 'userplus'); setIcon('chMembersBtn', 'users'); setIcon('chSettingsBtn', 'settings'); setIcon('chMembersClose', 'close');
+        setIcon('chInviteBtn', 'userplus'); setIcon('chMembersBtn', 'users'); setIcon('chSettingsBtn', 'settings'); setIcon('chMembersClose', 'close'); initHeadMenu();
         setIcon('chSearchIcon', 'search');
         document.querySelectorAll('.ch-dlg .ch-iconbtn[data-close]').forEach(function (b) { b.innerHTML = ICON.close; });
 
@@ -5894,6 +6254,8 @@
         if (window.SPCH) SPCH.start();
         subscribeGlobal();
         subscribeBugs();
+        setInterval(loadStreaks, 5 * 60 * 1000);                          // the streak day rolls over at midnight
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) loadStreaksSoon(); });
         subscribeUser();
         subscribePresence();
         initNotif();

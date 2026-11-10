@@ -538,3 +538,12 @@ kbd.sx-k{display:inline-block;min-width:26px;padding:4px 8px;margin-left:4px;bor
   .sx-seg button{flex:1 1 auto;padding:10px 12px}
   .sx-btn{min-height:44px}
 }
+
+/* ---- v5: suggested memory note ---- */
+.sa-mq{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:10px 0 2px;padding:9px 12px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:14px;background:var(--sa-glass,var(--bg-card));font:13px/1.4 var(--font-sans);color:var(--sa-ink2,var(--text-secondary))}
+.sa-mq span{flex:1 1 200px;min-width:0;overflow-wrap:anywhere}
+.sa-mq b{color:var(--sa-ink,var(--text-primary));font-weight:500}
+.sa-mq button{flex:0 0 auto;min-height:32px;padding:0 14px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:999px;background:none;color:var(--sa-ink,var(--text-primary));font:500 12.5px var(--font-sans);cursor:pointer;transition:background .2s,border-color .2s}
+.sa-mq button[data-a=memyes]{background:var(--sa-ink,var(--text-primary));color:var(--sa-bg,var(--bg-base));border-color:transparent}
+.sa-mq button[data-a=memno]:hover{background:var(--sa-acc-dim,var(--accent-dim))}
+@media (max-width:850px){.sa-mq button{min-height:38px}}
