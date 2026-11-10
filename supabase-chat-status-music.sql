@@ -11,8 +11,8 @@
 -- What this adds
 --   * profiles.status_music_url     the iTunes preview (30 second .m4a)
 --   * profiles.status_music_art     the album art (100x100) shown on the play button
---   * profiles.status_music_start   where the clip starts, in seconds (0 to 20).
---                                   The site loops 10 seconds from there.
+--   * profiles.status_music_start   where the clip starts, in seconds (0 to 30).
+--                                   The site plays the full 30 second iTunes preview from there.
 --
 -- SECURITY: nobody can store a free link. The preview must be on Apple's
 -- audio host (audio-ssl.itunes.apple.com) and the art on Apple's image host
@@ -41,7 +41,7 @@ alter table public.profiles add constraint profiles_status_music_art_fmt
          or status_music_art ~ '^https://is[0-9]-ssl\.mzstatic\.com/[^[:space:]<>"'']{1,500}$');
 
 alter table public.profiles add constraint profiles_status_music_start_rng
-  check (status_music_start is null or (status_music_start >= 0 and status_music_start <= 20));
+  check (status_music_start is null or (status_music_start >= 0 and status_music_start <= 30));
 
 -- --------------------------------------------------------------------------
 -- 2. Save / clear the custom status (now with the music clip)
@@ -105,7 +105,7 @@ begin
     v_art   := null;
     v_start := null;
   else
-    v_start := round(least(greatest(coalesce(p_music_start, 0), 0), 20), 1);
+    v_start := round(least(greatest(coalesce(p_music_start, 0), 0), 30), 1);
   end if;
 
   -- a thumbnail must live in the member's own folder

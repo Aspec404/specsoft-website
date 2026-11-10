@@ -4354,7 +4354,7 @@
     const CS_COLS_V5 = 'id,status,status_text,status_expires_at,status_thumb_path,status_music_title,status_music_artist';
     const CS_COLS_V6 = CS_COLS_V5 + ',status_music_url,status_music_art,status_music_start';
     let csCols = CS_COLS_V6;         // drops to V5 / plain if supabase-chat-status-music.sql / supabase-chat-status.sql has not been run
-    const CS_CLIP = 10;              // seconds of the 30 second iTunes preview that play
+    const CS_CLIP = 30;              // use the full 30 second iTunes preview as the selectable clip
     const csMap = new Map();         // userId -> { text, until, thumb, mt, ma }
     let csReady = true;              // false until supabase-chat-status.sql has been run
 
@@ -4431,27 +4431,32 @@
         return bits.filter(Boolean).slice(0, 4).join(' | ');
     }
 
+    function csPlayFail(msgKey, err, url) {
+        const detail = csPlayErrorDetail(err, url);
+        const text = 'This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.';
+        if (msgKey === 'draft') {
+            if (typeof showBox === 'function') showBox('stMsg', text);
+            else toast(text);
+        } else {
+            toast(text);
+        }
+        if (csNow && csNow.key === msgKey) csStop();
+        csAudio.src = '';
+    }
+
     function csPlay(key, url, start) {
         if (!csMusicUrlOk(url)) return;
         if (csNow && csNow.key === key && !csAudio.paused) { csStop(); return; }
         csAudio.pause();
-        csNow = { key: key, start: Math.max(0, Math.min(20, Number(start) || 0)) };
+        csNow = { key: key, start: Math.max(0, Math.min(30, Number(start) || 0)) };
         const startClip = function () {
             if (!csNow) return;
             try { csAudio.currentTime = csNow.start; } catch (e) { /* ignore */ }
             try {
                 const p = csAudio.play();
-                if (p && p.catch) p.catch(function (err) {
-                    const detail = csPlayErrorDetail(err, url);
-                    csStop();
-                    csAudio.src = '';
-                    toast('This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.');
-                });
+                if (p && p.catch) p.catch(function (err) { csPlayFail(key, err, url); });
             } catch (e) {
-                const detail = csPlayErrorDetail(e, url);
-                csStop();
-                csAudio.src = '';
-                toast('This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.');
+                csPlayFail(key, e, url);
             }
             csSyncPlay();
         };
@@ -4477,15 +4482,16 @@
         csAudio.currentTime = csNow.start;
         const p = csAudio.play();
         if (p && p.catch) p.catch(function (err) {
-            const detail = csPlayErrorDetail(err, csAudio.currentSrc || '');
-            toast('Status music re-loop failed. Details: ' + detail + '.');
+            csPlayFail(csNow && csNow.key, err, csAudio.currentSrc || '');
         });
     });
     csAudio.addEventListener('error', function () {
         if (!csNow) return;
         const detail = csPlayErrorDetail(null, csAudio.currentSrc || '');
+        const key = csNow && csNow.key;
+        if (key === 'draft' && typeof showBox === 'function') showBox('stMsg', 'This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.');
+        else toast('Status music failed to load. Details: ' + detail + '.');
         csStop();
-        toast('Status music failed to load. Details: ' + detail + '.');
     });
     csAudio.addEventListener('pause', csSyncPlay);
     csAudio.addEventListener('play', csSyncPlay);
@@ -6643,7 +6649,7 @@
         $('stMusWin').style.left = (s / 30 * 100) + '%';
         $('stMusWin').style.width = (CS_CLIP / 30 * 100) + '%';
         $('stMusStartT').textContent = csClock(s);
-        $('stMusEndT').textContent = csClock(s + CS_CLIP);
+        $('stMusEndT').textContent = csClock(Math.min(30, s + CS_CLIP));
     }
 
     function paintStMusic() {
@@ -6747,7 +6753,7 @@
             if (mus) {
                 args.p_music_url = mus.url;
                 args.p_music_art = csArtUrlOk(mus.art) ? mus.art : null;
-                args.p_music_start = Math.max(0, Math.min(20, Number(mus.start) || 0));
+                args.p_music_start = Math.max(0, Math.min(30, Number(mus.start) || 0));
             }
             const r1 = await sb.rpc('profile_set_custom_status', args);
             if (r1.error) throw r1.error;
