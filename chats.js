@@ -323,6 +323,8 @@
         menu:    svg('<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>'),
         close:   svg('<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>'),
         back:    svg('<polyline points="15 18 9 12 15 6"/>'),
+        chevup:  svg('<polyline points="6 15 12 9 18 15"/>'),
+        chevdown: svg('<polyline points="6 9 12 15 18 9"/>'),
         send:    svg('<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'),
         smile:   svg('<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9.5" x2="9.01" y2="9.5"/><line x1="15" y1="9.5" x2="15.01" y2="9.5"/>'),
         users:   svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
@@ -554,7 +556,7 @@
         let light = false;
         try { light = localStorage.getItem('specsoft-theme') === 'light'; } catch (e) { /* ignore */ }
         applyTheme(light);
-        $('chThemeBtn').addEventListener('click', function () {
+        if ($('chThemeBtn')) $('chThemeBtn').addEventListener('click', function () {
             light = !document.body.classList.contains('light-mode');
             if (window.SpecSettings) SpecSettings.set('theme', light ? 'light' : 'dark');
             else { try { localStorage.setItem('specsoft-theme', light ? 'light' : 'dark'); } catch (e) { /* ignore */ } }
@@ -582,17 +584,12 @@
 
     function initSound() {
         try { S.sound = localStorage.getItem('specsoft.chat.sound') !== 'off'; } catch (e) { /* ignore */ }
-        const paint = function () {
-            setIcon('chSoundBtn', S.sound ? 'sound' : 'muted');
-            $('chSoundBtn').setAttribute('aria-pressed', String(S.sound));
-        };
-        paint();
-        $('chSoundBtn').addEventListener('click', function () {
-            S.sound = !S.sound;
-            try { localStorage.setItem('specsoft.chat.sound', S.sound ? 'on' : 'off'); } catch (e) { /* ignore */ }
-            paint();
-            if (S.sound) ping();
-        });
+    }
+
+    function toggleSound() {
+        S.sound = !S.sound;
+        try { localStorage.setItem('specsoft.chat.sound', S.sound ? 'on' : 'off'); } catch (e) { /* ignore */ }
+        if (S.sound) ping();
     }
 
     // phones: size the app to the visible area so the keyboard never covers the message box
@@ -1133,7 +1130,8 @@
             el('span', { class: 'ch-item-av' }, roomArt(r, 46), (r.kind === 'dm' && !r.blocked_by_me) ? stDot(r.other_id, S.onlineAll.has(r.other_id), 'ch-item-st') : null),
             el('span', { class: 'ch-item-main' },
                 el('span', { class: 'ch-item-title' + (sk ? ' has-streak' : '') }, r.pinned ? el('span', { class: 'ch-pin', title: 'Pinned' }, icon('pin')) : null, sk ? el('span', { class: 'ch-item-name', text: roomTitle(r) }) : roomTitle(r), sk),
-                el('span', { class: 'ch-item-sub' + (typing ? ' is-typing' : ''), text: typing ? 'typing…' : subText(r) })),
+                el('span', { class: 'ch-item-sub' + (typing ? ' is-typing' : ''), text: typing ? 'typing…' : subText(r) }),
+                (r.kind === 'dm' && !r.blocked_by_me) ? csNode(r.other_id, 'ch-item-cs') : null),
             el('span', { class: 'ch-item-meta' },
                 el('time', { text: fmtListTime(r.last_at) }),
                 r.muted ? el('span', { class: 'ch-muted-ico', title: 'Muted' }, icon('belloff')) : null,
@@ -1568,8 +1566,10 @@
 
     // ----- the "hide sensitive messages" switch -----
     function paintFilterBtn() {
+        const b = $('chFilterBtn');
+        if (!b) return;
         setIcon('chFilterBtn', S.filterOn ? 'shield' : 'shieldoff');
-        $('chFilterBtn').setAttribute('aria-pressed', String(S.filterOn));
+        b.setAttribute('aria-pressed', String(S.filterOn));
     }
 
     function initFilter() {
@@ -1737,6 +1737,7 @@
         p.classList.toggle('is-typing', r.kind === 'dm' && sub === 'typing…');
         p.classList.toggle('is-online', r.kind === 'dm' && sub === 'Online');
         if (full) p.setAttribute('title', full); else p.removeAttribute('title');
+        paintHeaderCs();
     }
 
     // DMs with someone you blocked (or who blocked you) are read-only
@@ -4310,7 +4311,7 @@
             }).subscribe(function (status) {
                 if (status === 'SUBSCRIBED' && ch.track) ch.track({ at: Date.now() });
             });
-            setInterval(refreshStatuses, 60000);      // pick up status changes (someone going Do Not Disturb)
+            setInterval(function () { refreshStatuses(); paintListPresence(); paintSub(); }, 60000);      // pick up status changes (someone going Do Not Disturb)
         } catch (e) { /* presence is a bonus */ }
     }
 
@@ -4349,16 +4350,178 @@
         return i;
     }
 
+    // ----- custom status (text, thumbnail, music, expiry) -----
+    const CS_COLS_V5 = 'id,status,status_text,status_expires_at,status_thumb_path,status_music_title,status_music_artist';
+    const CS_COLS_V6 = CS_COLS_V5 + ',status_music_url,status_music_art,status_music_start';
+    let csCols = CS_COLS_V6;         // drops to V5 / plain if supabase-chat-status-music.sql / supabase-chat-status.sql has not been run
+    const CS_CLIP = 10;              // seconds of the 30 second iTunes preview that play
+    const csMap = new Map();         // userId -> { text, until, thumb, mt, ma }
+    let csReady = true;              // false until supabase-chat-status.sql has been run
+
+    function applyStatusRow(r) {
+        let changed = false;
+        if (statusMap.get(r.id) !== r.status) { statusMap.set(r.id, r.status); changed = true; }
+        if (csReady) {
+            const mu = csMusicUrlOk(r.status_music_url) ? r.status_music_url : '';
+            const c = (r.status_text || r.status_thumb_path || r.status_music_title) ? {
+                text: r.status_text || '', until: r.status_expires_at ? new Date(r.status_expires_at).getTime() : 0,
+                thumb: r.status_thumb_path || '', mt: r.status_music_title || '', ma: r.status_music_artist || '',
+                mu: mu, art: (mu && csArtUrlOk(r.status_music_art)) ? r.status_music_art : '', ms: mu ? (Number(r.status_music_start) || 0) : 0
+            } : null;
+            const before = csMap.get(r.id);
+            if (JSON.stringify(before || null) !== JSON.stringify(c)) { if (c) csMap.set(r.id, c); else csMap.delete(r.id); changed = true; }
+        }
+        return changed;
+    }
+
+    // the custom status someone is showing right now (an expired one counts as none)
+    function csOf(id) {
+        const c = id && csMap.get(id);
+        if (!c) return null;
+        if (c.until && c.until < Date.now()) return null;
+        return c;
+    }
+    function csSig(c) { return c ? [c.text, c.thumb, c.mt, c.ma, c.mu, c.ms].join('|') : ''; }
+
+    function csThumbUrl(path) {
+        if (!path || !/^[0-9a-f-]{36}\/[\w.-]{1,80}$/i.test(path)) return '';
+        try { return sb.storage.from('status-media').getPublicUrl(path).data.publicUrl || ''; } catch (e) { return ''; }
+    }
+
+    // ----- status music: iTunes 30 second previews, one shared player so two clips never overlap -----
+    function csMusicUrlOk(u) { return /^https:\/\/audio-ssl\.itunes\.apple\.com\/[^\s<>"']{1,500}$/.test(u || ''); }
+    function csArtUrlOk(u) { return /^https:\/\/is\d-ssl\.mzstatic\.com\/[^\s<>"']{1,500}$/.test(u || ''); }
+    function csClock(s) { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+
+    const csAudio = new Audio();
+    csAudio.preload = 'auto';        // the source is only set when someone presses play
+    let csNow = null;                // { key, start }  key is a user id, or 'draft' for the preview inside the status dialog
+
+    function csSyncPlay() {
+        document.querySelectorAll('.ch-cs-play, #stMusPlay').forEach(function (b) {
+            const on = !!csNow && csNow.key === b.dataset.key && !csAudio.paused;
+            b.classList.toggle('is-playing', on);
+            b.setAttribute('aria-pressed', String(on));
+            const i = b.querySelector('.ch-cs-play-ico');
+            if (i) i.innerHTML = ICON[on ? 'pause' : 'play'];
+        });
+        const head = $('stMusHead');
+        if (head) {
+            const draft = !!csNow && csNow.key === 'draft' && !csAudio.paused;
+            head.classList.toggle('is-on', draft);
+            if (draft) head.style.left = Math.min(99, (csAudio.currentTime / 30) * 100) + '%';
+        }
+    }
+
+    function csStop() {
+        csAudio.pause();
+        csNow = null;
+        csSyncPlay();
+    }
+
+    function csPlay(key, url, start) {
+        if (!csMusicUrlOk(url)) return;
+        if (csNow && csNow.key === key && !csAudio.paused) { csStop(); return; }
+        csAudio.pause();
+        csNow = { key: key, start: Math.max(0, Math.min(20, Number(start) || 0)) };
+        const go = function () {
+            if (!csNow) return;
+            try { csAudio.currentTime = csNow.start; } catch (e) { /* ignore */ }
+            const p = csAudio.play();
+            if (p && p.catch) p.catch(function () { csStop(); });
+            csSyncPlay();
+        };
+        if (csAudio.src !== url) csAudio.src = url;
+        else if (csAudio.readyState === 0) csAudio.load();
+        if (csAudio.readyState >= 1) go(); else csAudio.addEventListener('loadedmetadata', go, { once: true });
+        csSyncPlay();
+    }
+
+    // loop inside the chosen part of the preview
+    csAudio.addEventListener('timeupdate', function () {
+        if (!csNow) return;
+        if (csAudio.currentTime >= csNow.start + CS_CLIP) csAudio.currentTime = csNow.start;
+        const head = $('stMusHead');
+        if (head && csNow.key === 'draft') head.style.left = Math.min(99, (csAudio.currentTime / 30) * 100) + '%';
+    });
+    csAudio.addEventListener('ended', function () {
+        if (!csNow) return;
+        csAudio.currentTime = csNow.start;
+        const p = csAudio.play();
+        if (p && p.catch) p.catch(function () { csStop(); });
+    });
+    csAudio.addEventListener('error', function () { if (csNow) { csStop(); toast('That clip would not play'); } });
+    csAudio.addEventListener('pause', csSyncPlay);
+    csAudio.addEventListener('play', csSyncPlay);
+    document.addEventListener('visibilitychange', function () { if (document.hidden && csNow) csStop(); });
+
+    function csNode(id, cls) {
+        const c = csOf(id);
+        if (!c) return null;
+        const url = csThumbUrl(c.thumb);
+        const node = el('span', { class: 'ch-cs ' + (cls || '') });
+        node.dataset.sig = csSig(c);
+        if (url) {
+            const img = el('img', { class: 'ch-cs-thumb', src: url, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+            img.addEventListener('error', function () { img.remove(); });
+            node.appendChild(img);
+        }
+        if (c.text) node.appendChild(el('span', { class: 'ch-cs-text', text: c.text }));
+        if (c.mu && id) {
+            const go = function (e) { e.stopPropagation(); e.preventDefault(); csPlay(id, c.mu, c.ms); };
+            const play = el('span', { class: 'ch-cs-play', role: 'button', tabindex: '0', 'aria-pressed': 'false', 'aria-label': 'Play a clip of ' + c.mt, title: 'Play a clip', onclick: go });
+            play.dataset.key = id;
+            play.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
+            if (c.art) {
+                const art = el('img', { src: c.art, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+                art.addEventListener('error', function () { art.remove(); });
+                play.appendChild(art);
+            }
+            const ico = el('span', { class: 'ch-cs-play-ico' });
+            ico.innerHTML = ICON.play;
+            play.appendChild(ico);
+            node.appendChild(play);
+            if (csNow) setTimeout(csSyncPlay, 0);
+        }
+        if (c.mt) node.appendChild(el('span', { class: 'ch-cs-music', text: '\u266A ' + c.mt + (c.ma ? ' - ' + c.ma : '') }));
+        return node;
+    }
+
+    function paintHeaderCs() {
+        const p = $('chRoomCs');
+        if (!p) return;
+        const r = S.current;
+        const c = (r && r.kind === 'dm' && !r.blocked_by_me) ? csOf(r.other_id) : null;
+        const sig = (r && c ? r.other_id : '') + '#' + csSig(c);
+        if (p.dataset.sig === sig) return;
+        p.dataset.sig = sig;
+        p.textContent = '';
+        p.hidden = !c;
+        if (c) p.appendChild(csNode(r.other_id, 'ch-head-cs'));
+    }
+
+    // select profile columns, stepping down if the SQL files have not all been run yet
+    async function csSelect(build) {
+        let res = await build(csCols);
+        if (!res.error || !csReady) return res;
+        const steps = csCols === CS_COLS_V6 ? [CS_COLS_V5, 'id,status'] : ['id,status'];
+        for (let i = 0; i < steps.length; i++) {
+            const r = await build(steps[i]);
+            if (!r.error) { csCols = steps[i]; if (steps[i] === 'id,status') csReady = false; return r; }
+        }
+        return res;
+    }
+
     async function loadStatuses(ids) {
         const now = Date.now();
         const need = Array.from(new Set((ids || []).filter(Boolean))).filter(function (id) { return now - (statusAt.get(id) || 0) > 45000; });
         if (!need.length) return;
         need.forEach(function (id) { statusAt.set(id, now); });
         try {
-            const res = await sb.from('profiles').select('id,status').in('id', need.slice(0, 200));
+            const res = await csSelect(function (cols) { return sb.from('profiles').select(cols).in('id', need.slice(0, 200)); });
             if (res.error) return;
             let changed = false;
-            (res.data || []).forEach(function (r) { if (statusMap.get(r.id) !== r.status) { statusMap.set(r.id, r.status); changed = true; } });
+            (res.data || []).forEach(function (r) { if (applyStatusRow(r)) changed = true; });
             if (changed) repaintStatus();
         } catch (e) { /* status dots are a bonus */ }
     }
@@ -4388,6 +4551,16 @@
             const s = stateOf(r.other_id, live);
             if (!dot) av.appendChild(stDot(r.other_id, live, 'ch-item-st'));
             else if (dot.dataset.st !== s) dot.replaceWith(stDot(r.other_id, live, 'ch-item-st'));
+
+            const main = row.querySelector('.ch-item-main');
+            if (main) {
+                const old = main.querySelector('.ch-item-cs');
+                const want = r.blocked_by_me ? null : csOf(r.other_id);
+                if ((old ? old.dataset.sig : '') !== csSig(want)) {
+                    if (old) old.remove();
+                    if (want) main.appendChild(csNode(r.other_id, 'ch-item-cs'));
+                }
+            }
         });
     }
 
@@ -4588,7 +4761,7 @@
     function closeDlg(id) { const d = $(id); if (d && d.open) d.close(); }
 
     function wireDialogs() {
-        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg', 'nickDlg', 'filterDlg', 'reportDlg', 'settingsDlg'].forEach(function (id) {
+        ['dmDlg', 'roomDlg', 'codeDlg', 'invDlg', 'bugDlg', 'snipDlg', 'nickDlg', 'filterDlg', 'reportDlg', 'settingsDlg', 'statusDlg', 'accountsDlg'].forEach(function (id) {
             const d = $(id);
             d.addEventListener('click', function (e) {
                 if (e.target === d || (e.target.closest && e.target.closest('[data-close]'))) {
@@ -5034,6 +5207,8 @@
         S.menu = null;
         m.nodes.forEach(function (n) { n.remove(); });
         if (m.row) m.row.classList.remove('is-menu');
+        const meBtn = $('chMe');
+        if (meBtn) meBtn.setAttribute('aria-expanded', 'false');
         if (m.refocus && document.contains(m.refocus)) { try { m.refocus.focus(); } catch (e) { /* ignore */ } }
     }
 
@@ -5896,18 +6071,18 @@
         try { pref = localStorage.getItem('specsoft.chat.notif'); } catch (e) { /* ignore */ }
         S.desk = notifSupported() && Notification.permission === 'granted' && pref !== 'off';
         paintNotifBtn();
-        const save = function (v) { try { localStorage.setItem('specsoft.chat.notif', v); } catch (e) { /* ignore */ } };
+    }
 
-        $('chNotifBtn').addEventListener('click', async function () {
-            if (!notifSupported()) { toast('This browser does not support desktop notifications.'); return; }
-            if (S.desk) { S.desk = false; save('off'); paintNotifBtn(); toast('Desktop notifications off'); return; }
-            let perm = Notification.permission;
-            if (perm === 'default') {
-                try { perm = (await Notification.requestPermission()) || Notification.permission; } catch (e) { perm = 'denied'; }
-            }
-            if (perm === 'granted') { S.desk = true; save('on'); paintNotifBtn(); toast('Desktop notifications on'); }
-            else toast('Notifications are blocked. Allow them in your browser site settings.');
-        });
+    async function toggleNotif() {
+        const save = function (v) { try { localStorage.setItem('specsoft.chat.notif', v); } catch (e) { /* ignore */ } };
+        if (!notifSupported()) { toast('This browser does not support desktop notifications.'); return; }
+        if (S.desk) { S.desk = false; save('off'); paintNotifBtn(); toast('Desktop notifications off'); return; }
+        let perm = Notification.permission;
+        if (perm === 'default') {
+            try { perm = (await Notification.requestPermission()) || Notification.permission; } catch (e) { perm = 'denied'; }
+        }
+        if (perm === 'granted') { S.desk = true; save('on'); paintNotifBtn(); toast('Desktop notifications on'); }
+        else toast('Notifications are blocked. Allow them in your browser site settings.');
     }
 
     function removeBanner(rec) {
@@ -6104,7 +6279,6 @@
             }
         });
         $('chSend').addEventListener('click', sendMessage);
-        $('chFilterBtn').addEventListener('click', openFilterDlg);
         $('filterToggle').addEventListener('change', function (e) { setFilter(e.target.checked); });
         $('filterImgToggle').addEventListener('change', function (e) { setImgPrefs(e.target.checked); });
         $('reportForm').addEventListener('submit', submitReport);
@@ -6209,6 +6383,486 @@
         }
     }
 
+    /* ----------------------------------------------------------------------
+       12e. PROFILE MENU (bottom of the sidebar)
+            one profile button -> dropdown: profile, status, notifications, sounds,
+            image checker, switch accounts, copy user id
+       ---------------------------------------------------------------------- */
+    const ACC_KEY = 'specsoft.chat.accounts.v1';
+    const STATUS_IDEAS = ['😴 Sleeping', '🎮 Gaming', '📚 Studying', '🔥 Busy', '🌱 Touching grass'];
+
+    function readAccounts() {
+        try {
+            const a = JSON.parse(localStorage.getItem(ACC_KEY) || '[]');
+            return Array.isArray(a) ? a.filter(function (x) { return x && x.id && x.refresh_token; }) : [];
+        } catch (e) { return []; }
+    }
+    function writeAccounts(list) { try { localStorage.setItem(ACC_KEY, JSON.stringify(list)); } catch (e) { /* ignore */ } }
+
+    // keep the newest login tokens of every account you use here, so switching needs no password
+    function rememberAccount(sess) {
+        try {
+            if (!sess || !sess.user || !sess.refresh_token) return;
+            const list = readAccounts();
+            const old = list.find(function (a) { return a.id === sess.user.id; });
+            if (!old && list.length >= 6) return;
+            const mine = !!(S.me && S.profile && S.me.id === sess.user.id);
+            const rec = {
+                id: sess.user.id,
+                name: mine ? nameOf(S.profile) : ((old && old.name) || sess.user.email || 'Account'),
+                username: mine ? (S.profile.username || '') : ((old && old.username) || ''),
+                avatar_url: mine ? (S.profile.avatar_url || null) : ((old && old.avatar_url) || null),
+                access_token: sess.access_token,
+                refresh_token: sess.refresh_token
+            };
+            writeAccounts(old ? list.map(function (a) { return a.id === rec.id ? rec : a; }) : list.concat(rec));
+        } catch (e) { /* ignore */ }
+    }
+
+    async function rememberCurrent() {
+        try { const r = await sb.auth.getSession(); rememberAccount(r && r.data && r.data.session); } catch (e) { /* ignore */ }
+    }
+
+    async function switchAccount(id) {
+        const acc = readAccounts().find(function (a) { return a.id === id; });
+        if (!acc || (S.me && acc.id === S.me.id)) return;
+        toast('Switching account...');
+        await rememberCurrent();
+        try {
+            const res = await sb.auth.setSession({ access_token: acc.access_token, refresh_token: acc.refresh_token });
+            if (res.error || !res.data || !res.data.session) throw (res.error || new Error('no session'));
+            location.reload();
+        } catch (e) {
+            writeAccounts(readAccounts().filter(function (a) { return a.id !== id; }));
+            toast('That account needs to log in again.');
+        }
+    }
+
+    async function addAccount() {
+        await rememberCurrent();
+        try {
+            Object.keys(localStorage).filter(function (k) { return /^sb-.+-auth-token/.test(k); }).forEach(function (k) { localStorage.removeItem(k); });
+        } catch (e) { /* ignore */ }
+        location.href = 'login.html?next=chats.html';
+    }
+
+    function paintAccountsDlg() {
+        const box = $('accList');
+        box.textContent = '';
+        readAccounts().forEach(function (a) {
+            const cur = !!(S.me && a.id === S.me.id);
+            box.appendChild(el('div', { class: 'ch-acct' + (cur ? ' is-current' : '') },
+                avatar({ id: a.id, display_name: a.name, avatar_url: a.avatar_url }, 36),
+                el('span', { class: 'ch-acct-text' },
+                    el('strong', { text: a.name }),
+                    el('small', { text: cur ? 'Signed in now' : (a.username ? '@' + a.username : 'Saved on this device') })),
+                cur ? null : el('button', { type: 'button', class: 'ch-btn ch-btn--ghost ch-btn--sm', text: 'Switch', onclick: function () { closeDlg('accountsDlg'); switchAccount(a.id); } }),
+                cur ? null : el('button', { type: 'button', class: 'ch-iconbtn ch-iconbtn--danger', title: 'Remove from this device', 'aria-label': 'Remove ' + a.name,
+                    onclick: function () { writeAccounts(readAccounts().filter(function (x) { return x.id !== a.id; })); paintAccountsDlg(); } }, icon('trash'))));
+        });
+    }
+
+    function openAccountsDlg() { paintAccountsDlg(); openDlg('accountsDlg'); }
+
+    // ----- online status + custom status (saved in the profile, everyone you chat with can see it) -----
+    const ST_OPTS = [['online', 'Online'], ['idle', 'Idle'], ['dnd', 'Do Not Disturb'], ['offline', 'Offline']];
+    const ST_TYPES = { 'image/gif': 'gif', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+    let stDraft = null;      // { status, path, file, objUrl, music: { url, art, start } | null }
+
+    function myState() { return (S.me && statusMap.get(S.me.id)) || 'online'; }
+
+    function paintMeStatus() {
+        if (!S.me) return;
+        const s = myState();
+        const c = csOf(S.me.id);
+        const sub = $('chMeSub');
+        if (sub) sub.textContent = (c && (c.text || (c.mt && ('\u266A ' + c.mt)))) || ST_SUB[s] || 'Offline';
+        const av = $('chMeAv');
+        if (av) {
+            let dot = av.querySelector('.ch-me-st');
+            if (!dot || dot.dataset.st !== s) {
+                if (dot) dot.remove();
+                dot = el('i', { class: 'ch-st ch-me-st', title: ST_META[s], role: 'img', 'aria-label': ST_META[s] });
+                dot.dataset.st = s;
+                dot.innerHTML = stIcon(s);
+                av.appendChild(dot);
+            }
+        }
+    }
+
+    async function loadMyStatus() {
+        if (!S.me) return;
+        try {
+            const res = await csSelect(function (cols) { return sb.from('profiles').select(cols).eq('id', S.me.id).maybeSingle(); });
+            if (res.error || !res.data) return;
+            applyStatusRow(res.data);
+            paintMeStatus();
+        } catch (e) { /* ignore */ }
+    }
+
+    function stDraftThumbUrl() {
+        if (!stDraft) return '';
+        return stDraft.objUrl || csThumbUrl(stDraft.path);
+    }
+
+    function paintStThumb() {
+        const box = $('stThumb');
+        box.textContent = '';
+        const url = stDraftThumbUrl();
+        if (url) box.appendChild(el('img', { src: url, alt: '' }));
+        else box.appendChild(icon('plus'));
+        $('stThumbDel').hidden = !url;
+    }
+
+    function paintStStates() {
+        const box = $('stStates');
+        box.textContent = '';
+        ST_OPTS.forEach(function (o) {
+            const on = stDraft.status === o[0];
+            const b = el('button', { type: 'button', role: 'radio', 'aria-checked': String(on), class: 'ch-stopt' + (on ? ' is-on' : ''),
+                onclick: function () { stDraft.status = o[0]; paintStStates(); } });
+            const dot = el('i', { class: 'ch-stopt-dot' });
+            dot.innerHTML = stIcon(o[0]);
+            b.appendChild(dot);
+            b.appendChild(el('span', { text: o[1] }));
+            box.appendChild(b);
+        });
+    }
+
+    // ----- music picker: iTunes search, 10 second clip, start slider -----
+    let msTimer = 0, msSeq = 0, msCtl = null;
+
+    function itunesJsonp(url) {
+        return new Promise(function (resolve, reject) {
+            const cb = '__spItunes' + Math.floor(Math.random() * 1e9);
+            const s = document.createElement('script');
+            let t = 0;
+            const end = function () { clearTimeout(t); delete window[cb]; s.remove(); };
+            t = setTimeout(function () { end(); reject(new Error('itunes_timeout')); }, 8000);
+            window[cb] = function (d) { end(); resolve(d); };
+            s.onerror = function () { end(); reject(new Error('itunes_blocked')); };
+            s.src = url + '&callback=' + cb;
+            document.head.appendChild(s);
+        });
+    }
+
+    function itunesSearch(term) {
+        const url = 'https://itunes.apple.com/search?media=music&entity=song&limit=12&term=' + encodeURIComponent(term);
+        if (msCtl) msCtl.abort();
+        msCtl = window.AbortController ? new AbortController() : null;
+        return fetch(url, msCtl ? { signal: msCtl.signal } : {})
+            .then(function (r) { if (!r.ok) throw new Error('itunes_' + r.status); return r.json(); })
+            .catch(function (e) { if (e && e.name === 'AbortError') throw e; return itunesJsonp(url); })
+            .then(function (d) {
+                const out = [];
+                ((d && d.results) || []).forEach(function (r) {
+                    const t = String((r && r.trackName) || '').trim().slice(0, 60);
+                    const a = String((r && r.artistName) || '').trim().slice(0, 60);
+                    const u = String((r && r.previewUrl) || '');
+                    const art = String((r && r.artworkUrl100) || '');
+                    if (!t || !csMusicUrlOk(u)) return;
+                    out.push({ title: t, artist: a, url: u, art: csArtUrlOk(art) ? art : '' });
+                });
+                return out;
+            });
+    }
+
+    function msHelp(text) { $('stMusHelp').textContent = text; }
+
+    function paintMsResults(list) {
+        const box = $('stMusList');
+        box.textContent = '';
+        list.forEach(function (t) {
+            const art = t.art
+                ? el('img', { class: 'ch-mus-art', src: t.art, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' })
+                : el('span', { class: 'ch-mus-art' });
+            box.appendChild(el('button', { type: 'button', class: 'ch-mus-item', onclick: function () { pickTrack(t); } },
+                art, el('span', { class: 'ch-mus-meta' }, el('strong', { text: t.title }), el('small', { text: t.artist }))));
+        });
+        box.hidden = !list.length;
+    }
+
+    function runMusicSearch() {
+        const q = $('stMusQ').value.trim();
+        const seq = ++msSeq;
+        if (q.length < 2) { paintMsResults([]); msHelp('Pick a song and everyone you chat with can play a 10 second clip of it from your status. Songs come from iTunes.'); return; }
+        msHelp('Searching...');
+        itunesSearch(q).then(function (list) {
+            if (seq !== msSeq) return;
+            paintMsResults(list);
+            msHelp(list.length ? 'Tap a song to hear it and pick your part.' : 'No songs with a preview found. Try another search.');
+        }).catch(function (e) {
+            if (seq !== msSeq || (e && e.name === 'AbortError')) return;
+            paintMsResults([]);
+            msHelp('Could not reach iTunes right now. Check your connection, or type the song yourself below.');
+        });
+    }
+
+    function paintStClip() {
+        const m = stDraft && stDraft.music;
+        if (!m) return;
+        const s = m.start || 0;
+        $('stMusStart').value = String(s);
+        $('stMusStart').setAttribute('aria-valuetext', 'Starts at ' + csClock(s));
+        $('stMusWin').style.left = (s / 30 * 100) + '%';
+        $('stMusWin').style.width = (CS_CLIP / 30 * 100) + '%';
+        $('stMusStartT').textContent = csClock(s);
+        $('stMusEndT').textContent = csClock(s + CS_CLIP);
+    }
+
+    function paintStMusic() {
+        const m = stDraft && stDraft.music;
+        const pick = $('stMusPick');
+        pick.hidden = !m;
+        if (!m) return;
+        const art = $('stMusArt');
+        art.textContent = '';
+        if (m.art) art.appendChild(el('img', { src: m.art, alt: '', referrerpolicy: 'no-referrer' }));
+        $('stMusNowT').textContent = $('stMusicT').value.trim() || 'Your song';
+        $('stMusNowA').textContent = $('stMusicA').value.trim();
+        $('stMusPlay').querySelector('.ch-cs-play-ico').innerHTML = ICON[csNow && csNow.key === 'draft' && !csAudio.paused ? 'pause' : 'play'];
+        paintStClip();
+    }
+
+    function pickTrack(t) {
+        if (!stDraft) return;
+        $('stMusicT').value = t.title;
+        $('stMusicA').value = t.artist;
+        stDraft.music = { url: t.url, art: t.art, start: 0 };
+        $('stMusQ').value = '';
+        paintMsResults([]);
+        msHelp('Slide to the part you like. It loops for 10 seconds on your status.');
+        paintStMusic();
+        csStop();
+        csPlay('draft', t.url, 0);
+    }
+
+    function dropTrack() {
+        if (stDraft) stDraft.music = null;
+        if (csNow && csNow.key === 'draft') csStop();
+        paintStMusic();
+    }
+
+    function openStatusDlg() {
+        if (!S.me) return;
+        const c = csOf(S.me.id) || { text: '', thumb: '', mt: '', ma: '', until: 0 };
+        stDraft = { status: myState(), path: c.thumb || '', file: null, objUrl: '', music: c.mu ? { url: c.mu, art: c.art || '', start: c.ms || 0 } : null };
+        showBox('stMsg', '');
+        $('stInput').value = c.text || '';
+        $('stMusicT').value = c.mt || '';
+        $('stMusicA').value = c.ma || '';
+        $('stDur').value = 'never';
+        $('stDurHelp').textContent = c.until ? 'Your current status ends around ' + new Date(c.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Saving again restarts the timer.' : '';
+        $('stClear').hidden = !(c.text || c.thumb || c.mt);
+        $('stMusQ').value = '';
+        paintMsResults([]);
+        msHelp('Pick a song and everyone you chat with can play a 10 second clip of it from your status. Songs come from iTunes.');
+        $('stMusManual').open = !!(c.mt && !c.mu);
+        paintStStates();
+        paintStThumb();
+        paintStMusic();
+        openDlg('statusDlg');
+    }
+
+    function pickStatusFile(f) {
+        if (!f) return;
+        if (!ST_TYPES[f.type]) { showBox('stMsg', 'Use a PNG, JPG, WebP or GIF image.'); return; }
+        if (f.size > 3 * 1024 * 1024) { showBox('stMsg', 'That image is over 3 MB.'); return; }
+        showBox('stMsg', '');
+        if (stDraft.objUrl) URL.revokeObjectURL(stDraft.objUrl);
+        stDraft.file = f;
+        stDraft.objUrl = URL.createObjectURL(f);
+        paintStThumb();
+    }
+
+    function minutesToMidnight() {
+        const n = new Date();
+        const m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
+        return Math.max(1, Math.round((m - n) / 60000));
+    }
+
+    async function saveStatusForm(e) {
+        if (e) e.preventDefault();
+        if (!stDraft || !S.me) return;
+        const btn = $('stSave');
+        setLoading(btn, true);
+        showBox('stMsg', '');
+        const oldPath = (csOf(S.me.id) || {}).thumb || '';
+        try {
+            let path = stDraft.path || '';
+            if (stDraft.file) {
+                const f = stDraft.file;
+                path = S.me.id + '/' + Date.now() + '.' + ST_TYPES[f.type];
+                const up = await sb.storage.from('status-media').upload(path, f, { contentType: f.type, cacheControl: '3600', upsert: false });
+                if (up.error) throw up.error;
+            }
+            const text = $('stInput').value.trim();
+            const mt = $('stMusicT').value.trim();
+            const ma = $('stMusicA').value.trim();
+            const dur = $('stDur').value;
+            const minutes = dur === 'never' ? null : (dur === 'today' ? minutesToMidnight() : Number(dur));
+
+            const mus = (mt && stDraft.music && csMusicUrlOk(stDraft.music.url)) ? stDraft.music : null;
+            const args = {
+                p_text: text || null, p_minutes: (text || path || mt) ? minutes : null,
+                p_thumb: path || null, p_music_title: mt || null, p_music_artist: ma || null
+            };
+            // only sent when there is a clip, so a status without one still saves if the music SQL has not been run yet
+            if (mus) {
+                args.p_music_url = mus.url;
+                args.p_music_art = csArtUrlOk(mus.art) ? mus.art : null;
+                args.p_music_start = Math.max(0, Math.min(20, Number(mus.start) || 0));
+            }
+            const r1 = await sb.rpc('profile_set_custom_status', args);
+            if (r1.error) throw r1.error;
+
+            if (stDraft.status !== myState()) {
+                const r2 = await sb.from('profiles').update({ status: stDraft.status }).eq('id', S.me.id);
+                if (r2.error) throw r2.error;
+            }
+
+            if (oldPath && oldPath !== path) { try { await sb.storage.from('status-media').remove([oldPath]); } catch (x) { /* ignore */ } }
+            if (stDraft.objUrl) URL.revokeObjectURL(stDraft.objUrl);
+            stDraft = null;
+            statusAt.delete(S.me.id);
+            await loadMyStatus();
+            closeDlg('statusDlg');
+            toast('Status updated');
+        } catch (err) {
+            showBox('stMsg', (isSetupMissing(err) || /bucket not found|status-media/i.test(String(err && err.message || ''))) ? 'Run supabase-chat-status.sql, then supabase-chat-status-music.sql, in your Supabase SQL Editor to turn on custom status and music.' : friendly(err));
+        } finally { setLoading(btn, false); }
+    }
+
+    // ----- the dropdown -----
+    function openMeMenu() {
+        if (S.menu) { closeMenu(); return; }
+        const anchor = $('chMe');
+        const sheet = !!(window.matchMedia && window.matchMedia('(max-width: 700px), (pointer: coarse)').matches);
+        const menu = el('div', { class: 'ch-menu ch-menu--me' + (sheet ? ' is-sheet' : ''), role: 'menu', 'aria-label': 'Account menu' });
+        const nodes = [];
+        if (sheet) nodes.push(el('div', { class: 'ch-menu-scrim' }));
+        nodes.push(menu);
+        let accOpen = false;
+
+        function item(ico, label, run, o) {
+            o = o || {};
+            const b = el('button', { type: 'button', role: 'menuitem', class: 'ch-menu-item' + (o.sub ? ' ch-menu-sub' : '') + (o.current ? ' is-current' : '') },
+                ico ? icon(ico) : null,
+                el('span', { class: 'ch-menu-label', text: label }),
+                o.tail || null);
+            if (o.expanded != null) b.setAttribute('aria-expanded', String(o.expanded));
+            b.addEventListener('click', function () { if (o.keep) run(); else { closeMenu(); run(); } });
+            return b;
+        }
+        const sep = function () { return el('div', { class: 'ch-menu-sep', role: 'separator' }); };
+
+        function render() {
+            menu.textContent = '';
+            if (sheet) menu.appendChild(el('div', { class: 'ch-menu-head' }, avatar(S.profile, 36), el('strong', { text: nameOf(S.profile) })));
+
+            menu.appendChild(item('user', 'View my profile', function () { location.href = 'profile.html'; }));
+            menu.appendChild(item('smile', 'Set Custom Status', openStatusDlg));
+            menu.appendChild(sep());
+            menu.appendChild(item(S.desk ? 'bell' : 'belloff', S.desk ? 'Turn off notifications' : 'Turn on notifications',
+                function () { toggleNotif().then(render); }, { keep: true }));
+            menu.appendChild(item(S.sound ? 'sound' : 'muted', 'Sounds: ' + (S.sound ? 'ON' : 'OFF'),
+                function () { toggleSound(); render(); }, { keep: true }));
+            menu.appendChild(item(S.imgOn ? 'shield' : 'shieldoff', S.imgOn ? 'Turn off image checker' : 'Turn on image checker',
+                function () { setImgPrefs(!S.imgOn); toast(S.imgOn ? 'Image checker on' : 'Image checker off'); render(); }, { keep: true }));
+            menu.appendChild(sep());
+            menu.appendChild(item('users', 'Switch Accounts', function () { accOpen = !accOpen; render(); },
+                { keep: true, expanded: accOpen, tail: el('span', { class: 'ch-menu-chev' }, icon('chevdown')) }));
+            if (accOpen) {
+                readAccounts().forEach(function (a) {
+                    const cur = !!(S.me && a.id === S.me.id);
+                    menu.appendChild(item(null, a.name, function () { switchAccount(a.id); },
+                        { sub: true, current: cur, keep: cur, tail: cur ? el('span', { class: 'ch-menu-check' }, icon('check')) : null }));
+                });
+                menu.appendChild(item('settings', 'Manage Accounts', openAccountsDlg, { sub: true }));
+            }
+            menu.appendChild(sep());
+            menu.appendChild(item('copy', 'Copy User ID', function () { copyText(S.me.id, 'User ID copied'); }));
+        }
+        render();
+
+        nodes.forEach(function (n) { document.body.appendChild(n); });
+        S.menu = { room: null, nodes: nodes, el: menu, row: null, refocus: anchor };
+        anchor.setAttribute('aria-expanded', 'true');
+
+        if (!sheet) {
+            const vw = document.documentElement.clientWidth || window.innerWidth, vh = window.innerHeight;
+            const b = anchor.getBoundingClientRect();
+            const w = Math.max(b.width, 252);
+            menu.style.minWidth = w + 'px';
+            menu.style.left = Math.max(8, Math.min(b.left, vw - w - 8)) + 'px';
+            menu.style.bottom = Math.max(8, vh - b.top + 8) + 'px';     // grows upward, so the sub-list never leaves the screen
+            menu.style.maxHeight = Math.max(160, b.top - 16) + 'px';
+            menu.style.overflowY = 'auto';
+            const first = menu.querySelector('.ch-menu-item:not([disabled])');
+            if (first) first.focus();
+        }
+
+        menu.addEventListener('keydown', function (e) {
+            const items = Array.from(menu.querySelectorAll('.ch-menu-item:not([disabled])'));
+            const i = items.indexOf(document.activeElement);
+            if (e.key === 'ArrowDown') { e.preventDefault(); (items[i + 1] || items[0]).focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); (items[i - 1] || items[items.length - 1]).focus(); }
+            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(); }
+            else if (e.key === 'Tab') closeMenu();
+        });
+    }
+
+    function initAccountMenu() {
+        setIcon('chMeCaret', 'chevup');
+        $('stMusPlay').querySelector('.ch-cs-play-ico').innerHTML = ICON.play;
+        $('chMe').addEventListener('click', openMeMenu);
+
+        const chips = $('stChips');
+        STATUS_IDEAS.forEach(function (t) {
+            chips.appendChild(el('button', { type: 'button', class: 'ch-chip', text: t, onclick: function () { $('stInput').value = t; $('stInput').focus(); } }));
+        });
+        $('statusForm').addEventListener('submit', saveStatusForm);
+        $('stClear').addEventListener('click', function () {
+            if (!stDraft) return;
+            $('stInput').value = ''; $('stMusicT').value = ''; $('stMusicA').value = '';
+            stDraft.path = ''; stDraft.file = null; dropTrack();
+            if (stDraft.objUrl) { URL.revokeObjectURL(stDraft.objUrl); stDraft.objUrl = ''; }
+            saveStatusForm();
+        });
+        $('stPick').addEventListener('click', function () { $('stFile').click(); });
+        $('stThumb').addEventListener('click', function () { $('stFile').click(); });
+        $('stFile').addEventListener('change', function (e) { pickStatusFile(e.target.files && e.target.files[0]); e.target.value = ''; });
+        $('stThumbDel').addEventListener('click', function () {
+            if (!stDraft) return;
+            if (stDraft.objUrl) URL.revokeObjectURL(stDraft.objUrl);
+            stDraft.file = null; stDraft.path = ''; stDraft.objUrl = '';
+            paintStThumb();
+        });
+        $('stMusQ').addEventListener('input', function () { clearTimeout(msTimer); msTimer = setTimeout(runMusicSearch, 350); });
+        $('stMusQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(msTimer); runMusicSearch(); } });
+        $('stMusPlay').addEventListener('click', function () {
+            const m = stDraft && stDraft.music;
+            if (m) csPlay('draft', m.url, m.start);
+        });
+        setIcon('stMusDel', 'xcircle');
+        $('stMusDel').addEventListener('click', function () { $('stMusicT').value = ''; $('stMusicA').value = ''; dropTrack(); });
+        $('stMusStart').addEventListener('input', function () {
+            const m = stDraft && stDraft.music;
+            if (!m) return;
+            m.start = Number(this.value) || 0;
+            paintStClip();
+            if (csNow && csNow.key === 'draft') { csNow.start = m.start; try { csAudio.currentTime = m.start; } catch (e) { /* ignore */ } }
+        });
+        $('stMusStart').addEventListener('change', function () {
+            const m = stDraft && stDraft.music;
+            if (m && !(csNow && csNow.key === 'draft' && !csAudio.paused)) csPlay('draft', m.url, m.start);
+        });
+        $('stMusicT').addEventListener('input', function () { if (stDraft && stDraft.music && !this.value.trim()) dropTrack(); else paintStMusic(); });
+        $('stMusicA').addEventListener('input', paintStMusic);
+        $('statusDlg').addEventListener('close', function () { if (csNow && csNow.key === 'draft') csStop(); });
+        $('accAdd').addEventListener('click', addAccount);
+    }
+
     async function boot() {
         if (window.SPCH) SPCH.attach({
             S: S, sb: sb, $: $, el: el, toast: toast, friendly: friendly, setLoading: setLoading,
@@ -6221,6 +6875,7 @@
         initSound();
         installComposer();
         initFilter();
+        initAccountMenu();
         fitViewport();
         injectEmojiStyles();
         wire();
@@ -6248,7 +6903,13 @@
         $('chMeName').textContent = nameOf(S.profile);
         $('chMeAv').textContent = '';
         $('chMeAv').appendChild(avatar(S.profile, 36));
-        sb.auth.onAuthStateChange(function (event) { if (event === 'SIGNED_OUT') location.reload(); });
+        paintMeStatus();
+        loadMyStatus();
+        rememberCurrent();
+        sb.auth.onAuthStateChange(function (event, sess) {
+            if (event === 'SIGNED_OUT') { location.reload(); return; }
+            if (sess && (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')) rememberAccount(sess);
+        });
 
         hideGate();
         if (window.SPCH) SPCH.start();

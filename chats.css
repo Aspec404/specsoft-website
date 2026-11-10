@@ -2603,3 +2603,171 @@ body.ch-body.light-mode .ch-streak[data-tier="6"], body.ch-body.light-mode .ch-s
 .ch-head-actions button:not(.ch-kebab) { display: none !important; }
 .ch-kebab { display: inline-flex; }
 .ch-kebab svg { transform: rotate(90deg); }              /* three dots in a row */
+
+/* ==========================================================================
+   Profile button + dropdown (bottom of the sidebar)
+   ========================================================================== */
+button.ch-me {
+    width: 100%;
+    background: none;
+    border: 0;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ch-me-text { flex: 1; }
+.ch-me:focus-visible { outline: 1px solid var(--border-hover); outline-offset: 1px; }
+.ch-me-caret { display: inline-flex; margin-left: auto; color: var(--text-secondary); transition: transform 0.15s ease; }
+.ch-me-caret svg { width: 16px; height: 16px; }
+.ch-me[aria-expanded="true"] .ch-me-caret { transform: rotate(180deg); }
+.ch-me[aria-expanded="true"] { background: var(--accent-dim); }
+
+.ch-menu--me .ch-menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-menu-chev { display: inline-flex; margin-left: auto; transition: transform 0.15s ease; }
+.ch-menu-chev svg { width: 15px; height: 15px; }
+.ch-menu-item[aria-expanded="true"] .ch-menu-chev { transform: rotate(180deg); }
+.ch-menu-sub { padding-left: 41px; min-height: 34px; font-size: 13.5px; }
+.ch-menu-sub.is-current { color: var(--text-primary); font-weight: 600; }
+.ch-menu-check { display: inline-flex; margin-left: auto; }
+.ch-menu--me.is-sheet .ch-menu-sub { min-height: 44px; font-size: 14.5px; }
+
+/* status dialog */
+.ch-status-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ch-chip {
+    padding: 6px 12px;
+    background: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+.ch-chip:hover,
+.ch-chip:focus-visible { background: var(--accent-dim); border-color: var(--border-hover); outline: none; }
+
+/* accounts dialog */
+.ch-acct-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.ch-acct { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: 12px; }
+.ch-acct.is-current { background: var(--accent-dim); border-color: var(--border-hover); }
+.ch-acct-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-acct-text strong { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-acct-text small { color: var(--text-secondary); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.5px; }
+.ch-btn--sm { min-height: 32px; padding: 0 12px; font-size: 12px; }
+
+/* ==========================================================================
+   Status: dialog, list-row line, header line
+   ========================================================================== */
+.ch-me-av { position: relative; }
+.ch-me-st { right: -3px; bottom: -3px; }
+
+.ch-label--sec { display: block; margin: 16px 0 6px; }
+.ch-label--sec:first-of-type { margin-top: 0; }
+
+.ch-stopts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ch-stopt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 12px;
+    background: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+.ch-stopt:hover,
+.ch-stopt:focus-visible { background: var(--accent-dim); outline: none; }
+.ch-stopt.is-on { border-color: var(--text-primary); background: var(--accent-dim); }
+.ch-stopt-dot { display: inline-block; width: 14px; height: 14px; flex: 0 0 auto; }
+.ch-stopt-dot svg { display: block; width: 100%; height: 100%; }
+.ch-stopt-dot .ch-dnd-bar { fill: var(--bg-card); }
+
+.ch-st-thumbrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ch-st-thumb {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    overflow: hidden;
+    border: 1px dashed var(--border-hover);
+    border-radius: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.ch-st-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ch-st-thumb svg { width: 20px; height: 20px; }
+.ch-st-music { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+/* the line under the preview in the chat list, and under the name in the chat header */
+.ch-cs { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-secondary); }
+.ch-cs-thumb { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 5px; object-fit: cover; }
+.ch-cs-text,
+.ch-cs-music { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-cs-text { flex: 0 1 auto; }
+.ch-cs-music { flex: 0 1 auto; opacity: 0.8; }
+.ch-item-cs { font-size: 11.5px; line-height: 1.2; }
+.ch-item-cs .ch-cs-text { color: var(--text-primary); opacity: 0.85; }
+
+.ch-room-cs { margin: 3px 0 0; min-width: 0; }
+.ch-room-cs[hidden] { display: none; }
+.ch-head-cs { font-size: 12px; }
+.ch-head-cs .ch-cs-thumb { width: 26px; height: 26px; border-radius: 7px; }
+.ch-head-cs .ch-cs-text { color: var(--text-primary); }
+
+/* ==========================================================================
+   Status music: iTunes search, 10 second clip, start slider, play buttons
+   ========================================================================== */
+.ch-mus { display: flex; flex-direction: column; gap: 8px; }
+.ch-mus-list { display: flex; flex-direction: column; gap: 4px; max-height: 232px; overflow-y: auto; padding: 2px; border: 1px solid var(--border-subtle); border-radius: 12px; }
+.ch-mus-list[hidden], .ch-mus-pick[hidden] { display: none; }
+.ch-mus-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 6px 8px;
+    background: none; border: 0; border-radius: 9px; color: var(--text-primary);
+    font: inherit; text-align: left; cursor: pointer;
+}
+.ch-mus-item:hover, .ch-mus-item:focus-visible { background: var(--accent-dim); outline: none; }
+.ch-mus-art { flex: 0 0 auto; display: block; width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: var(--accent-dim); }
+.ch-mus-art--big { width: 52px; height: 52px; border-radius: 10px; overflow: hidden; }
+.ch-mus-art--big img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ch-mus-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ch-mus-meta strong { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-mus-meta small { color: var(--text-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ch-mus-pick { padding: 10px; border: 1px solid var(--border-hover); border-radius: 14px; background: var(--accent-dim); }
+.ch-mus-now { display: flex; align-items: center; gap: 10px; }
+.ch-mus-play.is-playing { color: var(--text-primary); background: var(--accent-dim); }
+.ch-mus-play .ch-cs-play-ico svg, .ch-mus-play + .ch-iconbtn svg { width: 18px; height: 18px; }
+
+.ch-mus-bar { position: relative; height: 30px; margin-top: 2px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-subtle); overflow: hidden; }
+.ch-mus-win { position: absolute; top: 0; bottom: 0; left: 0; width: 33.333%; border: 1px solid var(--text-primary); border-radius: 7px; background: color-mix(in srgb, var(--text-primary) 22%, transparent); }
+.ch-mus-head { position: absolute; top: 3px; bottom: 3px; left: 0; width: 2px; border-radius: 2px; background: var(--text-primary); opacity: 0; }
+.ch-mus-head.is-on { opacity: 1; }
+.ch-mus-range { width: 100%; margin: 8px 0 0; accent-color: var(--text-primary); cursor: pointer; }
+.ch-mus-times { display: flex; justify-content: space-between; margin-top: 2px; color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; }
+.ch-mus-manual { margin-top: 2px; }
+.ch-mus-manual summary { cursor: pointer; color: var(--text-secondary); font-size: 12.5px; padding: 4px 0; }
+.ch-mus-manual .ch-st-music { margin-top: 6px; }
+
+/* the play button everyone else sees in your status line */
+.ch-cs-play {
+    position: relative; flex: 0 0 auto; display: inline-grid; place-items: center;
+    width: 22px; height: 22px; border-radius: 7px; overflow: hidden; cursor: pointer;
+    color: #fff; background: var(--accent-dim); border: 1px solid var(--border-subtle);
+}
+.ch-cs-play:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.ch-cs-play img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ch-cs-play::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.38); }
+.ch-cs-play-ico { position: relative; z-index: 1; display: inline-grid; place-items: center; }
+.ch-cs-play .ch-cs-play-ico svg { width: 11px; height: 11px; }
+.ch-cs-play.is-playing { border-color: var(--text-primary); }
+.ch-head-cs .ch-cs-play { width: 28px; height: 28px; border-radius: 8px; }
+.ch-head-cs .ch-cs-play .ch-cs-play-ico svg { width: 13px; height: 13px; }
+.ch-mus-play .ch-cs-play-ico { color: inherit; }

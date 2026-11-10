@@ -83,16 +83,11 @@
             </nav>
 
             <div class="ch-side-foot">
-                <a class="ch-me" id="chMe" href="profile.html" aria-label="Your profile">
+                <button type="button" class="ch-me" id="chMe" aria-haspopup="menu" aria-expanded="false" aria-label="Open account menu">
                     <span class="ch-me-av" id="chMeAv"></span>
-                    <span class="ch-me-text"><strong id="chMeName">...</strong><small>View profile</small></span>
-                </a>
-                <div class="ch-foot-btns">
-                    <button type="button" class="ch-iconbtn" id="chNotifBtn" aria-pressed="false" aria-label="Desktop notifications" title="Desktop notifications"></button>
-                    <button type="button" class="ch-iconbtn" id="chSoundBtn" aria-pressed="true" aria-label="Message sound" title="Message sound"></button>
-                    <button type="button" class="ch-iconbtn" id="chFilterBtn" aria-pressed="true" aria-label="Sensitive message filter" title="Sensitive message filter"></button>
-                    <button type="button" class="ch-iconbtn" id="chThemeBtn" aria-label="Switch light or dark mode" title="Light / dark"></button>
-                </div>
+                    <span class="ch-me-text"><strong id="chMeName">...</strong><small id="chMeSub">Online</small></span>
+                    <span class="ch-me-caret" id="chMeCaret" aria-hidden="true"></span>
+                </button>
             </div>
         </aside>
 
@@ -134,6 +129,7 @@
                     <div class="ch-room-meta">
                         <h2 id="chRoomName"></h2>
                         <p id="chRoomSub"></p>
+                        <p class="ch-room-cs" id="chRoomCs" hidden></p>
                     </div>
                     <div class="ch-head-actions">
                         <span class="ch-online" id="chOnline" hidden><i></i><span id="chOnlineN">0</span> online</span>
@@ -391,6 +387,88 @@
     </dialog>
 
     <!-- sensitive message filter: what it is + the on/off switch -->
+    <!-- status: online status + custom status + duration + thumbnail + music -->
+    <dialog class="ch-dlg" id="statusDlg" aria-labelledby="statusTitle">
+        <form id="statusForm" novalidate>
+            <header class="ch-dlg-head"><h2 id="statusTitle">Set status</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+            <div class="ch-dlg-body">
+                <div class="ch-msgbox" id="stMsg" role="alert"></div>
+
+                <span class="ch-label ch-label--sec" id="stStatesLabel">ONLINE STATUS</span>
+                <div class="ch-stopts" id="stStates" role="radiogroup" aria-labelledby="stStatesLabel"></div>
+
+                <label class="ch-label ch-label--sec" for="stInput">CUSTOM STATUS</label>
+                <input class="ch-field" type="text" id="stInput" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Studying, gaming, touching grass...">
+                <div class="ch-status-chips" id="stChips"></div>
+
+                <label class="ch-label ch-label--sec" for="stDur">STATUS DURATION</label>
+                <select class="ch-field" id="stDur">
+                    <option value="never">Don't clear</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="240">4 hours</option>
+                    <option value="today">Today</option>
+                </select>
+                <p class="ch-help" id="stDurHelp"></p>
+
+                <span class="ch-label ch-label--sec">THUMBNAIL</span>
+                <div class="ch-st-thumbrow">
+                    <span class="ch-st-thumb" id="stThumb" aria-hidden="true"></span>
+                    <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stPick">Choose image or GIF</button>
+                    <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stThumbDel" hidden>Remove</button>
+                    <input type="file" id="stFile" accept="image/gif,image/png,image/jpeg,image/webp" hidden>
+                </div>
+                <p class="ch-help">PNG, JPG, WebP or GIF, up to 3 MB.</p>
+
+                <span class="ch-label ch-label--sec" id="stMusLabel">MUSIC</span>
+                <div class="ch-mus" id="stMus">
+                    <input class="ch-field" type="search" id="stMusQ" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Search a song or an artist" aria-label="Search a song on iTunes" aria-describedby="stMusHelp">
+                    <div class="ch-mus-list" id="stMusList" aria-label="Song results" hidden></div>
+                    <p class="ch-help" id="stMusHelp" aria-live="polite">Pick a song and everyone you chat with can play a 10 second clip of it from your status. Songs come from iTunes.</p>
+
+                    <div class="ch-mus-pick" id="stMusPick" hidden>
+                        <div class="ch-mus-now">
+                            <span class="ch-mus-art ch-mus-art--big" id="stMusArt" aria-hidden="true"></span>
+                            <span class="ch-mus-meta"><strong id="stMusNowT"></strong><small id="stMusNowA"></small></span>
+                            <button type="button" class="ch-iconbtn ch-mus-play" id="stMusPlay" data-key="draft" aria-pressed="false" aria-label="Play the clip"><span class="ch-cs-play-ico"></span></button>
+                            <button type="button" class="ch-iconbtn" id="stMusDel" aria-label="Remove the song"></button>
+                        </div>
+                        <label class="ch-label ch-label--sec" for="stMusStart">WHERE THE CLIP STARTS</label>
+                        <div class="ch-mus-bar" id="stMusBar" aria-hidden="true"><span class="ch-mus-win" id="stMusWin"></span><span class="ch-mus-head" id="stMusHead"></span></div>
+                        <input type="range" class="ch-mus-range" id="stMusStart" min="0" max="20" step="0.5" value="0">
+                        <div class="ch-mus-times"><span id="stMusStartT">0:00</span><span id="stMusEndT">0:10</span></div>
+                    </div>
+
+                    <details class="ch-mus-manual" id="stMusManual">
+                        <summary>Type it yourself instead (no sound)</summary>
+                        <div class="ch-st-music">
+                            <input class="ch-field" type="text" id="stMusicT" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Song title">
+                            <input class="ch-field" type="text" id="stMusicA" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Artist">
+                        </div>
+                    </details>
+                </div>
+                <p class="ch-help">Everyone you chat with can see your status.</p>
+            </div>
+            <footer class="ch-dlg-foot">
+                <button type="button" class="ch-btn ch-btn--ghost" id="stClear">Clear custom status</button>
+                <button type="submit" class="ch-btn" id="stSave"><span class="ch-btn-label">Save</span><span class="ch-spin" aria-hidden="true"></span></button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- manage accounts -->
+    <dialog class="ch-dlg ch-dlg--small" id="accountsDlg" aria-labelledby="accTitle">
+        <header class="ch-dlg-head"><h2 id="accTitle">Manage accounts</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
+        <div class="ch-dlg-body">
+            <div class="ch-acct-list" id="accList"></div>
+            <p class="ch-help">Accounts you log in with are remembered on this device so you can switch fast. Remove one to forget it here.</p>
+        </div>
+        <footer class="ch-dlg-foot">
+            <button type="button" class="ch-btn ch-btn--ghost" data-close>Done</button>
+            <button type="button" class="ch-btn" id="accAdd">Add account</button>
+        </footer>
+    </dialog>
+
     <dialog class="ch-dlg ch-dlg--small" id="filterDlg" aria-labelledby="filterTitle">
         <header class="ch-dlg-head"><h2 id="filterTitle">Why am I seeing this?</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
         <div class="ch-dlg-body">
