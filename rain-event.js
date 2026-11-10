@@ -53,14 +53,14 @@
 
     /* ------------------------------ canvas engine ------------------------------ */
     var FX = { on: false, ctx: null, w: 0, h: 0, dpr: 1, raf: 0, last: 0, t: 0, scale: 1, ema: 16, lastAdjust: 0, cap30: false,
-               wind: 0, gust: 0, gustIn: 6 };
+               wind: 0, gust: 0, gustIn: 6, fl: { on: false, x: 0, y: 0, tx: 0, ty: 0 }, ms: 0, accT: 0, accN: 0 };
     var LAYERS = [
-        { id: 'far',  n: 70, len: [7, 13],  sp: [520, 680],   w: 0.7, a: 0.20, size: [9, 12],  land: [0.50, 0.78], coinA: 0.55 },
-        { id: 'mid',  n: 42, len: [15, 26], sp: [820, 1050],  w: 1.0, a: 0.34, size: [14, 19], land: [0.70, 0.92], coinA: 0.82 },
-        { id: 'near', n: 20, len: [28, 48], sp: [1250, 1600], w: 1.5, a: 0.55, size: [22, 30], land: [0.86, 1.00], coinA: 1.0 }
+        { id: 'far',  n: 110, len: [10, 18],  sp: [560, 720],   w: 0.6, a: 0.16, size: [9, 12],  land: [0.78, 0.86], coinA: 0.55 },
+        { id: 'mid',  n: 38,  len: [26, 44],  sp: [900, 1150],  w: 1.4, a: 0.38, size: [14, 19], land: [0.86, 0.94], coinA: 0.82 },
+        { id: 'near', n: 14,  len: [60, 105], sp: [1500, 1900], w: 2.2, a: 0.60, size: [22, 30], land: [0.93, 1.02], coinA: 1.0 }
     ];
     var drops = [[], [], []], splashes = [], bits = [], beads = [];
-    var coin = { img: null, ok: false, fallback: null };
+    var coin = { img: null, ok: false, fallback: null }, streakImg = null;
 
     function intensityMul() { return { 1: 0.55, 2: 1, 3: 1.7 }[S.cfg && S.cfg.intensity] || 1; }
     function budget() {
@@ -119,11 +119,42 @@
         return (beadCache[key] = c);
     }
 
+    function streakSprite() {                         // tapered streak: thin faint tail, wider bright head at the bottom
+        if (streakImg) return streakImg;
+        var c = document.createElement('canvas'), g;
+        c.width = 16; c.height = 128; g = c.getContext('2d');
+        var gr = g.createLinearGradient(0, 0, 0, 128);
+        gr.addColorStop(0, 'rgba(200,222,236,0)'); gr.addColorStop(0.7, 'rgba(200,222,236,.5)'); gr.addColorStop(1, 'rgba(238,247,253,1)');
+        g.fillStyle = gr; g.beginPath(); g.moveTo(7.7, 0); g.lineTo(8.3, 0); g.lineTo(12, 125); g.quadraticCurveTo(8, 130, 4, 125); g.closePath(); g.fill();
+        return (streakImg = c);
+    }
+
+    function makeTile(w, h, n, alpha, maxW) {         // a seamless tile of fine vertical streaks (the far "mist" of rain)
+        var c = document.createElement('canvas'), g;
+        c.width = w; c.height = h; g = c.getContext('2d'); g.lineCap = 'round';
+        for (var i = 0; i < n; i++) {
+            var x = rand(0, w), y = rand(0, h), len = rand(14, 60);
+            g.strokeStyle = 'rgba(190,212,226,' + (rand(0.25, 1) * alpha).toFixed(3) + ')'; g.lineWidth = rand(0.5, maxW);
+            for (var k = -1; k <= 1; k++) { g.beginPath(); g.moveTo(x, y + k * h - len); g.lineTo(x, y + k * h); g.stroke(); }
+        }
+        return c.toDataURL('image/png');
+    }
+    function sheets() {
+        var w = div('rn-sheets');
+        [['', 240, 480, 90, 0.5, 1.0], ['rn-sheet--b', 300, 600, 100, 0.4, 0.8]].forEach(function (c) {
+            var wrap = div('rn-sheet-wrap'), sh = div('rn-sheet ' + c[0]);
+            sh.style.backgroundImage = 'url(' + makeTile(c[1], c[2], c[3], c[4], c[5]) + ')';
+            sh.style.backgroundSize = c[1] + 'px ' + c[2] + 'px'; sh.style.top = '-' + c[2] + 'px';
+            wrap.appendChild(sh); w.appendChild(wrap);
+        });
+        return w;
+    }
+
     function makeDrop(L, i, init) {
         var cr = credits(), sp = rand(L.sp[0], L.sp[1]) * (cr ? 0.42 : 1), ly = FX.h * rand(L.land[0], L.land[1]);
         return {
-            x: rand(-FX.h * 0.4, FX.w + FX.h * 0.4), y: init ? rand(-20, ly) : -rand(L.len[1], L.len[1] + FX.h * 0.25),
-            vy: sp, len: rand(L.len[0], L.len[1]), ly: ly, s: rand(L.size[0], L.size[1]),
+            x: rand(-FX.h * 0.3, FX.w + FX.h * 0.3), y: init ? rand(-20, ly) : -rand(L.len[1], L.len[1] + FX.h * 0.25),
+            vy: sp, len: rand(L.len[0], L.len[1]), ly: ly, s: rand(L.size[0], L.size[1]), v: rand(0.6, 1),
             fl: rand(0, 6.28), sv: rand(2.5, 6) * (Math.random() < 0.5 ? -1 : 1)
         };
     }
@@ -146,11 +177,12 @@
 
     function stepFx(dt) {
         var cr = credits(), b = budget();
-        // wind: a slow lean that drifts, plus occasional gusts that fade out
+        // wind: a gentle lean that drifts, plus occasional gusts that fade out (storms gust harder)
         FX.gustIn -= dt;
-        if (FX.gustIn <= 0) { FX.gust += rand(0.15, 0.32) * (Math.random() < 0.5 ? -1 : 1); FX.gustIn = rand(7, 19); }
-        FX.gust *= Math.exp(-dt * 0.55);
-        FX.wind = Math.max(-0.55, Math.min(0.55, Math.sin(FX.t * 0.11) * 0.10 + Math.sin(FX.t * 0.037 + 1.3) * 0.08 - 0.06 + FX.gust));
+        if (FX.gustIn <= 0) { FX.gust += rand(0.08, 0.18) * (S.cfg && S.cfg.intensity === 3 ? 1.5 : 1) * (Math.random() < 0.5 ? -1 : 1); FX.gustIn = rand(7, 19); }
+        FX.gust *= Math.exp(-dt * 0.5);
+        FX.wind = Math.max(-0.4, Math.min(0.4, Math.sin(FX.t * 0.11) * 0.05 + Math.sin(FX.t * 0.037 + 1.3) * 0.04 - 0.05 + FX.gust));
+        if (FX.fl.on) { var fk = Math.min(1, dt * 9); FX.fl.x += (FX.fl.tx - FX.fl.x) * fk; FX.fl.y += (FX.fl.ty - FX.fl.y) * fk; }
 
         for (var i = 0; i < 3; i++) {
             var L = LAYERS[i], arr = drops[i], target = Math.round(L.n * b * (cr ? 0.5 : 1));
@@ -190,12 +222,17 @@
         var cr = credits(), i, j, d, L, arr;
         g.setTransform(FX.dpr, 0, 0, FX.dpr, 0, 0);
         g.clearRect(0, 0, FX.w, FX.h);
+        if (FX.fl.on) {                                                   // flashlight: darker everywhere except a soft circle at the cursor (drawn here, so no extra page repaints)
+            var fg = g.createRadialGradient(FX.fl.x, FX.fl.y, 0, FX.fl.x, FX.fl.y, 260);
+            fg.addColorStop(0, 'rgba(2,5,9,0)'); fg.addColorStop(0.5, 'rgba(2,5,9,.12)'); fg.addColorStop(1, 'rgba(2,5,9,.6)');
+            g.fillStyle = fg; g.fillRect(0, 0, FX.w, FX.h);
+        }
         var nx = FX.wind / Math.sqrt(1 + FX.wind * FX.wind), ny = 1 / Math.sqrt(1 + FX.wind * FX.wind);
         g.lineCap = 'round';
 
         for (i = 0; i < 3; i++) {
             L = LAYERS[i]; arr = drops[i];
-            if (!cr) {                                                    // each streak = faint tail + brighter head, two strokes per layer
+            if (!cr && i === 0) {                                         // far haze: fine lines, faint tail + slightly brighter head
                 g.lineWidth = L.w;
                 g.strokeStyle = 'rgba(176,200,214,' + (L.a * 0.45).toFixed(3) + ')'; g.beginPath();
                 for (j = 0; j < arr.length; j++) { d = arr[j]; g.moveTo(d.x - nx * d.len, d.y - ny * d.len); g.lineTo(d.x - nx * d.len * 0.5, d.y - ny * d.len * 0.5); }
@@ -203,9 +240,17 @@
                 g.strokeStyle = 'rgba(200,220,232,' + L.a.toFixed(3) + ')'; g.beginPath();
                 for (j = 0; j < arr.length; j++) { d = arr[j]; g.moveTo(d.x - nx * d.len * 0.5, d.y - ny * d.len * 0.5); g.lineTo(d.x, d.y); }
                 g.stroke();
-            } else {                                                      // faint gold trail, then the spinning coins
-                g.lineWidth = Math.max(1, L.w); g.strokeStyle = 'rgba(245,197,66,' + (L.a * 0.32).toFixed(3) + ')'; g.beginPath();
-                for (j = 0; j < arr.length; j++) { d = arr[j]; g.moveTo(d.x - nx * d.len * 1.6, d.y - ny * d.len * 1.6); g.lineTo(d.x, d.y); }
+            } else if (!cr) {                                             // mid + near: tapered motion-blur streaks, each a little different
+                var spr = streakSprite(), W = L.w * 1.9;
+                for (j = 0; j < arr.length; j++) {
+                    d = arr[j]; g.globalAlpha = L.a * d.v;
+                    g.setTransform(FX.dpr * ny, -FX.dpr * nx, FX.dpr * nx, FX.dpr * ny, FX.dpr * d.x, FX.dpr * d.y);
+                    g.drawImage(spr, -W / 2, -d.len, W, d.len);
+                }
+                g.globalAlpha = 1; g.setTransform(FX.dpr, 0, 0, FX.dpr, 0, 0);
+            } else {                                                      // credits: faint gold trail, then the spinning coins
+                g.lineWidth = Math.max(1, L.w * 0.7); g.strokeStyle = 'rgba(245,197,66,' + (L.a * 0.32).toFixed(3) + ')'; g.beginPath();
+                for (j = 0; j < arr.length; j++) { d = arr[j]; g.moveTo(d.x - nx * d.len * 0.7, d.y - ny * d.len * 0.7); g.lineTo(d.x, d.y); }
                 g.stroke();
                 var img = coinSprite(); g.globalAlpha = L.coinA;
                 for (j = 0; j < arr.length; j++) {
@@ -263,12 +308,15 @@
         var dt = (ts - FX.last) / 1000;
         if (FX.cap30 && dt < 0.029) return;
         FX.last = ts; if (dt > 0.05) dt = 0.05; FX.t += dt;
-        FX.ema = FX.ema * 0.9 + dt * 1000 * 0.1;
-        if (ts - FX.lastAdjust > 2000 && FX.ema > (FX.cap30 ? 42 : 29)) {   // struggling: calm the CSS, then fewer particles, then none
-            FX.lastAdjust = ts; FX.ema = 16;
-            if (!root.classList.contains('rn-lite')) root.classList.add('rn-lite');
-            else { FX.scale *= 0.72; try { sessionStorage.setItem('specsoft.rain.scale', String(FX.scale)); } catch (e) { /* ignore */ } }
-            if (FX.scale < 0.2) { stopFx(); return; }
+        // Adaptive load, kept gentle: wait 5 seconds, judge the average over 3 seconds, trim 20% at a time, never go below 45%.
+        // It never switches the rain off by itself (only reduce motion / Ultra Reduce Motion do that).
+        if (FX.t > 5) {
+            FX.accT += dt; FX.accN++;
+            if (FX.accT >= 3) {
+                var ms = FX.accT / FX.accN * 1000; FX.accT = 0; FX.accN = 0; FX.ms = ms;
+                if (ms > (FX.cap30 ? 46 : 34)) { if (FX.scale > 0.46) FX.scale = Math.max(0.45, FX.scale * 0.8); else root.classList.add('rn-lite'); }
+                else if (ms < (FX.cap30 ? 37 : 22) && FX.scale < 1) FX.scale = Math.min(1, FX.scale * 1.12);
+            }
         }
         stepFx(dt); drawFx(FX.ctx);
     }
@@ -277,9 +325,9 @@
         if (FX.on || !N.canvas) return;
         FX.ctx = N.canvas.getContext('2d', { alpha: true });
         if (!FX.ctx) return;
+        try { sessionStorage.removeItem('specsoft.rain.scale'); } catch (e) { /* ignore */ }
         FX.cap30 = (navigator.hardwareConcurrency || 8) <= 4 || !!(navigator.deviceMemory && navigator.deviceMemory <= 4);
-        FX.scale = 1; try { FX.scale = parseFloat(sessionStorage.getItem('specsoft.rain.scale')) || 1; } catch (e) { /* ignore */ }
-        FX.ema = 16; FX.t = 0; FX.gust = 0; FX.gustIn = rand(3, 8); FX.lastAdjust = performance.now();
+        FX.scale = 1; FX.ms = 0; FX.accT = 0; FX.accN = 0; FX.t = 0; FX.gust = 0; FX.gustIn = rand(3, 8);
         drops = [[], [], []]; splashes = []; bits = []; beads = [];
         sizeCanvas();
         if (S.cfg && S.cfg.glass) { var n = Math.round(10 * intensityMul()); for (var i = 0; i < n; i++) spawnBead(true); beads.forEach(function (b) { b.a = 1; }); }
@@ -292,7 +340,7 @@
         if (FX.ctx && N.canvas) FX.ctx.clearRect(0, 0, N.canvas.width, N.canvas.height);
         drops = [[], [], []]; splashes = []; bits = []; beads = [];
     }
-    function fxAllowed() { return !reduced() && !lite() && FX.scale >= 0.2; }
+    function fxAllowed() { return !reduced() && !lite(); }
     function syncFx() {
         root.classList.toggle('rn-lite', lite() || reduced() || root.classList.contains('rn-lite'));
         if (S.active && fxAllowed()) startFx(); else stopFx();
@@ -407,15 +455,7 @@
         lightMode = false;
     }
 
-    var mouse = { x: 0, y: 0, raf: 0 };
-    function onMove(e) {
-        mouse.x = e.clientX; mouse.y = e.clientY;
-        if (mouse.raf) return;
-        mouse.raf = requestAnimationFrame(function () {
-            mouse.raf = 0;
-            if (N.dark) { N.dark.style.setProperty('--mx', mouse.x + 'px'); N.dark.style.setProperty('--my', mouse.y + 'px'); }
-        });
-    }
+    function onMove(e) { FX.fl.tx = e.clientX; FX.fl.ty = e.clientY; }
 
     function kindIcon() { return credits() ? '\uD83E\uDE99' : '\uD83C\uDF27\uFE0F'; }
     function paintButtons() {
@@ -441,9 +481,13 @@
         var r = div(''); r.id = 'rn-root'; r.setAttribute('aria-hidden', 'true');
         r.appendChild(div('rn-tint'));
         r.appendChild(div('rn-fog'));
+        r.appendChild(sheets());
+        r.appendChild(div('rn-ground'));
         r.appendChild(div('rn-lamp'));
-        if (S.cfg && S.cfg.flashlight && !!window.matchMedia && !matchMedia('(hover: none)').matches) {
-            N.dark = div('rn-dark'); r.appendChild(N.dark); root.setAttribute('data-rain-flash', '1');
+        FX.fl.on = !!(S.cfg && S.cfg.flashlight) && !(window.matchMedia && matchMedia('(hover: none)').matches);
+        if (FX.fl.on) {
+            FX.fl.x = FX.fl.tx = innerWidth * 0.5; FX.fl.y = FX.fl.ty = innerHeight * 0.4;
+            root.setAttribute('data-rain-flash', '1');
             window.addEventListener('pointermove', onMove, { passive: true });
         }
         var cv = document.createElement('canvas'); cv.id = 'rn-fx'; r.appendChild(cv); N.canvas = cv;
@@ -462,7 +506,7 @@
     }
 
     function unmount() {
-        stopFx(); sndOff();
+        stopFx(); sndOff(); FX.fl.on = false;
         clearTimeout(T.bolt); clearTimeout(T.thunder); clearTimeout(T.greet);
         window.removeEventListener('pointermove', onMove);
         [N.root, N.btns, N.greet, N.prev].forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
@@ -573,7 +617,11 @@
     window.SpecRain = {
         active: function () { return S.active; },
         kind: function () { return S.kind; },
-        setKind: setKind, preview: preview, endPreview: endPreview
+        setKind: setKind, preview: preview, endPreview: endPreview,
+        stats: function () {                              // type SpecRain.stats() in the console while it rains
+            return { running: FX.on, fps: FX.ms ? Math.round(1000 / FX.ms) : null, load: FX.scale, wind: +FX.wind.toFixed(3),
+                     far: drops[0].length, mid: drops[1].length, near: drops[2].length, beads: beads.length, lite: root.classList.contains('rn-lite'), reducedMotion: reduced() };
+        }
     };
 
     /* ------------------------------ boot ------------------------------ */
