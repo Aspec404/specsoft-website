@@ -1,4 +1,4 @@
-// SPECSOFT® Spectra AI backend (Supabase Edge Function) - Gemini edition v9 (images, AI chat titles, math + code habits, chat formatting) (needs spectra-knowledge.ts, spectra-genz.ts and spectra-context.ts in the same folder).
+// SPECSOFT® Spectra AI backend (Supabase Edge Function) - Gemini edition v10 (web search via Google Search grounding, deep research, images, AI chat titles, math + code habits, chat formatting) (needs spectra-knowledge.ts, spectra-genz.ts and spectra-context.ts in the same folder).
 // v3 adds: per-user DAILY limits, new Spectra personality, and a server-side guard
 // (jailbreak / reset / "what model are you" get a canned Spectra roast WITHOUT calling Gemini).
 //
@@ -10,6 +10,7 @@
 //   SPECTRA_DAILY_LIMIT=30        (credits per user per day; normal msg = 1, Deep reasoning = 3)
 //   SPECTRA_MODEL=model1,model2   (first = preferred, rest = fallbacks)
 //   SPECTRA_THINK_MODEL=model1,model2
+//   SPECTRA_SEARCH_MODEL=model1,model2   (models for Web search / Deep research; must support Google Search grounding)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { KNOWLEDGE } from './spectra-knowledge.ts';
 import { SLANG_RULES, slangContext } from './spectra-genz.ts';
@@ -18,7 +19,7 @@ import { contextBlock } from './spectra-context.ts';
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-  'Access-Control-Expose-Headers': 'X-Spectra-Left',
+  'Access-Control-Expose-Headers': 'X-Spectra-Left, X-Spectra-Search',
 };
 const MOODS = 'joy, thinking, sparkle, love, annoyed, sad, surprised, confused, shy, deadpan, smug, pout, shocked, sleepy, grumpy, speechless';
 
@@ -216,6 +217,105 @@ async function makeTitle(key: string, userText: string, aiText: string): Promise
 }
 const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
+/* ---------- Web search + Deep research: native Gemini API with Google Search grounding ----------
+   The OpenAI-compatible endpoint above can't ground on Google Search, so these two modes use the native
+   streamGenerateContent endpoint and we re-stream the answer in the same SSE shape the page already reads.
+   Extra events for the page: {status:'searching'} first, then {sources:[{t,u}], queries:[...]} right before [DONE]. */
+const NATIVE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
+const DEFAULT_SEARCH = 'gemini-3.5-flash,gemini-3.1-flash-lite';
+const DEFAULT_RESEARCH = 'gemini-3.5-flash,gemini-3.1-flash-lite';
+
+const SEARCH_RULES = `WEB SEARCH IS ON for this message (today is {DATE}, UTC).
+- Use Google Search for anything current or checkable: news, prices, versions, docs, "latest", people, events, scores. Don't search for chit-chat, or for SPECSOFT facts you already know.
+- Build the answer from what the results actually say. If sources disagree or don't cover it, say so plainly. Never invent facts, numbers, quotes or links.
+- Don't paste URLs or a source list: the chat shows the sources under your reply. Naming the site naturally ("according to X") is fine.
+- Stay Spectra, but accuracy beats jokes: a spark in the opening and wrap-up, a clear answer in the middle. Keep it tight.`;
+
+const RESEARCH_RULES = `DEEP RESEARCH IS ON for this message (today is {DATE}, UTC).
+- Run several DIFFERENT searches (at least 3, from different angles: basics, latest news, opposing views, numbers, official sources) before you write anything. Prefer official, primary and well-known sources over random blogs.
+- Then write a real report. After the mood tag: a one-line Spectra reaction, then **TL;DR** in 2 to 3 sentences, then ## sections with the key findings (bullets or a table where it helps), then ## What's still unclear (disagreements, gaps, things you couldn't verify), then ## Bottom line with one clear takeaway. Headings and lists are allowed here even though chat is usually casual.
+- Name the outlets or sites inside the text ("per Reuters"), but don't paste URLs or a source list: the chat shows the sources under your reply.
+- Never invent facts, numbers, dates, quotes or links. If the results are thin, say so instead of padding. Aim for roughly 350 to 700 words unless the topic truly needs more.
+- Keep the Spectra voice in the opening line and the wrap-up only. In the report itself, be clear and accurate.`;
+
+function dataUrlPart(u: string) {
+  const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(u);
+  return m ? { inlineData: { mimeType: m[1], data: m[2] } } : null;
+}
+function toNative(messages: { role: string; content: string }[], images: string[]) {
+  const contents: { role: string; parts: any[] }[] = messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+  while (contents.length && contents[0].role === 'model') contents.shift();
+  if (images.length) {
+    const li = contents.map((c) => c.role).lastIndexOf('user');
+    if (li >= 0) for (const u of images) { const p = dataUrlPart(u); if (p) contents[li].parts.push(p); }
+  }
+  return contents;
+}
+async function callNative(key: string, model: string, payload: Record<string, unknown>, ms: number) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(NATIVE_URL + encodeURIComponent(model) + ':streamGenerateContent?alt=sse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+/** Re-streams a native Gemini SSE answer as OpenAI-style deltas + one final sources event. */
+function nativeStream(up: Response, left: number | null) {
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const send = (c: ReadableStreamDefaultController<Uint8Array>, o: unknown) => c.enqueue(enc.encode('data: ' + JSON.stringify(o) + '\n\n'));
+  const sources = new Map<string, { t: string; u: string }>();
+  const queries = new Set<string>();
+  const body = new ReadableStream<Uint8Array>({
+    async start(c) {
+      send(c, { status: 'searching' });
+      const rd = up.body!.getReader();
+      let buf = '';
+      const line = (l: string) => {
+        if (!l.startsWith('data:')) return;
+        const x = l.slice(5).trim();
+        if (!x) return;
+        let j: any;
+        try { j = JSON.parse(x); } catch (_e) { return; }
+        const cand = j?.candidates?.[0];
+        for (const p of cand?.content?.parts ?? []) {
+          if (typeof p?.text === 'string' && p.text && !p.thought) send(c, { choices: [{ delta: { content: p.text } }] });
+        }
+        const g = cand?.groundingMetadata;
+        if (g) {
+          for (const q of g.webSearchQueries ?? []) queries.add(String(q).slice(0, 120));
+          for (const ch of g.groundingChunks ?? []) {
+            const w = ch?.web;
+            if (w?.uri && /^https:\/\//i.test(w.uri) && !sources.has(w.uri)) sources.set(w.uri, { t: String(w.title ?? '').slice(0, 60), u: String(w.uri) });
+          }
+        }
+      };
+      try {
+        for (;;) {
+          const { done, value } = await rd.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const ls = buf.split('\n');
+          buf = ls.pop() ?? '';
+          ls.forEach(line);
+        }
+        if (buf) line(buf);
+      } catch (_e) { /* the page shows whatever arrived */ }
+      if (sources.size || queries.size) send(c, { sources: [...sources.values()].slice(0, 10), queries: [...queries].slice(0, 6) });
+      c.enqueue(enc.encode('data: [DONE]\n\n'));
+      c.close();
+    },
+  });
+  const h: Record<string, string> = { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' };
+  if (left !== null) h['X-Spectra-Left'] = String(left);
+  return new Response(body, { headers: h });
+}
+
 async function callGemini(key: string, payload: Record<string, unknown>) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -284,11 +384,14 @@ Deno.serve(async (req) => {
   }
 
   // 5) per-user DAILY limit (each user has their own counter)
-  const think = !!body.think;
-  const cost = (think ? 3 : 1) + (images.length ? 1 : 0); // a message with images costs 1 extra credit
+  const research = !!body.research, search = !research && !!body.search;
+  const think = !!body.think && !research, webMode = research || search;
+  const imgCost = images.length ? 1 : 0, baseCost = (think ? 3 : 1) + imgCost;
+  // credits: normal 1, Deep reasoning 3, Web search +1, Deep research 5, images +1
+  const cost = research ? 5 + imgCost : search ? baseCost + 1 : baseCost;
   const LIMIT = parseInt(Deno.env.get('SPECTRA_DAILY_LIMIT') ?? '30') || 30;
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  let counted = false, left: number | null = null;
+  let counted = false, left: number | null = null, charged = cost;
   const { data: q, error: qe } = await admin.rpc('spectra_use', { p_user: user.id, p_cost: cost, p_limit: LIMIT });
   if (qe) {
     console.log('SPECTRA usage rpc failed (limit NOT enforced, did you run the SQL?):', qe.message);
@@ -314,6 +417,38 @@ Deno.serve(async (req) => {
   }
   const basePayload = { stream: true, messages: [{ role: 'system', content: system }, ...gemMessages] };
 
+  // 5b) Web search / Deep research (native Gemini + Google Search grounding)
+  let webFailed = false;
+  if (webMode) {
+    const wm = list(Deno.env.get('SPECTRA_SEARCH_MODEL') ?? (research ? DEFAULT_RESEARCH : DEFAULT_SEARCH));
+    const today = new Date().toISOString().slice(0, 10);
+    const nativePayload = {
+      systemInstruction: { parts: [{ text: system + '\n\n' + (research ? RESEARCH_RULES : SEARCH_RULES).replace('{DATE}', today) }] },
+      contents: toNative(messages, images),
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: research ? 6000 : 2500 },
+    };
+    for (const model of wm) {
+      try {
+        const up = await callNative(key, model, nativePayload, research ? 30000 : 20000);
+        if (up.ok && up.body) return nativeStream(up, left);
+        const t = await up.text().catch(() => '');
+        console.log('SPECTRA search failed', { status: up.status, model, response: t.slice(0, 800) });
+      } catch (e) {
+        console.log('SPECTRA search timeout/network', { model, error: String(e) });
+      }
+    }
+    // search is down: answer without it, give back the extra credits, and tell the page (X-Spectra-Search)
+    webFailed = true;
+    const extra = cost - baseCost;
+    if (counted && extra > 0) {
+      await admin.rpc('spectra_refund', { p_user: user.id, p_cost: extra });
+      charged = baseCost;
+      if (left !== null) left += extra;
+    }
+    basePayload.messages[0].content += '\n\nWEB SEARCH FAILED just now, so answer from what you already know. Say in one short line that you could not search the web this time, and never present guesses about current events as fact.';
+  }
+
   // 6) try each model until one starts answering
   let lastErr = 'no models configured';
   for (const model of models) {
@@ -325,6 +460,7 @@ Deno.serve(async (req) => {
         if (up.ok && up.body) {
           const h: Record<string, string> = { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' };
           if (left !== null) h['X-Spectra-Left'] = String(left);
+          if (webFailed) h['X-Spectra-Search'] = 'failed';
           return new Response(up.body, { headers: h });
         }
         const t = await up.text().catch(() => '');
@@ -341,6 +477,6 @@ Deno.serve(async (req) => {
   }
 
   // everything failed: give the user's credit back
-  if (counted) await admin.rpc('spectra_refund', { p_user: user.id, p_cost: cost });
+  if (counted) await admin.rpc('spectra_refund', { p_user: user.id, p_cost: charged });
   return new Response('upstream: ' + lastErr, { status: 502, headers: cors });
 });

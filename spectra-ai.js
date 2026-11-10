@@ -26,7 +26,7 @@ const sanitizeSpecsoftLinks = text => {
 };
 const SYS = "You are Spectra, the official AI assistant and mascot of SPECSOFT, an independent software and game development brand. Be friendly, concise and helpful; put code in markdown code blocks. ALWAYS use the canonical SPECSOFT website URL exactly as https://specsoftdev.netlify.app when you mention the website. Never invent, guess, or paraphrase it. Start EVERY reply with one hidden mood tag, exactly like [mood:joy], chosen from: " + Object.keys(N).join(', ') + ".";
 let atts = [], pendingImgs = [];
-const modes = () => LS('sa.modes', { think: false });
+const modes = () => ({ think: false, search: false, research: false, ...LS('sa.modes', {}) });
 const THINK = 'Think through the problem step by step, double-check your work, then give a clear final answer.';
 const backend = () => LS('sa.dev', null) ? 'direct' : LAUNCH;
 const CFG = () => LS('sa.cfg', { nick: '', expr: true, typing: true });
@@ -272,6 +272,18 @@ function md(t) {
 }
 
 /* ---- Rendering ---- */
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+function srcHtml(m) {
+  const ok = (m.sources || []).filter(s => s && typeof s.u === 'string' && /^https:\/\//i.test(s.u)).slice(0, 10);
+  if (!ok.length) return '';
+  const q = (m.queries || []).length ? '<div class="sa-sq">' + ico('search') + '<span>' + esc(m.queries.slice(0, 4).join(' \u00b7 ')) + '</span></div>' : '';
+  return '<div class="sa-src"><div class="sa-sl">Sources</div>' + q + '<div class="sa-chips">' + ok.map(s => '<a class="sa-chip" href="' + esc(s.u) + '" target="_blank" rel="noopener noreferrer">' + ico('globe') + '<span>' + esc(String(s.t || hostOf(s.u) || 'source')) + '</span></a>').join('') + '</div></div>';
+}
+function paintSrc(el, m) {
+  const col = el.querySelector('.sa-col'); if (!col) return;
+  const old = col.querySelector('.sa-src'); if (old) old.remove();
+  const h = srcHtml(m), act = col.querySelector('.sa-act'); if (h && act) act.insertAdjacentHTML('beforebegin', h);
+}
 function msgEl(m, last) {
   const d = document.createElement('div');
   d.className = 'sa-msg ' + (m.role === 'user' ? 'user' : 'ai') + (m.err ? ' err' : '') + (last ? ' last' : '');
@@ -284,7 +296,7 @@ function msgEl(m, last) {
     }
     const ut = document.createElement('div'); ut.className = 'sa-ut'; ut.innerHTML = md(tx); b.appendChild(ut); return d;
   }
-  d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div><div class="sa-act">' +
+  d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div>' + srcHtml(m) + '<div class="sa-act">' +
     '<button data-a="copy" title="Copy">' + ico('copy') + '</button><button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
     '<div class="sa-pop"><button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
   return d;
@@ -409,7 +421,7 @@ function errCode(st, tx, hasImg) {
   if (st >= 500) return 'SERVER';
   return 'FAIL';
 }
-async function ask(h, onTok, signal) {
+async function ask(h, onTok, signal, onMeta) {
   let url, hd = { 'Content-Type': 'application/json' }, body;
   if (backend() === 'direct') {
     const d = LS('sa.dev', {}); url = d.url.replace(/\/$/, '') + '/chat/completions'; hd.Authorization = 'Bearer ' + d.key;
@@ -426,17 +438,18 @@ async function ask(h, onTok, signal) {
     url = window.SPECSOFT_CONFIG.SUPABASE_URL + '/functions/v1/spectra-chat'; hd.Authorization = 'Bearer ' + s.access_token; hd.apikey = window.SPECSOFT_CONFIG.SUPABASE_ANON_KEY;
     const imgs = pendingImgs; pendingImgs = [];
     const nm = (CFG().nick || (($('[data-user-name]') || {}).textContent || '')).trim().slice(0, 20);
-    body = { messages: h, persona: persona().id, think: modes().think, nick: nm, hour: new Date().getHours() }; if (imgs.length) body.images = imgs;
+    const md3 = modes(); body = { messages: h, persona: persona().id, think: !!md3.think && !md3.research, search: !!md3.search, research: !!md3.research, nick: nm, hour: new Date().getHours() }; if (imgs.length) body.images = imgs;
   }
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
   if (!r.ok || !r.body) { const tx = await r.text().catch(() => ''); throw new Error(errCode(r.status, tx, !!body.images)); }
+  if (onMeta && r.headers.get('X-Spectra-Search') === 'failed') onMeta({ nosearch: 1 });
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
   for (; ;) {
     const { done, value } = await rd.read(); if (done) return;
     buf += dec.decode(value, { stream: true }); const ls = buf.split('\n'); buf = ls.pop();
     for (const l of ls) {
       if (l.indexOf('data:') !== 0) continue; const x = l.slice(5).trim(); if (x === '[DONE]') return;
-      try { const c = JSON.parse(x).choices[0].delta.content; if (c) onTok(c); } catch (e) { }
+      try { const j = JSON.parse(x); if (j.status || j.sources || j.queries) { if (onMeta) onMeta(j); } else { const c = j.choices[0].delta.content; if (c) onTok(c); } } catch (e) { }
     }
   }
 }
@@ -463,7 +476,13 @@ async function sendMsg(t) {
   if (im.length) Object.defineProperty(um, '_imgs', { value: im.map(a => a.data), enumerable: false, writable: true });
   cur.messages.push(um); const chat = cur; atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
   input.value = ''; input.style.height = 'auto'; renderList(); renderChat(); setBusy(true); setMood('thinking');
-  const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>';
+  const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; const wm = modes(), web = backend() === 'supabase' && (wm.research || wm.search);
+  body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>' + (web ? '<span class="sa-stat">' + (wm.research ? 'Researching the web\u2026' : 'Searching the web\u2026') + '</span>' : '');
+  const onMeta = j => {
+    if (j.sources) { ai.sources = j.sources; ai.queries = j.queries || []; paintSrc(el, ai); down(); }
+    else if (j.queries && j.queries.length) { const st = body.querySelector('.sa-stat'); if (st) st.textContent = 'Reading: ' + j.queries[0].slice(0, 40); }
+    if (j.nosearch) toast('Search was unavailable, so I answered without it');
+  };
   const onTok = x => {
     raw += x;
     raw = sanitizeSpecsoftLinks(raw);
@@ -472,14 +491,15 @@ async function sendMsg(t) {
     ai.content = s; if (s) body.innerHTML = md(s); down();
   };
   const end = err => {
-    setBusy(false); ctrl = null;
+    const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null;
+    if (!err && !ai.content && !gone && backend() !== 'demo') err = ERR.FAIL;
     if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else setMood(mm || 'joy');
     save(); renderChat(); if (!err && ai.content) autoTitle(chat);
   };
   const h = cur.messages.slice(0, -1).map(m => ({ role: m.role, content: sanitizeSpecsoftLinks(m.content) }));
   if (backend() === 'demo') { const txt = demo(t); let i = 0; timer = setInterval(() => { onTok(txt.slice(i, i += 3)); if (i >= txt.length) { clearInterval(timer); timer = null; end(); } }, 16); return; }
   ctrl = new AbortController();
-  try { await ask(h, onTok, ctrl.signal); end(); }
+  try { await ask(h, onTok, ctrl.signal, onMeta); end(); }
   catch (e) { if (e.name === 'AbortError') end(); else end(ERR[e.message] || (e instanceof TypeError ? ERR.OFFLINE : ERR.FAIL)); }
 }
 function stop() { if (timer) { clearInterval(timer); timer = null; end(); } else if (ctrl) ctrl.abort(); }
@@ -567,7 +587,10 @@ input.addEventListener('paste', e => {
 $('#saNew').onclick = () => { if (busy) stop(); cur = null; renderList(); renderChat(); showGreeting(); app.classList.remove('drawer'); input.focus(); };
 $('#saSearch').onclick = () => openModal('s'); $('#saAssets').onclick = () => openModal('a');
 $('#saCollapse').onclick = () => SS('sa.min', app.classList.toggle('min')); $('#saBurger').onclick = () => app.classList.toggle('drawer');
-$$('.sa-sug').forEach(b => b.onclick = () => b.dataset.p ? sendMsg(b.dataset.p) : input.focus());
+$$('.sa-sug').forEach(b => b.onclick = () => {
+  if (b.dataset.mode) { if (!modes()[b.dataset.mode]) setMode(b.dataset.mode); else input.focus(); return; }
+  b.dataset.p ? sendMsg(b.dataset.p) : input.focus();
+});
 $('#saLibrary').onclick = () => openModal('l'); // Library = saved + archived chats (Assets = saved code)
 scrollEl.addEventListener('click', () => app.classList.remove('drawer'));
 document.addEventListener('keydown', e => {
@@ -579,20 +602,23 @@ document.addEventListener('keydown', e => {
 const pBtn = $('#saPersona'), pMenu = $('#saPMenu'), setM = $('#saSet'), nick = $('#saNick'), ex = $('#saExpr'), ty = $('#saTyping');
 const drawP = () => { pBtn.title = 'Tools · ' + persona().n; pBtn.setAttribute('aria-label', 'Tools and persona: ' + persona().n); pBtn.classList.toggle('alt', persona().id !== 'spectra'); };
 const attEl = $('#saAtt'), fileIn = $('#saFile');
-const TOOLS = [['file', 'clip', 'Attach image or file'], ['shot', 'shot', 'Take a screenshot'], ['asset', 'cube', 'Upload from Assets'], ['search', 'globe', 'Web search', 1], ['think', 'brain', 'Deep reasoning'], ['research', 'radar', 'Deep research', 1]];
+const TOOLS = [['file', 'clip', 'Attach image or file'], ['shot', 'shot', 'Take a screenshot'], ['asset', 'cube', 'Upload from Assets'], ['search', 'globe', 'Web search'], ['think', 'brain', 'Deep reasoning'], ['research', 'radar', 'Deep research']];
 function drawMenu(sub) {
   const m = modes();
   pMenu.innerHTML = sub
     ? '<button type="button" data-back="1"><span>‹ Back</span></button>' + PERSONAS.map(x => '<button type="button" data-p="' + x.id + '">' + ico(x.i) + '<span>' + x.n + '</span></button>').join('')
-    : TOOLS.map(t => '<button type="button" data-t="' + t[0] + '">' + ico(t[1]) + '<span>' + t[2] + '</span>' + (t[3] ? '<em>Soon</em>' : t[0] === 'think' && m.think ? '<em class="on">On</em>' : '') + '</button>').join('') + '<div class="sa-sep"></div><button type="button" data-persona="1">' + ico('spark') + '<span>Persona: ' + persona().n + '</span><em>›</em></button>';
+    : TOOLS.map(t => '<button type="button" data-t="' + t[0] + '">' + ico(t[1]) + '<span>' + t[2] + '</span>' + (m[t[0]] ? '<em class="on">On</em>' : '') + '</button>').join('') + '<div class="sa-sep"></div><button type="button" data-persona="1">' + ico('spark') + '<span>Persona: ' + persona().n + '</span><em>›</em></button>';
 }
+const MODE_META = { think: ['brain', 'Deep reasoning'], search: ['globe', 'Web search'], research: ['radar', 'Deep research'] };
+const modeChips = () => Object.keys(MODE_META).filter(k => modes()[k]).map(k => '<span class="sa-ac mode">' + ico(MODE_META[k][0]) + '<span>' + MODE_META[k][1] + '</span><button data-m="' + k + '" aria-label="Turn off">\u00d7</button></span>').join('');
 function drawAtt() {
-  attEl.innerHTML = (modes().think ? '<span class="sa-ac mode">' + ico('brain') + '<span>Deep reasoning</span><button data-m="think" aria-label="Turn off">×</button></span>' : '') +
+  attEl.innerHTML = modeChips() +
     atts.map((a, i) => '<span class="sa-ac">' + (a.kind === 'image' ? '<img class="sa-th" src="' + a.data + '" alt="">' : ico('clip')) + '<span>' + esc(a.name) + '</span><button data-x="' + i + '" aria-label="Remove">×</button></span>').join('');
   attEl.hidden = !attEl.innerHTML;
+  const md2 = modes(); input.placeholder = md2.research ? 'What should Spectra research?' : md2.search ? 'Ask Spectra to search the web...' : 'Send a message to Spectra...';
 }
 const addAtt = a => { if (atts.length >= 5) return toast('Max 5 attachments'); if (a.kind === 'image' && atts.filter(x => x.kind === 'image').length >= 3) return toast('Max 3 images per message'); atts.push(a); drawAtt(); };
-attEl.onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.m) SS('sa.modes', { ...modes(), think: false }); else atts.splice(+b.dataset.x, 1); drawAtt(); };
+attEl.onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.m) SS('sa.modes', { ...modes(), [b.dataset.m]: false }); else atts.splice(+b.dataset.x, 1); drawAtt(); };
 fileIn.onchange = () => {
   [...fileIn.files].forEach(f => {
     const img = f.type.indexOf('image/') === 0; if (img && !/^image\/(jpeg|png|webp|gif)$/.test(f.type)) return toast(f.name + ': use JPG, PNG, WebP or GIF');
@@ -612,12 +638,20 @@ async function screenshot() {
     s.getTracks().forEach(t => t.stop()); shrink(c.toDataURL('image/jpeg', .9)).then(d => addAtt({ kind: 'image', name: 'screenshot.jpg', data: d })).catch(() => toast('Could not use that screenshot'));
   } catch (e) { toast('Screenshot cancelled'); }
 }
+function setMode(k) {
+  const m = modes(), on = !m[k], n = { ...m, [k]: on };
+  if (on && k === 'search') n.research = false;
+  if (on && k === 'research') { n.search = false; n.think = false; }
+  SS('sa.modes', n); drawAtt();
+  if (on && k !== 'think' && backend() === 'direct') return toast(MODE_META[k][1] + ' needs the SPECSOFT backend (dev mode skips it)');
+  toast(MODE_META[k][1] + (on ? ' on' + (k === 'search' ? ' (uses extra credits)' : k === 'research' ? ' (uses the most credits)' : '') : ' off'));
+  if (on) input.focus();
+}
 function tool(t) {
   if (t === 'file') fileIn.click();
   else if (t === 'shot') screenshot();
   else if (t === 'asset') { openModal('a'); modal.dataset.pick = '1'; qEl.placeholder = 'Pick a saved snippet to attach'; }
-  else if (t === 'think') { const on = !modes().think; SS('sa.modes', { ...modes(), think: on }); drawAtt(); toast('Deep reasoning ' + (on ? 'on' : 'off')); }
-  else toast('Needs a search API, we will wire it up in the 9Router step');
+  else if (t === 'think' || t === 'search' || t === 'research') setMode(t);
 }
 ['#saAssets', '#saLibrary', '#saSearch'].forEach(s => $(s).addEventListener('click', () => { modal.dataset.pick = ''; }));
 res.addEventListener('click', e => {
@@ -668,6 +702,20 @@ async function loadProfile() {
 [avaEl, nameEl].forEach(el => el && new MutationObserver(paintProfile).observe(el, { childList: true, characterData: true, subtree: true }));
 addEventListener('storage', () => setTimeout(() => { prof = null; loadProfile(); }, 60));
 loadProfile();
+
+/* ---- Mobile sidebar: close button, swipe from the left edge to open, swipe left to close ---- */
+const closeDrawer = () => app.classList.remove('drawer');
+$('#saX').onclick = closeDrawer;
+['#saAssets', '#saLibrary', '#saSearch', '#saSettings'].forEach(s => $(s).addEventListener('click', closeDrawer));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+let sx = 0, sy = 0, sw = false;
+addEventListener('touchstart', e => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; sw = innerWidth <= 850 && (app.classList.contains('drawer') || sx < 28); }, { passive: true });
+addEventListener('touchend', e => {
+  if (!sw) return; sw = false; const t = e.changedTouches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy);
+  if (dy > 60 || Math.abs(dx) < 70) return;
+  if (dx > 0 && sx < 28 && !app.classList.contains('drawer')) app.classList.add('drawer');
+  else if (dx < 0 && app.classList.contains('drawer')) closeDrawer();
+}, { passive: true });
 
 renderList(); renderChat(); setTimeout(showGreeting, 700);
 })();

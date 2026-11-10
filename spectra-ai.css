@@ -364,3 +364,90 @@
 .sa-tbl table{border-collapse:collapse;font-size:.92em}
 .sa-tbl th,.sa-tbl td{padding:6px 12px;border:1px solid rgba(128,128,128,.35);text-align:left}
 .sa-tbl th{background:rgba(128,128,128,.14);font-weight:600}
+
+
+/* =====================================================================
+   v3: sidebar without scrollbar, web search / research UI, mobile polish
+   ===================================================================== */
+*{-webkit-tap-highlight-color:transparent}
+.sa-nav,.sa-sug,.sa-send,.sa-persona,.sa-chip,.sa-item{touch-action:manipulation}
+
+/* ---- Sidebar: no scrollbar anywhere, list still scrolls (wheel / touch / keys) ---- */
+.sa-side{min-height:0}
+.sa-logo,.sa-navs,.sa-rule,.sa-nav-s,.sa-acct{flex-shrink:0}
+.sa-list{scrollbar-width:none;-ms-overflow-style:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  -webkit-mask-image:linear-gradient(transparent 0,#000 12px,#000 calc(100% - 16px),transparent 100%);
+  mask-image:linear-gradient(transparent 0,#000 12px,#000 calc(100% - 16px),transparent 100%)}
+.sa-list::-webkit-scrollbar{display:none;width:0;height:0}
+.sa-side,.sa-side *{scrollbar-width:none}
+.sa-side::-webkit-scrollbar,.sa-side *::-webkit-scrollbar{display:none;width:0;height:0}
+.sa-x{display:none}
+
+/* short desktop windows: squeeze the fixed parts so the chat list always keeps room */
+@media (max-height:760px){
+  .sa-side{padding-top:20px;padding-bottom:12px}
+  .sa-logo{padding-bottom:14px}.sa-logo img{width:94px}
+  .sa-navs{gap:4px;padding:12px 0 8px}
+  .sa-nav{height:42px}.sa-nav-s{height:38px;margin-top:6px}
+  .sa-acct{margin-top:6px}
+}
+@media (max-height:560px){
+  .sa-logo{display:none}
+  .sa-nav{height:38px}.sa-nav-s{height:34px}
+}
+
+/* ---- Web search / deep research ---- */
+.sa-stat{margin-left:10px;font:12px var(--font-mono);letter-spacing:.3px;color:var(--sa-ink3,var(--text-tertiary));animation:saBlink 1.4s ease-in-out infinite}
+.sa-src{display:flex;flex-direction:column;gap:7px;margin:12px 0 2px;min-width:0}
+.sa-sl{font:500 10.5px var(--font-mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--sa-ink3,var(--text-tertiary))}
+.sa-sq{display:flex;align-items:center;gap:7px;min-width:0;font:12px var(--font-sans);color:var(--sa-ink3,var(--text-tertiary))}
+.sa-sq .sa-fi{width:13px;height:13px;flex:0 0 auto}
+.sa-sq span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.sa-chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:6px 12px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:999px;background:var(--sa-glass,var(--bg-card));color:var(--sa-ink2,var(--text-secondary));font:12px var(--font-sans);text-decoration:none;transition:border-color .2s,background .2s,color .2s,transform .15s}
+.sa-chip:hover{color:var(--sa-ink,var(--text-primary));border-color:var(--sa-acc,var(--accent));background:var(--sa-acc-dim,var(--accent-dim))}
+.sa-chip:active{transform:scale(.97)}
+.sa-chip .sa-fi{width:13px;height:13px;flex:0 0 auto}
+.sa-chip span{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- Mobile ---- */
+@media (max-width:850px){
+  .sa-side{height:100vh;height:100dvh;padding:calc(20px + env(safe-area-inset-top,0px)) 14px calc(14px + env(safe-area-inset-bottom,0px))}
+  .sa-x{display:grid;place-items:center;position:absolute;top:calc(10px + env(safe-area-inset-top,0px));right:10px;width:36px;height:36px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:50%;background:none;color:var(--sa-ink2,var(--text-secondary));font-size:20px;line-height:1;cursor:pointer;z-index:2}
+  .sa-x:active{background:var(--sa-acc-dim,var(--accent-dim))}
+  .sa-logo{justify-content:flex-start;padding:0 0 16px 6px}.sa-logo img{width:96px}
+  .sa-navs{gap:6px;padding:14px 0 10px}
+  .sa-nav{height:50px}.sa-nav-s{height:46px}
+  .sa-top,.sa-app.chatting .sa-top{padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px}
+  .sa-menu-btn{width:42px;height:42px;place-items:center;font-size:20px}
+  .sa-scroll{padding:14px 16px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  .sa-msg{max-width:100%}
+  .sa-col{min-width:0}
+  .sa-b{overflow-wrap:anywhere}
+  .sa-code pre{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .sa-tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .sa-sugs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .sa-sug{width:100%;height:46px;justify-content:center;padding-inline:10px;font-size:13px}
+  .sa-att{padding:0;margin-bottom:8px}
+  .sa-ac{max-width:100%}
+  .sa-box{gap:6px;padding:6px 6px 6px 8px;border-radius:28px}
+  .sa-box textarea{padding:11px 0}
+  .sa-send{width:44px;height:44px}
+  .sa-persona{width:42px;height:42px}
+  .sa-pmenu{left:0;right:0;min-width:0;max-height:60dvh;overflow-y:auto;scrollbar-width:none}
+  .sa-pmenu::-webkit-scrollbar{display:none}
+  .sa-pmenu button{padding:14px;font-size:14px}
+  .sa-cmenu button{padding:13px 14px;font-size:14px}
+  .sa-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .sa-chips::-webkit-scrollbar{display:none}
+  .sa-chip{flex:0 0 auto}
+  .sa-chip span{max-width:160px}
+}
+@media (max-width:380px){
+  .sa-sugs{grid-template-columns:1fr}
+  .sa-scroll{padding:12px}
+}
+@media (max-height:520px) and (max-width:950px){
+  .sa-hero{margin-top:0}
+  .sa-composer{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+}

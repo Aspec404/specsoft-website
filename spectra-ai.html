@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
 <title>Spectra AI | SPECSOFT®</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -53,6 +54,7 @@
   <div class="sa-back" id="saBack"></div>
 
   <aside class="sa-side" id="saSide">
+    <button class="sa-x" id="saX" type="button" aria-label="Close menu">×</button>
     <button class="sa-collapse" id="saCollapse" type="button" aria-label="Collapse sidebar">‹</button>
     <a class="sa-logo" href="index.html" aria-label="SPECSOFT home">
       <img src="assets/specsoft-logo.png" alt="SPECSOFT">
@@ -93,6 +95,8 @@
           <button type="button" class="sa-sug" data-p="Give me 5 original game ideas for a small indie team."><i class="sa-fi" data-i="spark"><svg><use href="#i-spark"/></svg></i>Generate an idea</button>
           <button type="button" class="sa-sug" data-p="Help me debug a Lua script for my Roblox game."><i class="sa-fi" data-i="code"><svg><use href="#i-code"/></svg></i>Help with code</button>
           <button type="button" class="sa-sug" data-p="Help me design a new feature for my Roblox game."><i class="sa-fi" data-i="gamepad"><svg><use href="#i-gamepad"/></svg></i>Roblox help</button>
+          <button type="button" class="sa-sug" data-mode="search" data-p=""><i class="sa-fi" data-i="globe"><svg><use href="#i-globe"/></svg></i>Search the web</button>
+          <button type="button" class="sa-sug" data-mode="research" data-p=""><i class="sa-fi" data-i="radar"><svg><use href="#i-radar"/></svg></i>Deep research</button>
           <button type="button" class="sa-sug" data-p=""><i class="sa-fi" data-i="pen"><svg><use href="#i-pen"/></svg></i>Just chat</button>
         </div>
       </section>

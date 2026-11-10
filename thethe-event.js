@@ -17,6 +17,10 @@
          - meme emoji pop up where you click, and one short emoji rain the first time you see it (full effects only)
          - Thea and Mirai (the original tHE THE mascots, sprites in assets/the-the/): their avatars on the toasts, a few of them in the
            rain, and now and then one of their emotes pops up where you click (full effects, normal devices). Ultra reduce motion loads no sprites.
+         - Thea and Mirai also PEEK IN from the screen edges every so often (full effects): they slide in, say something nostalgic in a
+           speech bubble (some of it makes them cry), and slide back out. Click them: they react (and if you keep poking, they get emotional).
+           The very first visit of a session is a short reunion with both of them. Reduce motion: one still companion that talks on click.
+           Lines live in PAL_LINES / PAL_POKE / PAL_MISS in thethe-event.js, the look is thethe-event.css section 3b.
          - the site's custom cursor (cursor.js) turns orange
          - the sidebar / mobile logo says "tHE THE" (with an orange tT mark) instead of SPECSOFT®
          - a floating rounded bottom nav (Home / Projects / Chats / Store / Profile), like the old tHE THE site
@@ -72,6 +76,12 @@
         ['thea', 'Thea: hi. (don\u2019t make it weird)'],
         ['mirai', 'Mirai: did you miss us?? \uD83E\uDDE1']
     ];
+    var BYE_LINES = [
+        ['thea', 'Thea: ...so that\u2019s it. thanks for staying.'],
+        ['mirai', 'Mirai: BYE!! come back soon okay?? \uD83E\uDDE1'],
+        ['thea', 'Thea: don\u2019t be a stranger. (i mean it)'],
+        ['mirai', 'Mirai: this is NOT goodbye, it\u2019s see-you-later \uD83D\uDE2D']
+    ];
     var POPS = [0, 3, 5, 8];      // click pop-ups per click, by effects level
     var RAIN = [0, 0, 14, 26];    // opening emoji rain, by effects level
     var LINES = [
@@ -99,7 +109,8 @@
         root: null, pill: null, credits: null, imgs: {}, crB: null, bal: null, balFn: null, balT: 0, bn: null, bnFn: null, bnY: 0, toastEl: null, mo: null, modeMo: null, outT: 0,
         aud: null, playing: false, blocked: false, gestureArmed: false, btn: null, muteBtn: null, vol: null,
         lastPop: 0, fadeT: 0, mode: 'full', lite: false, key: '', hooked: false,
-        idDone: false, oldTitle: '', oldIcons: [], newIcon: null
+        idDone: false, oldTitle: '', oldIcons: [], newIcon: null,
+        palT: 0, palTok: 0, pals: [], palLast: '', palIdx: { thea: -1, mirai: -1 }, palPokes: 0
     };
 
     /* ------------------------------ small helpers ------------------------------ */
@@ -445,6 +456,165 @@
         }
     }
 
+    /* ------------------------------ companions: Thea + Mirai peek in from the screen edges ------------------------------ */
+    // [emote, line, crying?]   Thea is quiet and pretends she doesn't care. Mirai is loud and cries first.
+    var PAL_LINES = {
+        thea: [
+            ['thea-sleepy',   '...it\u2019s been a while. i kept your seat warm.', 1],
+            ['thea-silent',   '...thanks for coming back. don\u2019t tell anyone i said that.', 0],
+            ['thea-sleepy',   'i fell asleep waiting for the server to wake up...', 0],
+            ['thea-cat',      'the cat missed you too. i did not. (i did)', 0],
+            ['thea-angry',    'if you say \u201Cwe should have never abandoned it\u201D i will cry. i\u2019m not crying.', 1],
+            ['thea-confused', 'wait. you actually remember us?', 0],
+            ['thea-happy',    'hey. stay a little longer, okay?', 0]
+        ],
+        mirai: [
+            ['mirai-surprised', 'WAIT it\u2019s actually YOU?! i thought everyone left \uD83D\uDE2D', 1],
+            ['mirai-love',      'you were here since day one, weren\u2019t you \uD83E\uDDE1', 0],
+            ['mirai-excited',   'remember the 3am memes?? we were SO unhinged \uD83D\uDC80', 0],
+            ['mirai-sleepy',    'the server went quiet... but we never left.', 1],
+            ['mirai-confused',  'why am i crying?? it\u2019s just a website... \uD83D\uDE2D', 1],
+            ['mirai-excited',   'SPECSOFT is cool but tHE THE was HOME \uD83E\uDDE1', 0],
+            ['mirai-love',      '2022 us would be SO proud of you \uD83E\uDDE1', 1]
+        ]
+    };
+    var PAL_POKE = {
+        thea:  [['thea-angry', 'h-hey. don\u2019t poke me.'], ['thea-happy', '...okay that was a little nice.'], ['thea-confused', 'stop. (do it again)']],
+        mirai: [['mirai-excited', 'HEHE that tickles!!'], ['mirai-love', 'you found me!! \uD83E\uDDE1'], ['mirai-surprised', 'again again AGAIN']]
+    };
+    // every 6th poke: they break
+    var PAL_MISS = {
+        thea:  ['thea-happy', '...you really did miss us. me too. a little.'],
+        mirai: ['mirai-love', 'I\u2019M NOT CRYING YOU\u2019RE CRYING \uD83D\uDE2D\uD83E\uDDE1']
+    };
+    function palName(w) { return w === 'thea' ? 'Thea' : 'Mirai'; }
+    function palSlots() {
+        if (document.body && document.body.classList.contains('ch-body')) return ['right'];     // the chats page: right edge only, the composer + sidebar stay clear
+        var s = ['left', 'right'];
+        if (innerWidth >= 1000) s.push('bottom');
+        return s;
+    }
+    function palLine(who) {
+        var a = PAL_LINES[who], i = Math.floor(Math.random() * a.length);
+        if (i === S.palIdx[who] && a.length > 1) i = (i + 1) % a.length;
+        S.palIdx[who] = i;
+        return a[i];
+    }
+    function palClear() {
+        S.palTok++;
+        clearTimeout(S.palT);
+        S.pals.forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
+        S.pals = [];
+    }
+    function palSwap(im, name) {      // swap the expression without a flash: load first, then switch
+        var t = new Image();
+        t.onload = function () { im.src = t.src; };
+        t.src = spr(name);
+        if (t.complete && t.naturalWidth) im.src = t.src;
+    }
+    function palTears(el, tok, n) {
+        for (var i = 0; i < n; i++) {
+            (function (k) {
+                setTimeout(function () {
+                    if (tok !== S.palTok || !el.parentNode) return;
+                    var t = mk('span', 'tt-tear', '\uD83D\uDCA7');
+                    t.style.setProperty('--tx', ((k % 2 ? 58 : 30) + Math.round(rand(-4, 4))) + '%');
+                    el.appendChild(t);
+                    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 1200);
+                }, k * 420);
+            })(i);
+        }
+    }
+    function palLeave(el, tok) {
+        if (tok !== S.palTok || !el.parentNode || el._gone) return;
+        el._gone = true;
+        el.classList.remove('tt-talk'); el.classList.remove('tt-in');
+        setTimeout(function () {
+            if (el.parentNode) el.parentNode.removeChild(el);
+            var i = S.pals.indexOf(el);
+            if (i > -1) S.pals.splice(i, 1);
+            if (tok === S.palTok && el._done) el._done();
+        }, 800);
+    }
+    function palPoke(el, who, tok) {
+        if (tok !== S.palTok || el._gone) return;
+        if (el._still) { toast(palName(who) + ': ' + pick(PAL_LINES[who])[1], 4200, MASCOTS[who].icon); return; }      // Reduce motion: no movement, the line goes to the toast
+        S.palPokes++;
+        var miss = S.palPokes % 6 === 0;
+        var spec = miss ? PAL_MISS[who] : pick(PAL_POKE[who]);
+        var im = el.querySelector('.tt-pal-img'), b = el.querySelector('.tt-bubble');
+        if (im) palSwap(im, spec[0]);
+        if (b) b.textContent = spec[1];
+        el.classList.add('tt-talk');
+        el.classList.remove('tt-hit'); void el.offsetWidth; el.classList.add('tt-hit');
+        var r = el.getBoundingClientRect();
+        burstAt(Math.max(20, Math.min(innerWidth - 20, r.left + r.width / 2)), r.top + r.height * 0.3, S.lite ? 2 : 4);
+        if (miss) palTears(el, tok, 6);
+        clearTimeout(el._life);
+        el._life = setTimeout(function () { palLeave(el, tok); }, miss ? 4600 : 2400);
+    }
+    // spec = [emote, line, crying?]. still = Reduce motion: shown at once, stays, talks on click.
+    function palShow(who, slot, spec, hold, done, still) {
+        if (!S.root) return null;
+        var tok = S.palTok, el = mk('div', 'tt-pal tt-' + slot);
+        el.style.width = (small() ? 76 : Math.round(rand(96, 116))) + 'px';
+        if (slot === 'bottom') el.style.left = Math.round(innerWidth * (Math.random() < 0.5 ? rand(0.26, 0.4) : rand(0.62, 0.74))) + 'px';
+        else el.style.top = Math.round(innerHeight * rand(0.36, 0.6)) + 'px';
+        el.appendChild(mascotImg('tt-pal-img tt-mascot', spec[0]));
+        el.appendChild(mk('div', 'tt-bubble', spec[1]));
+        el._done = done; el._still = !!still;
+        el.addEventListener('pointerdown', function () { palPoke(el, who, tok); });
+        S.root.appendChild(el);
+        S.pals.push(el);
+        void el.offsetWidth;
+        el.classList.add('tt-in');
+        if (still) return el;
+        setTimeout(function () {
+            if (tok !== S.palTok || el._gone) return;
+            el.classList.add('tt-talk');
+            if (spec[2]) palTears(el, tok, 5);
+        }, 650);
+        el._life = setTimeout(function () { palLeave(el, tok); }, hold);
+        return el;
+    }
+    function palPeek() {
+        if (!S.active || S.mode !== 'full' || !S.root) return;
+        if (document.hidden || S.pals.length) { palSchedule(false); return; }
+        var tok = S.palTok, slots = palSlots(), tk = 'tt.pal.' + (S.ev ? S.ev.id : '');
+        function again() { if (tok === S.palTok) palSchedule(false); }
+        // first time this session: a little reunion. Thea first (quiet, sleepy), then Mirai bursts in crying.
+        if (!ssGet(tk)) {
+            ssSet(tk, '1');
+            var tl = PAL_LINES.thea[0], ml = PAL_LINES.mirai[0];
+            if (slots.length > 1) {
+                palShow('thea', 'left', tl, 6200, null);
+                setTimeout(function () { if (tok === S.palTok) palShow('mirai', 'right', ml, 6200, again); }, 1700);
+            } else palShow('mirai', slots[0], ml, 6200, again);
+            S.palLast = 'mirai';
+            return;
+        }
+        var who = Math.random() < 0.5 ? 'thea' : 'mirai';
+        if (who === S.palLast && Math.random() < 0.7) who = who === 'thea' ? 'mirai' : 'thea';
+        S.palLast = who;
+        var spec = palLine(who);
+        palShow(who, pick(slots), spec, Math.max(4200, Math.min(8000, 3600 + spec[1].length * 55)), again);
+    }
+    function palSchedule(first) {
+        clearTimeout(S.palT);
+        if (!S.active || S.mode !== 'full') return;
+        S.palT = setTimeout(palPeek, first ? rand(6500, 9500) : (S.lite ? rand(30000, 50000) : rand(16000, 30000)));
+    }
+    // (re)start for the current motion mode: full = they come and go, Reduce motion = one still companion, Ultra = nobody
+    function palSync() {
+        palClear();
+        if (!S.active || !S.root) return;
+        if (S.mode === 'full') palSchedule(true);
+        else if (S.mode === 'rm') {
+            var who = pick(['thea', 'mirai']);
+            palShow(who, pick(palSlots()), pick(PAL_LINES[who]), 0, null, true);
+        }
+    }
+
     /* ------------------------------ music (the OST) ------------------------------ */
     function userVol() { var v = parseFloat(lsGet(K_VOL)); return isFinite(v) ? Math.max(0, Math.min(1, v)) : 1; }
     function targetVol() { return Math.max(0, Math.min(1, ((S.ev && S.ev.volume != null ? S.ev.volume : 60) / 100) * userVol())); }
@@ -575,6 +745,7 @@
         applyMode();
         loadAssets();
         paintBtn();
+        palSync();
     }
     function hookWatchers() {
         if (!S.modeMo && window.MutationObserver) {
@@ -610,6 +781,7 @@
         buildBadges();
         buildBottomNav();
         preloadSprites();
+        palSync();
         document.addEventListener('pointerdown', onPop, true);
         hookWatchers();
 
@@ -631,6 +803,7 @@
         if (!S.active) return;
         S.active = false;
         document.removeEventListener('pointerdown', onPop, true);
+        palClear();
         stopMusic();
         identity(false);
         rebrand(false);
@@ -647,7 +820,7 @@
             [root, pill, credits, bn].forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
             if (!S.active) setTheme(false);
         }, 900);
-        if (announce) toast('tHE THE is over. back to SPECSOFT \uD83E\uDDE1');
+        if (announce) { var by = pick(BYE_LINES); toast(by[1] + '  \u00B7  back to SPECSOFT', 5600, MASCOTS[by[0]].icon); }
     }
     function endNow(announce) {
         if (S.tickT) { clearInterval(S.tickT); S.tickT = 0; }
