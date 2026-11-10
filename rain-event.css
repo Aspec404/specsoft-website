@@ -13,6 +13,15 @@ html[data-rain] {
     color-scheme: dark;
 }
 html[data-rain="credits"] { --rn-lamp: #f5c542; }
+html[data-rain="red"] {
+    --rn-night: #120707;
+    --rn-navy: #1b090b;
+    --rn-teal: #5a1b1f;
+    --rn-fog: #d1898d;
+    --rn-lamp: #ff4d4d;
+    --rn-gold: #ff7d7d;
+    color-scheme: dark;
+}
 
 #rn-root { position: fixed; inset: 0; z-index: 8000; pointer-events: none; overflow: hidden; contain: strict; }
 #rn-root > * { position: absolute; inset: 0; pointer-events: none; }
@@ -22,6 +31,11 @@ html[data-rain="credits"] { --rn-lamp: #f5c542; }
     background:
         radial-gradient(120% 90% at 50% 40%, rgba(7, 11, 17, 0) 40%, rgba(3, 6, 10, .55) 100%),
         linear-gradient(180deg, rgba(10, 20, 30, .46) 0%, rgba(9, 17, 26, .34) 55%, rgba(4, 8, 13, .56) 100%);
+}
+html[data-rain="red"] .rn-tint {
+    background:
+        radial-gradient(120% 90% at 50% 40%, rgba(36, 2, 2, 0) 36%, rgba(58, 2, 2, .62) 100%),
+        linear-gradient(180deg, rgba(32, 7, 10, .56) 0%, rgba(28, 7, 10, .4) 55%, rgba(16, 3, 4, .72) 100%);
 }
 html[data-rain-flash] .rn-tint { opacity: .6; }
 
@@ -50,6 +64,9 @@ html[data-rain-flash] .rn-tint { opacity: .6; }
     background: radial-gradient(closest-side, rgba(138, 163, 174, .20), rgba(138, 163, 174, 0));
     will-change: transform;
 }
+html[data-rain="red"] .rn-fog::before, html[data-rain="red"] .rn-fog::after {
+    background: radial-gradient(closest-side, rgba(220, 126, 130, .28), rgba(220, 126, 130, 0));
+}
 .rn-fog::before { bottom: -18%; height: 46%; animation: rnFogA 95s linear infinite alternate; }
 .rn-fog::after { bottom: -30%; height: 58%; opacity: .7; animation: rnFogB 140s linear infinite alternate; }
 @keyframes rnFogA { from { transform: translate3d(-8%, 0, 0); } to { transform: translate3d(8%, -3%, 0); } }
@@ -67,6 +84,9 @@ html[data-rain="credits"] .rn-sheets { display: none; }
 /* ---- wet ground: a faint sheen along the bottom and the lamp reflected in it ---- */
 .rn-ground {
     background: linear-gradient(to top, rgba(138, 163, 174, .16), rgba(138, 163, 174, 0) 22%);
+}
+html[data-rain="red"] .rn-ground {
+    background: linear-gradient(to top, rgba(180, 58, 58, .2), rgba(180, 58, 58, 0) 22%);
 }
 .rn-ground::after {
     content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 26%;

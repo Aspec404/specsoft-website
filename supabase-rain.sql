@@ -14,7 +14,7 @@
 create table if not exists public.rain_settings (
     id int primary key default 1 check (id = 1),
     duration_s int not null default 3600 check (duration_s between 300 and 86400),   -- 5 min to 24 h
-    kind text not null default 'rain' check (kind in ('rain', 'credits')),           -- what falls (visitors can switch for themselves)
+    kind text not null default 'rain' check (kind in ('rain', 'red', 'credits')),    -- what falls (visitors can switch for themselves)
     intensity int not null default 2 check (intensity between 1 and 3),              -- 1 drizzle, 2 steady, 3 storm
     lightning boolean not null default true,
     flashlight boolean not null default true,                                        -- the page is dark, the cursor lights a circle
@@ -32,7 +32,7 @@ create table if not exists public.rain_events (
     starts_at timestamptz not null,
     ends_at timestamptz not null,
     duration_s int not null,
-    kind text not null default 'rain' check (kind in ('rain', 'credits')),
+    kind text not null default 'rain' check (kind in ('rain', 'red', 'credits')),
     intensity int not null default 2,
     lightning boolean not null default true,
     flashlight boolean not null default true,
@@ -109,7 +109,7 @@ begin
     end;
 
     if v_dur is null or v_dur not between 300 and 86400 then return public.admin_fail('rain_settings_set', null, p_reason, 'bad_duration'); end if;
-    if v_kind is null or v_kind not in ('rain', 'credits') then return public.admin_fail('rain_settings_set', null, p_reason, 'bad_kind'); end if;
+    if v_kind is null or v_kind not in ('rain', 'red', 'credits') then return public.admin_fail('rain_settings_set', null, p_reason, 'bad_kind'); end if;
     if v_int is null or v_int not between 1 and 3 then return public.admin_fail('rain_settings_set', null, p_reason, 'bad_intensity'); end if;
     if v_vol is null or v_vol not between 0 and 100 then return public.admin_fail('rain_settings_set', null, p_reason, 'bad_volume'); end if;
     if v_lt is null or v_fl is null or v_gl is null then return public.admin_fail('rain_settings_set', null, p_reason, 'bad_value'); end if;

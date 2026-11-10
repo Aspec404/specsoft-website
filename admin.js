@@ -1964,7 +1964,7 @@
        Visitors can still switch what falls for themselves with the small button in the corner.
        Everything staff change here is audit logged.
        ---------------------------------------------------------------------- */
-    var RN_ERR = { bad_value: 'One of the values is not valid.', bad_duration: 'Length must be 5 to 1440 minutes.', bad_kind: 'Pick regular rain or APEX Credits.', bad_intensity: 'Intensity is drizzle, steady or storm.', bad_volume: 'Volume is 0 to 100.', bad_time: 'Pick a start time at least 10 seconds from now.', event_overlap: 'Another rain, kawaii or tHE THE event is already scheduled in that time slot.', not_active: 'That event is not running any more.' };
+    var RN_ERR = { bad_value: 'One of the values is not valid.', bad_duration: 'Length must be 5 to 1440 minutes.', bad_kind: 'Pick regular rain, red rain or APEX Credits.', bad_intensity: 'Intensity is drizzle, steady or storm.', bad_volume: 'Volume is 0 to 100.', bad_time: 'Pick a start time at least 10 seconds from now.', event_overlap: 'Another rain, kawaii or tHE THE event is already scheduled in that time slot.', not_active: 'That event is not running any more.' };
 
     async function viewRain(root, token) {
         add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
@@ -1984,7 +1984,7 @@
             return ['LIVE', 'ok'];
         }
         function lenText(sec) { var m = Math.round(sec / 60); return m >= 120 ? (Math.round(m / 6) / 10) + ' h' : m + ' min'; }
-        function kindText(k) { return k === 'credits' ? 'APEX Credits' : 'regular rain'; }
+        function kindText(k) { if (k === 'credits') return 'APEX Credits'; if (k === 'red') return 'red rain'; return 'regular rain'; }
         function intText(n) { return n === 1 ? 'drizzle' : n === 3 ? 'storm' : 'steady'; }
 
         // ---- right now ----
@@ -1993,7 +1993,7 @@
         if (active) {
             var ph = phaseOf(active);
             nowBody = el('div', { class: 'ad-now' },
-                el('div', { class: 'ad-now-emoji', text: active.kind === 'credits' ? '\uD83E\uDE99' : '\uD83C\uDF27\uFE0F' }),
+                el('div', { class: 'ad-now-emoji', text: active.kind === 'credits' ? '\uD83E\uDE99' : active.kind === 'red' ? '\uD83D\uDD25' : '\uD83C\uDF27\uFE0F' }),
                 el('div', {},
                     el('div', { class: 'ad-row-title', text: active.label || 'Rain theme' }),
                     el('div', { class: 'ad-row-sub', text: 'Starts ' + fmt(active.starts_at) + '  \u00B7  ends ' + fmt(active.ends_at) + '  \u00B7  ' + lenText(active.duration_s) + '  \u00B7  ' + kindText(active.kind) + ', ' + intText(active.intensity) })),
@@ -2033,7 +2033,7 @@
         function sel(opts, v) { var s2 = el('select', { class: 'ad-select' }, opts.map(function (o) { return el('option', { value: o[0], text: o[1] }); })); s2.value = String(v); return s2; }
         function onOff(v) { return sel([['1', 'On'], ['0', 'Off']], v === false ? '0' : '1'); }
         var iLen = num(Math.round((st.duration_s != null ? st.duration_s : 3600) / 60), 5, 1440);
-        var iKind = sel([['rain', 'Regular rain'], ['credits', 'APEX Credits']], st.kind || 'rain');
+        var iKind = sel([['rain', 'Regular rain'], ['red', 'Red rain'], ['credits', 'APEX Credits']], st.kind || 'rain');
         var iInt = sel([['1', '1 - drizzle'], ['2', '2 - steady (default)'], ['3', '3 - storm']], st.intensity != null ? st.intensity : 2);
         var iLt = onOff(st.lightning), iFl = onOff(st.flashlight), iGl = onOff(st.glass);
         var iVol = num(st.volume != null ? st.volume : 60, 0, 100);
@@ -2060,7 +2060,7 @@
 
         add(root, panel('Settings', el('div', {},
             field('Event length (minutes)', iLen, '60 = one hour, 1440 = a full day. The site goes back to normal by itself when the time is up.'),
-            field('What falls', iKind, 'Regular rain, or APEX Credits (spinning coins with sparkles where they land). Visitors can switch it for themselves with the small button in the corner.'),
+            field('What falls', iKind, 'Regular rain, red rain, or APEX Credits (spinning coins with sparkles where they land). Visitors can switch it for themselves with the small button in the corner.'),
             field('Intensity', iInt, 'Drizzle is calm and sparse. Storm is heavy, with more lightning. Weak devices automatically get less.'),
             field('Lightning', iLt, 'A rare soft flash with thunder a few seconds later. Never a strobe. Visitors with reduce motion on never see it.'),
             field('Flashlight cursor', iFl, 'The page is darker away from the mouse. Hidden on touch screens.'),

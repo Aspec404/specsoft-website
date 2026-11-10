@@ -1813,7 +1813,7 @@
     function chooseFile(file) {
         if (!file) return;
         const video = isVideoFile(file);
-        if (file.size > (video ? MAX_VIDEO_BYTES : MAX_FILE_BYTES)) { toast(video ? 'Videos must be 50 MB or smaller.' : 'Files must be 10 MB or smaller.'); $('chFileInput').value = ''; return; }
+        if (file.size > (video ? MAX_VIDEO_BYTES : MAX_FILE_BYTES)) { toast(video ? 'Videos must be 50 MB or smaller.' : 'Files must be 30 MB or smaller.'); $('chFileInput').value = ''; return; }
         S.pendingFile = file;
         $('chFileInput').value = '';
         paintPendingFile();
@@ -4988,7 +4988,7 @@
             Videos go through the same private "chat-attachments" bucket as every file.
             They play right inside the chat (renderVideoCard) instead of being a download link.
        ---------------------------------------------------------------------- */
-    const MAX_FILE_BYTES = 10 * 1024 * 1024;
+    const MAX_FILE_BYTES = 30 * 1024 * 1024;
     const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
     const VIDEO_EXT = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', ogv: 'video/ogg', m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac', oga: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac' };
 

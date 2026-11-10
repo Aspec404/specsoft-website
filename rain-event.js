@@ -14,7 +14,7 @@
    on weaker devices, and quietly lowers (then stops) the particles if the page ever struggles.
    Visitors: two small buttons (sound, and "what falls": rain or APEX Credits). Reduce motion = no particles, no lightning.
 
-   Public API: window.SpecRain { active(), kind(), setKind('rain'|'credits'|''), preview(cfg), endPreview() }
+   Public API: window.SpecRain { active(), kind(), setKind('rain'|'red'|'credits'|''), preview(cfg), endPreview() }
                fires  window 'specrain'  with { active, kind }
    ========================================================================== */
 (function () {
@@ -73,6 +73,7 @@
         return area * dev * FX.scale * intensityMul();
     }
     function credits() { return S.kind === 'credits'; }
+    function redRain() { return S.kind === 'red'; }
 
     function loadCoin() {
         if (coin.img) return;
@@ -111,9 +112,11 @@
         if (beadCache[key]) return beadCache[key];
         var c = document.createElement('canvas'), g;
         c.width = c.height = 64; g = c.getContext('2d');
-        var rim = warm ? '255,200,120' : '190,215,230';
+        var rim = warm ? '255,200,120' : redRain() ? '255,130,130' : '190,215,230';
         var gr = g.createRadialGradient(28, 26, 4, 32, 32, 30);
-        gr.addColorStop(0, 'rgba(120,150,170,.06)'); gr.addColorStop(0.7, 'rgba(14,26,38,.34)'); gr.addColorStop(1, 'rgba(' + rim + ',.55)');
+        gr.addColorStop(0, redRain() ? 'rgba(84,16,16,.09)' : 'rgba(120,150,170,.06)');
+        gr.addColorStop(0.7, redRain() ? 'rgba(52,8,12,.42)' : 'rgba(14,26,38,.34)');
+        gr.addColorStop(1, 'rgba(' + rim + ',.55)');
         g.fillStyle = gr; g.beginPath(); g.arc(32, 32, 30, 0, 6.2832); g.fill();
         g.fillStyle = 'rgba(255,255,255,.8)'; g.beginPath(); g.ellipse(22, 20, 5, 3.4, -0.6, 0, 6.2832); g.fill();
         return (beadCache[key] = c);
@@ -124,7 +127,11 @@
         var c = document.createElement('canvas'), g;
         c.width = 16; c.height = 128; g = c.getContext('2d');
         var gr = g.createLinearGradient(0, 0, 0, 128);
-        gr.addColorStop(0, 'rgba(200,222,236,0)'); gr.addColorStop(0.7, 'rgba(200,222,236,.5)'); gr.addColorStop(1, 'rgba(238,247,253,1)');
+        if (redRain()) {
+            gr.addColorStop(0, 'rgba(255,168,168,0)'); gr.addColorStop(0.7, 'rgba(255,120,120,.52)'); gr.addColorStop(1, 'rgba(255,215,205,1)');
+        } else {
+            gr.addColorStop(0, 'rgba(200,222,236,0)'); gr.addColorStop(0.7, 'rgba(200,222,236,.5)'); gr.addColorStop(1, 'rgba(238,247,253,1)');
+        }
         g.fillStyle = gr; g.beginPath(); g.moveTo(7.7, 0); g.lineTo(8.3, 0); g.lineTo(12, 125); g.quadraticCurveTo(8, 130, 4, 125); g.closePath(); g.fill();
         return (streakImg = c);
     }
@@ -133,8 +140,9 @@
         var c = document.createElement('canvas'), g;
         c.width = w; c.height = h; g = c.getContext('2d'); g.lineCap = 'round';
         for (var i = 0; i < n; i++) {
-            var x = rand(0, w), y = rand(0, h), len = rand(14, 60);
-            g.strokeStyle = 'rgba(190,212,226,' + (rand(0.25, 1) * alpha).toFixed(3) + ')'; g.lineWidth = rand(0.5, maxW);
+            var x = rand(0, w), y = rand(0, h), len = rand(14, 60), v = rand(0.25, 1) * alpha;
+            g.strokeStyle = redRain() ? 'rgba(255,150,120,' + v.toFixed(3) + ')' : 'rgba(190,212,226,' + v.toFixed(3) + ')';
+            g.lineWidth = rand(0.5, maxW);
             for (var k = -1; k <= 1; k++) { g.beginPath(); g.moveTo(x, y + k * h - len); g.lineTo(x, y + k * h); g.stroke(); }
         }
         return c.toDataURL('image/png');
@@ -234,10 +242,10 @@
             L = LAYERS[i]; arr = drops[i];
             if (!cr && i === 0) {                                         // far haze: fine lines, faint tail + slightly brighter head
                 g.lineWidth = L.w;
-                g.strokeStyle = 'rgba(176,200,214,' + (L.a * 0.45).toFixed(3) + ')'; g.beginPath();
+                g.strokeStyle = redRain() ? 'rgba(255,150,135,' + (L.a * 0.45).toFixed(3) + ')' : 'rgba(176,200,214,' + (L.a * 0.45).toFixed(3) + ')'; g.beginPath();
                 for (j = 0; j < arr.length; j++) { d = arr[j]; g.moveTo(d.x - nx * d.len, d.y - ny * d.len); g.lineTo(d.x - nx * d.len * 0.5, d.y - ny * d.len * 0.5); }
                 g.stroke();
-                g.strokeStyle = 'rgba(200,220,232,' + L.a.toFixed(3) + ')'; g.beginPath();
+                g.strokeStyle = redRain() ? 'rgba(255,185,160,' + L.a.toFixed(3) + ')' : 'rgba(200,220,232,' + L.a.toFixed(3) + ')'; g.beginPath();
                 for (j = 0; j < arr.length; j++) { d = arr[j]; g.moveTo(d.x - nx * d.len * 0.5, d.y - ny * d.len * 0.5); g.lineTo(d.x, d.y); }
                 g.stroke();
             } else if (!cr) {                                             // mid + near: tapered motion-blur streaks, each a little different
@@ -267,14 +275,14 @@
         g.lineWidth = 1;
         for (i = 0; i < splashes.length; i++) {
             var p = splashes[i], k = 1 - p.age / p.life;
-            g.strokeStyle = cr ? 'rgba(245,197,66,' + (p.a * k).toFixed(3) + ')' : 'rgba(190,212,224,' + (p.a * k).toFixed(3) + ')';
+            g.strokeStyle = cr ? 'rgba(245,197,66,' + (p.a * k).toFixed(3) + ')' : redRain() ? 'rgba(255,110,110,' + (p.a * k).toFixed(3) + ')' : 'rgba(190,212,224,' + (p.a * k).toFixed(3) + ')';
             g.beginPath(); g.ellipse(p.x, p.y, p.r, p.r * 0.32, 0, 0, 6.2832); g.stroke();
         }
         // droplets / sparkles
         for (i = 0; i < bits.length; i++) {
             var t = bits[i], a = 1 - t.age / t.life;
             if (t.gold) { g.globalAlpha = a; g.drawImage(glow('rgba(255,221,120,1)', 24), t.x - 4, t.y - 4, 8, 8); }
-            else { g.globalAlpha = a * 0.7; g.fillStyle = 'rgb(200,222,234)'; g.fillRect(t.x - 0.7, t.y - 0.7, 1.4, 1.4); }
+            else { g.globalAlpha = a * 0.7; g.fillStyle = redRain() ? 'rgb(255,190,190)' : 'rgb(200,222,234)'; g.fillRect(t.x - 0.7, t.y - 0.7, 1.4, 1.4); }
         }
         g.globalAlpha = 1;
 
@@ -284,7 +292,7 @@
             for (i = 0; i < beads.length; i++) {
                 var e = beads[i];
                 if (e.trail.length > 1) {
-                    g.globalAlpha = 0.11 * e.a; g.lineWidth = Math.max(1, e.r * 0.5); g.strokeStyle = warm ? 'rgb(255,214,150)' : 'rgb(170,196,212)';
+                    g.globalAlpha = 0.11 * e.a; g.lineWidth = Math.max(1, e.r * 0.5); g.strokeStyle = warm ? 'rgb(255,214,150)' : redRain() ? 'rgb(255,140,140)' : 'rgb(170,196,212)';
                     g.beginPath(); g.moveTo(e.trail[0][0], e.trail[0][1]);
                     for (j = 1; j < e.trail.length; j++) g.lineTo(e.trail[j][0], e.trail[j][1]);
                     g.lineTo(e.x, e.y); g.stroke();
@@ -383,7 +391,7 @@
             }
             var vol = Math.max(0, Math.min(100, (S.cfg && S.cfg.volume != null) ? S.cfg.volume : 60)) / 100;
             AUD.master.gain.setTargetAtTime(vol * 0.9, AUD.ctx.currentTime, 0.4);
-            AUD.rain.gain.gain.value = credits() ? 0.07 : 0.15;
+            AUD.rain.gain.gain.value = credits() ? 0.07 : redRain() ? 0.17 : 0.15;
             AUD.ctx.resume();
             AUD.on = true; scheduleTink();
             return true;
@@ -457,13 +465,14 @@
 
     function onMove(e) { FX.fl.tx = e.clientX; FX.fl.ty = e.clientY; }
 
-    function kindIcon() { return credits() ? '\uD83E\uDE99' : '\uD83C\uDF27\uFE0F'; }
+    function kindIcon() { return credits() ? '\uD83E\uDE99' : redRain() ? '\uD83D\uDD25' : '\uD83C\uDF27\uFE0F'; }
     function paintButtons() {
         if (N.bKind) {
             N.bKind.textContent = kindIcon();
-            N.bKind.title = credits() ? 'Raining APEX Credits. Switch to regular rain' : 'Raining regular rain. Switch to APEX Credits';
+            var label = credits() ? 'Raining APEX Credits. Switch to regular rain' : redRain() ? 'Raining red rain. Switch to APEX Credits' : 'Raining regular rain. Switch to red rain';
+            N.bKind.title = label;
             N.bKind.setAttribute('aria-label', N.bKind.title);
-            N.bKind.setAttribute('aria-pressed', String(credits()));
+            N.bKind.setAttribute('aria-pressed', String(credits() || redRain()));
         }
         if (N.bSnd) {
             N.bSnd.textContent = AUD.on ? '\uD83D\uDD0A' : '\uD83D\uDD07';
@@ -496,7 +505,11 @@
 
         var wrap = div('rn-btns');
         N.bKind = document.createElement('button'); N.bKind.type = 'button'; N.bKind.className = 'rn-btn';
-        N.bKind.addEventListener('click', function () { setKind(credits() ? 'rain' : 'credits'); });
+        N.bKind.addEventListener('click', function () {
+            if (credits()) setKind('rain');
+            else if (redRain()) setKind('credits');
+            else setKind('red');
+        });
         N.bSnd = document.createElement('button'); N.bSnd.type = 'button'; N.bSnd.className = 'rn-btn';
         N.bSnd.addEventListener('click', function () { if (AUD.on) sndOff(); else sndOn(); paintButtons(); });
         wrap.appendChild(N.bSnd); wrap.appendChild(N.bKind);
@@ -521,21 +534,23 @@
         var id = S.id || 'x', day = new Date().toISOString().slice(0, 10), key = 'specsoft.rain.greet.' + id;
         if (!S.preview) { if (lsGet(key) === day) return; lsSet(key, day); }
         var n = div('rn-greet'); n.setAttribute('role', 'status');
-        n.textContent = (S.ev && S.ev.label) ? S.ev.label : (credits() ? 'It is raining APEX Credits.' : 'It is raining. Stay a while.');
+        n.textContent = (S.ev && S.ev.label) ? S.ev.label : (credits() ? 'It is raining APEX Credits.' : redRain() ? 'It is raining blood-red. Stay a while.' : 'It is raining. Stay a while.');
         document.body.appendChild(n); N.greet = n;
         setTimeout(function () { n.classList.add('is-on'); }, 700);
         T.greet = setTimeout(function () { n.classList.remove('is-on'); setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 800); }, 6200);
     }
 
-    function userKind() { var k = lsGet(KIND_KEY); return k === 'rain' || k === 'credits' ? k : ''; }
+    function userKind() { var k = lsGet(KIND_KEY); return k === 'rain' || k === 'red' || k === 'credits' ? k : ''; }
     function setKind(k) {                                // '' = go back to what staff chose
-        if (k !== 'rain' && k !== 'credits' && k !== '') return;
+        if (k !== 'rain' && k !== 'red' && k !== 'credits' && k !== '') return;
         lsSet(KIND_KEY, k || null);
         S.kind = k || (S.cfg && S.cfg.kind) || 'rain';
         if (S.active) {
+            streakImg = null;
+            beadCache = {};
             root.setAttribute('data-rain', S.kind);
             drops = [[], [], []]; splashes = []; bits = []; beads = [];
-            if (AUD.on && AUD.rain) { AUD.rain.gain.gain.value = credits() ? 0.07 : 0.15; scheduleTink(); }
+            if (AUD.on && AUD.rain) { AUD.rain.gain.gain.value = credits() ? 0.07 : redRain() ? 0.17 : 0.15; scheduleTink(); }
             paintButtons();
         }
         fire();

@@ -29,7 +29,7 @@ let atts = [], pendingImgs = [];
 const modes = () => ({ think: false, search: false, research: false, ...LS('sa.modes', {}) });
 const THINK = 'Think through the problem step by step, double-check your work, then give a clear final answer.';
 const backend = () => LS('sa.dev', null) ? 'direct' : LAUNCH;
-const CFG = () => ({ nick: '', expr: true, typing: true, persona: '', ...LS('sa.cfg', {}) });
+const CFG = () => ({ nick: '', expr: true, typing: true, persona: '', enter: true, autotitle: true, memOn: true, notif: false, sound: false, shortcuts: true, len: 'normal', emo: 'normal', fs: 1, art: true, grid: true, calm: false, ...LS('sa.cfg', {}) });
 const PERSONAS = [
   { id: 'custom', n: 'Use my custom one', i: 'pen', p: '' },
   { id: 'spectra', n: 'Spectra (Default)', i: 'spark', p: '' },
@@ -386,7 +386,7 @@ async function sbReq() {
   return { url: window.SPECSOFT_CONFIG.SUPABASE_URL + '/functions/v1/spectra-chat', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token, apikey: window.SPECSOFT_CONFIG.SUPABASE_ANON_KEY } };
 }
 async function autoTitle(c) {
-  if (backend() !== 'supabase' || c.renamed || c.titled) return;
+  if (backend() !== 'supabase' || c.renamed || c.titled || !CFG().autotitle) return;
   const u = c.messages.find(m => m.role === 'user'), a = c.messages.find(m => m.role === 'assistant' && !m.err && m.content);
   if (!u || !a) return;
   c.titled = true; naming.add(c); renderList();
@@ -443,9 +443,11 @@ async function ask(h, onTok, signal, onMeta) {
     url = window.SPECSOFT_CONFIG.SUPABASE_URL + '/functions/v1/spectra-chat'; hd.Authorization = 'Bearer ' + s.access_token; hd.apikey = window.SPECSOFT_CONFIG.SUPABASE_ANON_KEY;
     const imgs = pendingImgs; pendingImgs = [];
     const nm = (CFG().nick || (($('[data-user-name]') || {}).textContent || '')).trim().slice(0, 20);
-    const md3 = modes(); body = { messages: h, persona: persona().id, custom: persona().id === 'custom' ? (CFG().persona || '').slice(0, 400) : '', model: model().id, think: !!md3.think && !md3.research, search: !!md3.search, research: !!md3.research, nick: nm, hour: new Date().getHours() }; if (imgs.length) body.images = imgs;
+    const md3 = modes(); body = { messages: h, persona: persona().id, custom: persona().id === 'custom' ? (CFG().persona || '').slice(0, 400) : '', model: model().id, think: !!md3.think && !md3.research, search: !!md3.search, research: !!md3.research, nick: nm, hour: new Date().getHours(), memory: CFG().memOn ? mem().map(m => m.t) : [], style: { len: CFG().len, emo: CFG().emo } }; if (imgs.length) body.images = imgs;
   }
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
+  const lf = r.headers.get('X-Spectra-Left'), lm = r.headers.get('X-Spectra-Limit');
+  if (lf !== null && lm !== null && !isNaN(+lf) && +lm > 0) SS('sa.left', { left: +lf, limit: +lm, day: new Date().toISOString().slice(0, 10) });
   if (!r.ok || !r.body) { const tx = await r.text().catch(() => ''); throw new Error(errCode(r.status, tx, !!body.images)); }
   if (onMeta && r.headers.get('X-Spectra-Search') === 'failed') onMeta({ nosearch: 1 });
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -469,6 +471,7 @@ const setBusy = b => { busy = b; sendBtn.classList.toggle('stop', b); sendBtn.se
 async function sendMsg(t) {
   t = (t || '').trim(); if (!t && atts.some(a => a.kind === 'image')) t = 'What do you think of this?'; if (!t && atts.length) return toast('Add a message with your attachment'); if (!t || busy) return;
   if (t === '/dev') { input.value = ''; setDev(); return; }
+  if (/^\/remember\s+\S/i.test(t)) { addMem(t.replace(/^\/remember\s+/i, '')); input.value = ''; input.style.height = 'auto'; return; }
   if (!cur) { cur = { title: t.slice(0, 34), t: Date.now(), messages: [] }; chats.unshift(cur); }
   else { cur.t = Date.now(); chats = [cur, ...chats.filter(c => c !== cur)]; }
   const tx = atts.filter(a => a.kind === 'text'), im = atts.filter(a => a.kind === 'image');
@@ -499,7 +502,7 @@ async function sendMsg(t) {
     const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null;
     if (!err && !ai.content && !gone && backend() !== 'demo') err = ERR.FAIL;
     if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else setMood(mm || 'joy');
-    save(); renderChat(); if (!err && ai.content) autoTitle(chat);
+    save(); renderChat(); if (!err && ai.content) { autoTitle(chat); notifyDone(ai.content); }
   };
   const h = cur.messages.slice(0, -1).map(m => ({ role: m.role, content: sanitizeSpecsoftLinks(m.content) }));
   if (backend() === 'demo') { const txt = demo(t); let i = 0; timer = setInterval(() => { onTok(txt.slice(i, i += 3)); if (i >= txt.length) { clearInterval(timer); timer = null; end(); } }, 16); return; }
@@ -580,7 +583,7 @@ modal.addEventListener('click', e => { if (e.target === modal) modal.classList.r
 
 /* ---- Wiring ---- */
 sendBtn.onclick = () => busy ? stop() : sendMsg(input.value);
-input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMsg(input.value); } });
+input.addEventListener('keydown', e => { if (e.key !== 'Enter' || e.isComposing) return; if (CFG().enter ? !e.shiftKey : (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendMsg(input.value); } });
 input.addEventListener('input', () => {
   input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px';
   if (!busy) { setMood('confused'); clearTimeout(typing); typing = setTimeout(() => setMood('sparkle'), 2500); }
@@ -604,7 +607,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---- Personas, settings, drawer backdrop ---- */
-const pBtn = $('#saPersona'), pMenu = $('#saPMenu'), setM = $('#saSet'), nick = $('#saNick'), ex = $('#saExpr'), ty = $('#saTyping'), persT = $('#saPers');
+const pBtn = $('#saPersona'), pMenu = $('#saPMenu');
 const drawP = () => { pBtn.title = 'Tools · ' + persona().n + ' · ' + model().n; pBtn.setAttribute('aria-label', 'Tools and persona: ' + persona().n); pBtn.classList.toggle('alt', persona().id !== 'spectra' || model().id !== '3.5'); };
 const attEl = $('#saAtt'), fileIn = $('#saFile');
 const TOOLS = [['file', 'clip', 'Attach image or file'], ['shot', 'shot', 'Take a screenshot'], ['asset', 'cube', 'Upload from Assets'], ['search', 'globe', 'Web search'], ['think', 'brain', 'Deep reasoning'], ['research', 'radar', 'Deep research']];
@@ -676,7 +679,7 @@ pMenu.onclick = e => {
   if (b.dataset.persona) return drawMenu('persona'); if (b.dataset.model) return drawMenu('model'); if (b.dataset.back) return drawMenu(false);
   if (b.dataset.mdl) { SS('sa.model', b.dataset.mdl); drawP(); pMenu.classList.remove('open'); toast(model().n + ' selected'); setMood('sparkle'); return; }
   if (b.dataset.p) {
-    if (b.dataset.p === 'custom' && !(CFG().persona || '').trim()) { pMenu.classList.remove('open'); toast('Write your custom persona first'); return $('#saSettings').click(); }
+    if (b.dataset.p === 'custom' && !(CFG().persona || '').trim()) { pMenu.classList.remove('open'); toast('Write your custom persona first'); return openSettings('personal'); }
     SS('sa.persona', b.dataset.p); drawP(); pMenu.classList.remove('open'); toast(persona().n + (b.dataset.p === 'spectra' ? ' is back' : ' on')); setMood('sparkle'); return;
   }
   pMenu.classList.remove('open'); tool(b.dataset.t);
@@ -684,11 +687,254 @@ pMenu.onclick = e => {
 document.addEventListener('click', () => pMenu.classList.remove('open'));
 drawAtt();
 drawP();
-$('#saSettings').onclick = () => { const c = CFG(); nick.value = c.nick; ex.checked = c.expr; ty.checked = c.typing; persT.value = c.persona || ''; setM.classList.add('on'); app.classList.remove('drawer'); };
-const saveCfg = () => { SS('sa.cfg', { nick: nick.value.trim().slice(0, 20), expr: ex.checked, typing: ty.checked, persona: persT.value.trim().slice(0, 400) }); drawP(); if (!ex.checked) { mood = ''; $$('.sa-face').forEach(i => { i.src = PFP; }); } };
-[nick, ex, ty].forEach(x => x.addEventListener('change', saveCfg)); nick.addEventListener('input', saveCfg); persT.addEventListener('input', saveCfg);
-$('#saSetClose').onclick = () => setM.classList.remove('on');
-setM.addEventListener('click', e => { if (e.target === setM) setM.classList.remove('on'); });
+/* ---- Settings center: General, Personalization, Memory, Appearance, Notifications, Shortcuts, Usage limits, Data controls, About, Report bug ---- */
+const setM = $('#saSet'), sxNav = $('#sxNav'), sxPane = $('#sxPane');
+const MOD = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || '') ? '\u2318' : 'Ctrl';
+const putCfg = (k, v) => { SS('sa.cfg', { ...CFG(), [k]: v }); applyCfg(); };
+const mem = () => { const a = LS('sa.mem', []); return Array.isArray(a) ? a.filter(x => x && typeof x.t === 'string').slice(0, 20) : []; };
+function addMem(t) {
+  t = String(t || '').replace(/\s+/g, ' ').trim().slice(0, 160); if (!t) return false;
+  const a = mem(); if (a.some(x => x.t.toLowerCase() === t.toLowerCase())) { toast('Already saved'); return false; }
+  if (a.length >= 20) { toast('Memory is full (20 notes). Delete one first'); return false; }
+  a.push({ t, ts: Date.now() }); SS('sa.mem', a); toast(CFG().memOn ? 'Saved to memory' : 'Saved (memory is off in Settings)'); return true;
+}
+function applyCfg() {
+  const c = CFG();
+  app.style.setProperty('--sa-fs', c.fs);
+  app.classList.toggle('no-art', !c.art); app.classList.toggle('no-grid', !c.grid); app.classList.toggle('calm', !!c.calm);
+  const hint = $('.sa-hint'); if (hint) hint.textContent = (c.enter ? 'Enter to send \u00b7 Shift+Enter for a new line' : MOD + '+Enter to send \u00b7 Enter for a new line') + ' \u00b7 Spectra can make mistakes';
+  if (!c.expr) { mood = ''; $$('.sa-face').forEach(i => { i.src = PFP; }); }
+  drawP();
+}
+/* notifications + sound when a reply finishes */
+function blip() {
+  try {
+    const A = window.AudioContext || window.webkitAudioContext, a = new A(), o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+    o.type = 'sine'; o.frequency.setValueAtTime(660, t); o.frequency.setValueAtTime(880, t + .09);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.12, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + .26);
+    o.connect(g); g.connect(a.destination); o.start(); o.stop(t + .28); setTimeout(() => a.close(), 500);
+  } catch (e) { }
+}
+function pingNote(body) {
+  try { const n = new Notification('Spectra', { body, icon: PFP, tag: 'spectra' }); n.onclick = () => { window.focus(); n.close(); }; } catch (e) { }
+}
+function notifyDone(txt) {
+  const c = CFG(); if (c.sound) blip();
+  if (c.notif && document.hidden && 'Notification' in window && Notification.permission === 'granted') pingNote(String(txt).replace(/[*_`#>|~\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 100) || 'Your reply is ready');
+}
+function askNotif(box) {
+  if (!('Notification' in window)) { box.checked = false; return toast('This browser does not support notifications'); }
+  Notification.requestPermission().then(p => { if (p === 'granted') putCfg('notif', true); else { box.checked = false; putCfg('notif', false); toast('Notifications are blocked in your browser settings'); } });
+}
+
+/* small UI builders */
+const SEGS = {};
+const sw = (k, on) => '<label class="sx-sw"><input type="checkbox" data-sw="' + k + '"' + (on ? ' checked' : '') + '><i></i></label>';
+const seg = (k, opts, cur) => { SEGS[k] = opts; return '<div class="sx-seg" data-seg="' + k + '">' + opts.map((o, i) => '<button type="button" data-i="' + i + '" class="' + (o[0] === cur ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div>'; };
+const r = (l, d, ctl, stack) => '<div class="sx-r' + (stack ? ' stack' : '') + '"><div class="sx-t"><b>' + l + '</b>' + (d ? '<span>' + d + '</span>' : '') + '</div>' + (ctl ? '<div class="sx-c">' + ctl + '</div>' : '') + '</div>';
+const sec = t => '<h4 class="sx-sec">' + t + '</h4>';
+const btn = (act, label, cls) => '<button type="button" class="sx-btn' + (cls ? ' ' + cls : '') + '" data-act="' + act + '">' + label + '</button>';
+const kbds = s => s.split(' ').map(x => '<kbd class="sx-k">' + esc(x) + '</kbd>').join('');
+function sure(b, fn) {
+  if (b.dataset.sure) { delete b.dataset.sure; return fn(); }
+  b.dataset.sure = 1; const t = b.textContent; b.textContent = 'Click again to confirm';
+  setTimeout(() => { if (b.isConnected && b.dataset.sure) { delete b.dataset.sure; b.textContent = t; } }, 3000);
+}
+
+const PANES = {
+  general() {
+    const c = CFG();
+    return sec('Chat') +
+      r('Nickname', 'What Spectra calls you. Leave it empty to use your profile name.', '<input class="sx-in" data-txt="nick" maxlength="20" placeholder="Bro" value="' + esc(c.nick) + '">', 1) +
+      r('Send with Enter', 'Off means ' + MOD + '+Enter sends and Enter adds a new line.', sw('enter', c.enter)) +
+      r('Auto-name chats', 'Spectra titles new chats from your first message.', sw('autotitle', c.autotitle)) +
+      sec('Spectra') +
+      r('Typing animation', 'Her greeting types itself out.', sw('typing', c.typing)) +
+      r('Live expressions', 'Her face changes with her mood.', sw('expr', c.expr));
+  },
+  personal() {
+    const c = CFG();
+    return sec('Persona') +
+      r('Persona', 'How Spectra shows up for you.', seg('persona', PERSONAS.map(p => [p.id, p.n]), persona().id), 1) +
+      '<div class="sx-r col"><div class="sx-t"><b>Custom persona</b><span>Used when "Use my custom one" is picked. It changes tone and focus only, never her rules.</span></div><textarea class="sx-ta" data-txt="persona" maxlength="400" rows="4" placeholder="e.g. short answers, hype energy, explain things like I\'m new to coding.">' + esc(c.persona) + '</textarea></div>' +
+      sec('Model and style') +
+      r('Model', 'Faster or smarter, your call.', seg('model', MODELS.map(m => [m.id, m.n]), model().id), 1) +
+      r('Reply length', 'How much she writes by default.', seg('len', [['short', 'Short'], ['normal', 'Normal'], ['detailed', 'Detailed']], c.len), 1) +
+      r('Emojis', 'How many she sprinkles in.', seg('emo', [['few', 'Less'], ['normal', 'Normal'], ['lots', 'More']], c.emo), 1);
+  },
+  memory() {
+    const c = CFG(), a = mem();
+    return sec('Memory') +
+      r('Use memory', 'Spectra reads these notes in every chat while this is on. Notes only change what she knows about you, never her rules.', sw('memOn', c.memOn)) +
+      sec('Saved notes (' + a.length + '/20)') +
+      (a.length ? a.map((m, i) => '<div class="sx-mi"><span>' + esc(m.t) + '</span><button type="button" data-act="memdel" data-i="' + i + '" aria-label="Delete note">\u00d7</button></div>').join('') : '<div class="sx-empty">Nothing saved yet. Add a note below, or type <b>/remember your note</b> in the chat box.</div>') +
+      '<div class="sx-add"><input class="sx-in" id="sxMemIn" maxlength="160" placeholder="e.g. I make Roblox obbies"><button type="button" class="sx-btn main" data-act="memadd">Add</button></div>' +
+      (a.length ? '<div style="padding-top:14px">' + btn('memclear', 'Clear all notes', 'danger') + '</div>' : '') +
+      '<div class="sx-empty">Notes live in this browser on this device. Don\'t put passwords or private info in here.</div>';
+  },
+  look() {
+    const c = CFG();
+    return sec('Look') +
+      r('Text size', 'For Spectra\'s messages.', seg('fs', [[0.92, 'Small'], [1, 'Default'], [1.1, 'Large'], [1.2, 'XL']], +c.fs), 1) +
+      r('Background art', 'The big Spectra artwork behind the chat.', sw('art', c.art)) +
+      r('Grid background', 'The hairline grid with the cursor glow.', sw('grid', c.grid)) +
+      r('Calm mode', 'Turns off Spectra\'s animations on this page. Good for slow devices.', sw('calm', c.calm));
+  },
+  notif() {
+    const c = CFG();
+    return sec('When a reply is ready') +
+      r('Browser notification', 'Pings you if the tab is in the background. You may be asked for permission.', sw('notif', c.notif && 'Notification' in window && Notification.permission === 'granted')) +
+      r('Sound', 'A tiny blip when Spectra finishes.', sw('sound', c.sound)) +
+      r('Try it', 'Sends a test ping with your current settings.', btn('test', 'Send test')) +
+      '<div class="sx-empty">On iPhone, notifications only work after you add SPECSOFT to your Home Screen.</div>';
+  },
+  keys() {
+    const c = CFG(), K = [['Send message', c.enter ? 'Enter' : MOD + ' Enter'], ['New line', c.enter ? 'Shift Enter' : 'Enter'], ['Search chats', MOD + ' K'], ['New chat', MOD + ' Shift O'], ['Toggle sidebar', MOD + ' \\'], ['Open settings', MOD + ' ,'], ['Show this list', MOD + ' /'], ['Jump to the message box', '/'], ['Stop a reply / close popups', 'Esc']];
+    return sec('Keyboard') + r('Enable shortcuts', 'Turns the extra shortcuts on or off (Search chats and Esc always work).', sw('shortcuts', c.shortcuts)) + sec('List') + K.map(k => r(k[0], '', kbds(k[1]))).join('');
+  },
+  usage() {
+    const u = LS('sa.left', null), day = new Date().toISOString().slice(0, 10), ok = u && u.day === day && u.limit > 0;
+    const pct = ok ? Math.min(100, Math.round(Math.max(u.limit - u.left, 0) / u.limit * 100)) : 0;
+    return sec('Today') +
+      '<div class="sx-r col"><div class="sx-t"><b>' + (ok ? u.left + ' of ' + u.limit + ' credits left' : 'Send a message to see your count') + '</b><span id="sxReset"></span></div><div class="sx-bar"><i style="width:' + pct + '%"></i></div></div>' +
+      sec('What things cost') +
+      r('Normal message', '', '<span class="sx-n">1 credit</span>') + r('Web search', '', '<span class="sx-n">2 credits</span>') + r('Deep reasoning', '', '<span class="sx-n">3 credits</span>') + r('Deep research', '', '<span class="sx-n">5 credits</span>') + r('Sending images', 'Added to any of the above.', '<span class="sx-n">+1 credit</span>') +
+      '<div class="sx-empty">Your count refreshes after every message. Limits reset at midnight UTC.</div>';
+  },
+  data() {
+    return sec('Your data') +
+      r('Export everything', 'Chats, notes, saved code and settings as one file.', btn('export', 'Export'), 1) +
+      r('Import', 'Load a Spectra export file. Existing chats are kept.', btn('import', 'Choose file') + '<input type="file" id="sxImp" accept=".json,application/json" hidden>', 1) +
+      sec('Delete') +
+      r('Delete all chats', 'Removes every chat in this browser, including pinned and saved ones.', btn('clrchats', 'Delete chats', 'danger'), 1) +
+      r('Delete saved code', 'Clears everything you saved from code blocks (Assets).', btn('clrassets', 'Delete saved code', 'danger'), 1) +
+      r('Reset settings', 'Back to defaults. Chats and memory notes stay.', btn('reset', 'Reset settings', 'danger'), 1) +
+      '<div class="sx-empty">Chats, notes and settings are stored in this browser on this device, so clearing your browser data removes them. Export first if you want a backup.</div>';
+  },
+  about() {
+    return sec('Spectra AI') +
+      r('Version', 'Spectra AI v3 \u00b7 SPECSOFT\u00ae', '<span class="sx-n">v3</span>') +
+      r('Who is she?', 'SPECSOFT\'s official mascot and the helper on this page. She can make mistakes, so double-check anything important.', '') +
+      sec('Links') +
+      r('Website', 'specsoftdev.netlify.app', '<a class="sx-btn" href="https://specsoftdev.netlify.app" target="_blank" rel="noopener noreferrer">Open</a>') +
+      r('Discord community', 'Help, feedback and events.', '<a class="sx-btn" href="https://discord.gg/Uym7ybcWK3" target="_blank" rel="noopener noreferrer">Join</a>');
+  },
+  bug() {
+    return sec('Report a bug') +
+      '<div class="sx-r col"><div class="sx-t"><b>What kind of problem?</b></div><select class="sx-sel" id="sxBugCat"><option value="bug">Something is broken</option><option value="answer">Spectra said something wrong</option><option value="idea">Feature idea</option><option value="other">Something else</option></select></div>' +
+      '<div class="sx-r col"><div class="sx-t"><b>What happened?</b><span>The more detail, the faster we can fix it. Your browser type and screen size are attached automatically.</span></div><textarea class="sx-ta" id="sxBugTxt" maxlength="1500" rows="5" placeholder="What did you do, what did you expect, what actually happened?"></textarea></div>' +
+      r('Include my last messages', 'Attaches the last 6 messages of this chat so we can see what went wrong. Off by default.', sw('bugchat', false)) +
+      '<div style="padding-top:16px">' + btn('bug', 'Send report', 'main') + '</div>' +
+      '<div class="sx-empty">Reports go privately to the SPECSOFT team. If sending fails, your report is copied so you can paste it in our Discord.</div>';
+  }
+};
+const TABS = [['general', 'General', 'gear'], ['personal', 'Personalization', 'smile'], ['memory', 'Memory', 'brain'], ['look', 'Appearance', 'palette'], ['notif', 'Notifications', 'bell'], ['keys', 'Shortcuts', 'keys'], ['usage', 'Usage limits', 'gauge'], ['data', 'Data controls', 'data'], ['about', 'About', 'info'], ['bug', 'Report bug', 'bug']];
+let sxTab = 'general', sxT = 0;
+function tickUsage() {
+  const el = $('#sxReset'); if (!el) return clearInterval(sxT);
+  const n = new Date(), nx = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1), ms = nx - n.getTime();
+  el.textContent = 'Resets in ' + Math.floor(ms / 36e5) + 'h ' + Math.floor(ms % 36e5 / 6e4) + 'm (midnight UTC, ' + new Date(nx).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' your time)';
+}
+function drawSx(reset) {
+  clearInterval(sxT);
+  sxNav.innerHTML = TABS.map(t => '<button type="button" data-tab="' + t[0] + '" class="' + (t[0] === sxTab ? 'on' : '') + '">' + ico(t[2]) + '<span>' + t[1] + '</span></button>').join('');
+  const keep = sxPane.scrollTop; sxPane.innerHTML = PANES[sxTab](); sxPane.scrollTop = reset ? 0 : keep;
+  const on = sxNav.querySelector('.on'); if (reset && on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+  if (sxTab === 'usage') { tickUsage(); sxT = setInterval(tickUsage, 30000); }
+}
+function openSettings(tab) { if (tab) sxTab = tab; drawSx(true); setM.classList.add('on'); app.classList.remove('drawer'); }
+const closeSettings = () => { setM.classList.remove('on'); clearInterval(sxT); };
+
+function exportData() {
+  const d = { app: 'spectra', v: 3, t: Date.now(), settings: CFG(), memory: mem(), assets: LS('sa.assets', []), chats: chats.map(c => ({ title: c.title, t: c.t, pin: !!c.pin, lib: !!c.lib, arch: !!c.arch, messages: c.messages.map(m => { const o = { role: m.role, content: m.content }; if (m.sources) { o.sources = m.sources; o.queries = m.queries; } return o; }) })) };
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' }));
+  a.download = 'spectra-export-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Export downloaded');
+}
+function importData(f) {
+  if (!f) return; if (f.size > 8e6) return toast('That file is too big');
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const d = JSON.parse(rd.result); if (!d || d.app !== 'spectra' || !Array.isArray(d.chats)) throw 0;
+      const have = new Set(chats.map(c => c.t + '|' + c.title)); let n = 0;
+      d.chats.slice(0, 100).forEach(c => {
+        if (!c || typeof c.title !== 'string' || !Array.isArray(c.messages)) return;
+        const ms = c.messages.slice(0, 200).filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').map(m => {
+          const o = { role: m.role, content: m.content.slice(0, 20000) };
+          if (Array.isArray(m.sources)) { o.sources = m.sources.slice(0, 10).filter(s => s && typeof s.u === 'string' && typeof s.t === 'string').map(s => ({ t: s.t.slice(0, 60), u: s.u.slice(0, 600) })); o.queries = Array.isArray(m.queries) ? m.queries.slice(0, 6).map(q => String(q).slice(0, 120)) : []; }
+          return o;
+        });
+        const t = +c.t || Date.now(), title = c.title.slice(0, 40); if (!ms.length || have.has(t + '|' + title)) return;
+        chats.push({ title, t, titled: true, pin: !!c.pin, lib: !!c.lib, arch: !!c.arch, messages: ms }); n++;
+      });
+      chats.sort((a, b) => b.t - a.t);
+      if (Array.isArray(d.memory)) { const a = mem(); d.memory.slice(0, 20).forEach(m => { const t = m && typeof m.t === 'string' ? m.t.slice(0, 160) : ''; if (t && a.length < 20 && !a.some(x => x.t === t)) a.push({ t, ts: Date.now() }); }); SS('sa.mem', a); }
+      save(); renderList(); drawSx(); toast(n + ' chat' + (n === 1 ? '' : 's') + ' imported');
+    } catch (e) { toast('That is not a Spectra export file'); }
+  };
+  rd.readAsText(f);
+}
+async function sendBug(b) {
+  const cat = $('#sxBugCat').value, txt = $('#sxBugTxt').value.trim(), inc = !!(sxPane.querySelector('[data-sw=bugchat]') || {}).checked;
+  if (txt.length < 10) return toast('Tell us a bit more (10+ characters)');
+  const md = modes(), info = [(navigator.userAgent || '').slice(0, 160), innerWidth + 'x' + innerHeight, 'model ' + model().id, 'persona ' + persona().id, Object.keys(md).filter(k => md[k]).join('+') || 'no modes', new Date().toISOString()].join(' | ');
+  const chat = inc && cur ? cur.messages.slice(-6).map(m => ({ role: m.role, content: String(m.content).slice(0, 500) })) : [];
+  b.disabled = true; const label = b.textContent; b.textContent = 'Sending...';
+  try {
+    const q = await sbReq(), rs = await fetch(q.url, { method: 'POST', headers: q.headers, body: JSON.stringify({ mode: 'bug', category: cat, message: txt.slice(0, 1500), info, chat }) });
+    const j = rs.ok ? await rs.json() : null; if (!j || !j.ok) throw 0;
+    $('#sxBugTxt').value = ''; toast('Report sent. Thank you!');
+  } catch (e) { copy('[Spectra ' + cat + '] ' + txt + '\n' + info, 'Could not send it, so I copied your report. Paste it in our Discord!'); }
+  b.disabled = false; b.textContent = label;
+}
+
+sxNav.onclick = e => { const b = e.target.closest('button[data-tab]'); if (!b) return; sxTab = b.dataset.tab; drawSx(true); };
+sxPane.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.sw) {
+    const k = t.dataset.sw; if (k === 'bugchat') return;
+    if (k === 'notif' && t.checked) return askNotif(t);
+    putCfg(k, t.checked); if (k === 'sound' && t.checked) blip(); if (k === 'memOn') drawSx();
+  } else if (t.id === 'sxImp') { importData(t.files[0]); t.value = ''; }
+});
+sxPane.addEventListener('input', e => { const t = e.target; if (t.dataset.txt) putCfg(t.dataset.txt, t.value.slice(0, t.dataset.txt === 'nick' ? 20 : 400)); });
+sxPane.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'sxMemIn') { e.preventDefault(); const b = sxPane.querySelector('[data-act=memadd]'); if (b) b.click(); } });
+sxPane.addEventListener('click', e => {
+  const sg = e.target.closest('.sx-seg button');
+  if (sg) {
+    const k = sg.parentNode.dataset.seg, v = SEGS[k][+sg.dataset.i][0];
+    if (k === 'persona') { SS('sa.persona', v); if (v === 'custom' && !(CFG().persona || '').trim()) toast('Write your custom persona below'); }
+    else if (k === 'model') SS('sa.model', v);
+    else putCfg(k, v);
+    applyCfg(); drawSx(); return;
+  }
+  const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
+  if (a === 'memadd') { const i = $('#sxMemIn'); if (addMem(i.value)) drawSx(); }
+  else if (a === 'memdel') { const m = mem(); m.splice(+b.dataset.i, 1); SS('sa.mem', m); drawSx(); }
+  else if (a === 'memclear') sure(b, () => { SS('sa.mem', []); drawSx(); toast('Memory cleared'); });
+  else if (a === 'test') { const c = CFG(); if (c.sound) blip(); if (c.notif && 'Notification' in window && Notification.permission === 'granted') pingNote('This is how I will ping you when a reply is ready'); else toast(c.sound ? 'Blip!' : 'Turn on a notification or sound first'); }
+  else if (a === 'export') exportData();
+  else if (a === 'import') $('#sxImp').click();
+  else if (a === 'clrchats') sure(b, () => { if (busy) stop(); chats = []; cur = null; save(); renderList(); renderChat(); showGreeting(); toast('All chats deleted'); });
+  else if (a === 'clrassets') sure(b, () => { SS('sa.assets', []); toast('Saved code deleted'); });
+  else if (a === 'reset') sure(b, () => { ['sa.cfg', 'sa.persona', 'sa.model', 'sa.modes'].forEach(k => { try { localStorage.removeItem(k); } catch (er) { } }); applyCfg(); drawAtt(); drawSx(); toast('Settings reset'); });
+  else if (a === 'bug') sendBug(b);
+});
+$('#saSettings').onclick = () => openSettings('general');
+$('#saSetClose').onclick = closeSettings;
+setM.addEventListener('click', e => { if (e.target === setM) closeSettings(); });
+
+/* shortcuts */
+addEventListener('keydown', e => {
+  if (!CFG().shortcuts) return;
+  const mod = e.ctrlKey || e.metaKey, tag = ((e.target && e.target.tagName) || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select';
+  if (mod && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); $('#saNew').click(); }
+  else if (mod && e.key === ',') { e.preventDefault(); openSettings('general'); }
+  else if (mod && e.key === '/') { e.preventDefault(); openSettings('keys'); }
+  else if (mod && e.key === '\\') { e.preventDefault(); innerWidth <= 850 ? app.classList.toggle('drawer') : $('#saCollapse').click(); }
+  else if (e.key === '/' && !mod && !typing) { e.preventDefault(); input.focus(); }
+}, true);
+applyCfg();
 $('#saBack').onclick = () => app.classList.remove('drawer');
 if (LS('sa.min', false)) app.classList.add('min');
 
@@ -723,12 +969,12 @@ const closeDrawer = () => app.classList.remove('drawer');
 $('#saX').onclick = closeDrawer;
 ['#saAssets', '#saLibrary', '#saSearch', '#saSettings'].forEach(s => $(s).addEventListener('click', closeDrawer));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
-let sx = 0, sy = 0, sw = false;
-addEventListener('touchstart', e => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; sw = innerWidth <= 850 && (app.classList.contains('drawer') || sx < 28); }, { passive: true });
+let tx0 = 0, ty0 = 0, tgo = false;
+addEventListener('touchstart', e => { const t = e.touches[0]; tx0 = t.clientX; ty0 = t.clientY; tgo = innerWidth <= 850 && (app.classList.contains('drawer') || tx0 < 28); }, { passive: true });
 addEventListener('touchend', e => {
-  if (!sw) return; sw = false; const t = e.changedTouches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy);
+  if (!tgo) return; tgo = false; const t = e.changedTouches[0], dx = t.clientX - tx0, dy = Math.abs(t.clientY - ty0);
   if (dy > 60 || Math.abs(dx) < 70) return;
-  if (dx > 0 && sx < 28 && !app.classList.contains('drawer')) app.classList.add('drawer');
+  if (dx > 0 && tx0 < 28 && !app.classList.contains('drawer')) app.classList.add('drawer');
   else if (dx < 0 && app.classList.contains('drawer')) closeDrawer();
 }, { passive: true });
 
