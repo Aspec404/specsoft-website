@@ -21,6 +21,8 @@
            speech bubble (some of it makes them cry), and slide back out. Click them: they react (and if you keep poking, they get emotional).
            The very first visit of a session is a short reunion with both of them. Reduce motion: one still companion that talks on click.
            Lines live in PAL_LINES / PAL_POKE / PAL_MISS in thethe-event.js, the look is thethe-event.css section 3b.
+           Companions that appear at the BOTTOM (wide screens) also WALK along the bottom edge, switch faces at every stop and can
+           still be poked mid-stroll (they freeze, react, then carry on). Knobs: PAL_WALK in thethe-event.js.
          - the site's custom cursor (cursor.js) turns orange
          - the sidebar / mobile logo says "tHE THE" (with an orange tT mark) instead of SPECSOFT®
          - a floating rounded bottom nav (Home / Projects / Chats / Store / Profile), like the old tHE THE site
@@ -487,6 +489,9 @@
         thea:  ['thea-happy', '...you really did miss us. me too. a little.'],
         mirai: ['mirai-love', 'I\u2019M NOT CRYING YOU\u2019RE CRYING \uD83D\uDE2D\uD83E\uDDE1']
     };
+    // bottom companions stroll left and right inside their own side of the screen (they never cross the bottom nav).
+    // speed = px per second, facesRight = which way the sprite looks when it is NOT flipped (set false if they moonwalk), pause = ms between strolls
+    var PAL_WALK = { speed: 58, facesRight: true, pauseMin: 900, pauseMax: 2200, zones: [[0.14, 0.4], [0.6, 0.86]] };
     function palName(w) { return w === 'thea' ? 'Thea' : 'Mirai'; }
     function palSlots() {
         if (document.body && document.body.classList.contains('ch-body')) return ['right'];     // the chats page: right edge only, the composer + sidebar stay clear
@@ -528,13 +533,40 @@
     function palLeave(el, tok) {
         if (tok !== S.palTok || !el.parentNode || el._gone) return;
         el._gone = true;
-        el.classList.remove('tt-talk'); el.classList.remove('tt-in');
+        el.classList.remove('tt-talk'); el.classList.remove('tt-in'); el.classList.remove('tt-walking');
+        clearTimeout(el._walkT);
         setTimeout(function () {
             if (el.parentNode) el.parentNode.removeChild(el);
             var i = S.pals.indexOf(el);
             if (i > -1) S.pals.splice(i, 1);
             if (tok === S.palTok && el._done) el._done();
         }, 800);
+    }
+    function palWalkOK(el, tok) { return tok === S.palTok && !el._gone && !!el.parentNode && !el._still; }
+    function palFace(el, who) {       // a different expression than the one they are wearing now
+        var im = el.querySelector('.tt-pal-img');
+        if (!im) return;
+        var list = MASCOTS[who].emotes.filter(function (n) { return n !== el._face; });
+        el._face = pick(list);
+        palSwap(im, el._face);
+    }
+    function palStep(el, who, tok) {  // one stroll: pick a spot, walk there, stop, change face, wait a bit, repeat
+        if (!palWalkOK(el, tok) || el._poked) return;
+        var lo = innerWidth * el._zone[0], hi = innerWidth * el._zone[1], from = el.offsetLeft, to = rand(lo, hi);
+        if (Math.abs(to - from) < 70) to = from < (lo + hi) / 2 ? rand(from + 80, hi) : rand(lo, from - 80);
+        var ms = Math.max(500, Math.round(Math.abs(to - from) / PAL_WALK.speed * 1000)), goingLeft = to < from;
+        var im = el.querySelector('.tt-pal-img');
+        if (im) im.classList.toggle('tt-flip', PAL_WALK.facesRight ? goingLeft : !goingLeft);
+        el.style.setProperty('--walk-ms', ms + 'ms');
+        el.classList.add('tt-walking');
+        el.style.left = Math.round(to) + 'px';
+        if (Math.random() < 0.45) setTimeout(function () { if (palWalkOK(el, tok) && !el._poked) palFace(el, who); }, ms * 0.5);     // sometimes a new mood mid-walk
+        el._walkT = setTimeout(function () {
+            if (!palWalkOK(el, tok) || el._poked) return;
+            el.classList.remove('tt-walking');
+            palFace(el, who);                                                  // new face at every stop
+            el._walkT = setTimeout(function () { palStep(el, who, tok); }, rand(PAL_WALK.pauseMin, PAL_WALK.pauseMax));
+        }, ms);
     }
     function palPoke(el, who, tok) {
         if (tok !== S.palTok || el._gone) return;
@@ -543,6 +575,19 @@
         var miss = S.palPokes % 6 === 0;
         var spec = miss ? PAL_MISS[who] : pick(PAL_POKE[who]);
         var im = el.querySelector('.tt-pal-img'), b = el.querySelector('.tt-bubble');
+        if (el._walk) {            // a walker freezes right where it is, reacts, then carries on strolling
+            clearTimeout(el._walkT);
+            el._poked = true;
+            el.classList.remove('tt-walking');
+            el.style.left = el.offsetLeft + 'px';
+            el._walkT = setTimeout(function () {
+                el._poked = false;
+                if (!palWalkOK(el, tok)) return;
+                el.classList.remove('tt-talk');
+                palStep(el, who, tok);
+            }, miss ? 4200 : 2600);
+        }
+        el._face = spec[0];
         if (im) palSwap(im, spec[0]);
         if (b) b.textContent = spec[1];
         el.classList.add('tt-talk');
@@ -551,7 +596,7 @@
         burstAt(Math.max(20, Math.min(innerWidth - 20, r.left + r.width / 2)), r.top + r.height * 0.3, S.lite ? 2 : 4);
         if (miss) palTears(el, tok, 6);
         clearTimeout(el._life);
-        el._life = setTimeout(function () { palLeave(el, tok); }, miss ? 4600 : 2400);
+        el._life = setTimeout(function () { palLeave(el, tok); }, el._walk ? (miss ? 9000 : 8000) : (miss ? 4600 : 2400));
     }
     // spec = [emote, line, crying?]. still = Reduce motion: shown at once, stays, talks on click.
     function palShow(who, slot, spec, hold, done, still) {
@@ -563,6 +608,12 @@
         el.appendChild(mascotImg('tt-pal-img tt-mascot', spec[0]));
         el.appendChild(mk('div', 'tt-bubble', spec[1]));
         el._done = done; el._still = !!still;
+        el._walk = (slot === 'bottom' && !still);
+        if (el._walk) {                                    // bottom companions stay a lot longer: they have places to be
+            el._zone = parseFloat(el.style.left) < innerWidth * 0.5 ? PAL_WALK.zones[0] : PAL_WALK.zones[1];
+            el._face = spec[0];
+            hold = Math.max(hold || 0, Math.round(rand(11000, 16000)));
+        }
         el.addEventListener('pointerdown', function () { palPoke(el, who, tok); });
         S.root.appendChild(el);
         S.pals.push(el);
@@ -573,6 +624,11 @@
             if (tok !== S.palTok || el._gone) return;
             el.classList.add('tt-talk');
             if (spec[2]) palTears(el, tok, 5);
+            if (el._walk) el._walkT = setTimeout(function () {       // say the line, then off for a walk
+                if (!palWalkOK(el, tok) || el._poked) return;
+                el.classList.remove('tt-talk');
+                palStep(el, who, tok);
+            }, 2800);
         }, 650);
         el._life = setTimeout(function () { palLeave(el, tok); }, hold);
         return el;

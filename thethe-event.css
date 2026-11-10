@@ -446,7 +446,7 @@ img.tt-drop { height: auto; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .25)); }
 /* ---------- 3b. COMPANIONS: Thea + Mirai peek in from the screen edges (built by thethe-event.js) ----------
    They live inside #tt-root (which clips them at the screen edge, so "peeking" is free). Only the sprite itself takes clicks.
    Knobs: the 28% / 22% in the .tt-in rules = how much of them hides behind the edge. Bubble colours = the two lines under .tt-bubble. */
-.tt-pal { position: absolute; z-index: 2; pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .65s cubic-bezier(.34, 1.45, .64, 1); }
+.tt-pal { position: absolute; z-index: 2; pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .65s cubic-bezier(.34, 1.45, .64, 1), left var(--walk-ms, 0ms) linear; }
 .tt-pal-img { display: block; width: 100%; height: auto; transform-origin: 50% 90%; }
 .tt-pal.tt-left  { left: 0;   transform: translateX(-106%); }
 .tt-pal.tt-left.tt-in  { transform: translateX(-28%) rotate(7deg); }
@@ -474,10 +474,13 @@ body:not(.light-mode) .tt-bubble { background: #1a1a1a; color: #ffffff; }
 
 /* motion (full effects only): a slow float, a wiggle on hover, a squish when you poke them */
 html.tt-fx .tt-pal.tt-in .tt-pal-img { animation: tt-bob 2.6s ease-in-out infinite; }
+html.tt-fx .tt-pal.tt-walking .tt-pal-img { animation: tt-step .5s ease-in-out infinite; }      /* bottom companions: little hop-hop steps while they walk */
+.tt-pal-img.tt-flip { scale: -1 1; }      /* turn around when walking the other way (composes with the animations) */
 html.tt-fx .tt-pal:hover .tt-pal-img { animation: tt-wiggle .5s ease-in-out infinite; }
 html.tt-fx .tt-pal.tt-hit .tt-pal-img { animation: tt-squish .45s cubic-bezier(.34, 1.6, .64, 1); }
 @keyframes tt-bob    { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-5px) rotate(1.5deg); } }
 @keyframes tt-wiggle { 0%, 100% { transform: rotate(-4deg) scale(1.04); } 50% { transform: rotate(4deg) scale(1.04); } }
+@keyframes tt-step  { 0%, 100% { transform: translateY(0) rotate(-4deg); } 25% { transform: translateY(-7px) rotate(0deg); } 50% { transform: translateY(0) rotate(4deg); } 75% { transform: translateY(-7px) rotate(0deg); } }
 @keyframes tt-squish { 0% { transform: scale(1, 1); } 30% { transform: scale(1.14, .88); } 60% { transform: scale(.94, 1.08); } 100% { transform: scale(1, 1); } }
 
 /* tears (when a line makes them cry) */
