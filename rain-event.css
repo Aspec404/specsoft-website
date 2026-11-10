@@ -1,0 +1,118 @@
+/* ==========================================================================
+   SPECSOFT® rain-event.css  -  the RAIN theme event (loaded by rain-event.js, only while it runs)
+   Look: an empty street at 3AM. Cold teal-grey dark, one sodium lamp, fog, glass.
+   Everything here is an overlay with pointer-events:none, so it never changes how the page works.
+   ========================================================================== */
+html[data-rain] {
+    --rn-night: #070b11;
+    --rn-navy: #0d1620;
+    --rn-teal: #2b3d46;
+    --rn-fog: #8aa3ae;
+    --rn-lamp: #ffb347;
+    --rn-gold: #f5c542;
+    color-scheme: dark;
+}
+html[data-rain="credits"] { --rn-lamp: #f5c542; }
+
+#rn-root { position: fixed; inset: 0; z-index: 8000; pointer-events: none; overflow: hidden; contain: strict; }
+#rn-root > * { position: absolute; inset: 0; pointer-events: none; }
+
+/* ---- dim cold tint over the whole page (plain alpha, no filters, so it stays cheap) ---- */
+.rn-tint {
+    background:
+        radial-gradient(120% 90% at 50% 40%, rgba(7, 11, 17, 0) 40%, rgba(3, 6, 10, .55) 100%),
+        linear-gradient(180deg, rgba(10, 20, 30, .46) 0%, rgba(9, 17, 26, .34) 55%, rgba(4, 8, 13, .56) 100%);
+}
+html[data-rain-flash] .rn-tint { opacity: .6; }
+
+/* ---- one sodium lamp, flickering like it is about to die ---- */
+.rn-lamp {
+    background: radial-gradient(40vmax 34vmax at 9% -4%, rgba(255, 179, 71, .26), transparent 70%);   /* fallback for older browsers */
+    background:
+        radial-gradient(40vmax 34vmax at 9% -4%, color-mix(in srgb, var(--rn-lamp) 26%, transparent), transparent 70%),
+        radial-gradient(18vmax 14vmax at 9% -2%, color-mix(in srgb, var(--rn-lamp) 22%, transparent), transparent 70%);
+    animation: rnLamp 7.3s steps(1, end) infinite;
+}
+@keyframes rnLamp {
+    0%, 41%, 44%, 71%, 100% { opacity: 1; }
+    42% { opacity: .35; }
+    43% { opacity: .85; }
+    72% { opacity: .5; }
+    73% { opacity: .95; }
+    74% { opacity: .3; }
+    75% { opacity: 1; }
+}
+
+/* ---- two slow fog banks ---- */
+.rn-fog { overflow: hidden; }
+.rn-fog::before, .rn-fog::after {
+    content: ""; position: absolute; left: -30%; width: 160%; border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(138, 163, 174, .20), rgba(138, 163, 174, 0));
+    will-change: transform;
+}
+.rn-fog::before { bottom: -18%; height: 46%; animation: rnFogA 95s linear infinite alternate; }
+.rn-fog::after { bottom: -30%; height: 58%; opacity: .7; animation: rnFogB 140s linear infinite alternate; }
+@keyframes rnFogA { from { transform: translate3d(-8%, 0, 0); } to { transform: translate3d(8%, -3%, 0); } }
+@keyframes rnFogB { from { transform: translate3d(7%, 0, 0); } to { transform: translate3d(-9%, 2%, 0); } }
+
+/* ---- flashlight: darker everywhere except a soft circle around the cursor ---- */
+.rn-dark {
+    --mx: 50vw; --my: 40vh;
+    background: radial-gradient(circle 250px at var(--mx) var(--my), rgba(0, 0, 0, 0) 0%, rgba(2, 5, 9, .16) 55%, rgba(2, 5, 9, .60) 100%);
+}
+
+/* ---- the particle canvas (rain, coins, splashes, glass beads) ---- */
+#rn-fx { display: block; width: 100%; height: 100%; }
+
+/* ---- lightning: two soft pulses, never a strobe (max about 2 flashes per event) ---- */
+.rn-flash { background: #cfe3ff; opacity: 0; }
+.rn-flash.on { animation: rnFlash 1s ease-out 1; }
+@keyframes rnFlash {
+    0% { opacity: 0; }
+    6% { opacity: .30; }
+    16% { opacity: .04; }
+    30% { opacity: .22; }
+    100% { opacity: 0; }
+}
+
+/* ---- visitor buttons (sound, what falls) ---- */
+.rn-btns { position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 8100; display: flex; gap: 8px; }
+.rn-btn {
+    pointer-events: auto; width: 38px; height: 38px; border-radius: 50%; padding: 0; cursor: pointer;
+    display: grid; place-items: center; font-size: 17px; line-height: 1; color: #d9e6ec;
+    background: rgba(9, 16, 24, .72); border: 1px solid rgba(138, 163, 174, .35);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    transition: border-color .2s, background .2s, transform .15s;
+}
+.rn-btn:hover { border-color: rgba(138, 163, 174, .8); background: rgba(14, 24, 34, .85); }
+.rn-btn:active { transform: scale(.94); }
+.rn-btn:focus-visible { outline: 2px solid var(--rn-lamp); outline-offset: 2px; }
+.rn-btn[aria-pressed="true"] { border-color: var(--rn-lamp); }
+
+/* ---- welcome note ---- */
+.rn-greet {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 8100; transform: translate(-50%, 12px);
+    max-width: min(92vw, 420px); padding: 11px 18px; border-radius: 12px; text-align: center; font-size: 14px; line-height: 1.4;
+    color: #dbe7ed; background: rgba(9, 16, 24, .86); border: 1px solid rgba(138, 163, 174, .3);
+    opacity: 0; transition: opacity .6s ease, transform .6s ease; pointer-events: none;
+}
+.rn-greet.is-on { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---- preview chip (staff preview tab) ---- */
+.rn-prev {
+    position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 8100;
+    display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 14px; border-radius: 999px; font-size: 13px;
+    color: #dbe7ed; background: rgba(9, 16, 24, .9); border: 1px solid rgba(138, 163, 174, .4); pointer-events: auto;
+}
+.rn-prev button { cursor: pointer; border: 0; border-radius: 999px; padding: 5px 12px; font: inherit; color: #0b1118; background: #d9e6ec; }
+
+/* ---- weak devices: no drifting fog, no flicker, no blur (the script also stops the canvas) ---- */
+html.rn-lite .rn-fog::before, html.rn-lite .rn-fog::after, html.rn-lite .rn-lamp { animation: none; }
+html.rn-lite .rn-btn, html.rn-lite .rn-greet { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .rn-fog::before, .rn-fog::after, .rn-lamp { animation: none; }
+    .rn-flash.on { animation: none; }
+    .rn-greet { transition: none; }
+}
+@media (hover: none), (pointer: coarse) { .rn-dark { display: none; } }   /* no cursor on touch screens */

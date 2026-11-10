@@ -451,3 +451,11 @@
   .sa-hero{margin-top:0}
   .sa-composer{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
 }
+
+/* ---- v3.1: custom persona box + menu check marks ---- */
+.sa-set textarea{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px 12px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:10px;background:none;color:var(--sa-ink,var(--text-primary));font:13.5px/1.45 var(--font-sans);resize:none;outline:0;transition:border-color .2s}
+.sa-set textarea:focus{border-color:var(--sa-acc,var(--accent))}
+.sa-set textarea::placeholder{color:var(--sa-ink3,var(--text-tertiary))}
+.sa-pmenu .sa-h{padding:8px 12px 4px;font:500 10.5px var(--font-mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--sa-ink3,var(--text-tertiary))}
+.sa-pmenu button.cur{color:var(--sa-ink,var(--text-primary))}
+.sa-pmenu button small{display:block;margin-top:2px;font:11px var(--font-sans);color:var(--sa-ink3,var(--text-tertiary))}

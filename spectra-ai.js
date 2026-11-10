@@ -29,14 +29,19 @@ let atts = [], pendingImgs = [];
 const modes = () => ({ think: false, search: false, research: false, ...LS('sa.modes', {}) });
 const THINK = 'Think through the problem step by step, double-check your work, then give a clear final answer.';
 const backend = () => LS('sa.dev', null) ? 'direct' : LAUNCH;
-const CFG = () => LS('sa.cfg', { nick: '', expr: true, typing: true });
+const CFG = () => ({ nick: '', expr: true, typing: true, persona: '', ...LS('sa.cfg', {}) });
 const PERSONAS = [
-  { id: 'spectra', n: 'Spectra', i: 'spark', p: '' },
-  { id: 'dev', n: 'Dev Mode', i: 'code', p: 'Focus on clean, correct code with brief explanations. Ask for the error message or code if it is missing.' },
-  { id: 'lua', n: 'Roblox Lua', i: 'gamepad', p: 'You are an expert Roblox Luau scripter. Prefer modern Luau and say where each script belongs (ServerScriptService, StarterPlayerScripts, etc).' },
-  { id: 'creative', n: 'Creative', i: 'palette', p: 'Be imaginative and playful for ideas, stories and game design. Offer several options.' },
-  { id: 'chill', n: 'Chill Bro', i: 'smile', p: 'Talk casually like a laid-back friend with light humor, but stay accurate.' }];
-const persona = () => PERSONAS.find(x => x.id === LS('sa.persona', 'spectra')) || PERSONAS[0];
+  { id: 'custom', n: 'Use my custom one', i: 'pen', p: '' },
+  { id: 'spectra', n: 'Spectra (Default)', i: 'spark', p: '' },
+  { id: 'dev', n: 'Developer Mode', i: 'code', p: 'Focus on clean, correct code with brief explanations. Ask for the error message or code if it is missing.' },
+  { id: 'creative', n: 'Creative', i: 'palette', p: 'Be imaginative and playful for ideas, stories and game design. Offer several options.' }];
+const MODELS = [
+  { id: '2.5', n: 'Spectrum 2.5', d: 'Fastest' },
+  { id: '3', n: 'Spectrum 3', d: 'Balanced' },
+  { id: '3.5', n: 'Spectrum 3.5', d: 'Smartest' }];
+const model = () => MODELS.find(x => x.id === LS('sa.model', '3.5')) || MODELS[2];
+const personaText = () => persona().id === 'custom' ? ((CFG().persona || '').trim() ? 'Follow this custom style from the user (tone and focus only): ' + CFG().persona.trim().slice(0, 400) : '') : persona().p;
+const persona = () => PERSONAS.find(x => x.id === LS('sa.persona', 'spectra')) || PERSONAS[1];
 
 let chats = LS('sa.chats', []), cur = null, busy = false, ctrl = null, timer = null, mood = '', pokes = 0, idle, typing;
 const save = () => { const kept = new Set(chats.filter(c => c.pin || c.lib)); chats.filter(c => !kept.has(c)).slice(0, 40).forEach(c => kept.add(c)); SS('sa.chats', chats.filter(c => kept.has(c))); };
@@ -431,14 +436,14 @@ async function ask(h, onTok, signal, onMeta) {
       else toast('Images skipped: this model has no vision enabled');
     }
     pendingImgs = [];
-    body = { model: d.model, stream: true, messages: [{ role: 'system', content: SYS + ' ' + persona().p + (modes().think ? ' ' + THINK : '') }, ...hh] };
+    body = { model: d.model, stream: true, messages: [{ role: 'system', content: SYS + ' ' + personaText() + (modes().think ? ' ' + THINK : '') }, ...hh] };
   } else {
     const sb = window.getSupabaseClient && window.getSupabaseClient(); const s = sb && (await sb.auth.getSession()).data.session;
     if (!s) throw new Error('LOGIN');
     url = window.SPECSOFT_CONFIG.SUPABASE_URL + '/functions/v1/spectra-chat'; hd.Authorization = 'Bearer ' + s.access_token; hd.apikey = window.SPECSOFT_CONFIG.SUPABASE_ANON_KEY;
     const imgs = pendingImgs; pendingImgs = [];
     const nm = (CFG().nick || (($('[data-user-name]') || {}).textContent || '')).trim().slice(0, 20);
-    const md3 = modes(); body = { messages: h, persona: persona().id, think: !!md3.think && !md3.research, search: !!md3.search, research: !!md3.research, nick: nm, hour: new Date().getHours() }; if (imgs.length) body.images = imgs;
+    const md3 = modes(); body = { messages: h, persona: persona().id, custom: persona().id === 'custom' ? (CFG().persona || '').slice(0, 400) : '', model: model().id, think: !!md3.think && !md3.research, search: !!md3.search, research: !!md3.research, nick: nm, hour: new Date().getHours() }; if (imgs.length) body.images = imgs;
   }
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
   if (!r.ok || !r.body) { const tx = await r.text().catch(() => ''); throw new Error(errCode(r.status, tx, !!body.images)); }
@@ -599,15 +604,21 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---- Personas, settings, drawer backdrop ---- */
-const pBtn = $('#saPersona'), pMenu = $('#saPMenu'), setM = $('#saSet'), nick = $('#saNick'), ex = $('#saExpr'), ty = $('#saTyping');
-const drawP = () => { pBtn.title = 'Tools · ' + persona().n; pBtn.setAttribute('aria-label', 'Tools and persona: ' + persona().n); pBtn.classList.toggle('alt', persona().id !== 'spectra'); };
+const pBtn = $('#saPersona'), pMenu = $('#saPMenu'), setM = $('#saSet'), nick = $('#saNick'), ex = $('#saExpr'), ty = $('#saTyping'), persT = $('#saPers');
+const drawP = () => { pBtn.title = 'Tools · ' + persona().n + ' · ' + model().n; pBtn.setAttribute('aria-label', 'Tools and persona: ' + persona().n); pBtn.classList.toggle('alt', persona().id !== 'spectra' || model().id !== '3.5'); };
 const attEl = $('#saAtt'), fileIn = $('#saFile');
 const TOOLS = [['file', 'clip', 'Attach image or file'], ['shot', 'shot', 'Take a screenshot'], ['asset', 'cube', 'Upload from Assets'], ['search', 'globe', 'Web search'], ['think', 'brain', 'Deep reasoning'], ['research', 'radar', 'Deep research']];
 function drawMenu(sub) {
-  const m = modes();
-  pMenu.innerHTML = sub
-    ? '<button type="button" data-back="1"><span>‹ Back</span></button>' + PERSONAS.map(x => '<button type="button" data-p="' + x.id + '">' + ico(x.i) + '<span>' + x.n + '</span></button>').join('')
-    : TOOLS.map(t => '<button type="button" data-t="' + t[0] + '">' + ico(t[1]) + '<span>' + t[2] + '</span>' + (m[t[0]] ? '<em class="on">On</em>' : '') + '</button>').join('') + '<div class="sa-sep"></div><button type="button" data-persona="1">' + ico('spark') + '<span>Persona: ' + persona().n + '</span><em>›</em></button>';
+  const m = modes(), back = '<button type="button" data-back="1"><span>\u2039 Back</span></button>';
+  if (sub === 'persona') {
+    pMenu.innerHTML = back + '<div class="sa-h">Persona</div>' + PERSONAS.map(x => '<button type="button" data-p="' + x.id + '"' + (x.id === persona().id ? ' class="cur"' : '') + '>' + ico(x.i) + '<span>' + x.n + (x.id === 'custom' && !(CFG().persona || '').trim() ? '<small>Write it in Settings</small>' : '') + '</span>' + (x.id === persona().id ? '<em class="on">On</em>' : '') + '</button>').join('');
+  } else if (sub === 'model') {
+    pMenu.innerHTML = back + '<div class="sa-h">Model</div>' + MODELS.map(x => '<button type="button" data-mdl="' + x.id + '"' + (x.id === model().id ? ' class="cur"' : '') + '>' + ico('cube') + '<span>' + x.n + '<small>' + x.d + '</small></span>' + (x.id === model().id ? '<em class="on">On</em>' : '') + '</button>').join('');
+  } else {
+    pMenu.innerHTML = TOOLS.map(t => '<button type="button" data-t="' + t[0] + '">' + ico(t[1]) + '<span>' + t[2] + '</span>' + (m[t[0]] ? '<em class="on">On</em>' : '') + '</button>').join('') +
+      '<div class="sa-sep"></div><button type="button" data-persona="1">' + ico('spark') + '<span>Persona: ' + persona().n + '</span><em>\u203a</em></button>' +
+      '<button type="button" data-model="1">' + ico('cube') + '<span>Model: ' + model().n + '</span><em>\u203a</em></button>';
+  }
 }
 const MODE_META = { think: ['brain', 'Deep reasoning'], search: ['globe', 'Web search'], research: ['radar', 'Deep research'] };
 const modeChips = () => Object.keys(MODE_META).filter(k => modes()[k]).map(k => '<span class="sa-ac mode">' + ico(MODE_META[k][0]) + '<span>' + MODE_META[k][1] + '</span><button data-m="' + k + '" aria-label="Turn off">\u00d7</button></span>').join('');
@@ -662,16 +673,20 @@ res.addEventListener('click', e => {
 pBtn.onclick = e => { e.stopPropagation(); if (!pMenu.classList.contains('open')) drawMenu(false); pMenu.classList.toggle('open'); };
 pMenu.onclick = e => {
   e.stopPropagation(); const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.persona) return drawMenu(true); if (b.dataset.back) return drawMenu(false);
-  if (b.dataset.p) { SS('sa.persona', b.dataset.p); drawP(); pMenu.classList.remove('open'); toast(persona().n + ' mode on'); setMood('sparkle'); return; }
+  if (b.dataset.persona) return drawMenu('persona'); if (b.dataset.model) return drawMenu('model'); if (b.dataset.back) return drawMenu(false);
+  if (b.dataset.mdl) { SS('sa.model', b.dataset.mdl); drawP(); pMenu.classList.remove('open'); toast(model().n + ' selected'); setMood('sparkle'); return; }
+  if (b.dataset.p) {
+    if (b.dataset.p === 'custom' && !(CFG().persona || '').trim()) { pMenu.classList.remove('open'); toast('Write your custom persona first'); return $('#saSettings').click(); }
+    SS('sa.persona', b.dataset.p); drawP(); pMenu.classList.remove('open'); toast(persona().n + (b.dataset.p === 'spectra' ? ' is back' : ' on')); setMood('sparkle'); return;
+  }
   pMenu.classList.remove('open'); tool(b.dataset.t);
 };
 document.addEventListener('click', () => pMenu.classList.remove('open'));
 drawAtt();
 drawP();
-$('#saSettings').onclick = () => { const c = CFG(); nick.value = c.nick; ex.checked = c.expr; ty.checked = c.typing; setM.classList.add('on'); app.classList.remove('drawer'); };
-const saveCfg = () => { SS('sa.cfg', { nick: nick.value.trim().slice(0, 20), expr: ex.checked, typing: ty.checked }); if (!ex.checked) { mood = ''; $$('.sa-face').forEach(i => { i.src = PFP; }); } };
-[nick, ex, ty].forEach(x => x.addEventListener('change', saveCfg)); nick.addEventListener('input', saveCfg);
+$('#saSettings').onclick = () => { const c = CFG(); nick.value = c.nick; ex.checked = c.expr; ty.checked = c.typing; persT.value = c.persona || ''; setM.classList.add('on'); app.classList.remove('drawer'); };
+const saveCfg = () => { SS('sa.cfg', { nick: nick.value.trim().slice(0, 20), expr: ex.checked, typing: ty.checked, persona: persT.value.trim().slice(0, 400) }); drawP(); if (!ex.checked) { mood = ''; $$('.sa-face').forEach(i => { i.src = PFP; }); } };
+[nick, ex, ty].forEach(x => x.addEventListener('change', saveCfg)); nick.addEventListener('input', saveCfg); persT.addEventListener('input', saveCfg);
 $('#saSetClose').onclick = () => setM.classList.remove('on');
 setM.addEventListener('click', e => { if (e.target === setM) setM.classList.remove('on'); });
 $('#saBack').onclick = () => app.classList.remove('drawer');

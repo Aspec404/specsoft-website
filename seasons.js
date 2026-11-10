@@ -563,6 +563,14 @@
         tt.defer = true;
         (document.head || root).appendChild(tt);
     } catch (e) { /* ignore */ }
+    /* The live RAIN THEME EVENT (a theme / chill event: dark, lonely, liminal rain or APEX Credits rain) lives in rain-event.js. Same deal:
+       it loads itself here, skips admin.html / login.html and idles quietly until staff launch an event. */
+    try {
+        var rn = document.createElement('script');
+        rn.src = SELF ? SELF.replace(/seasons\.js(\?.*)?$/, 'rain-event.js$1') : 'rain-event.js';
+        rn.defer = true;
+        (document.head || root).appendChild(rn);
+    } catch (e) { /* ignore */ }
     document.addEventListener('visibilitychange', function () { var c = readCache(); if (!document.hidden && (!c || Date.now() - c.at > TTL)) refresh(); });
 
     window.SpecSeasons = {
