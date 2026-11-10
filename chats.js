@@ -4419,21 +4419,49 @@
         csSyncPlay();
     }
 
+    function csPlayErrorDetail(err, url) {
+        const bits = [];
+        const audioErr = csAudio && csAudio.error ? csAudio.error : null;
+        if (err && (err.name || err.message)) bits.push(err.name || 'Error');
+        if (err && err.message) bits.push(String(err.message));
+        if (audioErr && typeof audioErr.code === 'number') bits.push('mediaErrorCode=' + audioErr.code);
+        if (audioErr && audioErr.message) bits.push(String(audioErr.message));
+        const host = url ? url.replace(/^https?:\/\//i, '').split(/[/?#]/)[0] : 'unknown host';
+        bits.push('host=' + host);
+        return bits.filter(Boolean).slice(0, 4).join(' | ');
+    }
+
     function csPlay(key, url, start) {
         if (!csMusicUrlOk(url)) return;
         if (csNow && csNow.key === key && !csAudio.paused) { csStop(); return; }
         csAudio.pause();
         csNow = { key: key, start: Math.max(0, Math.min(20, Number(start) || 0)) };
-        const go = function () {
+        const startClip = function () {
             if (!csNow) return;
             try { csAudio.currentTime = csNow.start; } catch (e) { /* ignore */ }
-            const p = csAudio.play();
-            if (p && p.catch) p.catch(function () { csStop(); });
+            try {
+                const p = csAudio.play();
+                if (p && p.catch) p.catch(function (err) {
+                    const detail = csPlayErrorDetail(err, url);
+                    csStop();
+                    csAudio.src = '';
+                    toast('This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.');
+                });
+            } catch (e) {
+                const detail = csPlayErrorDetail(e, url);
+                csStop();
+                csAudio.src = '';
+                toast('This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.');
+            }
             csSyncPlay();
         };
         if (csAudio.src !== url) csAudio.src = url;
         else if (csAudio.readyState === 0) csAudio.load();
-        if (csAudio.readyState >= 1) go(); else csAudio.addEventListener('loadedmetadata', go, { once: true });
+        if (csAudio.readyState >= 1) startClip();
+        else {
+            csAudio.load();
+            startClip();
+        }
         csSyncPlay();
     }
 
@@ -4448,9 +4476,17 @@
         if (!csNow) return;
         csAudio.currentTime = csNow.start;
         const p = csAudio.play();
-        if (p && p.catch) p.catch(function () { csStop(); });
+        if (p && p.catch) p.catch(function (err) {
+            const detail = csPlayErrorDetail(err, csAudio.currentSrc || '');
+            toast('Status music re-loop failed. Details: ' + detail + '.');
+        });
     });
-    csAudio.addEventListener('error', function () { if (csNow) { csStop(); toast('That clip would not play'); } });
+    csAudio.addEventListener('error', function () {
+        if (!csNow) return;
+        const detail = csPlayErrorDetail(null, csAudio.currentSrc || '');
+        csStop();
+        toast('Status music failed to load. Details: ' + detail + '.');
+    });
     csAudio.addEventListener('pause', csSyncPlay);
     csAudio.addEventListener('play', csSyncPlay);
     document.addEventListener('visibilitychange', function () { if (document.hidden && csNow) csStop(); });
