@@ -4434,12 +4434,7 @@
     function csPlayFail(msgKey, err, url) {
         const detail = csPlayErrorDetail(err, url);
         const text = 'This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.';
-        if (msgKey === 'draft') {
-            if (typeof showBox === 'function') showBox('stMsg', text);
-            else toast(text);
-        } else {
-            toast(text);
-        }
+        toast(text);
         if (csNow && csNow.key === msgKey) csStop();
         csAudio.src = '';
     }
@@ -4489,8 +4484,7 @@
         if (!csNow) return;
         const detail = csPlayErrorDetail(null, csAudio.currentSrc || '');
         const key = csNow && csNow.key;
-        if (key === 'draft' && typeof showBox === 'function') showBox('stMsg', 'This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.');
-        else toast('Status music failed to load. Details: ' + detail + '.');
+        toast('Status music failed to load. Details: ' + detail + '.');
         csStop();
     });
     csAudio.addEventListener('pause', csSyncPlay);
@@ -6627,7 +6621,7 @@
     function runMusicSearch() {
         const q = $('stMusQ').value.trim();
         const seq = ++msSeq;
-        if (q.length < 2) { paintMsResults([]); msHelp('Pick a song and everyone you chat with can play a 10 second clip of it from your status. Songs come from iTunes.'); return; }
+        if (q.length < 2) { paintMsResults([]); msHelp('Pick a song. iTunes only gives a 30 second preview, so choose the best start point inside that clip.'); return; }
         msHelp('Searching...');
         itunesSearch(q).then(function (list) {
             if (seq !== msSeq) return;
@@ -6673,7 +6667,7 @@
         stDraft.music = { url: t.url, art: t.art, start: 0 };
         $('stMusQ').value = '';
         paintMsResults([]);
-        msHelp('Slide to the part you like. It loops for 10 seconds on your status.');
+        msHelp('The preview is 30 seconds long. Slide to pick where the clip starts.');
         paintStMusic();
         csStop();
         csPlay('draft', t.url, 0);
@@ -6698,7 +6692,7 @@
         $('stClear').hidden = !(c.text || c.thumb || c.mt);
         $('stMusQ').value = '';
         paintMsResults([]);
-        msHelp('Pick a song and everyone you chat with can play a 10 second clip of it from your status. Songs come from iTunes.');
+        msHelp('Pick a song. iTunes only gives a 30 second preview, so choose the best start point inside that clip.');
         $('stMusManual').open = !!(c.mt && !c.mu);
         paintStStates();
         paintStThumb();
@@ -6771,7 +6765,10 @@
             closeDlg('statusDlg');
             toast('Status updated');
         } catch (err) {
-            showBox('stMsg', (isSetupMissing(err) || /bucket not found|status-media/i.test(String(err && err.message || ''))) ? 'Run supabase-chat-status.sql, then supabase-chat-status-music.sql, in your Supabase SQL Editor to turn on custom status and music.' : friendly(err));
+            showBox('stMsg', (isSetupMissing(err) || /bucket not found|status-media/i.test(String(err && err.message || ''))) ? 'Run supabase-chat-status.sql, then supabase-chat-status-music.sql, in your Supabase SQL Editor to turn on custom status and music.' : (function () {
+                const f = friendly(err), m = String(err && err.message || '');
+                return (/^Something went wrong/.test(f) && m) ? 'Could not save the status: ' + m : f;
+            })());
         } finally { setLoading(btn, false); }
     }
 

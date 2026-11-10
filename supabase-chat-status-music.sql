@@ -14,6 +14,9 @@
 --   * profiles.status_music_start   where the clip starts, in seconds (0 to 30).
 --                                   The site plays the full 30 second iTunes preview from there.
 --
+-- NOTE: Postgres regular expressions only allow repeat counts up to 255, so the
+-- 500 character limit is a separate char_length() check, not {1,500}.
+--
 -- SECURITY: nobody can store a free link. The preview must be on Apple's
 -- audio host (audio-ssl.itunes.apple.com) and the art on Apple's image host
 -- (is1..is9-ssl.mzstatic.com). Anything else is rejected by both the
@@ -34,11 +37,11 @@ alter table public.profiles drop constraint if exists profiles_status_music_star
 
 alter table public.profiles add constraint profiles_status_music_url_fmt
   check (status_music_url is null
-         or status_music_url ~ '^https://audio-ssl\.itunes\.apple\.com/[^[:space:]<>"'']{1,500}$');
+         or (char_length(status_music_url) <= 500 and status_music_url ~ '^https://audio-ssl\.itunes\.apple\.com/[^[:space:]<>"'']+$'));
 
 alter table public.profiles add constraint profiles_status_music_art_fmt
   check (status_music_art is null
-         or status_music_art ~ '^https://is[0-9]-ssl\.mzstatic\.com/[^[:space:]<>"'']{1,500}$');
+         or (char_length(status_music_art) <= 500 and status_music_art ~ '^https://is[0-9]-ssl\.mzstatic\.com/[^[:space:]<>"'']+$'));
 
 alter table public.profiles add constraint profiles_status_music_start_rng
   check (status_music_start is null or (status_music_start >= 0 and status_music_start <= 30));
@@ -94,10 +97,10 @@ begin
   end if;
 
   -- only Apple's own hosts
-  if v_url is not null and v_url !~ '^https://audio-ssl\.itunes\.apple\.com/[^[:space:]<>"'']{1,500}$' then
+  if v_url is not null and (char_length(v_url) > 500 or v_url !~ '^https://audio-ssl\.itunes\.apple\.com/[^[:space:]<>"'']+$') then
     raise exception 'bad_music_url';
   end if;
-  if v_art is not null and v_art !~ '^https://is[0-9]-ssl\.mzstatic\.com/[^[:space:]<>"'']{1,500}$' then
+  if v_art is not null and (char_length(v_art) > 500 or v_art !~ '^https://is[0-9]-ssl\.mzstatic\.com/[^[:space:]<>"'']+$') then
     v_art := null;   -- the art is a bonus, so a bad one is simply dropped
   end if;
 
