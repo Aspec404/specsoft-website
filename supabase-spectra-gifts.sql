@@ -12,12 +12,16 @@ create table if not exists public.spectra_gifts (
 );
 alter table public.spectra_gifts enable row level security;
 
--- 2) ===== WIRE ME to your APEX wallet =====
--- Replace the RAISE with whatever your store SQL uses to add credits to a member (and log a transaction if you keep a ledger).
+-- 2) wired to the APEX wallet (public.apex_wallets: user_id, balance, lifetime)
 create or replace function public.spectra_grant_credits(p_user uuid, p_amount int)
 returns void language plpgsql security definer set search_path = public as $$
 begin
-  raise exception 'spectra_grant_credits is not wired to the APEX wallet yet';
+  if p_amount is null or p_amount <= 0 or p_amount > 500 then raise exception 'bad gift amount'; end if;
+  insert into public.apex_wallets (user_id) values (p_user) on conflict do nothing;
+  update public.apex_wallets
+     set balance  = balance + p_amount,
+         lifetime = lifetime + p_amount   -- delete this line if gifts should not count toward lifetime
+   where user_id = p_user;
 end $$;
 
 -- 3) claim a gift: atomic, one per cooldown. If the grant fails, everything rolls back (cooldown NOT used).

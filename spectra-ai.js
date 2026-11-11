@@ -301,7 +301,7 @@ function msgEl(m, last) {
     }
     const ut = document.createElement('div'); ut.className = 'sa-ut'; ut.innerHTML = md(tx); b.appendChild(ut); return d;
   }
-  d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div>' + srcHtml(m) + memqHtml(m) + '<div class="sa-act">' +
+  d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div>' + srcHtml(m) + memqHtml(m) + giftHtml(m) + '<div class="sa-act">' +
     '<button data-a="copy" title="Copy">' + ico('copy') + '</button><button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
     '<div class="sa-pop"><button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
   return d;
@@ -448,7 +448,8 @@ async function ask(h, onTok, signal, onMeta) {
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
   const lf = r.headers.get('X-Spectra-Left'), lm = r.headers.get('X-Spectra-Limit');
   if (lf !== null && lm !== null && !isNaN(+lf) && +lm > 0) SS('sa.left', { left: +lf, limit: +lm, day: new Date().toISOString().slice(0, 10) });
-  const gf = +r.headers.get('X-Spectra-Gift'); if (gf > 0 && onMeta) onMeta({ gift: gf });
+  const go = +r.headers.get('X-Spectra-Offer'); if (go > 0 && onMeta) { let nt = ''; try { nt = decodeURIComponent(r.headers.get('X-Spectra-Offer-Note') || ''); } catch (e) { } onMeta({ offer: { amount: go, note: nt.slice(0, 90) } }); }
+  const gerr = r.headers.get('X-Spectra-Gift-Error'); if (gerr) console.warn('Spectra could not gift credits. Error code:', gerr, '(open the spectra-chat function logs in Supabase for the full message)');
   if (!r.ok || !r.body) { const tx = await r.text().catch(() => ''); throw new Error(errCode(r.status, tx, !!body.images)); }
   if (onMeta && r.headers.get('X-Spectra-Search') === 'failed') onMeta({ nosearch: 1 });
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -488,7 +489,7 @@ async function sendMsg(t) {
   const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; const wm = modes(), web = backend() === 'supabase' && (wm.research || wm.search);
   body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>' + (web ? '<span class="sa-stat">' + (wm.research ? 'Researching the web\u2026' : 'Searching the web\u2026') + '</span>' : '');
   const onMeta = j => {
-    if (j.gift) { toast('Spectra gifted you ' + j.gift + ' APEX Credits'); try { if (window.ApexCredits) window.ApexCredits.refresh(); } catch (e) { } setMood('joy'); }
+    if (j.offer) { ai.gift = { amount: j.offer.amount, note: j.offer.note, state: 'pending', ts: Date.now() }; setMood('joy'); }
     if (j.sources) { ai.sources = j.sources; ai.queries = j.queries || []; paintSrc(el, ai); down(); }
     else if (j.queries && j.queries.length) { const st = body.querySelector('.sa-stat'); if (st) st.textContent = 'Reading: ' + j.queries[0].slice(0, 40); }
     if (j.nosearch) toast('Search was unavailable, so I answered without it');
@@ -540,7 +541,8 @@ msgsEl.addEventListener('click', e => {
     const a = LS('sa.assets', []); a.unshift({ lang: box.querySelector('.sa-code-h span').textContent, code, t: Date.now() }); SS('sa.assets', a.slice(0, 60)); return toast('Saved to Assets');
   }
   const a = b.dataset.a; if (!a || !m) return;
-  if (a === 'memyes' || a === 'memno') { if (a === 'memyes') addMem(m.memq); delete m.memq; save(); const q = b.closest('.sa-mq'); if (q) q.remove(); }
+  if (a === 'gacc' || a === 'grej') giftAct(m, a === 'gacc' ? 'accept' : 'reject', b);
+  else if (a === 'memyes' || a === 'memno') { if (a === 'memyes') addMem(m.memq); delete m.memq; save(); const q = b.closest('.sa-mq'); if (q) q.remove(); }
   else if (a === 'copy') copy(m.content);
   else if (a === 'up' || a === 'down') { m.fb = m.fb === a ? null : a; save(); $$('.sa-pop.open').forEach(p => p.classList.remove('open')); const bs = w.querySelectorAll('[data-a=up],[data-a=down]'); bs[0].classList.toggle('on', m.fb === 'up'); bs[1].classList.toggle('on', m.fb === 'down'); if (m.fb) setMood(m.fb === 'up' ? 'love' : 'sad'); }
   else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; cur.messages.pop(); const u = cur.messages.pop(); if (u._imgs && u._imgs.length) atts = u._imgs.map((d, k) => ({ kind: 'image', name: 'image ' + (k + 1), data: d })); sendMsg(u.content); }
@@ -707,6 +709,32 @@ function recentCtx() {
   if (cur.messages.filter(x => x.role === 'user').length > 6) return [];
   return chats.filter(c => c !== cur && !c.arch && c.messages && c.messages.some(x => x.role === 'assistant' && x.content && !x.err)).slice(0, 2)
     .map(c => ({ title: String(c.title || '').slice(0, 40), msgs: c.messages.filter(x => !x.err && x.content).slice(-4).map(x => ({ role: x.role, content: String(x.show || x.content).slice(0, 220) })) }));
+}
+function giftHtml(m) {
+  const g = m.gift; if (!g || m.err) return '';
+  const st = g.state === 'pending' && Date.now() - (g.ts || 0) > 2 * 36e5 ? 'expired' : g.state;
+  const foot = st === 'pending'
+    ? '<button type="button" class="sa-gacc" data-a="gacc">Accept</button><button type="button" class="sa-grej" data-a="grej">Reject</button>'
+    : '<span class="sa-gst">' + ({ accepted: 'Accepted \u00b7 +' + g.amount + ' APEX Credits added', rejected: 'Rejected \u00b7 no credits added', expired: 'This gift expired' }[st] || '') + '</span>';
+  return '<div class="sa-gift ' + st + '"><div class="sa-gh">' + ico('spark') + '<span>GIFT</span></div><div class="sa-gt">Spectra just gave you <b>' + (+g.amount || 0) + '</b> APEX Credits!</div>' +
+    (g.note ? '<div class="sa-gn"><small>Note from Spectra</small><p>' + esc(g.note) + '</p></div>' : '') + '<div class="sa-gb">' + foot + '</div></div>';
+}
+let giftBusy = false;
+async function giftAct(m, act, b) {
+  const g = m.gift; if (!g || g.state !== 'pending' || giftBusy) return;
+  giftBusy = true; const card = b.closest('.sa-gift'); if (card) card.querySelectorAll('button').forEach(x => { x.disabled = true; }); b.textContent = '...';
+  const home = chats.find(c => c.messages.includes(m));
+  try {
+    const q = await sbReq(), rs = await fetch(q.url, { method: 'POST', headers: q.headers, body: JSON.stringify({ mode: 'gift', action: act }) });
+    const j = rs.ok || rs.status === 200 ? await rs.json() : null; if (!j) throw 0;
+    if (!j.ok) { if (j.error === 'expired' || j.error === 'none') { g.state = 'expired'; toast('That gift is not available anymore'); } else throw 0; }
+    else {
+      g.state = act === 'accept' ? 'accepted' : 'rejected';
+      if (home && j.reply) home.messages.push({ role: 'assistant', content: String(j.reply).slice(0, 400) });
+      if (act === 'accept') { toast('+' + g.amount + ' APEX Credits'); try { if (window.ApexCredits) window.ApexCredits.refresh(); } catch (e) { } setMood('joy'); } else setMood('pout');
+    }
+  } catch (e) { toast('Could not reach Spectra. Try again'); }
+  giftBusy = false; save(); if (home === cur) { renderChat(); down(); }
 }
 function memqHtml(m) {
   return m.memq && !m.err ? '<div class="sa-mq"><span>Remember <b>' + esc(m.memq) + '</b> for next time?</span><button type="button" data-a="memyes">Save</button><button type="button" data-a="memno">No</button></div>' : '';

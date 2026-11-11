@@ -547,3 +547,26 @@ kbd.sx-k{display:inline-block;min-width:26px;padding:4px 8px;margin-left:4px;bor
 .sa-mq button[data-a=memyes]{background:var(--sa-ink,var(--text-primary));color:var(--sa-bg,var(--bg-base));border-color:transparent}
 .sa-mq button[data-a=memno]:hover{background:var(--sa-acc-dim,var(--accent-dim))}
 @media (max-width:850px){.sa-mq button{min-height:38px}}
+
+/* ---- v6: gift card ---- */
+.sa-gift{position:relative;margin:12px 0 2px;padding:16px 18px;max-width:420px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:18px;background:linear-gradient(145deg,var(--sa-acc-dim,var(--accent-dim)),var(--sa-glass,var(--bg-card)));overflow:hidden;animation:saGiftIn .5s cubic-bezier(.2,.9,.3,1.2) both}
+.sa-gift::before{content:'';position:absolute;inset:-40% -20% auto auto;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,var(--sa-acc,var(--accent)) 0,transparent 70%);opacity:.14;pointer-events:none}
+.sa-gift.pending{border-color:var(--sa-acc,var(--accent))}
+.sa-gh{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:999px;font:500 10.5px var(--font-mono);letter-spacing:1.8px;color:var(--sa-ink2,var(--text-secondary))}
+.sa-gh .sa-fi{width:12px;height:12px}
+.sa-gt{margin-top:12px;font:500 15px/1.4 var(--font-sans);color:var(--sa-ink,var(--text-primary))}
+.sa-gt b{font:700 24px var(--font-sans);margin:0 3px}
+.sa-gn{margin-top:12px;padding:10px 12px;border-left:2px solid var(--sa-acc,var(--accent));border-radius:0 10px 10px 0;background:rgba(255,255,255,.04)}
+.sa-gn small{display:block;font:500 10px var(--font-mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--sa-ink3,var(--text-tertiary))}
+.sa-gn p{margin:4px 0 0;font:italic 14px/1.4 var(--font-sans);color:var(--sa-ink2,var(--text-secondary))}
+.sa-gb{display:flex;gap:8px;margin-top:14px}
+.sa-gb button{flex:1;min-height:40px;padding:0 16px;border:1px solid var(--sa-line2,var(--border-hover));border-radius:12px;background:none;color:var(--sa-ink,var(--text-primary));font:600 13px var(--font-sans);letter-spacing:.4px;text-transform:uppercase;cursor:pointer;transition:background .2s,border-color .2s,transform .15s}
+.sa-gb button:active{transform:scale(.97)}
+.sa-gb button:disabled{opacity:.6;pointer-events:none}
+.sa-gb .sa-gacc{background:var(--sa-ink,var(--text-primary));color:var(--sa-bg,var(--bg-base));border-color:transparent}
+.sa-gb .sa-grej:hover{background:rgba(255,80,80,.12);border-color:#ff6b6b;color:#ff6b6b}
+.sa-gst{font:500 13px var(--font-sans);color:var(--sa-ink2,var(--text-secondary))}
+.sa-gift.accepted .sa-gst{color:var(--sa-ink,var(--text-primary))}
+.sa-gift.rejected,.sa-gift.expired{opacity:.7}
+@keyframes saGiftIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+@media (max-width:850px){.sa-gift{max-width:none}.sa-gb button{min-height:46px}}
