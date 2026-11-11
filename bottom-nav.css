@@ -1,0 +1,134 @@
+/* ==========================================================================
+   SPECSOFT® bottom-nav.css  -  floating bottom navigation + mobile ball
+   Everything here only does something while <html> has  ss-nav-bottom
+   (Settings > Appearance > Navigation type > Bottom navigation).
+   Chats and Spectra AI (body.ch-body / body.sa-page) are never touched.
+   ========================================================================== */
+
+/* ---------- 1. sidebar OFF, content takes the full width ---------- */
+html.ss-nav-bottom body:not(.ch-body):not(.sa-page) { --sidebar-width: 0px; }
+html.ss-nav-bottom body:not(.ch-body):not(.sa-page) .sidebar,
+html.ss-nav-bottom body:not(.ch-body):not(.sa-page) .sidebar-overlay,
+html.ss-nav-bottom body:not(.ch-body):not(.sa-page) .hamburger { display: none !important; }
+html.ss-nav-bottom body:not(.ch-body):not(.sa-page) .main-content { margin-left: 0; }
+@media (min-width: 851px) {
+    html.ss-nav-bottom body:not(.ch-body):not(.sa-page) .main-content { margin-left: auto; margin-right: auto; }
+}
+
+/* leave room under the page so the dock never covers the last lines or the footer */
+html.ss-nav-bottom.bn-ready body:not(.ch-body):not(.sa-page) { padding-bottom: calc(var(--bn-h, 84px) + 28px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 850px) {
+    html.ss-nav-bottom.bn-ready.bn-hidden body:not(.ch-body):not(.sa-page) { padding-bottom: 0; }
+}
+
+/* ---------- 2. the dock ---------- */
+.bn-root, .bn-ball { display: none; }
+html.ss-nav-bottom .bn-root { display: flex; }
+
+.bn-root {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 190;
+    justify-content: center; pointer-events: none;
+    padding: 0 12px calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.bn-dock {
+    pointer-events: auto;
+    display: flex; align-items: center; gap: 4px;
+    max-width: 100%; padding: 8px;
+    background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 22px;
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--accent-dim);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, visibility 0s linear 0s;
+}
+.bn-item { position: relative; flex: 0 0 auto; }
+
+.bn-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    min-width: 74px; padding: 10px 12px; border-radius: 14px;
+    color: var(--text-secondary); background: none; border: 0; text-decoration: none; cursor: pointer;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 500; line-height: 1; letter-spacing: 1px; text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+.bn-btn svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.bn-btn:hover, .bn-item.is-open .bn-btn { color: var(--text-primary); background: var(--accent-dim); }
+.bn-btn:active { transform: scale(0.96); }
+.bn-btn:focus-visible, .bn-sub:focus-visible, .bn-ball:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bn-item.is-active .bn-btn { color: var(--text-primary); background: var(--accent-glow); position: relative; }
+.bn-item.is-active .bn-btn::after {
+    content: ""; position: absolute; bottom: 3px; left: 50%; width: 4px; height: 4px; margin-left: -2px;
+    border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent-strong);
+}
+
+/* ---------- 3. dropdown above an item ---------- */
+.bn-menu {
+    position: absolute; bottom: calc(100% + 16px); left: 50%; min-width: 210px; padding: 8px;
+    background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.4);
+    transform: translate(calc(-50% + var(--bn-shift, 0px)), 8px);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+.bn-menu::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 18px; }   /* hover bridge */
+.bn-item.is-open .bn-menu {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transform: translate(calc(-50% + var(--bn-shift, 0px)), 0);
+    transition-delay: 0s;
+}
+.bn-menu-title {
+    padding: 6px 10px 8px; margin-bottom: 4px; border-bottom: 1px solid var(--border-subtle);
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary);
+}
+.bn-sub {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 10px; border-radius: 10px;
+    color: var(--text-secondary); background: none; border: 0; text-align: left; text-decoration: none; cursor: pointer;
+    font-family: var(--font-sans); font-size: 14px; font-weight: 500;
+    -webkit-tap-highlight-color: transparent; transition: background 0.15s ease, color 0.15s ease;
+}
+.bn-sub:hover { color: var(--text-primary); background: var(--accent-dim); }
+.bn-sub.is-current { color: var(--text-primary); }
+.bn-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-tertiary); flex: 0 0 auto; transition: background 0.15s ease, box-shadow 0.15s ease; }
+.bn-sub:hover .bn-dot, .bn-sub.is-current .bn-dot { background: var(--accent); box-shadow: 0 0 8px var(--accent-strong); }
+
+/* ---------- 4. phones: full-width dock + the show/hide ball ---------- */
+@media (max-width: 850px) {
+    .bn-dock { width: 100%; max-width: 460px; justify-content: space-between; padding: 6px; border-radius: 20px; }
+    .bn-item { flex: 1 1 0; min-width: 0; }
+    .bn-btn { min-width: 0; width: 100%; padding: 9px 2px 10px; font-size: 9px; letter-spacing: 0.6px; }
+    .bn-menu { min-width: min(230px, calc(100vw - 24px)); }
+    .bn-sub { padding: 14px 12px; }                         /* bigger touch targets */
+
+    html.bn-hidden .bn-dock {
+        transform: translateY(calc(100% + 40px)); opacity: 0; pointer-events: none; visibility: hidden;
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, visibility 0s linear 0.35s;
+    }
+
+    html.ss-nav-bottom.bn-ready .bn-ball {
+        display: grid; place-items: center;
+        position: fixed; right: 14px; z-index: 191;
+        bottom: calc(var(--bn-h, 70px) + 28px + env(safe-area-inset-bottom, 0px));
+        width: 46px; height: 46px; padding: 0; border-radius: 50%;
+        color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border-hover);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 4px var(--accent-dim);
+        cursor: pointer; -webkit-tap-highlight-color: transparent;
+        transition: bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s ease, opacity 0.2s ease;
+    }
+    html.bn-hidden .bn-ball { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); opacity: 0.75; }
+    .bn-ball:active { transform: scale(0.92); }
+    .bn-ball svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; grid-area: 1 / 1; }
+    .bn-ball .bn-ic-show { display: none; }
+    html.bn-hidden .bn-ball .bn-ic-show { display: block; }
+    html.bn-hidden .bn-ball .bn-ic-hide { display: none; }
+}
+
+/* the narrowest phones: "My Profile" shortens to "Profile" so five items fit */
+@media (max-width: 400px) { .bn-l i { display: none; } }
+@media (max-width: 340px) { .bn-btn { font-size: 8px; letter-spacing: 0.2px; } }
+
+/* respect Reduce motion / Ultra reduce motion */
+.ss-reduce-motion .bn-dock, .ss-reduce-motion .bn-menu, .ss-reduce-motion .bn-ball,
+.ss-urm .bn-dock, .ss-urm .bn-menu, .ss-urm .bn-ball { transition: none !important; }
+.ss-urm .bn-dock { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+.ss-urm .bn-menu, .ss-urm .bn-ball { box-shadow: none; }
+
+/* never show the dock while printing */
+@media print { .bn-root, .bn-ball { display: none !important; } }

@@ -83,6 +83,8 @@
           icon: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>',
           items: [
             sl('theme', 'Theme', 'Dark, light, or follow your device.', 'dark', [['dark', 'Dark'], ['light', 'Light'], ['system', 'Match my device']], { read: themeMode, write: themeWrite }),
+            sl('navType', 'Navigation type', 'Sidebar keeps the menu on the left. Bottom navigation is a floating bar at the bottom (Home, Chats, Projects, Store, Profile) and hides the sidebar. On phones a small round button shows and hides it. Chats and Spectra AI keep their own menus.', 'sidebar',
+               [['sidebar', 'Sidebar'], ['bottom', 'Bottom navigation']]),
             sl('accent', 'Accent color', 'Tints highlights, borders and buttons. The default keeps the black and white look.', 'default',
                [['default', 'White / black (default)'], ['blue', 'Blue'], ['green', 'Green'], ['purple', 'Purple'], ['red', 'Red'], ['amber', 'Amber']]),
             tg('reduceMotion', 'Reduce motion', 'Calms animations and turns off the motion-heavy effects, but keeps your look: glow, blur, shadows and the custom cursor all stay. Your device setting is respected too. This one is per device.', false, { cls: 'ss-reduce-motion', clsOn: true, reload: true, local: true }),
@@ -531,6 +533,7 @@
             var v = !!get(it.key);
             DOC.classList.toggle(it.cls, it.clsOn ? v : !v);
         });
+        DOC.classList.toggle('ss-nav-bottom', get('navType') === 'bottom');
         var acc = get('accent');
         if (acc && acc !== 'default') DOC.setAttribute('data-accent', acc); else DOC.removeAttribute('data-accent');
         applyTheme();

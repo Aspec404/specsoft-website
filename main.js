@@ -45,6 +45,18 @@
 
         if (s.reduceMotion === true) d.classList.add('ss-reduce-motion');
 
+        if (s.navType === 'bottom') {
+
+            d.classList.add('ss-nav-bottom');
+
+            var nb = document.createElement('style');
+
+            nb.textContent = 'body:not(.ch-body):not(.sa-page) .sidebar,body:not(.ch-body):not(.sa-page) .sidebar-overlay,body:not(.ch-body):not(.sa-page) .hamburger{display:none!important}body:not(.ch-body):not(.sa-page){--sidebar-width:0px}body:not(.ch-body):not(.sa-page) .main-content{margin-left:0}@media(min-width:851px){body:not(.ch-body):not(.sa-page) .main-content{margin-left:auto;margin-right:auto}}';
+
+            document.head.appendChild(nb);
+
+        }
+
         if (s.accent && s.accent !== 'default') d.setAttribute('data-accent', String(s.accent).replace(/[^a-z]/g, ''));
 
         if (s.theme === 'system') localStorage.setItem('specsoft-theme', (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
@@ -2159,5 +2171,24 @@
     if (window.SpecFooter || document.querySelector('script[src$="site-footer.js"]')) return;
     var s = document.createElement('script');
     s.src = 'site-footer.js';
+    document.head.appendChild(s);
+})();
+
+
+/* ======================================================================
+   SPECSOFT® bottom navigation loader: the floating bottom nav + the mobile
+   show/hide ball. Used when Settings > Appearance > Navigation type is
+   "Bottom navigation". See bottom-nav.js and bottom-nav.css.
+   ====================================================================== */
+(function () {
+    if (!document.querySelector('link[href^="bottom-nav.css"]')) {
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = 'bottom-nav.css';
+        document.head.appendChild(l);
+    }
+    if (window.SpecBottomNav || document.querySelector('script[src^="bottom-nav.js"]')) return;
+    var s = document.createElement('script');
+    s.src = 'bottom-nav.js';
     document.head.appendChild(s);
 })();
