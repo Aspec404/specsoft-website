@@ -2771,3 +2771,8 @@ button.ch-me {
 .ch-head-cs .ch-cs-play { width: 28px; height: 28px; border-radius: 8px; }
 .ch-head-cs .ch-cs-play .ch-cs-play-ico svg { width: 13px; height: 13px; }
 .ch-mus-play .ch-cs-play-ico { color: inherit; }
+
+/* status music: upload row, disabled slider, play button without album art */
+.ch-mus-up { display: flex; gap: 8px; }
+.ch-mus-range:disabled { opacity: 0.4; cursor: default; }
+.ch-cs-play--noart { background: var(--text-secondary); }

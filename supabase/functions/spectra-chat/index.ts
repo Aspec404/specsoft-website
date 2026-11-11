@@ -544,8 +544,7 @@ Deno.serve(async (req) => {
   const models = lead(tierModels(body.model), list(think ? (Deno.env.get('SPECTRA_THINK_MODEL') ?? DEFAULT_THINK) : (Deno.env.get('SPECTRA_MODEL') ?? DEFAULT_CHAT)));
   // 5a) gifts (see isBeg): the database enforces the cooldown, and a failed grant rolls the whole claim back
   let giftNote = '', giftGiven = 0;
-  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-  if (GIFT_ON && lastUser && isBeg(lastUser.content.split('\n\n[Attached:')[0].slice(0, 600))) {
+  if (GIFT_ON && lastUser && isBeg(typed.slice(0, 600))) {
     const { data: g, error: ge } = await admin.rpc('spectra_claim_gift', { p_user: user.id, p_amount: GIFT_AMOUNT, p_cooldown: GIFT_HOURS + ' hours' });
     if (ge || !g) {
       console.log('SPECTRA gift failed (did you run supabase-spectra-gifts.sql and wire spectra_grant_credits?):', ge?.message);

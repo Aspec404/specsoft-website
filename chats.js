@@ -4353,7 +4353,8 @@
     // ----- custom status (text, thumbnail, music, expiry) -----
     const CS_COLS_V5 = 'id,status,status_text,status_expires_at,status_thumb_path,status_music_title,status_music_artist';
     const CS_COLS_V6 = CS_COLS_V5 + ',status_music_url,status_music_art,status_music_start';
-    let csCols = CS_COLS_V6;         // drops to V5 / plain if supabase-chat-status-music.sql / supabase-chat-status.sql has not been run
+    const CS_COLS_V7 = CS_COLS_V6 + ',status_music_path';
+    let csCols = CS_COLS_V7;         // steps down if supabase-chat-status-music.sql / supabase-chat-status.sql has not been run
     const CS_CLIP = 30;              // use the full 30 second iTunes preview as the selectable clip
     const csMap = new Map();         // userId -> { text, until, thumb, mt, ma }
     let csReady = true;              // false until supabase-chat-status.sql has been run
@@ -4363,10 +4364,11 @@
         if (statusMap.get(r.id) !== r.status) { statusMap.set(r.id, r.status); changed = true; }
         if (csReady) {
             const mu = csMusicUrlOk(r.status_music_url) ? r.status_music_url : '';
+            const mp = csAudioPathOk(r.status_music_path) ? r.status_music_path : '';
             const c = (r.status_text || r.status_thumb_path || r.status_music_title) ? {
                 text: r.status_text || '', until: r.status_expires_at ? new Date(r.status_expires_at).getTime() : 0,
                 thumb: r.status_thumb_path || '', mt: r.status_music_title || '', ma: r.status_music_artist || '',
-                mu: mu, art: (mu && csArtUrlOk(r.status_music_art)) ? r.status_music_art : '', ms: mu ? (Number(r.status_music_start) || 0) : 0
+                mu: mp ? '' : mu, art: (mu && !mp && csArtUrlOk(r.status_music_art)) ? r.status_music_art : '', ms: (mu && !mp) ? (Number(r.status_music_start) || 0) : 0, mp: mp
             } : null;
             const before = csMap.get(r.id);
             if (JSON.stringify(before || null) !== JSON.stringify(c)) { if (c) csMap.set(r.id, c); else csMap.delete(r.id); changed = true; }
@@ -4381,7 +4383,7 @@
         if (c.until && c.until < Date.now()) return null;
         return c;
     }
-    function csSig(c) { return c ? [c.text, c.thumb, c.mt, c.ma, c.mu, c.ms].join('|') : ''; }
+    function csSig(c) { return c ? [c.text, c.thumb, c.mt, c.ma, c.mu, c.ms, c.mp].join('|') : ''; }
 
     function csThumbUrl(path) {
         if (!path || !/^[0-9a-f-]{36}\/[\w.-]{1,80}$/i.test(path)) return '';
@@ -4391,10 +4393,25 @@
     // ----- status music: iTunes 30 second previews, one shared player so two clips never overlap -----
     function csMusicUrlOk(u) { return /^https:\/\/audio-ssl\.itunes\.apple\.com\/[^\s<>"']{1,500}$/.test(u || ''); }
     function csArtUrlOk(u) { return /^https:\/\/is\d-ssl\.mzstatic\.com\/[^\s<>"']{1,500}$/.test(u || ''); }
+    // an uploaded clip: a 30 second WAV in the status-audio bucket, kept as <user id>/<file>
+    function csAudioPathOk(p) { return /^[0-9a-f-]{36}\/[\w.-]{1,80}$/i.test(p || ''); }
+    function csAudioBase() {
+        try { return sb.storage.from('status-audio').getPublicUrl('x').data.publicUrl.replace(/x$/, ''); } catch (e) { return ''; }
+    }
+    function csAudioUrl(path) { return csAudioPathOk(path) ? csAudioBase() + path : ''; }
+    function csPlayUrl(c) { return c ? (c.mp ? csAudioUrl(c.mp) : c.mu) : ''; }
+    // only Apple previews, clips in our own bucket, and (inside the dialog) the file you just picked
+    function csPlayable(key, url) {
+        if (csMusicUrlOk(url)) return true;
+        if (key === 'draft' && /^blob:/.test(url || '')) return true;
+        const base = csAudioBase();
+        return !!base && (url || '').indexOf(base) === 0 && csAudioPathOk((url || '').slice(base.length));
+    }
     function csClock(s) { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
 
     const csAudio = new Audio();
     csAudio.preload = 'auto';        // the source is only set when someone presses play
+    let csDraftDur = 30;             // length of the song being previewed in the dialog, for the playhead
     let csNow = null;                // { key, start }  key is a user id, or 'draft' for the preview inside the status dialog
 
     function csSyncPlay() {
@@ -4409,7 +4426,7 @@
         if (head) {
             const draft = !!csNow && csNow.key === 'draft' && !csAudio.paused;
             head.classList.toggle('is-on', draft);
-            if (draft) head.style.left = Math.min(99, (csAudio.currentTime / 30) * 100) + '%';
+            if (draft) head.style.left = Math.min(99, (csAudio.currentTime / csDraftDur) * 100) + '%';
         }
     }
 
@@ -4433,14 +4450,14 @@
 
     function csPlayFail(msgKey, err, url) {
         const detail = csPlayErrorDetail(err, url);
-        const text = 'This Apple preview is not playable in this browser or the URL is dead. Pick a different song or save the status without music. Details: ' + detail + '.';
+        const text = 'This clip is not playable in this browser or the link is dead. Pick a different song or save the status without music. Details: ' + detail + '.';
         toast(text);
         if (csNow && csNow.key === msgKey) csStop();
         csAudio.src = '';
     }
 
     function csPlay(key, url, start) {
-        if (!csMusicUrlOk(url)) return;
+        if (!csPlayable(key, url)) return;
         if (csNow && csNow.key === key && !csAudio.paused) { csStop(); return; }
         csAudio.pause();
         csNow = { key: key, start: Math.max(0, Math.min(30, Number(start) || 0)) };
@@ -4470,7 +4487,7 @@
         if (!csNow) return;
         if (csAudio.currentTime >= csNow.start + CS_CLIP) csAudio.currentTime = csNow.start;
         const head = $('stMusHead');
-        if (head && csNow.key === 'draft') head.style.left = Math.min(99, (csAudio.currentTime / 30) * 100) + '%';
+        if (head && csNow.key === 'draft') head.style.left = Math.min(99, (csAudio.currentTime / csDraftDur) * 100) + '%';
     });
     csAudio.addEventListener('ended', function () {
         if (!csNow) return;
@@ -4503,9 +4520,10 @@
             node.appendChild(img);
         }
         if (c.text) node.appendChild(el('span', { class: 'ch-cs-text', text: c.text }));
-        if (c.mu && id) {
-            const go = function (e) { e.stopPropagation(); e.preventDefault(); csPlay(id, c.mu, c.ms); };
-            const play = el('span', { class: 'ch-cs-play', role: 'button', tabindex: '0', 'aria-pressed': 'false', 'aria-label': 'Play a clip of ' + c.mt, title: 'Play a clip', onclick: go });
+        const pUrl = csPlayUrl(c);
+        if (pUrl && id) {
+            const go = function (e) { e.stopPropagation(); e.preventDefault(); csPlay(id, pUrl, c.ms); };
+            const play = el('span', { class: 'ch-cs-play' + (c.art ? '' : ' ch-cs-play--noart'), role: 'button', tabindex: '0', 'aria-pressed': 'false', 'aria-label': 'Play a clip of ' + c.mt, title: 'Play a clip', onclick: go });
             play.dataset.key = id;
             play.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
             if (c.art) {
@@ -4540,7 +4558,8 @@
     async function csSelect(build) {
         let res = await build(csCols);
         if (!res.error || !csReady) return res;
-        const steps = csCols === CS_COLS_V6 ? [CS_COLS_V5, 'id,status'] : ['id,status'];
+        const levels = [CS_COLS_V7, CS_COLS_V6, CS_COLS_V5, 'id,status'];
+        const steps = levels.slice(levels.indexOf(csCols) + 1);
         for (let i = 0; i < steps.length; i++) {
             const r = await build(steps[i]);
             if (!r.error) { csCols = steps[i]; if (steps[i] === 'id,status') csReady = false; return r; }
@@ -6621,7 +6640,7 @@
     function runMusicSearch() {
         const q = $('stMusQ').value.trim();
         const seq = ++msSeq;
-        if (q.length < 2) { paintMsResults([]); msHelp('Pick a song. iTunes only gives a 30 second preview, so choose the best start point inside that clip.'); return; }
+        if (q.length < 2) { paintMsResults([]); msHelp(MUS_HELP); return; }
         msHelp('Searching...');
         itunesSearch(q).then(function (list) {
             if (seq !== msSeq) return;
@@ -6634,16 +6653,34 @@
         });
     }
 
+    const MUS_MAX_BYTES = 15 * 1024 * 1024;   // the file you pick; only the 30 seconds you choose is uploaded
+    const MUS_RATE = 32000;                   // the uploaded clip is mono 32 kHz, about 1.9 MB
+    const MUS_HELP = 'Pick a song and everyone you chat with can play a 30 second clip of it from your status. Songs come from iTunes, or upload your own file.';
+
+    function musDur(m) { return Math.max(1, Number(m && m.dur) || 30); }
+
     function paintStClip() {
         const m = stDraft && stDraft.music;
         if (!m) return;
-        const s = m.start || 0;
-        $('stMusStart').value = String(s);
-        $('stMusStart').setAttribute('aria-valuetext', 'Starts at ' + csClock(s));
-        $('stMusWin').style.left = (s / 30 * 100) + '%';
-        $('stMusWin').style.width = (CS_CLIP / 30 * 100) + '%';
+        const dur = musDur(m);
+        const max = Math.max(0, Math.floor((dur - CS_CLIP) * 2) / 2);     // furthest start that still leaves a full 30 second clip
+        m.start = Math.min(m.start || 0, max);
+        const s = m.start;
+        csDraftDur = dur;
+        const range = $('stMusStart');
+        range.max = String(max);
+        range.disabled = max <= 0;
+        range.value = String(s);
+        range.setAttribute('aria-valuetext', 'Starts at ' + csClock(s));
+        $('stMusWin').style.left = (s / dur * 100) + '%';
+        $('stMusWin').style.width = (Math.min(CS_CLIP, dur) / dur * 100) + '%';
         $('stMusStartT').textContent = csClock(s);
-        $('stMusEndT').textContent = csClock(Math.min(30, s + CS_CLIP));
+        $('stMusEndT').textContent = csClock(Math.min(dur, s + CS_CLIP));
+        $('stMusNote').textContent = max > 0
+            ? 'Your song is ' + csClock(dur) + ' long. Slide to pick the 30 seconds everyone hears.'
+            : (m.kind === 'itunes' ? 'iTunes previews are exactly 30 seconds, so the whole preview plays. Upload your own MP3 or M4A to pick a part of a longer song.'
+            : (m.kind === 'saved' ? 'This uploaded clip is already trimmed to 30 seconds. Upload the file again to pick a different part.'
+            : 'This file is 30 seconds or shorter, so all of it plays.'));
     }
 
     function paintStMusic() {
@@ -6660,29 +6697,109 @@
         paintStClip();
     }
 
+    function freeMusicFile() {
+        const m = stDraft && stDraft.music;
+        if (m && m.objUrl) { try { URL.revokeObjectURL(m.objUrl); } catch (e) { /* ignore */ } }
+    }
+
     function pickTrack(t) {
         if (!stDraft) return;
+        freeMusicFile();
         $('stMusicT').value = t.title;
         $('stMusicA').value = t.artist;
-        stDraft.music = { url: t.url, art: t.art, start: 0 };
+        stDraft.music = { kind: 'itunes', url: t.url, art: t.art, start: 0, dur: 30 };
         $('stMusQ').value = '';
         paintMsResults([]);
-        msHelp('The preview is 30 seconds long. Slide to pick where the clip starts.');
+        msHelp('The preview is 30 seconds long, so the whole preview plays.');
         paintStMusic();
         csStop();
         csPlay('draft', t.url, 0);
     }
 
     function dropTrack() {
+        freeMusicFile();
         if (stDraft) stDraft.music = null;
         if (csNow && csNow.key === 'draft') csStop();
         paintStMusic();
     }
 
+    // ----- your own MP3 / M4A: read it here, trim the 30 seconds you picked, upload only that -----
+    async function decodeAudioFile(f) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) throw new Error('no_audio');
+        const ctx = new Ctx();
+        try {
+            const data = await f.arrayBuffer();
+            return await new Promise(function (res, rej) {
+                const p = ctx.decodeAudioData(data, res, rej);
+                if (p && p.catch) p.catch(rej);
+            });
+        } finally { try { ctx.close(); } catch (e) { /* ignore */ } }
+    }
+
+    function encodeWav(samples, rate) {
+        const n = samples.length;
+        const ab = new ArrayBuffer(44 + n * 2);
+        const v = new DataView(ab);
+        const w = function (o, s) { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+        w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+        v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+        w(36, 'data'); v.setUint32(40, n * 2, true);
+        for (let i = 0; i < n; i++) {
+            const s = Math.max(-1, Math.min(1, samples[i]));
+            v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+        return new Blob([ab], { type: 'audio/wav' });
+    }
+
+    async function trimToWav(f, start) {
+        const buf = await decodeAudioFile(f);
+        const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        if (!Off) throw new Error('no_audio');
+        const from = Math.max(0, Math.min(Number(start) || 0, Math.max(0, buf.duration - 1)));
+        const len = Math.min(CS_CLIP, buf.duration - from);
+        const off = new Off(1, Math.max(1, Math.floor(len * MUS_RATE)), MUS_RATE);
+        const src = off.createBufferSource();
+        src.buffer = buf;
+        src.connect(off.destination);
+        src.start(0, from, len);
+        const out = await new Promise(function (res, rej) {
+            const p = off.startRendering();
+            if (p && p.then) p.then(res, rej); else off.oncomplete = function (e) { res(e.renderedBuffer); };
+        });
+        return encodeWav(out.getChannelData(0), MUS_RATE);
+    }
+
+    async function pickMusicFile(f) {
+        if (!f || !stDraft) return;
+        if (!/^audio\/(mpeg|mp3|mp4|x-m4a|m4a|aac)$/i.test(f.type) && !/\.(mp3|m4a)$/i.test(f.name)) { showBox('stMsg', 'Use an MP3 or M4A file.'); return; }
+        if (f.size > MUS_MAX_BYTES) { showBox('stMsg', 'That file is over 15 MB.'); return; }
+        showBox('stMsg', '');
+        msHelp('Reading your file...');
+        let dur = 0;
+        try { const buf = await decodeAudioFile(f); dur = buf.duration; } catch (e) { dur = 0; }
+        if (!stDraft) return;
+        if (!(dur > 0)) { msHelp(MUS_HELP); showBox('stMsg', 'Could not read that audio file. Try another MP3 or M4A.'); return; }
+        freeMusicFile();
+        const objUrl = URL.createObjectURL(f);
+        $('stMusicT').value = f.name.replace(/\.[^.]+$/, '').replace(/_+/g, ' ').trim().slice(0, 60) || 'My song';
+        $('stMusicA').value = '';
+        $('stMusManual').open = true;
+        stDraft.music = { kind: 'file', file: f, url: objUrl, objUrl: objUrl, dur: dur, start: 0 };
+        $('stMusQ').value = '';
+        paintMsResults([]);
+        msHelp('Edit the title and artist below if you want. Only the 30 seconds you pick gets uploaded.');
+        paintStMusic();
+        csStop();
+        csPlay('draft', objUrl, 0);
+    }
+
     function openStatusDlg() {
         if (!S.me) return;
         const c = csOf(S.me.id) || { text: '', thumb: '', mt: '', ma: '', until: 0 };
-        stDraft = { status: myState(), path: c.thumb || '', file: null, objUrl: '', music: c.mu ? { url: c.mu, art: c.art || '', start: c.ms || 0 } : null };
+        freeMusicFile();
+        stDraft = { status: myState(), path: c.thumb || '', file: null, objUrl: '', music: c.mp ? { kind: 'saved', path: c.mp, url: csAudioUrl(c.mp), dur: 30, start: 0 } : (c.mu ? { kind: 'itunes', url: c.mu, art: c.art || '', start: c.ms || 0, dur: 30 } : null) };
         showBox('stMsg', '');
         $('stInput').value = c.text || '';
         $('stMusicT').value = c.mt || '';
@@ -6692,8 +6809,8 @@
         $('stClear').hidden = !(c.text || c.thumb || c.mt);
         $('stMusQ').value = '';
         paintMsResults([]);
-        msHelp('Pick a song. iTunes only gives a 30 second preview, so choose the best start point inside that clip.');
-        $('stMusManual').open = !!(c.mt && !c.mu);
+        msHelp(MUS_HELP);
+        $('stMusManual').open = !!(c.mt && !c.mu && !c.mp);
         paintStStates();
         paintStThumb();
         paintStMusic();
@@ -6724,6 +6841,7 @@
         setLoading(btn, true);
         showBox('stMsg', '');
         const oldPath = (csOf(S.me.id) || {}).thumb || '';
+        const oldAudio = (csOf(S.me.id) || {}).mp || '';
         try {
             let path = stDraft.path || '';
             if (stDraft.file) {
@@ -6738,13 +6856,24 @@
             const dur = $('stDur').value;
             const minutes = dur === 'never' ? null : (dur === 'today' ? minutesToMidnight() : Number(dur));
 
-            const mus = (mt && stDraft.music && csMusicUrlOk(stDraft.music.url)) ? stDraft.music : null;
+            const mus = (mt && stDraft.music) ? stDraft.music : null;
             const args = {
                 p_text: text || null, p_minutes: (text || path || mt) ? minutes : null,
                 p_thumb: path || null, p_music_title: mt || null, p_music_artist: ma || null
             };
-            // only sent when there is a clip, so a status without one still saves if the music SQL has not been run yet
-            if (mus) {
+            // music fields are only sent when there is a clip, so a status without one still saves if the music SQL has not been run yet
+            let audioPath = '';
+            if (mus && mus.kind === 'file') {
+                let wav;
+                try { wav = await trimToWav(mus.file, mus.start || 0); } catch (x) { throw new Error('Could not trim that audio file. Try another one.'); }
+                audioPath = S.me.id + '/' + Date.now() + '.wav';
+                const upa = await sb.storage.from('status-audio').upload(audioPath, wav, { contentType: 'audio/wav', cacheControl: '3600', upsert: false });
+                if (upa.error) throw upa.error;
+                args.p_music_path = audioPath;
+            } else if (mus && mus.kind === 'saved' && csAudioPathOk(mus.path)) {
+                audioPath = mus.path;
+                args.p_music_path = audioPath;
+            } else if (mus && mus.kind === 'itunes' && csMusicUrlOk(mus.url)) {
                 args.p_music_url = mus.url;
                 args.p_music_art = csArtUrlOk(mus.art) ? mus.art : null;
                 args.p_music_start = Math.max(0, Math.min(30, Number(mus.start) || 0));
@@ -6758,7 +6887,9 @@
             }
 
             if (oldPath && oldPath !== path) { try { await sb.storage.from('status-media').remove([oldPath]); } catch (x) { /* ignore */ } }
+            if (oldAudio && oldAudio !== audioPath) { try { await sb.storage.from('status-audio').remove([oldAudio]); } catch (x) { /* ignore */ } }
             if (stDraft.objUrl) URL.revokeObjectURL(stDraft.objUrl);
+            freeMusicFile();
             stDraft = null;
             statusAt.delete(S.me.id);
             await loadMyStatus();
@@ -6877,6 +7008,8 @@
             stDraft.file = null; stDraft.path = ''; stDraft.objUrl = '';
             paintStThumb();
         });
+        $('stMusUpBtn').addEventListener('click', function () { $('stMusFile').click(); });
+        $('stMusFile').addEventListener('change', function (e) { pickMusicFile(e.target.files && e.target.files[0]); e.target.value = ''; });
         $('stMusQ').addEventListener('input', function () { clearTimeout(msTimer); msTimer = setTimeout(runMusicSearch, 350); });
         $('stMusQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(msTimer); runMusicSearch(); } });
         $('stMusPlay').addEventListener('click', function () {

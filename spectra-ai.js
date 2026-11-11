@@ -510,7 +510,7 @@ async function sendMsg(t) {
   if (backend() === 'demo') { const txt = demo(t); let i = 0; timer = setInterval(() => { onTok(txt.slice(i, i += 3)); if (i >= txt.length) { clearInterval(timer); timer = null; end(); } }, 16); return; }
   ctrl = new AbortController();
   try { await ask(h, onTok, ctrl.signal, onMeta); end(); }
-  catch (e) { if (e.name === 'AbortError') end(); else end(ERR[e.message] || (e instanceof TypeError ? ERR.OFFLINE : ERR.FAIL)); }
+  catch (e) { if (e.name === 'AbortError') end(); else { if (!ERR[e.message]) console.error('Spectra request failed:', e); end(ERR[e.message] || (e instanceof TypeError && navigator.onLine === false ? ERR.OFFLINE : ERR.FAIL)); } }
 }
 function stop() { if (timer) { clearInterval(timer); timer = null; end(); } else if (ctrl) ctrl.abort(); }
 
