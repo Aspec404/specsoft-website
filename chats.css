@@ -2806,3 +2806,14 @@ button.ch-me {
 .ch-sk-card.is-pending.is-mine { opacity: .95; }
 .ss-urm .ch-sk-card .ch-flame { filter: none; }
 @media (max-width: 700px) { .ch-sk-card { width: 100%; } .ch-sk-card-btns .ch-btn { min-height: 44px; } }
+
+/* ---- your own messages: cards, images, videos and files hug the RIGHT edge (next to your avatar) ---- */
+.ch-bubble--card.ch-bubble--streak,
+.ch-msg--own .ch-bubble--card.ch-bubble--streak { width: fit-content; max-width: 100%; }        /* the streak card no longer sits in a 540px wide empty bubble */
+.ch-sk-card { width: 320px; max-width: 100%; }
+.ch-msg--own .ch-bubble--card,
+.ch-msg--own .ch-bubble--image-only,
+.ch-msg--own .ch-attachment--standalone { align-self: flex-end; }
+.ch-msg--own .ch-bubble--card { margin-left: auto; }
+.ch-msg--own .ch-attachment--standalone { display: flex; justify-content: flex-end; }
+@media (max-width: 700px) { .ch-bubble--card.ch-bubble--streak .ch-sk-card { width: min(320px, 100%); } }
