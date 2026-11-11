@@ -83,6 +83,10 @@
         return out;
     }
 
+    // ----- streak invite cards: a message whose body is exactly  [[streak:invite]]
+    const STREAK_INVITE_BODY = '[[streak:invite]]';
+    function isStreakInvite(body) { return body === STREAK_INVITE_BODY; }
+
     // ----- bug report cards: a message whose body is  [[bug:{json}]]
     const BUG_SEV = ['low', 'medium', 'high', 'critical'];
     const BUG_STATUS = { open: 'Open', investigating: 'Investigating', fixed: 'Fixed', wontfix: "Won't fix" };
@@ -189,6 +193,7 @@
     function previewText(body) {
         if (gifMediaUrl(body)) return 'GIF';
         if (/^Attachment:\s*voice-\S+\.(webm|m4a|mp4|ogg)$/i.test(String(body || '').trim())) return '\uD83C\uDFA4 Voice message';
+        if (isStreakInvite(body)) return '\uD83D\uDD25 Streak invite';
         if (String(body || '').slice(0, 6) === '[[bug:') { const b = parseBug(body); return '\uD83D\uDC1B Bug' + (b ? ': ' + b.t : ' report'); }
         return String(body || '').replace(/```[\s\S]*?```/g, '[code]').replace(/:([a-z0-9_+-]{1,32}):/gi, flShortcodeToChar).replace(/\s+/g, ' ').trim().slice(0, 90);
     }
@@ -712,7 +717,8 @@
 
     function streakInfo(r) {
         if (!r || r.kind !== 'dm' || r.blocked_by_me || r.blocked_me) return null;
-        return S.streaks.get(r.room_id) || null;
+        const s = S.streaks.get(r.room_id);
+        return s && s.status === 'on' && (s.streak > 0 || s.restorable > 0) ? s : null;
     }
 
     function streakTip(r, s) {
@@ -804,6 +810,16 @@
             const before = prev.get(id);
             const room = S.roomMap.get(id);
             const who = room ? roomTitle(room) : 'your friend';
+            if (s.status === 'pending' && !s.invitedByMe && (!before || before.status !== 'pending')) {
+                done = true;
+                toast('🔥 ' + who + ' sent you a streak invite!');
+                return;
+            }
+            if (s.status === 'on' && before && before.status === 'pending' && before.invitedByMe) {
+                done = true;
+                toast('🔥 ' + who + ' accepted your streak invite!');
+                return;
+            }
             if (before && before.streak > 0 && s.streak <= 0 && s.restorable > 0) {
                 done = true;
                 toast('💔 Your streak with ' + who + ' ended. You can restore it!');
@@ -839,9 +855,18 @@
             const next = new Map();
             (res.data || []).forEach(function (row) {
                 const n = Number(row.streak) || 0, rest = Number(row.restorable) || 0;
-                if (n <= 0 && rest <= 0) return;
+                const status = row.status || 'on';
+                const base = { invitedAt: row.invited_at || null, best: 0, tier: 1, restorable: 0, daysLeft: 0, milestone: 0, milestoneAt: null, done: false, risk: false, meToday: !!row.me_today, otherToday: !!row.other_today, tz: row.tz || 'Asia/Manila', resetAt: Date.now() + (Number(row.resets_in) || 0) * 1000 };
+                if (status !== 'on') {                         // a streak invite that is waiting for an answer
+                    next.set(row.room_id, Object.assign({}, base, { status: status, invitedByMe: !!row.invited_by_me, streak: 0 }));
+                    return;
+                }
+                if (n <= 0 && rest <= 0) {                     // streak is ON but today's first round is not done yet
+                    next.set(row.room_id, Object.assign({}, base, { status: 'on', best: Number(row.best) || 0, streak: 0 }));
+                    return;
+                }
                 next.set(row.room_id, {
-                    streak: n, best: Math.max(Number(row.best) || 0, n), done: !!row.done_today, risk: !!row.at_risk, tier: streakTier(n > 0 ? n : rest),
+                    status: 'on', invitedAt: row.invited_at || null, streak: n, best: Math.max(Number(row.best) || 0, n), done: !!row.done_today, risk: !!row.at_risk, tier: streakTier(n > 0 ? n : rest),
                     meToday: !!row.me_today, otherToday: !!row.other_today, tz: row.tz || 'Asia/Manila', resetAt: Date.now() + (Number(row.resets_in) || 0) * 1000,
                     restorable: rest, daysLeft: Number(row.restore_days_left) || 0,
                     milestone: Number(row.milestone) || 0, milestoneAt: row.milestone_at || null
@@ -864,6 +889,7 @@
             S.streaksReady = true;
             renderList();
             paintStreakHead();
+            refreshStreakCards();
             if (cele && S.roomMap.get(cele.id)) celebrateMilestone(S.roomMap.get(cele.id), cele.s);
             const dlg = document.querySelector('.ch-sk-dlg');
             if (dlg && dlg._repaint) dlg._repaint();
@@ -893,7 +919,7 @@
     function closeStreakDlg() { const d = document.querySelector('.ch-sk-dlg'); if (d) d.close(); }
 
     function openStreakDlg(r) {
-        if (!streakInfo(r)) return;
+        if (!r || r.kind !== 'dm') return;
         closeStreakDlg();
         const dlg = el('dialog', { class: 'ch-dlg ch-dlg--small ch-sk-dlg', 'aria-labelledby': 'chSkTitle' });
         const x = el('button', { type: 'button', class: 'ch-iconbtn', 'aria-label': 'Close', onclick: function () { dlg.close(); } });
@@ -912,7 +938,7 @@
 
     function paintStreakBody(body, r, dlg) {
         const s = streakInfo(r);
-        if (!s) { dlg.close(); return; }
+        if (!s) { paintStreakIntro(body, r, dlg, skRow(r)); return; }
         const broken = s.streak <= 0;
         const n = broken ? s.restorable : s.streak;
         const tier = broken ? streakTier(n) : s.tier;
@@ -963,6 +989,155 @@
         } else {
             body.appendChild(el('p', { class: 'ch-sk-foot', text: (info ? 'You have ' + info.left + ' of ' + info.total + ' streak restores this month. They refill on ' + fmtRefill(info.refill) + '.' : 'Streak restores refill every month.') }));
         }
+        body.appendChild(streakOffBtn(r));
+    }
+
+    /* ---- streak invites: a streak only starts once BOTH people agree ---- */
+    function skRow(r) {
+        if (!r || r.kind !== 'dm' || r.blocked_by_me || r.blocked_me) return null;
+        return S.streaks.get(r.room_id) || null;
+    }
+
+    async function skAction(btn, name, args, okMsg) {
+        if (btn) setLoading(btn, true);
+        try {
+            const res = await sb.rpc(name, args);
+            if (res.error) throw res.error;
+            if (okMsg) toast(okMsg);
+            await loadStreaks();
+            return true;
+        } catch (e) {
+            const m = String((e && e.message) || '');
+            toast(m.indexOf('invite_cooldown') >= 0 ? 'You can not send another invite just yet. Try again a bit later.'
+                : m.indexOf('blocked') >= 0 ? 'You can not do that with a blocked user.'
+                : m.indexOf('already_on') >= 0 ? 'You already have a streak with them.'
+                : m.indexOf('already_invited') >= 0 ? 'Your invite is already waiting for an answer.'
+                : 'Could not do that. Try again.');
+            loadStreaks();
+            return false;
+        } finally { if (btn && btn.isConnected) setLoading(btn, false); }
+    }
+
+    function streakOffBtn(r) {
+        const b = el('button', { type: 'button', class: 'ch-sk-off', text: 'Turn off streak' });
+        let armed = null;
+        b.addEventListener('click', function () {
+            if (!armed) {
+                b.textContent = 'Tap again to turn it off (this resets it)';
+                b.classList.add('is-armed');
+                armed = setTimeout(function () { armed = null; b.textContent = 'Turn off streak'; b.classList.remove('is-armed'); }, 4000);
+                return;
+            }
+            clearTimeout(armed); armed = null;
+            skAction(b, 'chat_streak_off', { p_room: r.room_id }, 'Streak turned off').then(function (ok) { if (ok) closeStreakDlg(); });
+        });
+        return b;
+    }
+
+    // sheet body when there is no running streak yet: no invite / invite sent / invite received / just turned on
+    function paintStreakIntro(body, r, dlg, row) {
+        const who = roomTitle(r);
+        const started = !!row && row.status === 'on';
+        const pending = !!row && row.status === 'pending';
+        const mine = pending && row.invitedByMe;
+        body.textContent = '';
+        body.appendChild(el('div', { class: 'ch-sk-hero ch-sk-theme is-pending', dataset: { tier: '1' } },
+            flameEl('ch-sk-hero-flame'),
+            el('div', { class: 'ch-sk-hero-t', text: started ? 'Streak is on' : mine ? 'Invite sent' : pending ? 'Streak invite' : 'No streak yet' })));
+
+        let text;
+        if (started) text = row.meToday ? '✅ You chatted today. Waiting for ' + who + ' so the streak can light up.'
+            : row.otherToday ? '✅ ' + who + ' already chatted. Your turn! Send a message to start the streak.'
+            : '⏳ The streak is on. When you BOTH chat today, it lights up at day 1.';
+        else if (mine) text = 'Waiting for ' + who + ' to accept. Messages do not count until they do.';
+        else if (pending) text = who + ' wants to start a streak with you! It starts when you accept, then you both chat every day to keep it going.';
+        else text = 'A streak is a flame you and ' + who + ' build by BOTH chatting every day. It only starts after they accept your invite, so random messages never waste a streak.';
+        body.appendChild(el('p', { class: 'ch-sk-status', text: text }));
+
+        if (started) {
+            const left = Math.max(0, Math.round((row.resetAt - Date.now()) / 60000));
+            body.appendChild(el('p', { class: 'ch-sk-reset', text: 'The day resets at 12:00 AM (' + row.tz.replace(/_/g, ' ') + '), in ' + Math.floor(left / 60) + 'h ' + (left % 60) + 'm.' }));
+            body.appendChild(streakOffBtn(r));
+            return;
+        }
+        const actions = el('div', { class: 'ch-sk-actions' });
+        if (mine) {
+            const b = el('button', { type: 'button', class: 'ch-btn ch-btn--ghost', text: 'Cancel invite' });
+            b.addEventListener('click', function () { skAction(b, 'chat_streak_off', { p_room: r.room_id }, 'Invite canceled'); });
+            actions.appendChild(b);
+        } else if (pending) {
+            const yes = el('button', { type: 'button', class: 'ch-btn', text: 'Accept streak' });
+            const no = el('button', { type: 'button', class: 'ch-btn ch-btn--ghost', text: 'Not now' });
+            yes.addEventListener('click', function () { skAction(yes, 'chat_streak_respond', { p_room: r.room_id, p_accept: true }, '🔥 Streak is on! Chat every day to build it.'); });
+            no.addEventListener('click', function () { skAction(no, 'chat_streak_respond', { p_room: r.room_id, p_accept: false }, null).then(function (ok) { if (ok) closeStreakDlg(); }); });
+            actions.appendChild(yes); actions.appendChild(no);
+        } else {
+            const b = el('button', { type: 'button', class: 'ch-btn', text: 'Send streak invite' });
+            b.addEventListener('click', function () { skAction(b, 'chat_streak_invite', { p_room: r.room_id }, '🔥 Streak invite sent to ' + who); });
+            actions.appendChild(b);
+        }
+        body.appendChild(actions);
+    }
+
+    // the streak card inside the chat (sender: "Streak invite sent", receiver: "Accept Invite from @user")
+    function buildStreakCard(m) {
+        const mine = !!(S.me && m.sender_id === S.me.id);
+        const sender = senderOf(m);
+        const who = '@' + (sender.username || nameOf(sender));
+        const room = S.current;
+        const other = room ? roomTitle(room) : 'them';
+        const row = room ? skRow(room) : null;
+        const t = new Date(m.created_at).getTime();
+        const latest = !!row && !!row.invitedAt && Math.abs(new Date(row.invitedAt).getTime() - t) < 10000;     // only the newest invite is alive
+        const state = !latest ? 'closed' : (row.status === 'pending' || row.status === 'on' || row.status === 'declined') ? row.status : 'closed';
+        const rid = m.room_id || (room && room.room_id);
+        const btns = [];
+        let title, sub;
+
+        if (state === 'pending' && mine) {
+            title = 'Streak invite sent';
+            sub = 'Waiting for ' + other + ' to accept. Messages do not count until they do.';
+            const c = el('button', { type: 'button', class: 'ch-btn ch-btn--sm ch-btn--ghost', text: 'Cancel invite' });
+            c.addEventListener('click', function () { skAction(c, 'chat_streak_off', { p_room: rid }, 'Invite canceled'); });
+            btns.push(c);
+        } else if (state === 'pending') {
+            title = 'Streak invite';
+            sub = who + ' wants to start a streak with you. Chat every day to keep it going.';
+            const yes = el('button', { type: 'button', class: 'ch-btn ch-btn--sm', text: 'Accept Invite from ' + who });
+            const no = el('button', { type: 'button', class: 'ch-btn ch-btn--sm ch-btn--ghost', text: 'Not now' });
+            yes.addEventListener('click', function () { skAction(yes, 'chat_streak_respond', { p_room: rid, p_accept: true }, '🔥 Streak is on! Chat every day to build it.'); });
+            no.addEventListener('click', function () { skAction(no, 'chat_streak_respond', { p_room: rid, p_accept: false }, null); });
+            btns.push(yes, no);
+        } else if (state === 'on') {
+            title = 'Streak is on 🔥';
+            sub = row.streak > 0 ? 'Current streak: ' + row.streak + (row.streak === 1 ? ' day' : ' days') : 'You both need to chat today to light it up.';
+        } else if (state === 'declined') {
+            title = mine ? 'Streak invite declined' : 'You said not now';
+            sub = mine ? 'You can invite again tomorrow.' : 'They can invite you again tomorrow.';
+        } else {
+            title = 'Streak invite';
+            sub = 'This invite is closed.';
+        }
+
+        const tier = (state === 'on' && row.streak > 0) ? row.tier : 2;
+        return el('div', { class: 'ch-sk-card ch-sk-theme is-' + state, dataset: { tier: String(tier) } },
+            el('div', { class: 'ch-sk-card-top' },
+                flameEl(),
+                el('div', { class: 'ch-sk-card-txt' }, el('strong', { text: title }), el('span', { text: sub }))),
+            btns.length ? el('div', { class: 'ch-sk-card-btns' }, btns) : null);
+    }
+
+    // streak state changed: redraw the invite cards in the open chat
+    function refreshStreakCards() {
+        if (!S.current || S.current.kind !== 'dm' || !S.messages) return;
+        S.messages.forEach(function (m) { if (!m.deleted_at && isStreakInvite(m.body)) rebuildNode(m); });
+    }
+
+    // list row pill for an invite you received
+    function inviteChip(r) {
+        const row = skRow(r);
+        if (!row || row.status !== 'pending' || row.invitedByMe) return null;
+        return el('span', { class: 'ch-streak is-invite', dataset: { tier: '3' }, title: 'Streak invite', 'aria-label': 'Streak invite' }, flameEl(), el('b', { text: 'Invite' }));
     }
 
     async function doRestore(btn, r, dlg) {
@@ -1119,7 +1294,7 @@
         const active = S.current && S.current.room_id === r.room_id;
         const typing = activeTyping(r.room_id).length > 0;
         const online = r.kind === 'dm' && !r.blocked_by_me && S.onlineAll.has(r.other_id);
-        const sk = streakChip(r, false);
+        const sk = streakChip(r, false) || inviteChip(r);
 
         const item = el('button', { type: 'button', 'aria-label': 'Open chat with ' + roomTitle(r), class: 'ch-item' + (active ? ' is-active' : '') + (r.unread ? ' is-unread' : '') + (r.muted ? ' is-muted' : ''), dataset: typing ? { room: r.room_id, typing: '1' } : { room: r.room_id },
             onclick: function (e) {
@@ -1422,14 +1597,14 @@
         const deleted = !!m.deleted_at;
         const mentioned = !deleted && !mine && mentionsUser(m.body, S.profile && S.profile.username);
 
-        const bug = deleted ? null : parseBug(m.body);
+        const bug = deleted ? null : (parseBug(m.body) || (isStreakInvite(m.body) ? { streak: true } : null));
         const jumboEmoji = !deleted && !bug && !m.attachment_path && !m.reply_to && !m.edited_at && !m.deleted_at && getJumboEmojiCount(m.body) > 0 && getJumboEmojiCount(m.body) <= 6;
         const hideKind = hideKindFor(m, mine, deleted, bug);
         const hidden = !!hideKind && !S.revealed.has(m.id);
         const imageAttachment = !deleted && !hidden && !!m.attachment_path && /^(image|video|audio)\//i.test(m.attachment_type || '');      // images AND videos sit under the bubble as their own card
         const imageOnlyAttachment = imageAttachment && (!String(m.body || '').trim() || /^Attachment:\s*/i.test(m.body));
         const gifUrl = (!deleted && !bug && !m.attachment_path) ? gifMediaUrl(m.body) : null;
-        const bubble = el('div', { class: 'ch-bubble' + (gifUrl && !hidden ? ' ch-bubble--image-only ch-bubble--gif' : '') + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (imageOnlyAttachment ? ' ch-bubble--image-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? buildBugCard(m, bug) : (imageOnlyAttachment ? null : (gifUrl ? makeGifView(gifUrl) : renderRich(m.body, mine, jumboEmoji))))));
+        const bubble = el('div', { class: 'ch-bubble' + (gifUrl && !hidden ? ' ch-bubble--image-only ch-bubble--gif' : '') + (bug ? ' ch-bubble--card' : '') + (jumboEmoji && !hidden ? ' ch-bubble--emoji-only' : '') + (imageOnlyAttachment ? ' ch-bubble--image-only' : '') + (hidden ? ' ch-bubble--sensitive' : '') }, deleted ? el('em', { class: 'ch-deleted', text: 'Message deleted' }) : (hidden ? buildSensitiveCard(m, hideKind) : (bug ? (bug.streak ? buildStreakCard(m) : buildBugCard(m, bug)) : (imageOnlyAttachment ? null : (gifUrl ? makeGifView(gifUrl) : renderRich(m.body, mine, jumboEmoji))))));
         const imageAttachmentView = imageAttachment ? el('div', { class: 'ch-attachment ch-attachment--standalone' }) : null;
         if (imageAttachmentView) renderAttachment(m, imageAttachmentView);
         else if (!deleted && m.attachment_path && !hidden) renderAttachment(m, bubble);
@@ -5235,11 +5410,12 @@
         list.push({ ico: 'users', label: members && !members.hidden ? 'Hide Members' : 'See Members', run: function () { $('chMembersBtn').click(); } });
         if (!$('chInviteBtn').hidden) list.push({ ico: 'userplus', label: 'Invite Someone', run: function () { $('chInviteBtn').click(); } });
         list.push({ ico: 'settings', label: 'Chat Settings', run: function () { $('chSettingsBtn').click(); } });
-        if (r.kind === 'dm') {
-            list.push({ ico: 'flame', label: 'See Streak Milestone', run: function () {
-                if (streakInfo(r)) openStreakDlg(r);
-                else toast('No streak yet. You both need to chat on the same day to start one 🔥');
-            } });
+        if (r.kind === 'dm' && !r.blocked_by_me && !r.blocked_me) {
+            const row = skRow(r);
+            const label = !row ? 'Send Streak Invite'
+                : row.status === 'pending' ? (row.invitedByMe ? 'Streak Invite Sent' : 'Answer Streak Invite')
+                : 'See Streak Milestone';
+            list.push({ ico: 'flame', label: label, run: function () { openStreakDlg(r); } });
         }
         return list;
     }
@@ -5476,7 +5652,7 @@
 
     function messageSheetItems(m) {
         const mine = !!(S.me && m.sender_id === S.me.id);
-        const bug = !!parseBug(m.body);
+        const bug = !!parseBug(m.body) || isStreakInvite(m.body);
         const list = [];
 
         list.push({ ico: 'reply', label: 'Reply', run: function () { startReply(m); } });
@@ -6329,7 +6505,7 @@
             }
             else if (e.key === 'Escape') { if (S.replyTo || S.editing) cancelCompose(); else $('chEmoji').hidden = true; }
             else if (e.key === 'ArrowUp' && !input.value) {
-                const mine = S.messages.slice().reverse().find(function (m) { return m.sender_id === S.me.id && !m.deleted_at && !m.pending && !parseBug(m.body); });
+                const mine = S.messages.slice().reverse().find(function (m) { return m.sender_id === S.me.id && !m.deleted_at && !m.pending && !parseBug(m.body) && !isStreakInvite(m.body); });
                 if (mine) { e.preventDefault(); startEdit(mine); }
             }
         });

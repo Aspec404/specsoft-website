@@ -1,10 +1,14 @@
 -- ==========================================================================
--- SPECSOFT® Chat Streaks  (v3: streaks + restores + milestones + timezones)
+-- SPECSOFT® Chat Streaks  (v4: streak INVITES + restores + milestones + timezones)
 -- Run this ONCE in the Supabase SQL Editor (after the chats v3 upgrade).
 -- It is safe to re-run, and it upgrades the v1 / v2 streak SQL in place.
 --
 -- RULES
 --   * DMs only. Groups and communities never count.
+--   * INVITES: a streak never starts by itself. One person sends a streak invite,
+--     the other accepts, and only then does it count. Random messages from
+--     strangers can not waste a streak anymore. Decline = they can invite again
+--     after 1 day. Either person can turn a streak off (it resets).
 --   * A streak day counts when BOTH people send at least one message on the
 --     same calendar day. If only one of you chatted, the streak does NOT go up
 --     yet (the flame stays grey until the other one chats too).
@@ -34,6 +38,26 @@ create table if not exists public.chat_streaks (
   best       integer not null default 0,
   updated_at timestamptz not null default now()
 );
+
+-- v4 one-time migration: every streak that existed BEFORE invites stays ON, except tiny
+-- accidental ones (under 3 days, nothing to restore): those were probably random messages,
+-- so they go OFF and need a real invite. (Only runs the first time: when the status column is new.)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'chat_streaks' and column_name = 'status'
+  ) then
+    alter table public.chat_streaks add column status text not null default 'on';
+    update public.chat_streaks set status = 'off' where streak < 3 and lost_streak = 0;
+  end if;
+end $$;
+
+alter table public.chat_streaks add column if not exists invited_by  uuid references public.profiles(id) on delete set null;
+alter table public.chat_streaks add column if not exists invited_at  timestamptz;
+alter table public.chat_streaks add column if not exists declined_at timestamptz;
+alter table public.chat_streaks drop constraint if exists chat_streaks_status_check;
+alter table public.chat_streaks add constraint chat_streaks_status_check check (status in ('off', 'pending', 'on', 'declined'));
 
 alter table public.chat_streaks add column if not exists lost_streak    integer not null default 0;
 alter table public.chat_streaks add column if not exists lost_last_day  date;
@@ -85,6 +109,9 @@ create or replace function public.chat_streak_today(p_tz text default null)
 returns date language sql stable as $$
   select (now() at time zone coalesce(nullif(p_tz, ''), 'Asia/Manila'))::date;
 $$;
+
+create or replace function public.chat_streak_invite_cooldown()
+returns interval language sql immutable as $$ select interval '1 day'; $$;     -- wait after a "not now"
 
 create or replace function public.chat_streak_restore_limit()
 returns integer language sql immutable as $$ select 7; $$;          -- restores per person per month
@@ -203,18 +230,11 @@ begin
   v_low  := least(new.sender_id, v_other);
   v_high := greatest(new.sender_id, v_other);
 
-  -- the DM's clock = timezone of whoever started the DM, else the sender's, else Manila
-  insert into public.chat_streaks (room_id, user_low, user_high, tz)
-  values (
-    new.room_id, v_low, v_high,
-    coalesce(
-      (select u.tz from public.chat_user_tz u join public.chat_rooms rm on rm.owner_id = u.user_id where rm.id = new.room_id),
-      (select u.tz from public.chat_user_tz u where u.user_id = new.sender_id),
-      'Asia/Manila')
-  )
-  on conflict (room_id) do nothing;
-
-  select * into r from public.chat_streaks where room_id = new.room_id for update;
+  -- only a streak both people agreed to counts. No ON row = nothing to do.
+  select * into r from public.chat_streaks where room_id = new.room_id and status = 'on' for update;
+  if not found then
+    return new;
+  end if;
   v_today := public.chat_streak_today(r.tz);
 
   -- a whole day went by without both of you: the streak ended
@@ -281,7 +301,10 @@ returns table (
   me_today          boolean,      -- I already chatted today
   other_today       boolean,      -- they already chatted today
   tz                text,         -- this DM's clock
-  resets_in         integer       -- seconds until 12:00 AM on that clock
+  resets_in         integer,      -- seconds until 12:00 AM on that clock
+  status            text,         -- 'on' or 'pending' (a streak invite waiting for an answer)
+  invited_by_me     boolean,
+  invited_at        timestamptz
 )
 language sql
 stable
@@ -302,12 +325,14 @@ as $$
     (case when auth.uid() = s.user_low then s.low_day else s.high_day end) = t.d,
     (case when auth.uid() = s.user_low then s.high_day else s.low_day end) = t.d,
     coalesce(s.tz, 'Asia/Manila'),
-    greatest(0, extract(epoch from (((t.d + 1)::timestamp at time zone coalesce(s.tz, 'Asia/Manila')) - now()))::integer)
+    greatest(0, extract(epoch from (((t.d + 1)::timestamp at time zone coalesce(s.tz, 'Asia/Manila')) - now()))::integer),
+    s.status,
+    (s.invited_by = auth.uid()),
+    s.invited_at
   from public.chat_streaks s
   cross join lateral (select public.chat_streak_today(s.tz) as d) t
   where (s.user_low = auth.uid() or s.user_high = auth.uid())
-    and s.last_day is not null
-    and (s.last_day >= t.d - 1 or public.chat_streak_lost_amount(s) > 0);
+    and s.status in ('on', 'pending');
 $$;
 
 -- --------------------------------------------------------------------------
@@ -403,7 +428,154 @@ end;
 $$;
 
 -- --------------------------------------------------------------------------
--- 8. Real-time
+-- 8. Streak invites
+-- --------------------------------------------------------------------------
+-- send an invite (if THEY already invited YOU, this just accepts it)
+create or replace function public.chat_streak_invite(p_room uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_kind  text;
+  v_other uuid;
+  r       public.chat_streaks;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+  if not public.chat_has_membership(p_room, auth.uid()) then
+    raise exception 'not_member';
+  end if;
+
+  select kind::text into v_kind from public.chat_rooms where id = p_room;
+  if v_kind is distinct from 'dm' then
+    raise exception 'not_dm';
+  end if;
+
+  select user_id into v_other from public.chat_members
+  where room_id = p_room and user_id <> auth.uid() limit 1;
+  if v_other is null then
+    raise exception 'not_member';
+  end if;
+
+  if exists (
+    select 1 from public.chat_blocks b
+    where (b.blocker_id = auth.uid() and b.blocked_id = v_other)
+       or (b.blocker_id = v_other and b.blocked_id = auth.uid())
+  ) then
+    raise exception 'blocked';
+  end if;
+
+  select * into r from public.chat_streaks where room_id = p_room for update;
+
+  if found then
+    if r.status = 'on' then
+      raise exception 'already_on';
+    elsif r.status = 'pending' then
+      if r.invited_by = auth.uid() then
+        raise exception 'already_invited';
+      end if;
+      perform public.chat_streak_respond(p_room, true);       -- they invited me first: accept
+      return;
+    elsif r.status = 'declined' and r.invited_by = auth.uid()
+          and r.declined_at is not null and r.declined_at > now() - public.chat_streak_invite_cooldown() then
+      raise exception 'invite_cooldown';
+    end if;
+
+    update public.chat_streaks
+    set status = 'pending', invited_by = auth.uid(), invited_at = now(), declined_at = null,
+        streak = 0, lost_streak = 0, lost_last_day = null, last_day = null,
+        low_day = null, high_day = null, last_milestone = 0, milestone_at = null,
+        updated_at = now()
+    where room_id = p_room;
+  else
+    insert into public.chat_streaks (room_id, user_low, user_high, status, invited_by, invited_at, tz)
+    values (
+      p_room, least(auth.uid(), v_other), greatest(auth.uid(), v_other), 'pending', auth.uid(), now(),
+      -- the DM's clock = timezone of whoever started the DM, else the inviter's, else Manila
+      coalesce(
+        (select u.tz from public.chat_user_tz u join public.chat_rooms rm on rm.owner_id = u.user_id where rm.id = p_room),
+        (select u.tz from public.chat_user_tz u where u.user_id = auth.uid()),
+        'Asia/Manila')
+    );
+  end if;
+end;
+$$;
+
+-- the person who got the invite says yes or not now
+create or replace function public.chat_streak_respond(p_room uuid, p_accept boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r public.chat_streaks;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select * into r from public.chat_streaks where room_id = p_room for update;
+  if not found or (r.user_low <> auth.uid() and r.user_high <> auth.uid()) then
+    raise exception 'not_member';
+  end if;
+  if r.status <> 'pending' or r.invited_by = auth.uid() then
+    raise exception 'not_allowed';
+  end if;
+
+  if coalesce(p_accept, false) then
+    -- starts counting from now: nothing said before the yes counts
+    update public.chat_streaks
+    set status = 'on', streak = 0, last_day = null, low_day = null, high_day = null,
+        lost_streak = 0, lost_last_day = null, last_milestone = 0, milestone_at = null,
+        declined_at = null, updated_at = now()
+    where room_id = p_room;
+  else
+    update public.chat_streaks
+    set status = 'declined', declined_at = now(), updated_at = now()
+    where room_id = p_room;
+  end if;
+end;
+$$;
+
+-- turn a streak off (either person), or cancel an invite you sent
+create or replace function public.chat_streak_off(p_room uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r public.chat_streaks;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select * into r from public.chat_streaks where room_id = p_room for update;
+  if not found or (r.user_low <> auth.uid() and r.user_high <> auth.uid()) then
+    raise exception 'not_member';
+  end if;
+  if r.status = 'pending' and r.invited_by <> auth.uid() then
+    raise exception 'not_allowed';             -- the other person answers with respond()
+  end if;
+  if r.status not in ('on', 'pending') then
+    return;
+  end if;
+
+  update public.chat_streaks
+  set status = 'off', streak = 0, lost_streak = 0, lost_last_day = null, last_day = null,
+      low_day = null, high_day = null, last_milestone = 0, milestone_at = null,
+      invited_by = null, invited_at = null, updated_at = now()
+  where room_id = p_room;
+end;
+$$;
+
+-- --------------------------------------------------------------------------
+-- 9. Real-time
 -- --------------------------------------------------------------------------
 do $$
 begin
