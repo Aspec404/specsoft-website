@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Chats | SPECSOFT®</title>
     <meta name="description" content="Live community chat for SPECSOFT® members.">
     <meta name="robots" content="noindex">
@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="chats.css">
     <link rel="stylesheet" href="chats-channels.css">
     <link rel="stylesheet" href="chats-community-settings.css">
+    <link rel="stylesheet" href="chats-notes.css">
     <link rel="stylesheet" href="cursor.css">
 
     <script src="seasons.js"></script>
@@ -387,77 +388,133 @@
     </dialog>
 
     <!-- sensitive message filter: what it is + the on/off switch -->
-    <!-- status: online status + custom status + duration + thumbnail + music -->
-    <dialog class="ch-dlg" id="statusDlg" aria-labelledby="statusTitle">
+    <!-- status: the New status screen (emoji + message, then Add Music / Add Thumbnail / Active Status as small sheets) -->
+    <dialog class="ch-dlg ch-dlg--note" id="statusDlg" aria-labelledby="statusTitle">
         <form id="statusForm" novalidate>
-            <header class="ch-dlg-head"><h2 id="statusTitle">Set status</h2><button type="button" class="ch-iconbtn" data-close aria-label="Close"></button></header>
-            <div class="ch-dlg-body">
-                <div class="ch-msgbox" id="stMsg" role="alert"></div>
+            <header class="ch-note-head">
+                <button type="button" class="ch-iconbtn" data-close aria-label="Close"></button>
+                <h2 id="statusTitle">New status</h2>
+                <button type="submit" class="ch-btn ch-btn--sm ch-note-share" id="stSave"><span class="ch-btn-label">Share</span><span class="ch-spin" aria-hidden="true"></span></button>
+            </header>
+            <div class="ch-note-msgwrap"><div class="ch-msgbox" id="stMsg" role="alert"></div></div>
 
-                <span class="ch-label ch-label--sec" id="stStatesLabel">ONLINE STATUS</span>
-                <div class="ch-stopts" id="stStates" role="radiogroup" aria-labelledby="stStatesLabel"></div>
-
-                <label class="ch-label ch-label--sec" for="stInput">CUSTOM STATUS</label>
-                <input class="ch-field" type="text" id="stInput" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Studying, gaming, touching grass...">
-                <div class="ch-status-chips" id="stChips"></div>
-
-                <label class="ch-label ch-label--sec" for="stDur">STATUS DURATION</label>
-                <select class="ch-field" id="stDur">
-                    <option value="never">Don't clear</option>
-                    <option value="30">30 minutes</option>
-                    <option value="60">1 hour</option>
-                    <option value="240">4 hours</option>
-                    <option value="today">Today</option>
-                </select>
-                <p class="ch-help" id="stDurHelp"></p>
-
-                <span class="ch-label ch-label--sec">THUMBNAIL</span>
-                <div class="ch-st-thumbrow">
-                    <span class="ch-st-thumb" id="stThumb" aria-hidden="true"></span>
-                    <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stPick">Choose image or GIF</button>
-                    <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stThumbDel" hidden>Remove</button>
-                    <input type="file" id="stFile" accept="image/gif,image/png,image/jpeg,image/webp" hidden>
-                </div>
-                <p class="ch-help">PNG, JPG, WebP or GIF, up to 3 MB.</p>
-
-                <span class="ch-label ch-label--sec" id="stMusLabel">MUSIC</span>
-                <div class="ch-mus" id="stMus">
-                    <input class="ch-field" type="search" id="stMusQ" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Search a song or an artist" aria-label="Search a song on iTunes" aria-describedby="stMusHelp">
-                    <div class="ch-mus-up">
-                        <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stMusUpBtn">Or upload your MP3 / M4A</button>
-                        <input type="file" id="stMusFile" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,.mp3,.m4a" hidden>
+            <div class="ch-note-body">
+                <div class="ch-note-stage">
+                    <div class="ch-note-bubble-edit">
+                        <button type="button" class="ch-note-emoji" id="stEmojiBtn" aria-label="Pick an emoji"></button>
+                        <input class="ch-note-input" type="text" id="stInput" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Share a thought..." aria-label="Status message">
+                        <span class="ch-note-count" id="stCount" aria-hidden="true"></span>
                     </div>
-                    <div class="ch-mus-list" id="stMusList" aria-label="Song results" hidden></div>
-                    <p class="ch-help" id="stMusHelp" aria-live="polite">Pick a song and everyone you chat with can play a 30 second clip of it from your status. Songs come from iTunes, or upload your own file.</p>
-
-                    <div class="ch-mus-pick" id="stMusPick" hidden>
-                        <div class="ch-mus-now">
-                            <span class="ch-mus-art ch-mus-art--big" id="stMusArt" aria-hidden="true"></span>
-                            <span class="ch-mus-meta"><strong id="stMusNowT"></strong><small id="stMusNowA"></small></span>
-                            <button type="button" class="ch-iconbtn ch-mus-play" id="stMusPlay" data-key="draft" aria-pressed="false" aria-label="Play the clip"><span class="ch-cs-play-ico"></span></button>
-                            <button type="button" class="ch-iconbtn" id="stMusDel" aria-label="Remove the song"></button>
-                        </div>
-                        <label class="ch-label ch-label--sec" for="stMusStart">WHERE THE CLIP STARTS</label>
-                        <div class="ch-mus-bar" id="stMusBar" aria-hidden="true"><span class="ch-mus-win" id="stMusWin"></span><span class="ch-mus-head" id="stMusHead"></span></div>
-                        <input type="range" class="ch-mus-range" id="stMusStart" min="0" max="0" step="0.5" value="0">
-                        <div class="ch-mus-times"><span id="stMusStartT">0:00</span><span id="stMusEndT">0:30</span></div>
-                        <p class="ch-help" id="stMusNote"></p>
-                    </div>
-
-                    <details class="ch-mus-manual" id="stMusManual">
-                        <summary>Type it yourself instead (no sound)</summary>
-                        <div class="ch-st-music">
-                            <input class="ch-field" type="text" id="stMusicT" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Song title">
-                            <input class="ch-field" type="text" id="stMusicA" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Artist">
-                        </div>
-                    </details>
+                    <span class="ch-note-tail" aria-hidden="true"></span>
+                    <div class="ch-note-av-big" id="stAvatar"></div>
+                    <div class="ch-note-extras" id="stExtras" hidden></div>
                 </div>
-                <p class="ch-help">Everyone you chat with can see your status.</p>
+
+                <div class="ch-status-chips ch-note-chips" id="stChips"></div>
+
+                <div class="ch-note-tools" role="group" aria-label="Add to your status">
+                    <button type="button" class="ch-note-tool" id="stToolMusic"><span class="ch-note-tool-ico" id="stToolMusicIco"></span><span id="stToolMusicT">Add Music</span></button>
+                    <button type="button" class="ch-note-tool" id="stToolThumb"><span class="ch-note-tool-ico" id="stToolThumbIco"></span><span id="stToolThumbT">Add Thumbnail</span></button>
+                    <button type="button" class="ch-note-tool" id="stToolState"><span class="ch-note-tool-ico" id="stToolStateIco"></span><span id="stToolStateT">Active status: Online</span></button>
+                </div>
+
+                <div class="ch-note-dur">
+                    <label for="stDur">Visible for</label>
+                    <select class="ch-field" id="stDur">
+                        <option value="30">30 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="240">4 hours</option>
+                        <option value="today">Today</option>
+                        <option value="1440">24 hours</option>
+                        <option value="never">Until I clear it</option>
+                    </select>
+                </div>
+                <p class="ch-help ch-note-help" id="stDurHelp"></p>
+                <p class="ch-help ch-note-help">Everyone you chat with can see your status.</p>
             </div>
-            <footer class="ch-dlg-foot">
-                <button type="button" class="ch-btn ch-btn--ghost" id="stClear">Clear custom status</button>
-                <button type="submit" class="ch-btn" id="stSave"><span class="ch-btn-label">Save</span><span class="ch-spin" aria-hidden="true"></span></button>
+
+            <footer class="ch-note-foot">
+                <button type="button" class="ch-btn ch-btn--ghost ch-note-clear" id="stClear">Clear status</button>
             </footer>
+
+            <!-- sheets: each one covers the screen until you press back -->
+            <section class="ch-note-sheet" id="stSheetEmoji" hidden aria-label="Pick an emoji">
+                <header class="ch-note-sheet-head">
+                    <button type="button" class="ch-iconbtn" data-sheet-back aria-label="Back"></button>
+                    <h3>Pick an emoji</h3>
+                    <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stEmojiRemove" hidden>Remove</button>
+                </header>
+                <div class="ch-note-emoji-host" id="stEmojiHost"></div>
+            </section>
+
+            <section class="ch-note-sheet" id="stSheetState" hidden aria-label="Active status">
+                <header class="ch-note-sheet-head">
+                    <button type="button" class="ch-iconbtn" data-sheet-back aria-label="Back"></button>
+                    <h3>Active status</h3>
+                </header>
+                <div class="ch-note-sheet-body">
+                    <span class="ch-label ch-label--sec" id="stStatesLabel">SHOW ME AS</span>
+                    <div class="ch-stopts" id="stStates" role="radiogroup" aria-labelledby="stStatesLabel"></div>
+                    <p class="ch-help">This is the little dot next to your picture everywhere in chats.</p>
+                </div>
+            </section>
+
+            <section class="ch-note-sheet" id="stSheetThumb" hidden aria-label="Status thumbnail">
+                <header class="ch-note-sheet-head">
+                    <button type="button" class="ch-iconbtn" data-sheet-back aria-label="Back"></button>
+                    <h3>Thumbnail</h3>
+                </header>
+                <div class="ch-note-sheet-body">
+                    <div class="ch-st-thumbrow">
+                        <span class="ch-st-thumb" id="stThumb" aria-hidden="true"></span>
+                        <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stPick">Choose image or GIF</button>
+                        <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stThumbDel" hidden>Remove</button>
+                        <input type="file" id="stFile" accept="image/gif,image/png,image/jpeg,image/webp" hidden>
+                    </div>
+                    <p class="ch-help">PNG, JPG, WebP or GIF, up to 3 MB.</p>
+                </div>
+            </section>
+
+            <section class="ch-note-sheet" id="stSheetMusic" hidden aria-label="Status music">
+                <header class="ch-note-sheet-head">
+                    <button type="button" class="ch-iconbtn" data-sheet-back aria-label="Back"></button>
+                    <h3>Music</h3>
+                    <button type="button" class="ch-btn ch-btn--sm" data-sheet-back>Done</button>
+                </header>
+                <div class="ch-note-sheet-body">
+                    <div class="ch-mus" id="stMus">
+                            <input class="ch-field" type="search" id="stMusQ" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Search a song or an artist" aria-label="Search a song on iTunes" aria-describedby="stMusHelp">
+                            <div class="ch-mus-up">
+                                <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="stMusUpBtn">Or upload your MP3 / M4A</button>
+                                <input type="file" id="stMusFile" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,.mp3,.m4a" hidden>
+                            </div>
+                            <div class="ch-mus-list" id="stMusList" aria-label="Song results" hidden></div>
+                            <p class="ch-help" id="stMusHelp" aria-live="polite">Pick a song and everyone you chat with can play a 30 second clip of it from your status. Songs come from iTunes, or upload your own file.</p>
+        
+                            <div class="ch-mus-pick" id="stMusPick" hidden>
+                                <div class="ch-mus-now">
+                                    <span class="ch-mus-art ch-mus-art--big" id="stMusArt" aria-hidden="true"></span>
+                                    <span class="ch-mus-meta"><strong id="stMusNowT"></strong><small id="stMusNowA"></small></span>
+                                    <button type="button" class="ch-iconbtn ch-mus-play" id="stMusPlay" data-key="draft" aria-pressed="false" aria-label="Play the clip"><span class="ch-cs-play-ico"></span></button>
+                                    <button type="button" class="ch-iconbtn" id="stMusDel" aria-label="Remove the song"></button>
+                                </div>
+                                <label class="ch-label ch-label--sec" for="stMusStart">WHERE THE CLIP STARTS</label>
+                                <div class="ch-mus-bar" id="stMusBar" aria-hidden="true"><span class="ch-mus-win" id="stMusWin"></span><span class="ch-mus-head" id="stMusHead"></span></div>
+                                <input type="range" class="ch-mus-range" id="stMusStart" min="0" max="0" step="0.5" value="0">
+                                <div class="ch-mus-times"><span id="stMusStartT">0:00</span><span id="stMusEndT">0:30</span></div>
+                                <p class="ch-help" id="stMusNote"></p>
+                            </div>
+        
+                            <details class="ch-mus-manual" id="stMusManual">
+                                <summary>Type it yourself instead (no sound)</summary>
+                                <div class="ch-st-music">
+                                    <input class="ch-field" type="text" id="stMusicT" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Song title">
+                                    <input class="ch-field" type="text" id="stMusicA" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Artist">
+                                </div>
+                            </details>
+                        </div>
+                </div>
+            </section>
         </form>
     </dialog>
 

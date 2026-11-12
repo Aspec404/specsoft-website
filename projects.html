@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Projects Hub | SPECSOFT®</title>
-    <meta name="description" content="Everything SPECSOFT® is building: AI, games, software and Roblox community projects, all in one place.">
+    <meta name="description" content="Everything SPECSOFT® is building and sharing: AI, games, software and Roblox projects, plus posts from the community, all in one live feed.">
 
-    <!-- Intro gate — must be first in <head>, before any render -->
+    <!-- Intro gate: must be first in <head>, before any render -->
     <script src="gate.js"></script>
 
     <!-- Link preview (Discord, X, etc.) -->
     <meta property="og:title" content="Projects Hub | SPECSOFT®">
-    <meta property="og:description" content="Everything SPECSOFT® is building: AI, games, software and Roblox community projects.">
+    <meta property="og:description" content="Projects and posts from the SPECSOFT® community, in one live feed.">
     <meta property="og:type" content="website">
 
     <!-- Fonts -->
@@ -19,16 +19,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Stylesheets (projects.css MUST come after style.css) -->
+    <!-- Stylesheets (order matters: style.css, then post-social.css, then projects.css) -->
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="post-social.css">
     <link rel="stylesheet" href="projects.css">
     <link rel="stylesheet" href="cursor.css">
 </head>
 <body>
 
-    <!-- =========================================
-         FUTURISTIC BACKGROUND LAYERS (same as index.html)
-         ========================================= -->
+    <!-- FUTURISTIC BACKGROUND LAYERS (same as index.html) -->
     <div class="grid-bg"></div>
     <div class="grid-glow" id="gridGlow"></div>
     <div class="scanner-line"></div>
@@ -53,9 +52,6 @@
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <aside class="sidebar" id="sidebar"></aside>
 
-    <!-- =========================================
-         MAIN CONTENT
-         ========================================= -->
     <main class="main-content">
 
         <!-- HUD BAR -->
@@ -71,59 +67,102 @@
 
         <!-- INTRO -->
         <section class="ph-intro">
-            <h1 class="ph-h1">PROJECTS <span class="ph-outline">HUB</span></h1>
-            <p class="ph-lead">
-                Everything SPECSOFT® is building, in one feed. Open a project to see the details,
-                like the ones you rate, and save the ones you want to come back to.
-            </p>
+            <div class="ph-intro-main">
+                <p class="ph-eyebrow"><span class="ph-live-dot" aria-hidden="true"></span> LIVE FEED</p>
+                <h1 class="ph-h1">PROJECTS <span class="ph-outline">HUB</span></h1>
+                <p class="ph-lead">
+                    Games, AI, tools and wild experiments, plus the posts behind them. Rate what you love,
+                    start a thread, and save the ones you want to come back to.
+                </p>
+                <div class="ph-cta">
+                    <div class="ph-create" id="phCreate">
+                        <button type="button" class="btn-primary ph-create-btn" id="phCreateBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="phCreateMenu">
+                            <span aria-hidden="true">+</span> CREATE
+                        </button>
+                        <div class="ph-create-menu" id="phCreateMenu" role="menu" hidden>
+                            <button type="button" role="menuitem" class="ph-create-item" id="phNewPost">
+                                <strong>Create a post</strong>
+                                <span>Text, images, files and links</span>
+                            </button>
+                            <!-- PC only: hidden on phones and tablets by projects.css and again by projects.js -->
+                            <a role="menuitem" class="ph-create-item ph-pc-only" id="phNewProject" href="studio.html">
+                                <strong>Create a project</strong>
+                                <span>Build it in SPECSOFT Studio</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <dl class="ph-stats" id="phStats" aria-label="Hub numbers">
+                <div class="ph-stat"><dt>PROJECTS</dt><dd id="stProjects" data-n="0">0</dd></div>
+                <div class="ph-stat"><dt>POSTS</dt><dd id="stPosts" data-n="0">0</dd></div>
+                <div class="ph-stat"><dt>MAKERS</dt><dd id="stMakers" data-n="0">0</dd></div>
+            </dl>
+        </section>
+
+        <!-- SPOTLIGHT (pinned projects, or the trending ones). Built by projects.js -->
+        <section class="ph-spot" id="phSpot" aria-roledescription="carousel" aria-label="Spotlight" hidden>
+            <div class="ph-spot-track" id="phSpotTrack"></div>
+            <div class="ph-spot-ui">
+                <div class="ph-spot-dots" id="phSpotDots" role="tablist" aria-label="Choose a spotlight"></div>
+                <div class="ph-spot-arrows">
+                    <button type="button" class="ph-round" id="phSpotPrev" aria-label="Previous spotlight"></button>
+                    <button type="button" class="ph-round" id="phSpotNext" aria-label="Next spotlight"></button>
+                </div>
+            </div>
         </section>
 
         <!-- HUB -->
         <section class="ph-section">
 
-            <!-- Highlights row (pinned projects). Built by projects.js -->
-            <div class="ph-stories" id="phStories" role="list" aria-label="Highlighted projects"></div>
-
-            <!-- Toolbar -->
-            <div class="ph-toolbar">
-                <label class="ph-search">
-                    <span class="ph-search-icon" id="phSearchIcon"></span>
-                    <input type="search" id="phSearch" placeholder="Search projects" autocomplete="off" spellcheck="false" aria-label="Search projects">
-                    <kbd class="ph-kbd" aria-hidden="true">/</kbd>
-                </label>
-
-                <div class="ph-chips" id="phChips" role="group" aria-label="Filter by category"></div>
-
-                <div class="ph-tools">
-                    <label class="ph-select">
-                        <span class="visually-hidden">Sort projects</span>
-                        <select id="phSort">
-                            <option value="newest">Newest</option>
-                            <option value="liked">Most liked</option>
-                            <option value="az">A to Z</option>
-                        </select>
-                        <span class="ph-select-icon" id="phSelectIcon"></span>
+            <!-- Command bar (sticks to the top while you scroll the feed) -->
+            <div class="ph-bar" id="phBar">
+                <div class="ph-bar-row">
+                    <label class="ph-search">
+                        <span class="ph-search-icon" id="phSearchIcon"></span>
+                        <input type="search" id="phSearch" placeholder="Search projects and posts" autocomplete="off" spellcheck="false" aria-label="Search projects and posts">
+                        <kbd class="ph-kbd" aria-hidden="true">/</kbd>
                     </label>
 
-                    <button type="button" class="ph-chip ph-saved-btn" id="phSaved" aria-pressed="false">
-                        <span id="phSavedIcon"></span> Saved <span class="ph-chip-n" id="phSavedCount">0</span>
-                    </button>
+                    <div class="ph-seg ph-types" id="phTypes" role="group" aria-label="Type"></div>
 
-                    <div class="ph-seg" role="group" aria-label="Layout">
-                        <button type="button" data-view-btn="grid" aria-pressed="true" aria-label="Grid layout" id="phViewGrid"></button>
-                        <button type="button" data-view-btn="list" aria-pressed="false" aria-label="List layout" id="phViewList"></button>
+                    <div class="ph-tools">
+                        <label class="ph-select">
+                            <span class="visually-hidden">Sort</span>
+                            <select id="phSort">
+                                <option value="trending">Trending</option>
+                                <option value="newest">Newest</option>
+                                <option value="liked">Most liked</option>
+                                <option value="az">A to Z</option>
+                            </select>
+                            <span class="ph-select-icon" id="phSelectIcon"></span>
+                        </label>
+
+                        <button type="button" class="ph-chip ph-saved-btn" id="phSaved" aria-pressed="false">
+                            <span id="phSavedIcon"></span> Saved <span class="ph-chip-n" id="phSavedCount">0</span>
+                        </button>
+
+                        <div class="ph-seg" role="group" aria-label="Layout">
+                            <button type="button" data-view-btn="feed" aria-pressed="true" aria-label="Feed layout" id="phViewFeed"></button>
+                            <button type="button" data-view-btn="grid" aria-pressed="false" aria-label="Grid layout" id="phViewGrid"></button>
+                            <button type="button" data-view-btn="list" aria-pressed="false" aria-label="List layout" id="phViewList"></button>
+                        </div>
                     </div>
                 </div>
+
+                <div class="ph-chips" id="phChips" role="group" aria-label="Filter by category"></div>
             </div>
 
             <p class="ph-meta" id="phMeta" aria-live="polite"></p>
 
-            <!-- Project grid. Cards are built by projects.js -->
-            <div class="ph-grid" id="phGrid" data-view="grid"></div>
+            <!-- The feed. Cards are built by projects.js -->
+            <div class="ph-grid" id="phGrid" data-view="feed"></div>
+            <div class="ph-sentinel" id="phSentinel" aria-hidden="true"></div>
 
             <noscript>
                 <p class="ph-empty">
-                    The projects feed needs JavaScript. You can still open
+                    The feed needs JavaScript. You can still open
                     <a href="project-spectra-ai.html">Project Spectra</a> or the
                     <a href="roblox.html">Roblox community</a> directly.
                 </p>
@@ -152,25 +191,31 @@
     </main>
 
     <!-- =========================================
-         PROJECT DETAIL DIALOG (filled by projects.js)
+         VIEWER: a project or a post, with its comment thread (filled by projects.js)
          ========================================= -->
     <dialog class="ph-dialog" id="phDialog" aria-labelledby="phDTitle">
-        <button type="button" class="ph-d-close" data-close aria-label="Close project" id="phDClose"></button>
-        <div class="ph-d-media ph-media" id="phDMedia"></div>
+        <button type="button" class="ph-d-close" data-close aria-label="Close" id="phDClose"></button>
+        <button type="button" class="ph-d-nav ph-d-nav--prev" id="phDPrev" aria-label="Previous in feed"></button>
+        <button type="button" class="ph-d-nav ph-d-nav--next" id="phDNext" aria-label="Next in feed"></button>
+
+        <div class="ph-d-stagewrap" id="phDStage"></div>
+
         <div class="ph-d-side">
-            <div id="phDHead"></div>
-            <h2 class="ph-d-title" id="phDTitle"></h2>
-            <p class="ph-d-text" id="phDText"></p>
-            <dl class="ph-d-meta" id="phDMeta"></dl>
-            <div class="ph-tags" id="phDTags"></div>
-            <div class="ph-d-foot">
-                <div class="ph-actions" id="phDActions"></div>
-                <a class="btn-primary" id="phDLink" href="#"></a>
+            <div class="ph-d-info" id="phDInfo">
+                <div id="phDHead"></div>
+                <h2 class="ph-d-title" id="phDTitle"></h2>
+                <p class="ph-d-text" id="phDText"></p>
+                <div class="ph-tags" id="phDTags"></div>
+                <div class="ph-d-foot">
+                    <div class="ph-actions" id="phDActions"></div>
+                    <a class="btn-primary" id="phDLink" href="#"></a>
+                </div>
             </div>
+            <div class="ph-d-thread" id="phDThread"></div>
         </div>
     </dialog>
 
-    <!-- Supabase client (pinned version) — needed by roles.js / notifications.js -->
+    <!-- Supabase client (pinned version): needed by roles.js / notifications.js and the hub itself -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
     <script src="supabase-config.js"></script>
 
@@ -180,6 +225,8 @@
     <!-- Scripts -->
     <script src="ban.js"></script>
     <script src="main.js?v=2"></script>
+    <script src="post-comments.js"></script>
+    <script src="post-composer.js"></script>
     <script src="projects.js"></script>
     <script src="cursor.js" defer></script>
     <script src="seasons.js"></script>

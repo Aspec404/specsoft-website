@@ -369,6 +369,8 @@
         info:    svg('<circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'),
         ban:     svg('<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/>'),
         xcircle: svg('<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>'),
+        music:   svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'),
+        image:   svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>'),
         logout:  svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>'),
         github:  svg('<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3.1-.3 6.4-1.5 6.4-6.9a5.4 5.4 0 0 0-1.5-3.7 5 5 0 0 0-.1-3.7s-1.2-.3-3.9 1.5a13.4 13.4 0 0 0-7 0C6.3 2.8 5.1 3.1 5.1 3.1a5 5 0 0 0-.1 3.7A5.4 5.4 0 0 0 3.5 10.5c0 5.4 3.3 6.6 6.4 6.9a3.4 3.4 0 0 0-.9 2.6V22"/>')
     };
@@ -608,6 +610,21 @@
         apply();
         if (vv) { vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply); }
         window.addEventListener('resize', apply);
+    }
+
+    // App feel: no pinch-zoom and no double-tap zoom on phones, no Ctrl+wheel / trackpad-pinch zoom on PC.
+    // iPhones ignore user-scalable=no (it is an accessibility rule), so the gesture events are blocked here too.
+    const LOCK_ZOOM = true;
+    const LOCK_KEYBOARD_ZOOM = false;     // true = also block Ctrl/Cmd and + - 0 (people with low vision use these, so it is off)
+    function lockZoom() {
+        if (!LOCK_ZOOM) return;
+        const stop = function (e) { e.preventDefault(); };
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) { document.addEventListener(n, stop, { passive: false }); });
+        document.addEventListener('touchmove', function (e) { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+        window.addEventListener('wheel', function (e) { if (e.ctrlKey) e.preventDefault(); }, { passive: false });      // trackpad pinch arrives as Ctrl + wheel
+        if (LOCK_KEYBOARD_ZOOM) window.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_' || e.key === '0')) e.preventDefault();
+        });
     }
 
     function updateTitle() {
@@ -1256,10 +1273,11 @@
 
     function renderList() {
         renderNav();
-        if (window.SPCH && SPCH.renderList()) return;       // a community is open: show its channels instead of My chats
+        if (window.SPCH && SPCH.renderList()) { notesUnmount(); return; }       // a community is open: show its channels instead of My chats
         renderListHead();
         const body = $('chListBody');
         body.textContent = '';
+        notesMount(body);
         const q = S.query.trim().toLowerCase();
 
         if (S.nav === 'mine') {
@@ -1306,7 +1324,7 @@
             el('span', { class: 'ch-item-main' },
                 el('span', { class: 'ch-item-title' + (sk ? ' has-streak' : '') }, r.pinned ? el('span', { class: 'ch-pin', title: 'Pinned' }, icon('pin')) : null, sk ? el('span', { class: 'ch-item-name', text: roomTitle(r) }) : roomTitle(r), sk),
                 el('span', { class: 'ch-item-sub' + (typing ? ' is-typing' : ''), text: typing ? 'typing…' : subText(r) }),
-                (r.kind === 'dm' && !r.blocked_by_me) ? csNode(r.other_id, 'ch-item-cs') : null),
+                (LIST_ROW_STATUS && r.kind === 'dm' && !r.blocked_by_me) ? csNode(r.other_id, 'ch-item-cs') : null),
             el('span', { class: 'ch-item-meta' },
                 el('time', { text: fmtListTime(r.last_at) }),
                 r.muted ? el('span', { class: 'ch-muted-ico', title: 'Muted' }, icon('belloff')) : null,
@@ -3943,6 +3961,7 @@
     }
 
     function pickEmoji(e) {
+        if (emojiSink) { recentAdd(e); const sink = emojiSink; sink(e); return; }       // the New status screen is using the picker
         const sm = /^:([a-z0-9_+-]{1,32}):$/i.exec(e);
         if (!S.pickerFor && sm && SUPER[sm[1].toLowerCase()] && !superGuard()) return;     // super emote: cooldown / one per message
         recentAdd(e);
@@ -4529,7 +4548,8 @@
     const CS_COLS_V5 = 'id,status,status_text,status_expires_at,status_thumb_path,status_music_title,status_music_artist';
     const CS_COLS_V6 = CS_COLS_V5 + ',status_music_url,status_music_art,status_music_start';
     const CS_COLS_V7 = CS_COLS_V6 + ',status_music_path';
-    let csCols = CS_COLS_V7;         // steps down if supabase-chat-status-music.sql / supabase-chat-status.sql has not been run
+    const CS_COLS_V8 = CS_COLS_V7 + ',status_emoji';      // supabase-chat-status-emoji.sql
+    let csCols = CS_COLS_V8;         // steps down if supabase-chat-status-music.sql / supabase-chat-status.sql has not been run
     const CS_CLIP = 30;              // use the full 30 second iTunes preview as the selectable clip
     const csMap = new Map();         // userId -> { text, until, thumb, mt, ma }
     let csReady = true;              // false until supabase-chat-status.sql has been run
@@ -4540,8 +4560,8 @@
         if (csReady) {
             const mu = csMusicUrlOk(r.status_music_url) ? r.status_music_url : '';
             const mp = csAudioPathOk(r.status_music_path) ? r.status_music_path : '';
-            const c = (r.status_text || r.status_thumb_path || r.status_music_title) ? {
-                text: r.status_text || '', until: r.status_expires_at ? new Date(r.status_expires_at).getTime() : 0,
+            const c = (r.status_text || r.status_thumb_path || r.status_music_title || csEmojiOk(r.status_emoji)) ? {
+                text: r.status_text || '', em: csEmojiOk(r.status_emoji) ? r.status_emoji : '', until: r.status_expires_at ? new Date(r.status_expires_at).getTime() : 0,
                 thumb: r.status_thumb_path || '', mt: r.status_music_title || '', ma: r.status_music_artist || '',
                 mu: mp ? '' : mu, art: (mu && !mp && csArtUrlOk(r.status_music_art)) ? r.status_music_art : '', ms: (mu && !mp) ? (Number(r.status_music_start) || 0) : 0, mp: mp
             } : null;
@@ -4558,7 +4578,7 @@
         if (c.until && c.until < Date.now()) return null;
         return c;
     }
-    function csSig(c) { return c ? [c.text, c.thumb, c.mt, c.ma, c.mu, c.ms, c.mp].join('|') : ''; }
+    function csSig(c) { return c ? [c.em, c.text, c.thumb, c.mt, c.ma, c.mu, c.ms, c.mp].join('|') : ''; }
 
     function csThumbUrl(path) {
         if (!path || !/^[0-9a-f-]{36}\/[\w.-]{1,80}$/i.test(path)) return '';
@@ -4694,6 +4714,7 @@
             img.addEventListener('error', function () { img.remove(); });
             node.appendChild(img);
         }
+        if (c.em) node.appendChild(csEmojiNode(c.em));
         if (c.text) node.appendChild(el('span', { class: 'ch-cs-text', text: c.text }));
         const pUrl = csPlayUrl(c);
         if (pUrl && id) {
@@ -4733,7 +4754,7 @@
     async function csSelect(build) {
         let res = await build(csCols);
         if (!res.error || !csReady) return res;
-        const levels = [CS_COLS_V7, CS_COLS_V6, CS_COLS_V5, 'id,status'];
+        const levels = [CS_COLS_V8, CS_COLS_V7, CS_COLS_V6, CS_COLS_V5, 'id,status'];
         const steps = levels.slice(levels.indexOf(csCols) + 1);
         for (let i = 0; i < steps.length; i++) {
             const r = await build(steps[i]);
@@ -4770,6 +4791,7 @@
     }
 
     function paintListPresence() {
+        paintNotes();
         document.querySelectorAll('#chListBody .ch-row[data-row]').forEach(function (row) {
             const r = S.roomMap.get(row.dataset.row);
             if (!r || r.kind !== 'dm') return;
@@ -4783,7 +4805,7 @@
             else if (dot.dataset.st !== s) dot.replaceWith(stDot(r.other_id, live, 'ch-item-st'));
 
             const main = row.querySelector('.ch-item-main');
-            if (main) {
+            if (main && LIST_ROW_STATUS) {
                 const old = main.querySelector('.ch-item-cs');
                 const want = r.blocked_by_me ? null : csOf(r.other_id);
                 if ((old ? old.dataset.sig : '') !== csSig(want)) {
@@ -6550,7 +6572,7 @@
         document.addEventListener('click', function (e) {
             if (quickEl && !quickEl.hidden && !quickEl.contains(e.target)) closeQuick();
             const box = $('chEmoji');
-            if (!box.hidden && !box.contains(e.target) && !$('chEmojiBtn').contains(e.target) && !(quickEl && quickEl.contains(e.target))) { box.hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); }
+            if (!box.hidden && !(box.parentNode && box.parentNode.id === 'stEmojiHost') && !box.contains(e.target) && !$('chEmojiBtn').contains(e.target) && !(quickEl && quickEl.contains(e.target))) { box.hidden = true; $('chEmojiBtn').setAttribute('aria-expanded', 'false'); }
         });
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') { if (S.msgSheet) { closeMsgSheet(); return; } if (S.menu) { closeMenu(); return; } closeQuick(); if (!$('chMembers').hidden) closeMembers(); closeDrawer(); }
@@ -6728,6 +6750,7 @@
             if (res.error || !res.data) return;
             applyStatusRow(res.data);
             paintMeStatus();
+            paintNotes();
         } catch (e) { /* ignore */ }
     }
 
@@ -6737,6 +6760,7 @@
     }
 
     function paintStThumb() {
+        noteToolsSoon();
         const box = $('stThumb');
         box.textContent = '';
         const url = stDraftThumbUrl();
@@ -6746,6 +6770,7 @@
     }
 
     function paintStStates() {
+        noteToolsSoon();
         const box = $('stStates');
         box.textContent = '';
         ST_OPTS.forEach(function (o) {
@@ -6860,6 +6885,7 @@
     }
 
     function paintStMusic() {
+        noteToolsSoon();
         const m = stDraft && stDraft.music;
         const pick = $('stMusPick');
         pick.hidden = !m;
@@ -6976,13 +7002,14 @@
         const c = csOf(S.me.id) || { text: '', thumb: '', mt: '', ma: '', until: 0 };
         freeMusicFile();
         stDraft = { status: myState(), path: c.thumb || '', file: null, objUrl: '', music: c.mp ? { kind: 'saved', path: c.mp, url: csAudioUrl(c.mp), dur: 30, start: 0 } : (c.mu ? { kind: 'itunes', url: c.mu, art: c.art || '', start: c.ms || 0, dur: 30 } : null) };
+        stDraft.emoji = c.em || '';
         showBox('stMsg', '');
         $('stInput').value = c.text || '';
         $('stMusicT').value = c.mt || '';
         $('stMusicA').value = c.ma || '';
-        $('stDur').value = 'never';
+        $('stDur').value = ((c.text || c.thumb || c.mt || c.em) && !c.until) ? 'never' : '1440';        // new statuses last 24 hours unless you change it
         $('stDurHelp').textContent = c.until ? 'Your current status ends around ' + new Date(c.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Saving again restarts the timer.' : '';
-        $('stClear').hidden = !(c.text || c.thumb || c.mt);
+        $('stClear').hidden = !(c.text || c.thumb || c.mt || c.em);
         $('stMusQ').value = '';
         paintMsResults([]);
         msHelp(MUS_HELP);
@@ -6991,6 +7018,7 @@
         paintStThumb();
         paintStMusic();
         openDlg('statusDlg');
+        noteAfterOpen();
     }
 
     function pickStatusFile(f) {
@@ -7034,9 +7062,10 @@
 
             const mus = (mt && stDraft.music) ? stDraft.music : null;
             const args = {
-                p_text: text || null, p_minutes: (text || path || mt) ? minutes : null,
+                p_text: text || null, p_minutes: (text || path || mt || stDraft.emoji) ? minutes : null,
                 p_thumb: path || null, p_music_title: mt || null, p_music_artist: ma || null
             };
+            if (stDraft.emoji && csEmojiOk(stDraft.emoji)) args.p_emoji = stDraft.emoji;      // only sent when there is one, so older SQL keeps working
             // music fields are only sent when there is a clip, so a status without one still saves if the music SQL has not been run yet
             let audioPath = '';
             if (mus && mus.kind === 'file') {
@@ -7072,7 +7101,7 @@
             closeDlg('statusDlg');
             toast('Status updated');
         } catch (err) {
-            showBox('stMsg', (isSetupMissing(err) || /bucket not found|status-media/i.test(String(err && err.message || ''))) ? 'Run supabase-chat-status.sql, then supabase-chat-status-music.sql, in your Supabase SQL Editor to turn on custom status and music.' : (function () {
+            showBox('stMsg', (isSetupMissing(err) || /bucket not found|status-media/i.test(String(err && err.message || ''))) ? 'Run supabase-chat-status.sql, supabase-chat-status-music.sql, then supabase-chat-status-emoji.sql, in your Supabase SQL Editor to turn on custom status, music and the status emoji.' : (function () {
                 const f = friendly(err), m = String(err && err.message || '');
                 return (/^Something went wrong/.test(f) && m) ? 'Could not save the status: ' + m : f;
             })());
@@ -7165,13 +7194,13 @@
 
         const chips = $('stChips');
         STATUS_IDEAS.forEach(function (t) {
-            chips.appendChild(el('button', { type: 'button', class: 'ch-chip', text: t, onclick: function () { $('stInput').value = t; $('stInput').focus(); } }));
+            chips.appendChild(el('button', { type: 'button', class: 'ch-chip', text: t, onclick: function () { pickStatusIdea(t); } }));
         });
         $('statusForm').addEventListener('submit', saveStatusForm);
         $('stClear').addEventListener('click', function () {
             if (!stDraft) return;
             $('stInput').value = ''; $('stMusicT').value = ''; $('stMusicA').value = '';
-            stDraft.path = ''; stDraft.file = null; dropTrack();
+            stDraft.emoji = ''; stDraft.path = ''; stDraft.file = null; dropTrack();
             if (stDraft.objUrl) { URL.revokeObjectURL(stDraft.objUrl); stDraft.objUrl = ''; }
             saveStatusForm();
         });
@@ -7209,6 +7238,443 @@
         $('stMusicA').addEventListener('input', paintStMusic);
         $('statusDlg').addEventListener('close', function () { if (csNow && csNow.key === 'draft') csStop(); });
         $('accAdd').addEventListener('click', addAccount);
+        initNoteScreen();
+    }
+
+    /* ----------------------------------------------------------------------
+       12f. NOTES STRIP + NEW STATUS SCREEN   (styled by chats-notes.css)
+            * A swipe row at the top of My chats: you first, then friends who are
+              active or have a status. Tap an avatar to open the chat, tap the
+              bubble to see the status.
+            * The old "Set status" dialog is now the New status screen: emoji + message,
+              then Add Music / Add Thumbnail / Active Status as small sheets.
+              It keeps the same element ids and the same save code as before.
+       ---------------------------------------------------------------------- */
+    // true = ALSO show every friend's status line under their chat in the list (the old look)
+    const LIST_ROW_STATUS = false;
+    const NOTES_CAP = 24;                                   // friends shown before the "+N" tile
+    const NOTES_SEEN_KEY = 'specsoft.notes.seen.v1';
+    const NT = { node: null, scroller: null, sig: '', all: false, left: 0, seen: null, card: null, cardUid: '', dragged: false };
+
+    // ----- the status emoji (one emoji: a keyboard emoji or one of your :emotes:) -----
+    function csHasEmoji() { return csReady && csCols === CS_COLS_V8; }      // false until supabase-chat-status-emoji.sql has been run
+
+    function csEmojiOk(e) {
+        e = String(e || '');
+        if (!e || e.length > 40) return false;
+        if (/^:[a-z0-9_+-]{1,32}:$/i.test(e)) return true;
+        try { return new RegExp('^(?:' + RE_EMOJI_SRC + ')$', 'u').test(e); } catch (x) { return false; }
+    }
+
+    function csEmojiNode(e) {
+        const wrap = el('span', { class: 'ch-cs-emoji' });
+        const m = /^:([a-z0-9_+-]{1,32}):$/i.exec(e);
+        if (m) {
+            const k = m[1].toLowerCase();
+            if (CUSTOM_EMOJI[k]) wrap.appendChild(makeCustomEmoji(CUSTOM_EMOJI[k], ':' + k + ':', false));
+            else if (FL.byCode[k]) wrap.appendChild(makeFluentEmoji(FL.byCode[k], false));
+            else wrap.textContent = ':' + k + ':';
+        } else appendTextWithEmoji(wrap, e, false);
+        return wrap;
+    }
+
+    // ----- the strip -----
+    function notesSeenMap() {
+        if (NT.seen) return NT.seen;
+        try { const o = JSON.parse(localStorage.getItem(NOTES_SEEN_KEY) || '{}'); NT.seen = (o && typeof o === 'object') ? o : {}; } catch (e) { NT.seen = {}; }
+        return NT.seen;
+    }
+
+    function notesMarkSeen(uid, sig) {
+        const m = notesSeenMap();
+        if (m[uid] === sig) return;
+        m[uid] = sig;
+        try { localStorage.setItem(NOTES_SEEN_KEY, JSON.stringify(m)); } catch (e) { /* private mode: the ring just comes back next time */ }
+    }
+
+    function notesWanted() { return !!(S.me && S.profile && S.nav === 'mine' && !S.query.trim()); }
+
+    // who is in the strip, best first: active friends with a status, active friends, then offline / Do Not Disturb friends with a status.
+    // Streak friends come first inside each group, then whoever you talked to last.
+    function notesModel() {
+        const out = [];
+        const done = new Set();
+        (S.rooms || []).forEach(function (r) {
+            if (r.kind !== 'dm' || !r.other_id || r.blocked_by_me || r.blocked_me || done.has(r.other_id)) return;
+            done.add(r.other_id);
+            const st = stateOf(r.other_id, S.onlineAll.has(r.other_id));
+            const c = csOf(r.other_id);
+            const active = st === 'online' || st === 'idle';
+            if (!c && !active) return;
+            out.push({ r: r, uid: r.other_id, st: st, c: c, streak: !!streakInfo(r), rank: (active && c) ? 0 : (active ? 1 : 2), at: r.last_at ? (Date.parse(r.last_at) || 0) : 0 });
+        });
+        out.sort(function (a, b) { return a.rank - b.rank || (b.streak - a.streak) || (b.at - a.at); });
+        return out;
+    }
+
+    function notesSigOf(model) {
+        const me = S.me ? S.me.id : '';
+        const seen = notesSeenMap();
+        return [me, S.profile ? S.profile.avatar_url : '', myState(), csSig(me ? csOf(me) : null), NT.all ? 1 : 0].concat(model.map(function (m) {
+            return [m.uid, m.st, csSig(m.c), m.streak ? 1 : 0, (m.c && seen[m.uid] === csSig(m.c)) ? 1 : 0, roomTitle(m.r), m.r.other_avatar || ''].join('~');
+        })).join('|');
+    }
+
+    function noteSpoken(c) {
+        return [c.text, c.mt ? 'playing ' + c.mt : ''].filter(Boolean).join(', ') || 'status';
+    }
+
+    function noteBubbleFill(b, c) {
+        const label = c.text || c.mt || '';
+        if (c.em) b.appendChild(csEmojiNode(c.em));
+        if (c.mt && (c.mu || c.mp)) { const i = el('span', { class: 'ch-note-ico', 'aria-hidden': 'true' }); i.innerHTML = ICON.music; b.appendChild(i); }
+        if (label) b.appendChild(el('span', { class: 'ch-note-text', text: label }));
+        if (!label && !c.em) {
+            const u = csThumbUrl(c.thumb);
+            if (u) b.appendChild(el('img', { class: 'ch-note-thumb', src: u, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }));
+        }
+        if (c.em && !label) b.classList.add('is-emoji-only');
+    }
+
+    function noteItem(m) {
+        const name = roomTitle(m.r);
+        const c = m.c;
+        const isNew = !!c && notesSeenMap()[m.uid] !== csSig(c);
+        const item = el('div', { class: 'ch-note' + (m.streak ? ' has-streak' : ''), role: 'listitem', dataset: { uid: m.uid } });
+        if (c) {
+            const b = el('button', { type: 'button', class: 'ch-note-bubble', 'aria-label': name + ' status: ' + noteSpoken(c), onclick: function () { openNoteCard(m.uid, m.r.room_id); } });
+            noteBubbleFill(b, c);
+            item.appendChild(b);
+        } else item.appendChild(el('span', { class: 'ch-note-bubble ch-note-bubble--none', 'aria-hidden': 'true' }));
+        const av = el('button', { type: 'button', class: 'ch-note-av' + (isNew ? ' is-new' : ''), 'aria-label': 'Open chat with ' + name + ', ' + ST_META[m.st], onclick: function () { openRoom(m.r.room_id); } },
+            roomArt(m.r, 58), stDot(m.uid, S.onlineAll.has(m.uid), 'ch-note-st'));
+        if (m.streak) { const f = el('span', { class: 'ch-note-flame', title: 'Streak', 'aria-hidden': 'true' }); f.appendChild(flameEl()); av.appendChild(f); }
+        item.appendChild(av);
+        item.appendChild(el('span', { class: 'ch-note-name', text: name }));
+        return item;
+    }
+
+    function noteMine() {
+        const c = csOf(S.me.id);
+        const item = el('div', { class: 'ch-note ch-note--me', role: 'listitem', dataset: { uid: S.me.id } });
+        if (c) {
+            const b = el('button', { type: 'button', class: 'ch-note-bubble', 'aria-label': 'Your status: ' + noteSpoken(c), onclick: function () { openNoteCard(S.me.id, null); } });
+            noteBubbleFill(b, c);
+            item.appendChild(b);
+        } else item.appendChild(el('button', { type: 'button', class: 'ch-note-bubble ch-note-bubble--add', onclick: openStatusDlg }, 'Add status...'));
+        const av = el('button', { type: 'button', class: 'ch-note-av', 'aria-label': c ? 'Edit your status' : 'Add a status', onclick: openStatusDlg }, avatar(S.profile, 58));
+        if (c) av.appendChild(stDot(S.me.id, true, 'ch-note-st'));
+        else { const plus = el('span', { class: 'ch-note-plus', 'aria-hidden': 'true' }); plus.innerHTML = ICON.plus; av.appendChild(plus); }
+        item.appendChild(av);
+        item.appendChild(el('span', { class: 'ch-note-name', text: 'You' }));
+        return item;
+    }
+
+    function notesEnsureNode() {
+        if (NT.node) return;
+        const sc = el('div', { class: 'ch-notes-scroll', role: 'list', 'aria-label': 'Friends and statuses' });
+        NT.node = el('div', { class: 'ch-notes' }, sc);
+        NT.scroller = sc;
+        sc.addEventListener('scroll', function () { NT.left = sc.scrollLeft; }, { passive: true });
+        // mouse: drag to scroll (touch screens and trackpads already swipe)
+        let down = null;
+        sc.addEventListener('pointerdown', function (e) {
+            if (e.pointerType !== 'mouse' || e.button !== 0) return;
+            down = { x: e.clientX, left: sc.scrollLeft, moved: false };
+        });
+        window.addEventListener('pointermove', function (e) {
+            if (!down) return;
+            const dx = e.clientX - down.x;
+            if (!down.moved && Math.abs(dx) > 5) { down.moved = true; sc.classList.add('is-drag'); }
+            if (down.moved) sc.scrollLeft = down.left - dx;
+        });
+        window.addEventListener('pointerup', function () {
+            if (!down) return;
+            if (down.moved) NT.dragged = true;
+            down = null;
+            sc.classList.remove('is-drag');
+            setTimeout(function () { NT.dragged = false; }, 0);
+        });
+        sc.addEventListener('click', function (e) { if (NT.dragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+    }
+
+    function paintNotes() {
+        if (!NT.node || !NT.node.isConnected || !notesWanted()) return;
+        const model = notesModel();
+        const sig = notesSigOf(model);
+        if (sig === NT.sig) return;
+        NT.sig = sig;
+        const sc = NT.scroller;
+        const keep = sc.scrollLeft;
+        sc.textContent = '';
+        sc.appendChild(noteMine());
+        (NT.all ? model : model.slice(0, NOTES_CAP)).forEach(function (m) { sc.appendChild(noteItem(m)); });
+        if (!NT.all && model.length > NOTES_CAP) {
+            sc.appendChild(el('div', { class: 'ch-note ch-note--more', role: 'listitem' },
+                el('span', { class: 'ch-note-bubble ch-note-bubble--none', 'aria-hidden': 'true' }),
+                el('button', { type: 'button', class: 'ch-note-more', 'aria-label': 'Show ' + (model.length - NOTES_CAP) + ' more', onclick: function () { NT.all = true; NT.sig = ''; paintNotes(); } }, '+' + (model.length - NOTES_CAP))));
+        }
+        sc.scrollLeft = keep;
+        NT.left = keep;
+    }
+
+    // renderList() puts the strip back as the first thing in the list (the list is rebuilt on every render)
+    function notesMount(body) {
+        if (!notesWanted()) { notesUnmount(); return; }
+        notesEnsureNode();
+        body.appendChild(NT.node);
+        NT.scroller.scrollLeft = NT.left;          // a node that was taken out of the page forgets how far it was scrolled
+        paintNotes();
+    }
+    function notesUnmount() { if (NT.node && NT.node.parentNode) NT.node.parentNode.removeChild(NT.node); }
+
+    // ----- the status card (tap a bubble) -----
+    function untilText(ms) {
+        const m = Math.round((ms - Date.now()) / 60000);
+        if (m < 1) return 'Ends soon';
+        if (m < 60) return 'Ends in ' + m + ' min';
+        const h = Math.round(m / 60);
+        return h < 48 ? 'Ends in ' + h + ' h' : 'Ends in ' + Math.round(h / 24) + ' days';
+    }
+
+    function noteCardDlg() {
+        if (NT.card) return NT.card;
+        const d = el('dialog', { class: 'ch-dlg ch-dlg--small ch-notecard', 'aria-label': 'Status' });
+        d.addEventListener('click', function (e) { if (e.target === d || (e.target.closest && e.target.closest('[data-close]'))) d.close(); });
+        d.addEventListener('close', function () {
+            if (csNow && csNow.key === NT.cardUid) csStop();
+            if (document.getElementById('statusDlg') && document.getElementById('statusDlg').open) return;
+            if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+        });
+        document.body.appendChild(d);
+        NT.card = d;
+        return d;
+    }
+
+    function openNoteCard(uid, roomId) {
+        const c = csOf(uid);
+        if (!c) { NT.sig = ''; paintNotes(); return; }                    // it ended a moment ago
+        const mine = !!S.me && uid === S.me.id;
+        const r = (!mine && roomId) ? S.roomMap.get(roomId) : null;
+        if (!mine && !r) return;
+        const d = noteCardDlg();
+        NT.cardUid = uid;
+        lastFocus = document.activeElement;
+        d.textContent = '';
+        const st = stateOf(uid, mine ? true : S.onlineAll.has(uid));
+        d.appendChild(el('div', { class: 'ch-notecard-head' },
+            el('span', { class: 'ch-notecard-av' }, mine ? avatar(S.profile, 44) : roomArt(r, 44)),
+            el('span', { class: 'ch-notecard-who' }, el('strong', { text: mine ? 'Your status' : roomTitle(r) }), el('small', { text: ST_META[st] })),
+            el('button', { type: 'button', class: 'ch-iconbtn', 'data-close': '', 'aria-label': 'Close' }, icon('close'))));
+        d.appendChild(el('div', { class: 'ch-notecard-body' }, csNode(uid, 'ch-notecard-cs')));
+        d.appendChild(el('div', { class: 'ch-notecard-foot' },
+            c.until ? el('small', { text: untilText(c.until) }) : el('span'),
+            mine
+                ? el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: function () { d.close(); openStatusDlg(); } }, 'Edit')
+                : el('button', { type: 'button', class: 'ch-btn ch-btn--sm', onclick: function () { d.close(); openRoom(r.room_id); } }, 'Message')));
+        if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+        notesMarkSeen(uid, csSig(c));                                      // the "new" ring goes away
+        paintNotes();
+    }
+
+    // ----- the New status screen -----
+    const NOTE_SHEETS = { emoji: 'stSheetEmoji', music: 'stSheetMusic', thumb: 'stSheetThumb', state: 'stSheetState' };
+    let noteSheet = '', emojiSink = null, emojiHome = null, noteToolsT = 0;
+
+    function noteToolsSoon() { clearTimeout(noteToolsT); noteToolsT = setTimeout(paintNoteTools, 0); }
+
+    function paintNoteCount() {
+        const left = 60 - $('stInput').value.length;
+        const c = $('stCount');
+        c.textContent = left <= 20 ? String(left) : '';
+        c.classList.toggle('is-low', left <= 5);
+    }
+
+    function paintNoteShare() {
+        if (!stDraft) return;
+        const has = !!($('stInput').value.trim() || stDraft.emoji || stDraft.path || stDraft.file || (stDraft.music && $('stMusicT').value.trim()));
+        $('stSave').querySelector('.ch-btn-label').textContent = has ? 'Share' : 'Save';
+    }
+
+    function paintNoteStage() {
+        if (!stDraft) return;
+        const eb = $('stEmojiBtn');
+        eb.hidden = !csHasEmoji();
+        eb.textContent = '';
+        if (stDraft.emoji) eb.appendChild(csEmojiNode(stDraft.emoji)); else eb.appendChild(icon('smile'));
+        eb.classList.toggle('is-set', !!stDraft.emoji);
+        paintNoteCount();
+        paintNoteShare();
+    }
+
+    function paintNoteTools() {
+        const dlg = $('statusDlg');
+        if (!stDraft || !dlg || !dlg.open) return;
+        const mt = $('stMusicT').value.trim(), ma = $('stMusicA').value.trim();
+        const hasMusic = !!(stDraft.music && mt);
+        $('stToolMusic').classList.toggle('is-set', hasMusic);
+        $('stToolMusicT').textContent = hasMusic ? mt : 'Add Music';
+        const turl = stDraftThumbUrl();
+        $('stToolThumb').classList.toggle('is-set', !!turl);
+        $('stToolThumbT').textContent = turl ? 'Thumbnail added' : 'Add Thumbnail';
+        const lbl = (ST_OPTS.filter(function (o) { return o[0] === stDraft.status; })[0] || ST_OPTS[0])[1];
+        $('stToolStateT').textContent = 'Active status: ' + lbl;
+        $('stToolStateIco').innerHTML = stIcon(stDraft.status);
+        const dot = $('stAvatar').querySelector('.ch-st');
+        if (dot) { dot.dataset.st = stDraft.status; dot.innerHTML = stIcon(stDraft.status); dot.title = ST_META[stDraft.status] || ''; }
+        const ex = $('stExtras');
+        ex.textContent = '';
+        if (turl) ex.appendChild(el('img', { class: 'ch-note-ex-thumb', src: turl, alt: '' }));
+        if (hasMusic) ex.appendChild(el('span', { class: 'ch-note-ex-music', text: '\u266A ' + mt + (ma ? ' - ' + ma : '') }));
+        ex.hidden = !ex.children.length;
+        paintNoteShare();
+    }
+
+    function setNoteEmoji(v) {
+        if (!stDraft) return;
+        v = String(v || '');
+        const m = /^:([a-z0-9_+-]{1,32}):$/i.exec(v);
+        if (m && STORE_EMOTE[m[1].toLowerCase()] && !MY_EMOTES.has(m[1].toLowerCase())) { toast('You do not own that emote yet.'); return; }
+        if (v && !csEmojiOk(v)) return;
+        stDraft.emoji = v;
+        paintNoteStage();
+    }
+
+    // the emoji sheet reuses your real emoji picker (search, recent, My emotes, Windows 11 emoji): it is moved in here while the sheet is open
+    function openNoteEmoji() {
+        const box = $('chEmoji');
+        if (!box || !stDraft) return;
+        closeGif();
+        if (!emojiHome) emojiHome = { parent: box.parentNode, next: box.nextSibling };
+        if (!box.querySelector('.ch-emoji-btn') && (!pickMain || !pickMain.querySelector('.ch-emoji-btn'))) buildPicker();
+        $('stEmojiHost').appendChild(box);
+        S.pickerFor = null;
+        emojiSink = function (v) { setNoteEmoji(v); closeNoteSheet(); };
+        box.hidden = false;
+        box.classList.remove('is-hidden');
+        if (pickMain) { pickMain.hidden = false; pickMain.style.display = ''; }
+        if (pickResults) { pickResults.hidden = true; pickResults.style.display = ''; }
+        paintRecent();
+        refreshEmotes(false);
+        box.scrollTop = 0;
+        $('stEmojiRemove').hidden = !stDraft.emoji;
+        openNoteSheet('emoji');
+        requestAnimationFrame(function () {
+            if (!box.querySelector('.ch-emoji-btn')) buildPicker();
+            if (pickSearch && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) {
+                pickSearch.blur();
+                const input = $('stInput');
+                if (input) {
+                    input.focus();
+                    const end = input.value.length;
+                    if (typeof input.setSelectionRange === 'function') input.setSelectionRange(end, end);
+                }
+            }
+        });
+    }
+
+    function closeNoteEmoji() {
+        emojiSink = null;
+        const box = $('chEmoji');
+        if (!box || !emojiHome) return;
+        box.hidden = true;
+        if (box.parentNode !== emojiHome.parent) {
+            const ref = (emojiHome.next && emojiHome.next.parentNode === emojiHome.parent) ? emojiHome.next : null;
+            emojiHome.parent.insertBefore(box, ref);
+        }
+    }
+
+    function openNoteSheet(name) {
+        const id = NOTE_SHEETS[name];
+        if (!id) return;
+        noteSheet = name;
+        Object.keys(NOTE_SHEETS).forEach(function (k) { $(NOTE_SHEETS[k]).hidden = k !== name; });
+        if (name === 'music' && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) $('stMusQ').focus();
+        else if (name !== 'emoji') { const b = $(id).querySelector('[data-sheet-back]'); if (b) b.focus(); }
+    }
+
+    function closeNoteSheet() {
+        if (!noteSheet) return false;
+        const was = noteSheet;
+        noteSheet = '';
+        Object.keys(NOTE_SHEETS).forEach(function (k) { $(NOTE_SHEETS[k]).hidden = true; });
+        if (was === 'emoji') closeNoteEmoji();
+        if (was === 'music' && csNow && csNow.key === 'draft') csStop();
+        const back = { emoji: 'stInput', music: 'stToolMusic', thumb: 'stToolThumb', state: 'stToolState' }[was];
+        if (back && $(back)) {
+            const elBack = $(back);
+            elBack.focus();
+            if (elBack instanceof HTMLInputElement && typeof elBack.setSelectionRange === 'function') {
+                const len = elBack.value.length;
+                elBack.setSelectionRange(len, len);
+            }
+        }
+        noteToolsSoon();
+        return true;
+    }
+
+    // a quick-status chip like "😴 Sleeping" fills the emoji and the message separately
+    function pickStatusIdea(t) {
+        const m = /^(\S+)\s+(.+)$/.exec(t);
+        if (m && stDraft && csHasEmoji() && csEmojiOk(m[1])) { stDraft.emoji = m[1]; $('stInput').value = m[2]; }
+        else $('stInput').value = t;
+        paintNoteStage();
+        $('stInput').focus();
+    }
+
+    // called by openStatusDlg() once the dialog is open
+    function noteAfterOpen() {
+        setTimeout(function () {
+            const input = $('stInput');
+            const dlg = $('statusDlg');
+            if (!input || !dlg || !dlg.open || noteSheet) return;
+            if (window.matchMedia && matchMedia('(pointer: coarse)').matches) return;
+            input.focus();
+            const end = input.value.length;
+            if (typeof input.setSelectionRange === 'function') input.setSelectionRange(end, end);
+        }, 80);
+        noteSheet = '';
+        Object.keys(NOTE_SHEETS).forEach(function (k) { $(NOTE_SHEETS[k]).hidden = true; });
+        const av = $('stAvatar');
+        av.textContent = '';
+        av.appendChild(avatar(S.profile, 104));
+        const dot = el('i', { class: 'ch-st ch-note-st ch-note-st--big', role: 'img' });
+        dot.dataset.st = stDraft.status;
+        dot.innerHTML = stIcon(stDraft.status);
+        av.appendChild(dot);
+        paintNoteStage();
+        paintNoteTools();
+        if (!(window.matchMedia && matchMedia('(pointer: coarse)').matches)) {
+            requestAnimationFrame(function () {
+                const input = $('stInput');
+                if (input && document.activeElement !== input) {
+                    input.focus();
+                    const end = input.value.length;
+                    if (typeof input.setSelectionRange === 'function') input.setSelectionRange(end, end);
+                }
+            });
+        }
+    }
+
+    function initNoteScreen() {
+        const dlg = $('statusDlg');
+        $('stToolMusicIco').innerHTML = ICON.music;
+        $('stToolThumbIco').innerHTML = ICON.image;
+        $('stToolStateIco').innerHTML = stIcon('online');
+        dlg.querySelectorAll('[data-sheet-back]').forEach(function (b) { b.innerHTML = ICON.back; });
+        $('stEmojiBtn').addEventListener('click', openNoteEmoji);
+        $('stEmojiRemove').addEventListener('click', function () { if (stDraft) { stDraft.emoji = ''; paintNoteStage(); } closeNoteSheet(); });
+        $('stToolMusic').addEventListener('click', function () { openNoteSheet('music'); });
+        $('stToolThumb').addEventListener('click', function () { openNoteSheet('thumb'); });
+        $('stToolState').addEventListener('click', function () { openNoteSheet('state'); });
+        dlg.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-sheet-back]')) closeNoteSheet(); });
+        dlg.addEventListener('cancel', function (e) { if (noteSheet) { e.preventDefault(); closeNoteSheet(); } });     // Esc closes the sheet first, the screen second
+        dlg.addEventListener('close', function () {
+            noteSheet = '';
+            Object.keys(NOTE_SHEETS).forEach(function (k) { $(NOTE_SHEETS[k]).hidden = true; });
+            closeNoteEmoji();
+        });
+        $('stInput').addEventListener('input', function () { paintNoteCount(); paintNoteShare(); });
     }
 
     async function boot() {
@@ -7225,6 +7691,7 @@
         initFilter();
         initAccountMenu();
         fitViewport();
+        lockZoom();
         injectEmojiStyles();
         wire();
         Promise.all([loadCustomEmoji(), loadEmojiData()]).then(function () { onEmojiData(true); });      // chat-emoji.js + emoji-data.js, load in the background

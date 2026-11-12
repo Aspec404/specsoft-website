@@ -229,12 +229,15 @@
         var host = document.body;
         if (modal && typeof topLayerHost.showPopover === 'function') {
             try {
+                if (topLayerHost.matches(':popover-open') && topLayerHost._for !== modal) topLayerHost.hidePopover();
                 if (!topLayerHost.matches(':popover-open')) topLayerHost.showPopover();
+                topLayerHost._for = modal;
                 host = topLayerHost;
             } catch (e) { host = modal; }
         } else if (modal) {
             host = modal;
         } else if (typeof topLayerHost.hidePopover === 'function') {
+            topLayerHost._for = null;
             try { if (topLayerHost.matches(':popover-open')) topLayerHost.hidePopover(); } catch (e) { /* already closed */ }
         }
         [CFG.trail && ctx ? canvas : null, crossLayer, ringLayer, dotLayer].forEach(function (layer) {

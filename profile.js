@@ -1111,10 +1111,13 @@
 
         if (state.isOwner) {
             // the "add" card is always first for the owner
-            if (state.projects.length < 12) {
+            // 12 projects and 100 posts per member (supabase-hub-v2.sql). profile-create.js turns this card into the Create menu.
+            const ownProjects = state.projects.filter(function (p) { return p.kind !== 'post'; }).length;
+            const ownPosts = state.projects.length - ownProjects;
+            if (ownProjects < 12 || ownPosts < 100) {
                 grid.appendChild(el('button', { type: 'button', class: 'pf-card pf-card--add', onclick: function () { openProject(null); } },
                     el('span', { class: 'pf-art-letter' }, icon('plus')),
-                    el('span', { class: 'pf-card-title', text: 'Post a project' })));
+                    el('span', { class: 'pf-card-title', text: 'Create' })));
             }
         }
 
@@ -1528,14 +1531,16 @@ async function loadReposts() {
 
         if (mine) {
             eng.appendChild(el('div', { class: 'pf-owner-tools' },
-                el('button', { type: 'button', class: 'pf-iconbtn', 'aria-label': 'Edit ' + pj.title, title: 'Edit', onclick: function () { openProject(pj); } }, icon('pencil')),
+                pj.kind === 'post' ? null : el('button', { type: 'button', class: 'pf-iconbtn', 'aria-label': 'Edit ' + pj.title, title: 'Edit', onclick: function () { openProject(pj); } }, icon('pencil')),
                 el('button', { type: 'button', class: 'pf-iconbtn pf-iconbtn--danger', 'aria-label': 'Delete ' + pj.title, title: 'Delete', onclick: function () { deleteProject(pj); } }, icon('trash'))));
         }
 
-        return el('article', { class: 'pf-card' },
+        const isPostCard = pj.kind === 'post';
+        return el('article', { class: 'pf-card' + (isPostCard ? ' pf-card--post' : '') },
             credit,
-            projectMedia(pj),
+            (isPostCard && !pj.cover_url) ? null : projectMedia(pj),
             el('div', { class: 'pf-card-body' },
+                isPostCard ? el('span', { class: 'pf-postbadge', text: 'POST' }) : null,
                 el('h3', { class: 'pf-card-title' },
                     el('button', { type: 'button', class: 'pf-card-titlebtn', text: pj.title, onclick: function () { openDetails(pj, false); } })),
                 pj.summary ? el('p', { class: 'pf-card-sum', text: pj.summary }) : null,
@@ -1565,6 +1570,7 @@ async function loadReposts() {
     let detailPj = null;
     let detailComments = [];
     let postingComment = false;
+    let detailThread = null;          // the live comment thread (post-comments.js)
     let reportTarget = null;      // { type: 'project' | 'comment' | 'user', id, label }
 
     // what a member can pick depends on what they are reporting
@@ -1600,27 +1606,14 @@ async function loadReposts() {
                 el('ul', { class: 'pf-tags', id: 'pdTags' }),
                 el('div', { id: 'pdLinks' }),
                 el('div', { class: 'pd-eng', id: 'pdEng' }),
-                el('h3', { class: 'pf-h3 pd-h3' }, 'COMMENTS ', el('span', { id: 'pdCount' })),
-                el('div', { class: 'pd-comments', id: 'pdComments' })),
-            el('form', { class: 'pd-compose', id: 'pdForm', novalidate: '' },
-                el('label', { class: 'pf-sr', for: 'pdInput', text: 'Write a comment' }),
-                el('textarea', { class: 'pf-input pf-textarea pd-input', id: 'pdInput', rows: '1', maxlength: '500', placeholder: 'Write a comment...' }),
-                el('button', { type: 'submit', class: 'pf-btn', id: 'pdPost' },
-                    el('span', { class: 'pf-btn-label', text: 'Post' }), el('span', { class: 'pf-spin', 'aria-hidden': 'true' }))));
+                el('div', { class: 'pd-thread', id: 'pdThread' })));
         document.body.appendChild(detail);
 
         detail.addEventListener('close', function () {
             $('pdMedia').textContent = '';       // also stops any playing video
+            if (detailThread) { detailThread.destroy(); detailThread = null; }
             detailPj = null;
             try { if (/^#project-/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ }
-        });
-
-        $('pdForm').addEventListener('submit', submitComment);
-        $('pdInput').addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                if ($('pdForm').requestSubmit) $('pdForm').requestSubmit(); else submitComment(new Event('submit', { cancelable: true }));
-            }
         });
 
         // ----- report -----
@@ -1647,50 +1640,33 @@ async function loadReposts() {
         $('rpForm').addEventListener('submit', submitReport);
     }
 
-    function commentNode(c) {
-        const a = c.author || {};
-        const name = a.display_name || a.username || 'member';
-        const canDelete = !!(state.me && detailPj && (c.user_id === state.me.id || detailPj.owner_id === state.me.id));
-        const av = framed(avatarEl({ name: name, avatar: safeHttps(a.avatar_url) || '' }), c.user_id);
-        const profileHref = a.username ? 'profile.html?u=' + encodeURIComponent(a.username) : null;
-
-        return el('article', { class: 'pd-cmt', dataset: { id: c.id } },
-            profileHref ? el('a', { class: 'pd-cmt-av', href: profileHref, 'aria-label': name }, av) : av,
-            el('div', { class: 'pd-cmt-main' },
-                el('div', { class: 'pd-cmt-head' },
-                    profileHref ? el('a', { class: 'pd-cmt-name', href: profileHref, text: name }) : el('span', { class: 'pd-cmt-name', text: name }),
-                    el('time', { class: 'pd-cmt-time', datetime: c.created_at, text: timeAgo(c.created_at) }),
-                    (state.me && c.user_id !== state.me.id)
-                        ? el('button', { type: 'button', class: 'pd-cmt-report', title: 'Report this comment', 'aria-label': 'Report this comment',
-                            style: 'margin-left:auto;padding:0;background:none;border:0;color:inherit;opacity:.55;font:inherit;font-size:12px;text-decoration:underline;cursor:pointer',
-                            onclick: function () { openReport({ type: 'comment', id: c.id, label: 'comment' }); } }, 'Report')
-                        : null),
-                el('p', { class: 'pd-cmt-body', text: c.body })),
-            canDelete
-                ? el('button', { type: 'button', class: 'pf-iconbtn pf-iconbtn--danger pd-cmt-del', 'aria-label': 'Delete comment', title: 'Delete', onclick: function () { deleteComment(c); } }, icon('trash'))
-                : null);
-    }
-
-    function renderComments() {
-        const box = $('pdComments');
-        box.textContent = '';
-        if (!detailComments.length) {
-            box.appendChild(el('p', { class: 'pf-empty pd-empty', text: 'No comments yet. Be the first.' }));
-        } else {
-            detailComments.forEach(function (c) { box.appendChild(commentNode(c)); });
+    // A POST (kind = 'post') shows its text, images, files and links here instead of a project's media
+    function postContentNode(pj) {
+        const box = el('div', { class: 'pdp' });
+        const text = pj.body || pj.summary || '';
+        if (text) box.appendChild(el('div', { class: 'pdp-body' }, window.SpecComments ? window.SpecComments.rich(text) : document.createTextNode(text)));
+        const atts = (Array.isArray(pj.attachments) ? pj.attachments : []).filter(function (a) { return a && safeHttps(a.url); });
+        const isImg = function (a) { return a.kind === 'image' || /^image\//.test(a.type || ''); };
+        const imgs = atts.filter(isImg);
+        if (imgs.length) {
+            const gal = el('div', { class: 'pdp-gallery pdp-gallery--' + Math.min(imgs.length, 4) });
+            imgs.forEach(function (a) {
+                gal.appendChild(el('a', { class: 'pdp-img', href: a.url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': 'Open image ' + (a.name || '') },
+                    el('img', { src: a.url, alt: a.name || '', loading: 'lazy', referrerpolicy: 'no-referrer' })));
+            });
+            box.appendChild(gal);
         }
-        $('pdCount').textContent = detailComments.length ? '(' + detailComments.length + ')' : '';
-        if (detailPj) { detailPj.comment_count = detailComments.length; syncEng(detailPj); }
-    }
-
-    async function loadComments(pj) {
-        const res = await sb.from('profile_project_comments')
-            .select('id,user_id,body,created_at,author:profiles(username,display_name,avatar_url)')
-            .eq('project_id', pj.id)
-            .order('created_at', { ascending: true })
-            .limit(200);
-        if (res.error) throw res.error;
-        return res.data || [];
+        atts.filter(function (a) { return !isImg(a); }).forEach(function (a) {
+            if (/^video\//.test(a.type || '')) { box.appendChild(el('video', { class: 'pdp-video', controls: '', playsinline: '', preload: 'metadata', src: a.url })); return; }
+            box.appendChild(el('a', { class: 'pdp-file', href: a.url, target: '_blank', rel: 'noopener noreferrer nofollow' },
+                el('strong', { text: a.name || 'File' }), el('small', { text: String(a.type || 'file') })));
+        });
+        (Array.isArray(pj.links) ? pj.links : []).forEach(function (l) {
+            if (!l || !safeHttps(l.url)) return;
+            let h = l.url; try { h = new URL(l.url).hostname.replace(/^www\./, ''); } catch (e) { /* keep url */ }
+            box.appendChild(el('a', { class: 'pdp-file pdp-file--link', href: l.url, target: '_blank', rel: 'noopener noreferrer nofollow' }, el('strong', { text: h }), el('small', { text: l.url })));
+        });
+        return box;
     }
 
     function openDetails(pj, focusInput) {
@@ -1698,11 +1674,12 @@ async function loadReposts() {
         closeProjectMenu(false);
         detailPj = pj;
         detailComments = [];
+        if (detailThread) { detailThread.destroy(); detailThread = null; }
 
         $('pdTitle').textContent = pj.title;
         const media = $('pdMedia');
         media.textContent = '';
-        media.appendChild(projectMedia(pj));
+        media.appendChild(pj.kind === 'post' ? postContentNode(pj) : projectMedia(pj));
 
         const by = $('pdBy');
         by.textContent = '';
@@ -1712,8 +1689,8 @@ async function loadReposts() {
             by.appendChild(el('a', { href: 'profile.html?u=' + encodeURIComponent(owner.username), text: '@' + owner.username }));
         }
 
-        $('pdSummary').textContent = pj.summary || '';
-        $('pdSummary').hidden = !pj.summary;
+        $('pdSummary').textContent = pj.kind === 'post' ? '' : (pj.summary || '');
+        $('pdSummary').hidden = pj.kind === 'post' || !pj.summary;
 
         const tags = $('pdTags');
         tags.textContent = '';
@@ -1731,71 +1708,22 @@ async function loadReposts() {
         if (!mine) eng.appendChild(engBtn('repost', pj));
         eng.appendChild(el('button', { type: 'button', class: 'pf-eng pf-eng--share', title: 'Share', 'aria-label': 'Share project', onclick: function () { shareProject(pj); } }, icon('share')));
 
-        $('pdForm').hidden = !state.me;
-        $('pdInput').value = '';
-        $('pdComments').textContent = '';
-        $('pdComments').appendChild(el('p', { class: 'pf-empty pd-empty', text: 'Loading comments...' }));
-        if (!state.me) {
-            $('pdComments').appendChild(el('p', { class: 'pd-guest' }, el('a', { href: 'login.html', text: 'Log in' }), ' to comment.'));
-        }
-
         openDlg($('pdDlg'));
         try { history.replaceState(null, '', location.pathname + location.search + '#project-' + pj.id); } catch (e) { /* ignore */ }
 
-        loadComments(pj).then(function (rows) {
-            if (detailPj !== pj) return;
-            detailComments = rows;
-            renderComments();
-            if (!state.me) $('pdComments').appendChild(el('p', { class: 'pd-guest' }, el('a', { href: 'login.html', text: 'Log in' }), ' to comment.'));
-        }).catch(function (err) {
-            if (detailPj !== pj) return;
-            $('pdComments').textContent = '';
-            $('pdComments').appendChild(el('p', { class: 'pf-empty pd-empty', text: isSocialMissing(err) ? 'Run supabase-project-social.sql in Supabase to turn on comments.' : friendly(err) }));
-        });
-
-        if (focusInput && state.me) setTimeout(function () { $('pdInput').focus(); }, 60);
-    }
-
-    async function submitComment(e) {
-        e.preventDefault();
-        if (!state.me || !detailPj || postingComment) return;
-        const input = $('pdInput');
-        const body = input.value.trim();
-        if (!body) return;
-        if (!needSocial()) return;
-
-        postingComment = true;
-        const btn = $('pdPost');
-        setLoading(btn, true);
-        try {
-            const res = await sb.from('profile_project_comments')
-                .insert({ project_id: detailPj.id, user_id: state.me.id, body: body })
-                .select('id,user_id,body,created_at,author:profiles(username,display_name,avatar_url)')
-                .single();
-            if (res.error) throw res.error;
-            detailComments.push(res.data);
-            input.value = '';
-            renderComments();
-            const bodyEl = $('pdBody');
-            bodyEl.scrollTop = bodyEl.scrollHeight;
-        } catch (err) {
-            toast(socialError(err, 'comment'));
-        } finally {
-            postingComment = false;
-            setLoading(btn, false);
+        // the thread: replies, likes, images, stickers, custom emoji, report (post-comments.js)
+        const threadHost = $('pdThread');
+        threadHost.textContent = '';
+        if (window.SpecComments) {
+            detailThread = window.SpecComments.mount(threadHost, { id: pj.id, owner_id: pj.owner_id }, {
+                sb: sb, me: state.me, toast: toast,
+                onCount: function (n) { if (detailPj === pj && pj.comment_count !== n) { pj.comment_count = n; syncEng(pj); } }
+            });
+        } else {
+            threadHost.appendChild(el('p', { class: 'pf-empty pd-empty', text: 'Comments could not load. Check that post-comments.js is on this page.' }));
         }
-    }
 
-    async function deleteComment(c) {
-        if (!window.confirm('Delete this comment?')) return;
-        try {
-            const res = await sb.from('profile_project_comments').delete().eq('id', c.id);
-            if (res.error) throw res.error;
-            detailComments = detailComments.filter(function (x) { return x.id !== c.id; });
-            renderComments();
-        } catch (err) {
-            toast(friendly(err));
-        }
+        if (focusInput && state.me) setTimeout(function () { const t = $('pdThread').querySelector('textarea'); if (t) t.focus(); }, 160);
     }
 
     function fillReportReasons(type) {
@@ -2479,8 +2407,12 @@ async function loadReposts() {
         try {
             const res = await sb.from('profile_projects').delete().eq('id', pj.id);
             if (res.error) throw res.error;
+            if (pj.kind === 'post' && Array.isArray(pj.attachments)) {       // do not leave the files behind in storage
+                const paths = pj.attachments.map(function (a) { const m = a && /\/post-media\/(.+)$/.exec(String(a.url || '')); return m ? decodeURIComponent(m[1]) : null; }).filter(Boolean);
+                if (paths.length) { try { await sb.storage.from('post-media').remove(paths); } catch (e) { /* ignore */ } }
+            }
             await reloadProjects();
-            toast('Project deleted');
+            toast(pj.kind === 'post' ? 'Post deleted' : 'Project deleted');
         } catch (err) { toast(friendly(err)); }
     }
 
