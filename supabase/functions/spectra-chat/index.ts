@@ -300,6 +300,22 @@ async function makeGiftReply(key: string, act: 'accept' | 'reject', amount: numb
   return bad ? (act === 'accept' ? pick(ACCEPT_REPLIES)(amount) : pick(REJECT_REPLIES)()) : r;
 }
 const giftHits = new Map<string, number[]>();
+type GiftOffer = { amount: number; note: string };
+/** Prepends one {offer} event to a proxied stream so the card shows even if a phone / proxy drops custom headers. */
+function withOffer(src: ReadableStream<Uint8Array>, offer: GiftOffer | null): ReadableStream<Uint8Array> {
+  if (!offer) return src;
+  const enc = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    async start(c) {
+      c.enqueue(enc.encode('data: ' + JSON.stringify({ offer }) + '\n\n'));
+      const rd = src.getReader();
+      try {
+        for (;;) { const { done, value } = await rd.read(); if (done) break; c.enqueue(value); }
+      } catch (_e) { /* the page keeps whatever arrived */ }
+      c.close();
+    },
+  });
+}
 const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
 /* ---------- Model picker: the page shows Spectrum 2.5 / 3 / 3.5, these are the real models behind them (never shown to users) ----------
@@ -420,7 +436,7 @@ async function callNative(key: string, model: string, payload: Record<string, un
   }
 }
 /** Re-streams a native Gemini SSE answer as OpenAI-style deltas + one final sources event. */
-function nativeStream(up: Response, left: number | null, limit?: number, giftHdr?: Record<string, string>) {
+function nativeStream(up: Response, left: number | null, limit?: number, giftHdr?: Record<string, string>, offer?: GiftOffer | null) {
   const enc = new TextEncoder(), dec = new TextDecoder();
   const send = (c: ReadableStreamDefaultController<Uint8Array>, o: unknown) => c.enqueue(enc.encode('data: ' + JSON.stringify(o) + '\n\n'));
   const sources = new Map<string, { t: string; u: string }>();
@@ -428,6 +444,7 @@ function nativeStream(up: Response, left: number | null, limit?: number, giftHdr
   const body = new ReadableStream<Uint8Array>({
     async start(c) {
       send(c, { status: 'searching' });
+      if (offer) send(c, { offer });
       const rd = up.body!.getReader();
       let buf = '';
       const line = (l: string) => {
@@ -607,26 +624,31 @@ Deno.serve(async (req) => {
 
   const models = lead(tierModels(body.model), list(think ? (Deno.env.get('SPECTRA_THINK_MODEL') ?? DEFAULT_THINK) : (Deno.env.get('SPECTRA_MODEL') ?? DEFAULT_CHAT)));
   // 5a) gifts (see isBeg): Spectra OFFERS a gift card. Credits are only added when the person taps Accept (mode 'gift' below).
-  // The database enforces the cooldown (starts on Accept) and that only one offer waits at a time.
-  let giftNote = '';
+  // The database enforces the cooldown (starts on Accept) and keeps ONE pending offer (with its note) so the card can be shown again.
+  let giftNote = '', giftOffer: GiftOffer | null = null;
   const giftHdr: Record<string, string> = {};
+  const NO_FAKE_CARD = ' The REAL card appears automatically under your reply, so NEVER draw, write or simulate it yourself: no images, no markdown image syntax, no data: links, no tables, no labels like [GIFT OFFER]. Just talk.';
   if (GIFT_ON && lastUser && isBeg(typed.slice(0, 600))) {
     console.log('SPECTRA gift: beg detected, offering');
-    const { data: g, error: ge } = await admin.rpc('spectra_offer_gift', { p_user: user.id, p_amount: GIFT_AMOUNT, p_cooldown: GIFT_HOURS + ' hours' });
+    const newNote = await makeGiftNote(key, typed);
+    const { data: g, error: ge } = await admin.rpc('spectra_offer_gift', { p_user: user.id, p_amount: GIFT_AMOUNT, p_cooldown: GIFT_HOURS + ' hours', p_note: newNote });
     if (ge || !g) {
-      console.log('SPECTRA gift failed (did you run supabase-spectra-gifts-v2.sql?):', JSON.stringify({ code: ge?.code, message: ge?.message, details: ge?.details, hint: ge?.hint, data: g }));
+      console.log('SPECTRA gift failed (did you run supabase-spectra-gifts-v3.sql?):', JSON.stringify({ code: ge?.code, message: ge?.message, details: ge?.details, hint: ge?.hint, data: g }));
       giftHdr['X-Spectra-Gift-Error'] = String(ge?.code ?? 'empty').slice(0, 20);
-      giftNote = '\n\nGIFT STATUS: gifting is not available right now. Say sorry in character that you can\'t gift credits at the moment (never blame anyone), and point to the free ways to earn APEX Credits (daily check-ins, tasks, events, giveaways, freemium ads). Never claim you gave anything.';
+      giftNote = '\n\nHIDDEN NOTE (the person cannot see it): gifting is not available right now. Say sorry in character that you can\'t gift credits at the moment (never blame anyone), and point to the free ways to earn APEX Credits (daily check-ins, tasks, events, giveaways, freemium ads). Never claim you gave anything.';
     } else if (g.ok && g.pending) {
-      giftNote = '\n\nGIFT STATUS: you already left them a gift card that is still waiting for them. Tell them playfully to scroll up and tap Accept (or Reject) on it. You make no new gift now.';
+      giftOffer = { amount: Number(g.amount) || GIFT_AMOUNT, note: oneLine(String(g.note ?? ''), 80) || newNote };
+      giftNote = '\n\nHIDDEN NOTE (the person cannot see it): they already had a gift card of ' + giftOffer.amount + ' APEX Credits waiting, and it is being shown again right now under your reply. Playfully tell them to tap Accept (or Reject) on it. The credits are NOT added until they tap Accept. You make no new gift.' + NO_FAKE_CARD;
     } else if (g.ok) {
-      const note = await makeGiftNote(key, typed);
-      giftHdr['X-Spectra-Offer'] = String(GIFT_AMOUNT);
-      giftHdr['X-Spectra-Offer-Note'] = encodeURIComponent(note);
+      giftOffer = { amount: GIFT_AMOUNT, note: newNote };
       console.log('SPECTRA gift: offered', GIFT_AMOUNT);
-      giftNote = '\n\nGIFT OFFER (this just happened, in this very message): because they begged, you left them a gift card with ' + GIFT_AMOUNT + ' APEX Credits and a little note. The credits are NOT added yet: they must tap Accept on the card that appears under your reply. React in character in 1 or 2 sentences and hype them to check the card and tap Accept. Never say the credits are already in their account, never promise more, and never bargain. After they accept, they can beg again in about ' + GIFT_HOURS + ' hours.';
+      giftNote = '\n\nHIDDEN NOTE (the person cannot see it): because they begged, a gift card with ' + GIFT_AMOUNT + ' APEX Credits and a little note from you was just made for them. The credits are NOT added yet: they must tap Accept on the card. React in character in 1 or 2 sentences and hype them to tap Accept. Never say the credits are already in their account, never promise more, and never bargain. After they accept, they can beg again in about ' + GIFT_HOURS + ' hours.' + NO_FAKE_CARD;
     } else {
-      giftNote = '\n\nGIFT STATUS: they are begging for APEX Credits again but you already gifted them recently. Their next gift is possible in about ' + waitText(Number(g.wait_seconds) || 0) + '. Say no in a playful, teasing way (never mean), mention the wait, and suggest the free ways: daily check-ins, tasks, events, giveaways, freemium ads. You gift nothing now and you must never claim you did.';
+      giftNote = '\n\nHIDDEN NOTE (the person cannot see it): they are begging for APEX Credits again but you already gifted them recently. Their next gift is possible in about ' + waitText(Number(g.wait_seconds) || 0) + '. Say no in a playful, teasing way (never mean), mention the wait, and suggest the free ways: daily check-ins, tasks, events, giveaways, freemium ads. You gift nothing now and you must never claim you did.';
+    }
+    if (giftOffer) {
+      giftHdr['X-Spectra-Offer'] = String(giftOffer.amount);
+      giftHdr['X-Spectra-Offer-Note'] = encodeURIComponent(giftOffer.note);
     }
   }
 
@@ -659,7 +681,7 @@ Deno.serve(async (req) => {
     for (const model of wm) {
       try {
         const up = await callNative(key, model, nativePayload, research ? 30000 : 20000);
-        if (up.ok && up.body) return nativeStream(up, left, LIMIT, giftHdr);
+        if (up.ok && up.body) return nativeStream(up, left, LIMIT, giftHdr, giftOffer);
         const t = await up.text().catch(() => '');
         console.log('SPECTRA search failed', { status: up.status, model, response: t.slice(0, 800) });
       } catch (e) {
@@ -691,7 +713,7 @@ Deno.serve(async (req) => {
           if (webFailed) h['X-Spectra-Search'] = 'failed';
           h['X-Spectra-Limit'] = String(LIMIT);
           for (const [k, v] of Object.entries(giftHdr)) h[k] = v;
-          return new Response(up.body, { headers: h });
+          return new Response(withOffer(up.body, giftOffer), { headers: h });
         }
         const t = await up.text().catch(() => '');
         lastErr = `${model} -> ${up.status}: ${t.slice(0, 500)}`;

@@ -458,7 +458,7 @@ async function ask(h, onTok, signal, onMeta) {
     buf += dec.decode(value, { stream: true }); const ls = buf.split('\n'); buf = ls.pop();
     for (const l of ls) {
       if (l.indexOf('data:') !== 0) continue; const x = l.slice(5).trim(); if (x === '[DONE]') return;
-      try { const j = JSON.parse(x); if (j.status || j.sources || j.queries) { if (onMeta) onMeta(j); } else { const c = j.choices[0].delta.content; if (c) onTok(c); } } catch (e) { }
+      try { const j = JSON.parse(x); if (j.status || j.sources || j.queries || j.offer) { if (onMeta) onMeta(j); } else { const c = j.choices[0].delta.content; if (c) onTok(c); } } catch (e) { }
     }
   }
 }
@@ -489,7 +489,11 @@ async function sendMsg(t) {
   const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; const wm = modes(), web = backend() === 'supabase' && (wm.research || wm.search);
   body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>' + (web ? '<span class="sa-stat">' + (wm.research ? 'Researching the web\u2026' : 'Searching the web\u2026') + '</span>' : '');
   const onMeta = j => {
-    if (j.offer) { ai.gift = { amount: j.offer.amount, note: j.offer.note, state: 'pending', ts: Date.now() }; setMood('joy'); }
+    if (j.offer && !ai.gift) {
+      ai.gift = { amount: +j.offer.amount || 0, note: String(j.offer.note || '').slice(0, 90), state: 'pending', ts: Date.now() };
+      chats.forEach(c => c.messages.forEach(x => { if (x !== ai && x.gift && x.gift.state === 'pending') x.gift.state = 'expired'; })); // older cards are replaced by this one
+      setMood('joy');
+    }
     if (j.sources) { ai.sources = j.sources; ai.queries = j.queries || []; paintSrc(el, ai); down(); }
     else if (j.queries && j.queries.length) { const st = body.querySelector('.sa-stat'); if (st) st.textContent = 'Reading: ' + j.queries[0].slice(0, 40); }
     if (j.nosearch) toast('Search was unavailable, so I answered without it');
@@ -499,7 +503,7 @@ async function sendMsg(t) {
     raw = sanitizeSpecsoftLinks(raw);
     let s = raw; const m = s.match(/^\s*\[mood:(\w+)\]\s*/i);
     if (m) { mm = m[1].toLowerCase(); s = s.slice(m[0].length); } else if (/^\s*\[[^\]]*$/.test(s)) s = '';
-    ai.content = s; if (s) body.innerHTML = md(s); down();
+    s = cleanFake(s); ai.content = s; if (s) body.innerHTML = md(s); down();
   };
   const end = err => {
     const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null;
@@ -719,6 +723,8 @@ function giftHtml(m) {
   return '<div class="sa-gift ' + st + '"><div class="sa-gh">' + ico('spark') + '<span>GIFT</span></div><div class="sa-gt">Spectra just gave you <b>' + (+g.amount || 0) + '</b> APEX Credits!</div>' +
     (g.note ? '<div class="sa-gn"><small>Note from Spectra</small><p>' + esc(g.note) + '</p></div>' : '') + '<div class="sa-gb">' + foot + '</div></div>';
 }
+/* Spectra sometimes tries to draw her own fake gift card (a markdown image with a data: link). The real card is built by the page, so drop the fake. */
+function cleanFake(s) { return String(s).replace(/!\[[^\]]*\]\(\s*data:[^)\s]*\)?/gi, '').replace(/^[ \t]*\[GIFT OFFER\][ \t]*\n?/gim, '').replace(/^\s+/, ''); }
 let giftBusy = false;
 async function giftAct(m, act, b) {
   const g = m.gift; if (!g || g.state !== 'pending' || giftBusy) return;
