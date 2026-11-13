@@ -123,6 +123,8 @@
     function ytEmbed(v) { var id = youtubeId(v); return id && /^[A-Za-z0-9_-]{6,15}$/.test(id) ? 'https://www.youtube.com/embed/' + id : ''; }
 
     function isPost(p) { return p.kind === 'post'; }
+    // the badge on a post: its status (Work, Milestones...) or just POST
+    function postTag(p) { return String((window.SpecRich && window.SpecRich.statusLabel(p)) || 'POST').toUpperCase(); }
     function catLabel(c) { for (var i = 0; i < CATS.length; i++) if (CATS[i][0] === c) return CATS[i][1]; return 'Other'; }
     function fmtCount(n) { n = Number(n) || 0; return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : String(n); }
     function fmtBytes(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
@@ -522,7 +524,7 @@
 
         return el('article', { class: 'ph-card ph-card--post', dataset: { id: p.id } },
             el('div', { class: 'ph-card-body' },
-                el('div', { class: 'ph-card-top' }, ownerRow(p, true), el('span', { class: 'ph-badge ph-badge--post' }, 'POST')),
+                el('div', { class: 'ph-card-top' }, ownerRow(p, true), el('span', { class: 'ph-badge ph-badge--post' }, postTag(p))),
                 el('h3', { class: 'ph-card-title' }, el('button', { type: 'button', class: 'ph-card-titlebtn', text: p.title, onclick: function (e) { openProject(p, e.currentTarget); } })),
                 excerpt(p, 260) ? el('p', { class: 'ph-card-sum ph-card-sum--post', text: excerpt(p, 260) }) : null,
                 mosaic(p, open),
@@ -646,7 +648,7 @@
             el('div', { class: 'ph-slide-shade' }),
             el('div', { class: 'ph-slide-body' },
                 el('div', { class: 'ph-slide-tags' },
-                    el('span', { class: 'ph-badge ' + (isPost(p) ? 'ph-badge--post' : 'ph-badge--solid'), text: isPost(p) ? 'POST' : catLabel(p.category).toUpperCase() }),
+                    el('span', { class: 'ph-badge ' + (isPost(p) ? 'ph-badge--post' : 'ph-badge--solid'), text: isPost(p) ? postTag(p) : catLabel(p.category).toUpperCase() }),
                     p.pinned ? el('span', { class: 'ph-badge ph-badge--pin' }, icon('pin'), 'FEATURED') : el('span', { class: 'ph-badge ph-badge--pin' }, 'TRENDING'),
                     !isPost(p) && isLive(p) ? el('span', { class: 'ph-badge ph-badge--live' }, el('i'), 'LIVE') : null),
                 el('h2', { class: 'ph-slide-title', text: p.title }),
@@ -755,7 +757,8 @@
 
     function postStage(p) {
         var box = el('div', { class: 'ph-d-post' });
-        if (p.body) box.appendChild(el('div', { class: 'ph-d-body' }, window.SpecComments ? window.SpecComments.rich(p.body) : document.createTextNode(p.body)));
+        if (p.doc && window.SpecRich) box.appendChild(el('div', { class: 'ph-d-body' }, window.SpecRich.render(p.doc)));
+        else if (p.body) box.appendChild(el('div', { class: 'ph-d-body' }, window.SpecComments ? window.SpecComments.rich(p.body) : document.createTextNode(p.body)));
         else if (p.summary) box.appendChild(el('div', { class: 'ph-d-body', text: p.summary }));
 
         var imgs = images(p);
@@ -794,7 +797,7 @@
         clear($('phDStage')).appendChild(isPost(p) ? postStage(p) : projectStage(p));
 
         clear($('phDHead')).appendChild(el('div', { class: 'ph-d-owner' }, ownerRow(p, true),
-            isPost(p) ? el('span', { class: 'ph-badge ph-badge--post', text: 'POST' }) : el('span', { class: 'ph-cat ph-cat--inline', text: catLabel(p.category) })));
+            isPost(p) ? el('span', { class: 'ph-badge ph-badge--post', text: postTag(p) }) : el('span', { class: 'ph-cat ph-cat--inline', text: catLabel(p.category) })));
         $('phDTitle').textContent = p.title;
         $('phDText').textContent = isPost(p) ? '' : (p.summary || '');
         $('phDText').hidden = isPost(p) || !p.summary;

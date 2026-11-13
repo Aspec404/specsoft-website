@@ -1540,7 +1540,7 @@ async function loadReposts() {
             credit,
             (isPostCard && !pj.cover_url) ? null : projectMedia(pj),
             el('div', { class: 'pf-card-body' },
-                isPostCard ? el('span', { class: 'pf-postbadge', text: 'POST' }) : null,
+                isPostCard ? el('span', { class: 'pf-postbadge', text: String((window.SpecRich && window.SpecRich.statusLabel(pj)) || 'POST').toUpperCase() }) : null,
                 el('h3', { class: 'pf-card-title' },
                     el('button', { type: 'button', class: 'pf-card-titlebtn', text: pj.title, onclick: function () { openDetails(pj, false); } })),
                 pj.summary ? el('p', { class: 'pf-card-sum', text: pj.summary }) : null,
@@ -1644,7 +1644,8 @@ async function loadReposts() {
     function postContentNode(pj) {
         const box = el('div', { class: 'pdp' });
         const text = pj.body || pj.summary || '';
-        if (text) box.appendChild(el('div', { class: 'pdp-body' }, window.SpecComments ? window.SpecComments.rich(text) : document.createTextNode(text)));
+        if (pj.doc && window.SpecRich) box.appendChild(el('div', { class: 'pdp-body' }, window.SpecRich.render(pj.doc)));
+        else if (text) box.appendChild(el('div', { class: 'pdp-body' }, window.SpecComments ? window.SpecComments.rich(text) : document.createTextNode(text)));
         const atts = (Array.isArray(pj.attachments) ? pj.attachments : []).filter(function (a) { return a && safeHttps(a.url); });
         const isImg = function (a) { return a.kind === 'image' || /^image\//.test(a.type || ''); };
         const imgs = atts.filter(isImg);

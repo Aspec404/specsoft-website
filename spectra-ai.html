@@ -71,6 +71,7 @@
       <button class="sa-nav" id="saAssets" type="button"><i class="sa-fi" data-i="cube"><svg><use href="#i-cube"/></svg></i><span class="sa-t">Assets</span></button>
       <button class="sa-nav" id="saSearch" type="button"><i class="sa-fi" data-i="search"><svg><use href="#i-search"/></svg></i><span class="sa-t">Search</span></button>
       <button class="sa-nav" id="saLibrary" type="button"><i class="sa-fi" data-i="folder"><svg><use href="#i-folder"/></svg></i><span class="sa-t">Library</span></button>
+      <a class="sa-nav" id="saCode" href="spectra-code.html"><i class="sa-fi" data-i="code"><svg><use href="#i-code"/></svg></i><span class="sa-t">Spectra Code</span></a>
     </nav>
     <div class="sa-list" id="saList"></div>
     <div class="sa-rule"></div>
@@ -97,14 +98,14 @@
         <p class="sa-tag">Chat. Create. Explore.</p>
         <div class="sa-hr"></div>
         <div class="sa-greet"><img class="sa-face sa-face-s" src="assets/spectra/spectra-pfp.png" alt="Spectra" title="Poke her"><p class="sa-sub sa-bubble" id="saBubble"></p></div>
-        <div class="sa-sugs">
-          <button type="button" class="sa-sug" data-p="Give me 5 original game ideas for a small indie team."><i class="sa-fi" data-i="spark"><svg><use href="#i-spark"/></svg></i>Generate an idea</button>
-          <button type="button" class="sa-sug" data-p="Help me debug a Lua script for my Roblox game."><i class="sa-fi" data-i="code"><svg><use href="#i-code"/></svg></i>Help with code</button>
-          <button type="button" class="sa-sug" data-p="Help me design a new feature for my Roblox game."><i class="sa-fi" data-i="gamepad"><svg><use href="#i-gamepad"/></svg></i>Roblox help</button>
-          <button type="button" class="sa-sug" data-mode="search" data-p=""><i class="sa-fi" data-i="globe"><svg><use href="#i-globe"/></svg></i>Search the web</button>
-          <button type="button" class="sa-sug" data-mode="research" data-p=""><i class="sa-fi" data-i="radar"><svg><use href="#i-radar"/></svg></i>Deep research</button>
-          <button type="button" class="sa-sug" data-p=""><i class="sa-fi" data-i="pen"><svg><use href="#i-pen"/></svg></i>Just chat</button>
-        </div>
+        <div class="sa-sugs"><div class="sa-track">
+          <button type="button" class="sa-sug" style="--i:0" data-p="Give me 5 original game ideas for a small indie team."><span class="sa-ic"><i class="sa-fi" data-i="spark"><svg><use href="#i-spark"/></svg></i></span><span class="sa-st"><b>Generate an idea</b><small>5 original game ideas</small></span></button>
+          <button type="button" class="sa-sug" style="--i:1" data-p="Help me debug a Lua script for my Roblox game."><span class="sa-ic"><i class="sa-fi" data-i="code"><svg><use href="#i-code"/></svg></i></span><span class="sa-st"><b>Help with code</b><small>Debug or write scripts</small></span></button>
+          <button type="button" class="sa-sug" style="--i:2" data-p="Help me design a new feature for my Roblox game."><span class="sa-ic"><i class="sa-fi" data-i="gamepad"><svg><use href="#i-gamepad"/></svg></i></span><span class="sa-st"><b>Roblox help</b><small>Features, Lua and systems</small></span></button>
+          <button type="button" class="sa-sug" style="--i:3" data-mode="search" data-p=""><span class="sa-ic"><i class="sa-fi" data-i="globe"><svg><use href="#i-globe"/></svg></i></span><span class="sa-st"><b>Search the web</b><small>Live answers with sources</small></span></button>
+          <button type="button" class="sa-sug" style="--i:4" data-mode="research" data-p=""><span class="sa-ic"><i class="sa-fi" data-i="radar"><svg><use href="#i-radar"/></svg></i></span><span class="sa-st"><b>Deep research</b><small>A full report, sourced</small></span></button>
+          <button type="button" class="sa-sug" style="--i:5" data-p=""><span class="sa-ic"><i class="sa-fi" data-i="pen"><svg><use href="#i-pen"/></svg></i></span><span class="sa-st"><b>Just chat</b><small>Talk about anything</small></span></button>
+        </div></div>
       </section>
       <div id="saMsgs"></div>
     </div>

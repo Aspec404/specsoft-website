@@ -286,3 +286,138 @@
 .pdp-file:hover { border-color: var(--accent-strong); background: var(--accent-dim); }
 .pdp-file strong { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pdp-file small { color: var(--text-tertiary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* ==========================================================================
+   POST COMPOSER v2 (post-composer.js): prefix pcx-
+   The older "pcmp-" composer rules above are no longer used by anything. You can delete that block whenever you like.
+   ========================================================================== */
+.pcx { border: 0; padding: 0; background: transparent; color: var(--text-primary); width: min(720px, calc(100% - 24px)); max-width: none; height: min(780px, calc(100dvh - 24px)); max-height: none; margin: auto; overflow: visible; }
+.pcx::backdrop { background: rgba(0, 0, 0, .72); backdrop-filter: blur(5px); }
+.pcx[open] { animation: pc-in .25s ease both; }
+.pcx-form { position: relative; display: flex; flex-direction: column; height: 100%; box-sizing: border-box; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 18px; overflow: hidden; }
+
+.pcx-top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+.pcx-h { flex: 1 1 auto; margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.pcx-x { appearance: none; cursor: pointer; width: 36px; height: 36px; padding: 8px; box-sizing: border-box; border-radius: 50%; background: transparent; color: var(--text-secondary); border: 1px solid var(--border-subtle); display: grid; place-items: center; }
+.pcx-x:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.pcx-x svg { width: 100%; height: 100%; }
+.pcx-post { appearance: none; cursor: pointer; padding: 9px 20px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg-base); font: 700 14px var(--font-sans, inherit); }
+.pcx-post:hover { filter: brightness(.88); }
+.pcx-post:disabled { opacity: .5; cursor: progress; }
+.pcx-progress { height: 3px; background: var(--border-subtle); overflow: hidden; flex: 0 0 auto; }
+.pcx-progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+
+.pcx-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px 120px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; }
+.pcx-author { display: flex; align-items: center; gap: 12px; }
+.pcx-av { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--accent-dim); border: 1px solid var(--border-hover); font-weight: 700; }
+.pcx-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pcx-who { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.pcx-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcx-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pcx-pill { appearance: none; cursor: pointer; padding: 3px 10px; border-radius: 999px; background: var(--accent-dim); color: var(--text-secondary); border: 1px solid var(--border-subtle); font: 600 11.5px var(--font-sans, inherit); }
+.pcx-pill:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.pcx-pill--status { color: var(--text-primary); border-color: var(--accent-strong); font-family: var(--font-mono, monospace); letter-spacing: .04em; }
+
+.pcx-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.pcx-q { appearance: none; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; background: transparent; color: var(--text-secondary); border: 1px dashed var(--border-hover); font: 600 12.5px var(--font-sans, inherit); }
+.pcx-q:disabled { opacity: .55; cursor: not-allowed; }
+.pcx-q .pcx-ic { width: 16px; height: 16px; }
+.pcx-soon { font: 700 8.5px var(--font-mono, monospace); font-style: normal; letter-spacing: .1em; padding: 2px 5px; border-radius: 4px; background: var(--accent-dim); color: var(--text-tertiary); border: 1px solid var(--border-subtle); }
+
+.pcx-ed { min-height: 220px; outline: none; font-size: 17px; line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; caret-color: var(--text-primary); }
+.pcx-ed p, .pcx-ed h1, .pcx-ed h2, .pcx-ed h3, .pcx-ed div { margin: 0 0 .5em; }
+.pcx-ed h1 { font-size: 1.7em; line-height: 1.2; }
+.pcx-ed h2 { font-size: 1.4em; line-height: 1.25; }
+.pcx-ed h3 { font-size: 1.15em; line-height: 1.3; }
+.pcx-ed.is-empty > p:first-child::before { content: attr(data-ph); color: var(--text-tertiary); pointer-events: none; }
+.pcx-ed [data-h] { color: #0a0a0a; border-radius: 3px; padding: 0 .15em; }
+.pcx-ed [data-sp] { border-radius: 3px; }
+.pcx-ed [data-l] { text-decoration: underline; text-underline-offset: 3px; }
+.pcx-meta { display: flex; justify-content: flex-end; }
+.pcx-counter { font: 600 11px var(--font-mono, monospace); color: var(--text-tertiary); }
+.pcx-counter.is-over { color: #ef4444; }
+.pcx-msg { margin: 0; min-height: 1em; color: #ef4444; font-size: 13px; overflow-wrap: anywhere; }
+
+.pcx-tray { display: flex; flex-wrap: wrap; gap: 8px; }
+.pcx-tray:empty { display: none; }
+.pcx-thumb { position: relative; width: 92px; height: 92px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-hover); }
+.pcx-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pcx-cover { position: absolute; left: 5px; bottom: 5px; font: 700 8px var(--font-mono, monospace); letter-spacing: .1em; padding: 3px 5px; border-radius: 4px; background: var(--accent); color: var(--bg-base); }
+.pcx-file { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 38px 8px 10px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg-base); max-width: 100%; box-sizing: border-box; }
+.pcx-file-ext { flex: 0 0 auto; font: 700 10px var(--font-mono, monospace); padding: 8px 6px; border-radius: 6px; background: var(--accent-dim); border: 1px solid var(--border-subtle); }
+.pcx-file-n { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+.pcx-file-n strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; font-weight: 600; }
+.pcx-file-n small { color: var(--text-tertiary); }
+.pcx-rm { appearance: none; cursor: pointer; position: absolute; top: 5px; right: 5px; width: 24px; height: 24px; padding: 5px; box-sizing: border-box; border-radius: 50%; background: var(--bg-base); color: var(--text-primary); border: 1px solid var(--border-hover); display: grid; place-items: center; }
+.pcx-rm svg { width: 100%; height: 100%; }
+.pcx-file .pcx-rm { top: 50%; transform: translateY(-50%); }
+.pcx-links { display: flex; flex-direction: column; gap: 8px; }
+.pcx-links:empty { display: none; }
+.pcx-linkrow { position: relative; }
+.pcx-linkrow .pc-input { padding-right: 42px; }
+.pcx-rm--row { top: 50%; right: 8px; transform: translateY(-50%); }
+
+/* the floating dock */
+.pcx-dock { position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 3; display: flex; gap: 2px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 999px; box-shadow: 0 14px 40px rgba(0, 0, 0, .45); }
+.pcx-dk { appearance: none; cursor: pointer; width: 50px; height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--text-secondary); display: grid; place-items: center; font: inherit; transition: background .15s, color .15s, transform .1s; }
+.pcx-dk:hover { color: var(--text-primary); background: var(--accent-dim); }
+.pcx-dk:active { transform: scale(.92); }
+.pcx-dk.is-on { background: var(--accent); color: var(--bg-base); }
+.pcx-aa { font: 700 17px var(--font-sans, inherit); letter-spacing: -.02em; }
+.pcx-ic { display: inline-flex; width: 22px; height: 22px; }
+.pcx-ic svg { width: 100%; height: 100%; }
+
+/* the panels that slide up from the dock */
+.pcx-sheet { position: absolute; left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 2; max-height: min(62%, 480px); display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 16px; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); animation: pc-in .18s ease both; }
+.pcx-sheet-h { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); font-size: 14px; }
+.pcx-done { appearance: none; cursor: pointer; padding: 5px 12px; border-radius: 999px; background: var(--accent); color: var(--bg-base); border: 0; font: 700 12px var(--font-sans, inherit); }
+.pcx-sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; }
+.pcx-sec-h { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font: 700 10.5px var(--font-mono, monospace); letter-spacing: .12em; text-transform: uppercase; color: var(--text-secondary); }
+.pcx-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pcx-stack { display: flex; flex-direction: column; gap: 10px; }
+.pcx-chip { appearance: none; cursor: pointer; padding: 7px 12px; min-width: 40px; border-radius: 10px; background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); font: 600 13px var(--font-sans, inherit); }
+.pcx-chip:hover { border-color: var(--border-hover); background: var(--accent-dim); }
+.pcx-chip.is-on { background: var(--accent); color: var(--bg-base); border-color: var(--accent); }
+.pcx-chip:disabled { opacity: .45; cursor: not-allowed; }
+.pcx-chip--wide { align-self: flex-start; }
+.pcx-linkin { flex: 1 1 180px; width: auto; min-width: 0; }
+.pcx-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pcx-sw { appearance: none; cursor: pointer; position: relative; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid var(--border-hover); display: grid; place-items: center; font-weight: 700; color: var(--text-secondary); background: transparent; }
+.pcx-sw:hover { transform: scale(1.1); }
+.pcx-sw--custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.pcx-list { display: grid; gap: 6px; }
+.pcx-opt { appearance: none; cursor: pointer; display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); font: inherit; }
+.pcx-opt strong { font-size: 14px; font-weight: 600; }
+.pcx-opt span { font-size: 12.5px; color: var(--text-secondary); }
+.pcx-opt:hover { border-color: var(--border-hover); }
+.pcx-opt.is-on { border-color: var(--accent); background: var(--accent-dim); }
+.pcx-own { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.pcx-hint { margin: 0; font-size: 13px; color: var(--text-tertiary); line-height: 1.5; }
+.pcx-check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-secondary); cursor: pointer; }
+.pcx-check input { width: 18px; height: 18px; accent-color: var(--text-primary); }
+
+@media (max-width: 600px) {
+    .pcx { width: 100%; height: 100dvh; margin: 0; }
+    .pcx-form { border-radius: 0; border: 0; }
+    .pcx-scroll { padding: 14px 14px 120px; }
+    .pcx-dk { width: 46px; }
+    .pcx-sheet { left: 8px; right: 8px; max-height: 64%; }
+}
+@media (prefers-reduced-motion: reduce) { .pcx[open], .pcx-sheet { animation: none; } }
+
+/* ==========================================================================
+   FORMATTED POSTS (post-rich.js draws these everywhere a post is shown)
+   ========================================================================== */
+.sr-doc { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.sr-doc p, .sr-doc h1, .sr-doc h2, .sr-doc h3 { margin: 0 0 .6em; }
+.sr-doc > :last-child { margin-bottom: 0; }
+.sr-doc h1 { font-size: 1.7em; line-height: 1.2; }
+.sr-doc h2 { font-size: 1.4em; line-height: 1.25; }
+.sr-doc h3 { font-size: 1.15em; line-height: 1.3; }
+.sr-link { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--accent-strong); }
+.sr-hl { color: #0a0a0a; border-radius: 3px; padding: 0 .15em; }
+.sr-grad { -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.sr-spoiler { cursor: pointer; border-radius: 3px; background-color: rgba(128, 128, 128, .35); filter: blur(6px); user-select: none; transition: filter .2s ease; }
+.sr-spoiler.is-revealed { filter: none; user-select: text; background-color: transparent; }
+.sr-spoiler:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }

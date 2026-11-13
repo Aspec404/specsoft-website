@@ -485,7 +485,7 @@ async function sendMsg(t) {
   const um = { role: 'user', content: sanitizeSpecsoftLinks(full), show: sanitizeSpecsoftLinks(show) };
   if (im.length) Object.defineProperty(um, '_imgs', { value: im.map(a => a.data), enumerable: false, writable: true });
   cur.messages.push(um); const chat = cur; atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
-  input.value = ''; input.style.height = 'auto'; renderList(); renderChat(); setBusy(true); setMood('thinking');
+  input.value = ''; input.style.height = 'auto'; renderList(); renderChat(); setBusy(true); setMood(toneMood(t) || 'thinking');
   const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; const wm = modes(), web = backend() === 'supabase' && (wm.research || wm.search);
   body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>' + (web ? '<span class="sa-stat">' + (wm.research ? 'Researching the web\u2026' : 'Searching the web\u2026') + '</span>' : '');
   const onMeta = j => {
@@ -502,13 +502,13 @@ async function sendMsg(t) {
     raw += x;
     raw = sanitizeSpecsoftLinks(raw);
     let s = raw; const m = s.match(/^\s*\[mood:(\w+)\]\s*/i);
-    if (m) { mm = m[1].toLowerCase(); s = s.slice(m[0].length); } else if (/^\s*\[[^\]]*$/.test(s)) s = '';
+    if (m) { const nm = m[1].toLowerCase(); if (nm !== mm) { mm = nm; setMood(mm); } s = s.slice(m[0].length); } else if (/^\s*\[[^\]]*$/.test(s)) s = '';
     s = cleanFake(s); ai.content = s; if (s) body.innerHTML = md(s); down();
   };
   const end = err => {
     const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null;
     if (!err && !ai.content && !gone && backend() !== 'demo') err = ERR.FAIL;
-    if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else setMood(mm || 'joy');
+    if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else { setMood(mm || 'joy'); clearTimeout(settleT); settleT = setTimeout(() => { if (!busy && mood !== 'sleepy') setMood('joy'); }, 25000); }
     save(); renderChat(); if (!err && ai.content) { autoTitle(chat); notifyDone(ai.content); maybeNote(chat, ai, t); }
   };
   const h = cur.messages.slice(0, -1).map(m => ({ role: m.role, content: sanitizeSpecsoftLinks(m.content) }));
@@ -604,10 +604,57 @@ input.addEventListener('paste', e => {
 $('#saNew').onclick = () => { if (busy) stop(); cur = null; renderList(); renderChat(); showGreeting(); app.classList.remove('drawer'); input.focus(); };
 $('#saSearch').onclick = () => openModal('s'); $('#saAssets').onclick = () => openModal('a');
 $('#saCollapse').onclick = () => SS('sa.min', app.classList.toggle('min')); $('#saBurger').onclick = () => app.classList.toggle('drawer');
-$$('.sa-sug').forEach(b => b.onclick = () => {
-  if (b.dataset.mode) { if (!modes()[b.dataset.mode]) setMode(b.dataset.mode); else input.focus(); return; }
-  b.dataset.p ? sendMsg(b.dataset.p) : input.focus();
-});
+/* ---- Suggestion cards: delegated clicks (so the looping clones work too), 3D tilt on desktop, slow endless slide on mobile ---- */
+const sugsEl = $('.sa-sugs'), trackEl = sugsEl && sugsEl.querySelector('.sa-track');
+if (sugsEl && trackEl) {
+  sugsEl.addEventListener('click', e => {
+    const b = e.target.closest('.sa-sug'); if (!b) return;
+    if (b.dataset.mode) { if (!modes()[b.dataset.mode]) setMode(b.dataset.mode); else input.focus(); return; }
+    b.dataset.p ? sendMsg(b.dataset.p) : input.focus();
+  });
+  if (matchMedia('(hover:hover) and (pointer:fine)').matches) {
+    sugsEl.addEventListener('pointermove', e => {
+      const c = e.target.closest('.sa-sug'); if (!c) return;
+      const r = c.getBoundingClientRect(), px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+      c.style.setProperty('--ry', ((px - .5) * 16).toFixed(1) + 'deg'); c.style.setProperty('--rx', ((.5 - py) * 14).toFixed(1) + 'deg');
+      c.style.setProperty('--gx', (px * 100).toFixed(0) + '%'); c.style.setProperty('--gy', (py * 100).toFixed(0) + '%');
+    });
+    sugsEl.addEventListener('pointerout', e => {
+      const c = e.target.closest('.sa-sug'); if (!c || c.contains(e.relatedTarget)) return;
+      ['--rx', '--ry', '--gx', '--gy'].forEach(k => c.style.removeProperty(k));
+    });
+  }
+  const mqMobile = matchMedia('(max-width:850px)');
+  let slide = false, slideRaf = 0, slideLast = 0, slidePos = 0, slidePause = 0, slideHold = false;
+  const calmNow = () => matchMedia('(prefers-reduced-motion:reduce)').matches || document.documentElement.classList.contains('ss-reduce-motion') || document.body.classList.contains('ss-reduce-motion') || app.classList.contains('calm');
+  const loopWidth = () => { const k = trackEl.querySelector('[data-clone]'), f = trackEl.firstElementChild; return k && f ? k.offsetLeft - f.offsetLeft : 0; };
+  function slideStep(ts) {
+    const dt = Math.min(ts - slideLast, 60); slideLast = ts;
+    if (!slideHold && !document.hidden && sugsEl.offsetParent) {
+      const w = loopWidth();
+      if (w > 0) { slidePos += dt * 0.028; if (slidePos >= w) slidePos -= w; sugsEl.scrollLeft = slidePos; }
+    }
+    slideRaf = requestAnimationFrame(slideStep);
+  }
+  function slideOn() {
+    if (slide) return; slide = true;
+    [...trackEl.children].forEach(c => { const k = c.cloneNode(true); k.dataset.clone = 1; k.setAttribute('aria-hidden', 'true'); k.tabIndex = -1; trackEl.appendChild(k); });
+    slidePos = sugsEl.scrollLeft; slideLast = performance.now(); slideRaf = requestAnimationFrame(slideStep);
+  }
+  function slideOff() {
+    if (!slide) return; slide = false; cancelAnimationFrame(slideRaf);
+    trackEl.querySelectorAll('[data-clone]').forEach(c => c.remove()); sugsEl.scrollLeft = 0;
+  }
+  window.syncMarquee = () => { if (mqMobile.matches && !calmNow()) slideOn(); else slideOff(); };
+  /* finger down = pause; once you let go it keeps sliding from where you left it, and the loop stays seamless */
+  const hold = () => { slideHold = true; clearTimeout(slidePause); };
+  const release = () => { clearTimeout(slidePause); slidePause = setTimeout(() => { slidePos = sugsEl.scrollLeft; slideHold = false; }, 2200); };
+  sugsEl.addEventListener('touchstart', hold, { passive: true }); sugsEl.addEventListener('touchend', release, { passive: true }); sugsEl.addEventListener('touchcancel', release, { passive: true });
+  sugsEl.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch') hold(); }); sugsEl.addEventListener('pointerup', e => { if (e.pointerType !== 'touch') release(); });
+  sugsEl.addEventListener('scroll', () => { if (slide && slideHold) { const w = loopWidth(); if (w > 0 && sugsEl.scrollLeft >= w) sugsEl.scrollLeft -= w; } }, { passive: true });
+  mqMobile.addEventListener('change', window.syncMarquee);
+  window.syncMarquee();
+}
 $('#saLibrary').onclick = () => openModal('l'); // Library = saved + archived chats (Assets = saved code)
 scrollEl.addEventListener('click', () => app.classList.remove('drawer'));
 document.addEventListener('keydown', e => {
@@ -723,6 +770,21 @@ function giftHtml(m) {
   return '<div class="sa-gift ' + st + '"><div class="sa-gh">' + ico('spark') + '<span>GIFT</span></div><div class="sa-gt">Spectra just gave you <b>' + (+g.amount || 0) + '</b> APEX Credits!</div>' +
     (g.note ? '<div class="sa-gn"><small>Note from Spectra</small><p>' + esc(g.note) + '</p></div>' : '') + '<div class="sa-gb">' + foot + '</div></div>';
 }
+/* ---- Expressions follow tone: her face reacts to HOW you talk the moment you send, then switches to the mood she picks for her reply ---- */
+let settleT = 0;
+function toneMood(t) {
+  const x = String(t || '').toLowerCase();
+  if (/\b(i(?:'m| am|'ve been| feel)(?: so| really| very)? (?:sad|depressed|lonely|hopeless|worthless|stressed|overwhelmed|anxious)|hate my life|feel like crying|so tired of everything)\b/.test(x)) return 'sad';
+  if (/\b(stupid|dumb|idiot|useless|trash|shut up|hate you|worst ai|you suck)\b/.test(x)) return 'annoyed';
+  if (/\b(cute|pretty|beautiful|adorable|love you|ily|marry me|waifu)\b/.test(x)) return 'shy';
+  if (/\b(thank you|thanks|thx|ty|goated|you(?:'re| are) the best|best (?:ai|mascot))\b/.test(x)) return 'love';
+  if (/```|\b(error|exception|traceback|stack trace|bug|crash(?:ed|es)?|undefined|not working|doesn'?t work|won'?t work)\b/.test(x)) return 'thinking';
+  if (/\b(huh|wdym|wym|idk|confused|what do you mean)\b|\?\?+/.test(x)) return 'confused';
+  if (/\b(tired|sleepy|can'?t sleep|insomnia)\b/.test(x)) return 'sleepy';
+  if (/!{2,}|\blet'?s go+\b|\bpog+\b|\bhype\b|\bwww+\b|\bwe did it\b|\bit works\b/.test(x)) return 'sparkle';
+  if (/\b(lol|lmao|lmfao|haha+|rofl|bruh)\b|\u{1F480}|\u{1F62D}|\u{1F602}/u.test(x)) return 'joy';
+  return '';
+}
 /* Spectra sometimes tries to draw her own fake gift card (a markdown image with a data: link). The real card is built by the page, so drop the fake. */
 function cleanFake(s) { return String(s).replace(/!\[[^\]]*\]\(\s*data:[^)\s]*\)?/gi, '').replace(/^[ \t]*\[GIFT OFFER\][ \t]*\n?/gim, '').replace(/^\s+/, ''); }
 let giftBusy = false;
@@ -769,6 +831,7 @@ function applyCfg() {
   const hint = $('.sa-hint'); if (hint) hint.textContent = (c.enter ? 'Enter to send \u00b7 Shift+Enter for a new line' : MOD + '+Enter to send \u00b7 Enter for a new line') + ' \u00b7 Spectra can make mistakes';
   if (!c.expr) { mood = ''; $$('.sa-face').forEach(i => { i.src = PFP; }); }
   drawP();
+  if (window.syncMarquee) window.syncMarquee();
 }
 /* notifications + sound when a reply finishes */
 function blip() {

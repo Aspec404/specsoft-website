@@ -570,3 +570,47 @@ kbd.sx-k{display:inline-block;min-width:26px;padding:4px 8px;margin-left:4px;bor
 .sa-gift.rejected,.sa-gift.expired{opacity:.7}
 @keyframes saGiftIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
 @media (max-width:850px){.sa-gift{max-width:none}.sa-gb button{min-height:46px}}
+
+/* =====================================================================
+   v7: 3D floating suggestion cards (desktop: tilt + float, mobile: slow looping slide)
+   ===================================================================== */
+.sa-sugs{display:block;width:100%;max-width:800px;margin-inline:auto}
+.sa-track{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:18px;padding:14px 0 22px}
+.sa-sug{--rx:0deg;--ry:0deg;--gx:50%;--gy:0%;
+  position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:14px;
+  width:224px;height:auto;min-height:136px;padding:18px;border-radius:22px;text-align:left;white-space:normal;
+  transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));transform-style:preserve-3d;
+  -webkit-backdrop-filter:none;backdrop-filter:none;
+  background:linear-gradient(150deg,rgba(255,255,255,.10),rgba(255,255,255,.02) 55%),var(--sa-glass,rgba(20,20,20,.7));
+  box-shadow:var(--sa-shine,inset 0 1px 0 rgba(255,255,255,.12)),0 22px 34px -18px rgba(0,0,0,.85),0 0 0 rgba(0,0,0,0);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),border-color .25s,box-shadow .3s,background .3s;
+  animation:saFloat 6.5s ease-in-out infinite;animation-delay:calc(var(--i,0) * -1.15s);will-change:transform,translate}
+.sa-sug:hover,.sa-sug:focus-visible{transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) scale(1.04);border-color:var(--sa-acc,var(--accent));
+  background:linear-gradient(150deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 55%),var(--sa-glass-hi,var(--sa-glass));
+  box-shadow:var(--sa-shine,inset 0 1px 0 rgba(255,255,255,.18)),0 34px 44px -18px rgba(0,0,0,.9),0 0 34px var(--sa-acc-glow,var(--accent-glow))}
+.sa-sug:active{transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) scale(.98)}
+.sa-sug::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s;
+  background:radial-gradient(260px circle at var(--gx) var(--gy),rgba(255,255,255,.18),transparent 60%)}
+.sa-sug:hover::after{opacity:1}
+.sa-ic{display:grid;place-items:center;width:46px;height:46px;border-radius:15px;border:1px solid var(--sa-line2,var(--border-hover));background:var(--sa-acc-dim,var(--accent-dim));transform:translateZ(38px);box-shadow:0 12px 18px -8px rgba(0,0,0,.7)}
+.sa-sug .sa-ic .sa-fi{width:22px;height:22px}
+.sa-st{display:flex;flex-direction:column;gap:3px;transform:translateZ(24px)}
+.sa-st b{font:600 15px/1.25 var(--font-sans);color:var(--sa-ink,var(--text-primary))}
+.sa-st small{font:400 12.5px/1.35 var(--font-sans);color:var(--sa-ink3,var(--text-tertiary))}
+@keyframes saFloat{0%,100%{translate:0 0;rotate:-.5deg}50%{translate:0 -10px;rotate:.5deg}}
+@media (prefers-reduced-motion:reduce){.sa-sug{animation:none}}
+.ss-reduce-motion .sa-sug{animation:none}
+
+/* mobile: one slow row that slides left forever (swipe to take over, it resumes after a moment) */
+@media (max-width:850px){
+  .sa-sugs{display:block;max-width:none;margin-inline:-16px;width:calc(100% + 32px);overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}
+  .sa-sugs::-webkit-scrollbar{display:none}
+  .sa-track{display:flex;flex-wrap:nowrap;justify-content:flex-start;width:max-content;gap:14px;padding:16px 20px 26px}
+  .sa-sug{flex:0 0 auto;width:178px;height:auto;min-height:124px;padding:16px;border-radius:20px;justify-content:flex-start;font-size:inherit}
+  .sa-st b{font-size:14.5px}
+}
+@media (max-width:380px){.sa-sugs{display:block}.sa-sug{width:164px}}
+
+/* Spectra Code is PC only: hide its sidebar link on phones and tablets */
+@media (max-width:899px){#saCode{display:none}}
