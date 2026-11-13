@@ -17,28 +17,22 @@
 <div class="grid-bg"></div><div class="vignette"></div>
 <div class="sc-block"><b>Spectra Code is PC only</b><span>Open it on a computer to build with Spectres.</span><a href="spectra-ai.html">Back to Spectra AI</a></div>
 
-<div class="sc-app">
-  <header class="sc-top">
-    <nav class="sc-tabs" id="scTabs"></nav>
-    <button class="sc-plus" id="scNew" title="New project">+</button>
-  </header>
+<div class="sc-app" id="app">
+  <nav class="ab">
+    <a class="ab-b" href="spectra-ai.html" title="Spectra Chat"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></a>
+    <button class="ab-b on" data-v="exp" title="Explorer (Ctrl+B)"><svg viewBox="0 0 24 24"><path d="M4 6h6l2 2h8v10H4z"/></svg></button>
+    <button class="ab-b" data-v="search" title="Search (Ctrl+Shift+F)"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg></button>
+    <button class="ab-b" data-v="git" title="Review changes"><svg viewBox="0 0 24 24"><circle cx="7" cy="6" r="2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="9" r="2"/><path d="M7 8v8M17 11c0 4-6 2-10 5"/></svg><b class="bdg" id="gitN"></b></button>
+    <button class="ab-b" data-v="chats" title="Chats"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+    <button class="ab-b" data-pal title="Command palette (Ctrl+K)"><svg viewBox="0 0 24 24"><path d="M5 8l4 4-4 4M12 17h7"/></svg></button>
+    <a class="ab-b ab-end" href="profile.html" aria-label="Your profile"><span class="sa-ava" data-user-avatar style="--sp-size:30px"></span></a>
+  </nav>
 
-  <aside class="sa-side sc-side">
-    <a class="sa-logo" href="index.html" aria-label="SPECSOFT home"><img src="assets/specsoft-logo.png" alt="SPECSOFT"></a>
-    <div class="sa-rule"></div>
-    <nav class="sa-navs">
-      <a class="sa-nav" href="spectra-ai.html"><i class="sa-fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="3"/><path d="M8 21l3-4"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" stroke-width="2.2"/></svg></i><span class="sa-t">Spectra Chat</span></a>
-      <a class="sa-nav on" href="spectra-code.html"><i class="sa-fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/></svg></i><span class="sa-t">Spectra Code</span></a>
-      <button class="sa-nav" id="scNew2" type="button"><i class="sa-fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></i><span class="sa-t">New project</span></button>
-    </nav>
-    <div class="sa-label">Projects</div>
-    <div class="sa-list" id="scHist"></div>
-    <div class="sa-rule"></div>
-    <a class="sa-acct" href="profile.html" aria-label="Your profile"><span class="sa-ava" data-user-avatar style="--sp-size:40px"></span><span class="sa-t sa-acct-n"><b data-user-name></b><b class="sa-guest" data-guest-only hidden>Log in</b></span></a>
-  </aside>
+  <aside class="sd"><div class="sd-h" id="sdH"></div><div class="sd-b" id="sdB"></div><i class="rz rz-r" data-rz="sw"></i></aside>
 
-  <main class="sc-main">
-    <div class="sc-msgs" id="scMsgs"></div>
+  <section class="ed-col">
+    <div class="ed-top"><div class="ed-tabs" id="edTabs"></div><div class="ed-act" id="edAct"></div></div>
+    <div class="chat" id="chat"><div class="sc-msgs" id="scMsgs"></div>
     <div class="sc-status" id="scStatus" hidden><i class="sc-dot"></i><span id="scStatusTxt">Orchestrating...</span><small id="scStatusMeta"></small></div>
     <div class="sc-comp"><div class="sc-modes" id="scModes" hidden></div>
       <div class="sc-in"><b>❯</b><textarea id="scIn" rows="2" placeholder="Tell Spectra what to build. Enter to send, Shift+Enter for a new line."></textarea></div>
@@ -48,9 +42,8 @@
           <optgroup label="Spectrum Series"><option value="2.5">Spectrum 2.5</option><option value="3">Spectrum 3</option><option value="3.5">Spectrum 3.5</option></optgroup>
           <optgroup label="Lumen Series"><option value="lumen4" selected>Lumen 4</option></optgroup>
         </select>
-        <label class="sc-eff">Effort <input type="range" id="scEff" min="0" max="3" value="1"><b id="scEffTxt">Medium</b></label>
-        <span class="sc-left" id="scLeft"></span>
-        <button class="sc-send" id="scSend" aria-label="Build" title="Build (Enter)">↑</button>
+        <label class="sc-eff"><input type="range" id="scEff" min="0" max="3" value="1"><b id="scEffTxt">Medium</b></label>
+        <span class="sc-left" id="scLeft"></span><button class="sc-send" id="scSend" aria-label="Build" title="Build (Enter)">↑</button>
       </div>
       <input type="file" id="scFile" multiple hidden accept=".html,.css,.js,.ts,.json,.txt,.md,.py,.lua,.luau,.xml,.svg,.csv">
       <div class="sc-menu" id="scMenu" hidden>
@@ -59,18 +52,27 @@
         <button type="button" data-m="ask"><b>Ask Spectra</b><small>Ask about your code, no files written</small></button>
         <button type="button" data-m="tools"><b>Tools</b><small>Copy, download, clear</small></button>
         <div class="sc-tools" id="scTools" hidden><button type="button" data-t="copy">Copy all files</button><button type="button" data-t="dl">Download all files</button><button type="button" data-t="clear">Clear terminal</button></div>
-        <button type="button" data-m="ver"><b>Version Viewer</b><small>Browse and restore older versions of a file</small></button>
+        <button type="button" data-m="ver"><b>History</b><small>Browse and restore older versions of this file</small></button>
       </div>
     </div>
-  </main>
-
-  <aside class="sc-panel">
-    <div class="sc-ptabs"><button class="on" data-p="sum">Summary</button><button data-p="files">Files</button><button data-p="term">Terminal</button></div>
-    <section class="sc-pane on" id="p-sum"></section>
-    <section class="sc-pane" id="p-files"></section>
-    <section class="sc-pane" id="p-term"><pre class="sc-term" id="scTerm"></pre></section>
-  </aside>
 </div>
+    <div class="ed-main" id="edMain" hidden>
+      <div class="ed-empty" id="edEmpty">Open a file from the Explorer</div>
+      <div class="ed-wrap" id="edWrap" hidden><pre class="gut" id="gut"></pre><div class="ed-in"><pre id="hl"></pre><textarea id="ta" spellcheck="false" wrap="off" autocapitalize="off" autocomplete="off"></textarea></div></div>
+      <div class="ed-alt" id="edAlt" hidden></div>
+    </div>
+    <div class="bt" id="bt" hidden><i class="rz rz-t" data-rz="bh"></i>
+      <div class="bt-h"><button class="on" data-b="term">Terminal</button><span></span><button data-b="x" title="Close (Ctrl+J)">×</button></div>
+      <pre class="sc-term" id="scTerm"></pre>
+    </div>
+  </section>
+
+  <aside class="pp"><i class="rz rz-l" data-rz="aw"></i><div class="pp-h"><button class="on" data-pt="props">Properties</button><button data-pt="prev">Preview</button><span></span><button data-refresh title="Refresh preview">↻</button></div><div class="pp-b" id="ppB"></div><iframe id="pv" title="Preview" sandbox="allow-scripts allow-modals" hidden></iframe></aside>
+
+  <footer class="sb" id="sb"></footer>
+</div>
+
+<div class="pal" id="pal" hidden><div class="pal-b"><input id="palIn" autocomplete="off" spellcheck="false" placeholder="Type a file name, or > for commands"><div id="palList"></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
 <script src="supabase-config.js"></script>

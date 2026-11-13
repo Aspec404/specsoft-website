@@ -11,6 +11,7 @@
 //   SPECTRA_MODEL=model1,model2   (first = preferred, rest = fallbacks)
 //   SPECTRA_THINK_MODEL=model1,model2
 //   SPECTRA_MODEL_25 / SPECTRA_MODEL_3 / SPECTRA_MODEL_35 = models behind the Spectrum 2.5 / 3 / 3.5 picker
+//   SPECTRA_MODEL_LUMEN4 = models behind the Lumen 4 picker (default gemini-4-hydrogen, the usual fallbacks stay behind it)
 //   SPECTRA_SEARCH_MODEL=model1,model2   (models for Web search / Deep research; must support Google Search grounding)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { KNOWLEDGE } from './spectra-knowledge.ts';
@@ -326,6 +327,7 @@ function tierModels(id: unknown): string[] {
   if (k === '2.5') return list(Deno.env.get('SPECTRA_MODEL_25') ?? 'gemini-3.1-flash-lite,gemini-3.5-flash-lite');
   if (k === '3') return list(Deno.env.get('SPECTRA_MODEL_3') ?? 'gemini-3.5-flash-lite,gemini-3.1-flash-lite');
   if (k === '3.5') return list(Deno.env.get('SPECTRA_MODEL_35') ?? '');
+  if (k === 'lumen4') return list(Deno.env.get('SPECTRA_MODEL_LUMEN4') ?? 'gemini-4-hydrogen');
   return [];
 }
 const lead = (pref: string[], base: string[]) => [...new Set([...pref, ...base])];
@@ -489,9 +491,9 @@ function nativeStream(up: Response, left: number | null, limit?: number, giftHdr
   return new Response(body, { headers: h });
 }
 
-async function callGemini(key: string, payload: Record<string, unknown>) {
+async function callGemini(key: string, payload: Record<string, unknown>, ms = TIMEOUT_MS) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), ms);
   try {
     return await fetch(GEMINI_URL, {
       method: 'POST',
@@ -706,7 +708,7 @@ Deno.serve(async (req) => {
     if (think) attempts.unshift({ ...basePayload, model, reasoning_effort: 'high' });
     for (const payload of attempts) {
       try {
-        const up = await callGemini(key, payload);
+        const up = await callGemini(key, payload, body.model === 'lumen4' && model === models[0] ? 15000 : TIMEOUT_MS); // Lumen 4 gets more time before falling back
         if (up.ok && up.body) {
           const h: Record<string, string> = { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' };
           if (left !== null) h['X-Spectra-Left'] = String(left);

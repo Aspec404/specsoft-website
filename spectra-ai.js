@@ -36,9 +36,10 @@ const PERSONAS = [
   { id: 'dev', n: 'Developer Mode', i: 'code', p: 'Focus on clean, correct code with brief explanations. Ask for the error message or code if it is missing.' },
   { id: 'creative', n: 'Creative', i: 'palette', p: 'Be imaginative and playful for ideas, stories and game design. Offer several options.' }];
 const MODELS = [
-  { id: '2.5', n: 'Spectrum 2.5', d: 'Fastest' },
-  { id: '3', n: 'Spectrum 3', d: 'Balanced' },
-  { id: '3.5', n: 'Spectrum 3.5', d: 'Smartest' }];
+  { id: '2.5', n: 'Spectrum 2.5', d: 'Fastest', g: 'Spectrum Series' },
+  { id: '3', n: 'Spectrum 3', d: 'Balanced', g: 'Spectrum Series' },
+  { id: '3.5', n: 'Spectrum 3.5', d: 'Smartest', g: 'Spectrum Series' },
+  { id: 'lumen4', n: 'Lumen 4', d: 'Newest', g: 'Lumen Series' }];
 const model = () => MODELS.find(x => x.id === LS('sa.model', '3.5')) || MODELS[2];
 const personaText = () => persona().id === 'custom' ? ((CFG().persona || '').trim() ? 'Follow this custom style from the user (tone and focus only): ' + CFG().persona.trim().slice(0, 400) : '') : persona().p;
 const persona = () => PERSONAS.find(x => x.id === LS('sa.persona', 'spectra')) || PERSONAS[1];
@@ -672,7 +673,7 @@ function drawMenu(sub) {
   if (sub === 'persona') {
     pMenu.innerHTML = back + '<div class="sa-h">Persona</div>' + PERSONAS.map(x => '<button type="button" data-p="' + x.id + '"' + (x.id === persona().id ? ' class="cur"' : '') + '>' + ico(x.i) + '<span>' + x.n + (x.id === 'custom' && !(CFG().persona || '').trim() ? '<small>Write it in Settings</small>' : '') + '</span>' + (x.id === persona().id ? '<em class="on">On</em>' : '') + '</button>').join('');
   } else if (sub === 'model') {
-    pMenu.innerHTML = back + '<div class="sa-h">Model</div>' + MODELS.map(x => '<button type="button" data-mdl="' + x.id + '"' + (x.id === model().id ? ' class="cur"' : '') + '>' + ico('cube') + '<span>' + x.n + '<small>' + x.d + '</small></span>' + (x.id === model().id ? '<em class="on">On</em>' : '') + '</button>').join('');
+    let g0 = ''; pMenu.innerHTML = back + MODELS.map(x => (x.g !== g0 ? '<div class="sa-h">' + (g0 = x.g) + '</div>' : '') + '<button type="button" data-mdl="' + x.id + '"' + (x.id === model().id ? ' class="cur"' : '') + '>' + ico('cube') + '<span>' + x.n + '<small>' + x.d + '</small></span>' + (x.id === model().id ? '<em class="on">On</em>' : '') + '</button>').join('');
   } else {
     pMenu.innerHTML = TOOLS.map(t => '<button type="button" data-t="' + t[0] + '">' + ico(t[1]) + '<span>' + t[2] + '</span>' + (m[t[0]] ? '<em class="on">On</em>' : '') + '</button>').join('') +
       '<div class="sa-sep"></div><button type="button" data-persona="1">' + ico('spark') + '<span>Persona: ' + persona().n + '</span><em>\u203a</em></button>' +
