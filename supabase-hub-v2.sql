@@ -59,17 +59,25 @@ create index if not exists profile_projects_kind_idx on public.profile_projects 
 
 -- limits: 12 projects, 100 posts per member
 drop policy if exists "members add own projects" on public.profile_projects;
+create or replace function public.profile_projects_can_insert(p_kind text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select case
+    when p_kind = 'post' then
+      (select count(*) from public.profile_projects where owner_id = auth.uid() and kind = 'post') < 100
+    else
+      (select count(*) from public.profile_projects where owner_id = auth.uid() and kind <> 'post') < 12
+  end;
+$$;
+
 create policy "members add own projects"
   on public.profile_projects for insert to authenticated
   with check (
     auth.uid() = owner_id
-    and (
-      (kind = 'post'
-        and (select count(*) from public.profile_projects p where p.owner_id = auth.uid() and p.kind = 'post') < 100)
-      or
-      (kind <> 'post'
-        and (select count(*) from public.profile_projects p where p.owner_id = auth.uid() and p.kind <> 'post') < 12)
-    )
+    and public.profile_projects_can_insert(kind)
   );
 
 

@@ -198,6 +198,15 @@ drop policy if exists "project likes are public" on public.profile_project_likes
 drop policy if exists "members can like projects" on public.profile_project_likes;
 drop policy if exists "members can undo own likes" on public.profile_project_likes;
 
+create or replace function public.profile_projects_can_insert()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select (select count(*) from public.profile_projects where owner_id = auth.uid()) < 12;
+$$;
+
 create policy "projects are public"
   on public.profile_projects for select
   using (true);
@@ -206,7 +215,7 @@ create policy "members add own projects"
   on public.profile_projects for insert to authenticated
   with check (
     auth.uid() = owner_id
-    and (select count(*) from public.profile_projects p where p.owner_id = auth.uid()) < 12
+    and public.profile_projects_can_insert()
   );
 
 create policy "members edit own projects"

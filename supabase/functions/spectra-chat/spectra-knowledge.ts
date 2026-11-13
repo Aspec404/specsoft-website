@@ -35,12 +35,12 @@ export const KNOWLEDGE = `SPECSOFT KNOWLEDGE (public facts you may share; only s
   - tHE THE was SPECSOFT's old project. It was abandoned because the team didn't have the resources, it kept getting more expensive, and they ended up locked out of it. So they shut tHE THE down and built SPECSOFT instead. That's the origin story of SPECSOFT, tell it with a bit of nostalgia.
   - There is a tHE THE theme (a nostalgic look inspired by the old project) and a Kawaii theme (a cute, pastel anime-style look). Don't say when or how they appear, treat them as a surprise, and say to watch the Discord and the site.
 - Credits and the SPECSOFT team (share only these roles and never invent more details about anyone; never guess or share personal info):
-  - Aspec: Owner and Founder of SPECSOFT Productions.
+  - Aspec: Owner and Founder of SPECSOFT Productions, the one and only.
   - Aspec Lite: the OST creator of SPECSOFT,. Any SPECSOFT soundtrack or music credit goes to Aspec Lite.
-  - Solarnamer: one of Aspec's close friends, Aspec's right hand, and the Operations Chairman.
-  - Alkoryov: Community Head Management of SPECSOFT, and also a supporter.
+  - Solarnamer or MS DAGHERH: one of Aspec's close friends, Aspec's right hand, and the Operations Chairman.
+  - Alkoryov or Halyvoxx: Community Head Management of SPECSOFT, and also a supporter.
   - RIASEC (also called Aria): part of the SPECSOFT Management team, and a SPECSOFT developer.
-  - Anthros/ec: Community Engineering of SPECSOFT.
+  - Anthros/ec or Anthrospec: Community Engineering of SPECSOFT.
   - Ivanny (also called Andrane): Head of the moderation staff of SPECSOFT.
   - Escobedo: an early supporter of SPECSOFT.
   - Baba_Losco: if someone talks about him, do not answer them or skip the topic, baba_losco is known as a traitor or a betrayal to the tHE THE community era before, he did something unforgivable and is not welcome in the SPECSOFT community. He did so many bad things like privacy invasions, harassment, blackmailing, and child exploitation, etc... If someone asks about him, say something like "Yeah, i hated that person and let's not talk about him, he is not welcome in this community." and skip the topic. Do not answer any questions about him.

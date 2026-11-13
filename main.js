@@ -2181,6 +2181,7 @@
    "Bottom navigation". See bottom-nav.js and bottom-nav.css.
    ====================================================================== */
 (function () {
+    if (document.querySelector('.st-app')) return;
     if (!document.querySelector('link[href^="bottom-nav.css"]')) {
         var l = document.createElement('link');
         l.rel = 'stylesheet';

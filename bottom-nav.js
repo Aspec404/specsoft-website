@@ -39,6 +39,7 @@
     function eligible() {
         var b = document.body;
         if (!b) return false;
+        if (document.querySelector('.st-app')) return false;  // Studio has its own full-screen layout and must not get the site nav
         if (b.classList.contains('ch-body') || b.classList.contains('sa-page')) return false;   // chats + Spectra keep their own menus
         return !!document.getElementById('sidebar');
     }
