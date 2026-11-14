@@ -1643,6 +1643,8 @@ async function loadReposts() {
     // A POST (kind = 'post') shows its text, images, files and links here instead of a project's media
     function postContentNode(pj) {
         const box = el('div', { class: 'pdp' });
+        const tune = window.SpecRich && pj.music ? window.SpecRich.music(pj.music) : null;     // the song player goes first
+        if (tune) box.appendChild(tune);
         const text = pj.body || pj.summary || '';
         if (pj.doc && window.SpecRich) box.appendChild(el('div', { class: 'pdp-body' }, window.SpecRich.render(pj.doc)));
         else if (text) box.appendChild(el('div', { class: 'pdp-body' }, window.SpecComments ? window.SpecComments.rich(text) : document.createTextNode(text)));
@@ -2408,9 +2410,14 @@ async function loadReposts() {
         try {
             const res = await sb.from('profile_projects').delete().eq('id', pj.id);
             if (res.error) throw res.error;
-            if (pj.kind === 'post' && Array.isArray(pj.attachments)) {       // do not leave the files behind in storage
-                const paths = pj.attachments.map(function (a) { const m = a && /\/post-media\/(.+)$/.exec(String(a.url || '')); return m ? decodeURIComponent(m[1]) : null; }).filter(Boolean);
-                if (paths.length) { try { await sb.storage.from('post-media').remove(paths); } catch (e) { /* ignore */ } }
+            if (pj.kind === 'post') {       // do not leave the files behind in storage: images, video, files, background image and songs
+                const grab = function (url, bucket) { const m = new RegExp('/' + bucket + '/(.+)$').exec(String(url || '')); return m ? decodeURIComponent(m[1]) : null; };
+                const media = (Array.isArray(pj.attachments) ? pj.attachments : []).map(function (a) { return grab(a && a.url, 'post-media'); });
+                if (pj.doc && pj.doc.bg && pj.doc.bg.u) media.push(grab(pj.doc.bg.u, 'post-media'));
+                const songs = pj.music && Array.isArray(pj.music.tracks) ? pj.music.tracks.map(function (t) { return grab(t && t.url, 'post-audio'); }) : [];
+                const m1 = media.filter(Boolean), m2 = songs.filter(Boolean);
+                if (m1.length) { try { await sb.storage.from('post-media').remove(m1); } catch (e) { /* ignore */ } }
+                if (m2.length) { try { await sb.storage.from('post-audio').remove(m2); } catch (e) { /* ignore */ } }
             }
             await reloadProjects();
             toast(pj.kind === 'post' ? 'Post deleted' : 'Project deleted');

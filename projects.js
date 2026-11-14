@@ -520,6 +520,7 @@
         var chips = el('div', { class: 'ph-chipline' },
             files.length ? el('span', { class: 'ph-mini' }, icon('file'), files.length + (files.length === 1 ? ' file' : ' files')) : null,
             vids.length ? el('span', { class: 'ph-mini' }, icon('play'), vids.length + (vids.length === 1 ? ' video' : ' videos')) : null,
+            p.music && p.music.tracks && p.music.tracks.length ? el('span', { class: 'ph-mini' }, icon('play'), 'Music') : null,
             p.links.length ? el('span', { class: 'ph-mini' }, icon('link'), p.links.length + (p.links.length === 1 ? ' link' : ' links')) : null);
 
         return el('article', { class: 'ph-card ph-card--post', dataset: { id: p.id } },
@@ -757,6 +758,8 @@
 
     function postStage(p) {
         var box = el('div', { class: 'ph-d-post' });
+        var tune = window.SpecRich && p.music ? window.SpecRich.music(p.music) : null;     // the song player goes first
+        if (tune) box.appendChild(tune);
         if (p.doc && window.SpecRich) box.appendChild(el('div', { class: 'ph-d-body' }, window.SpecRich.render(p.doc)));
         else if (p.body) box.appendChild(el('div', { class: 'ph-d-body' }, window.SpecComments ? window.SpecComments.rich(p.body) : document.createTextNode(p.body)));
         else if (p.summary) box.appendChild(el('div', { class: 'ph-d-body', text: p.summary }));

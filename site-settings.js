@@ -144,7 +144,8 @@
             tg('sound', 'UI sounds', 'Small clicks and hovers. Off by default.', false,
                { ls: { key: 'specsoft-sound', on: 'on', off: 'off' }, after: function (v) { if (window.SpecSound && window.SpecSound.isEnabled() !== v) window.SpecSound.setEnabled(v); } }),
             tg('terminal', 'Command terminal', 'The terminal button and the / shortcut.', true, { reload: true }),
-            tg('presence', 'Online counter', 'The "online now" number in the top bar.', true, { reload: true })
+            tg('presence', 'Online counter', 'The "online now" number in the top bar.', true, { reload: true }),
+            rg('postMusicVol', 'Post music volume', 'How loud music on posts plays. It starts quiet so nothing surprises you. 0 mutes it.', 25, 0, 100, 5, '%')
           ] },
         { id: 'chats', title: 'Chats', blurb: 'How chats behave for you.',
           icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',

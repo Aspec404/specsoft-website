@@ -1,0 +1,21 @@
+/* SPECSOFT® Spectra Code: live Spectre swarm view. Load AFTER spectra-code.css. */
+.sc-swarm{margin:0 24px 10px;border:1px solid var(--sa-line,#333);border-radius:12px;background:var(--sa-glass,#111);font:12px/1.5 var(--font-mono,monospace);color:var(--sa-ink2,#ccc);overflow:hidden}
+.sc-swarm[hidden]{display:none}
+.sw-h{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:default;user-select:none}
+.sc-swarm.closed .sw-h{cursor:pointer}.sc-swarm.closed .sw-grid{display:none}
+.sw-h b{color:var(--sa-ink,#fff);font-weight:600}.sw-h small{margin-left:auto;color:var(--sa-ink3,#888);font-size:11px}
+.sw-hg{width:14px;text-align:center;color:#ffb86b}
+.sw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));column-gap:18px;max-height:min(38vh,360px);overflow:auto;padding:4px 12px 10px;border-top:1px solid var(--sa-line,#222);scrollbar-width:thin}
+.sw-r{display:grid;grid-template-columns:22px 14px minmax(0,1fr) 34px minmax(0,128px);align-items:baseline;gap:6px;padding:1px 0;white-space:nowrap}
+.sw-t{color:var(--sa-ink3,#666)}.sw-g{text-align:center;color:var(--sa-ink3,#888)}
+.sw-n{overflow:hidden;text-overflow:ellipsis;color:var(--sa-ink2,#ccc)}
+.sw-u{text-align:right;color:var(--sa-ink3,#888)}.sw-c{overflow:hidden;text-overflow:ellipsis;color:var(--sa-ink3,#777)}
+.sw-r[data-s=Queued] .sw-n{color:var(--sa-ink3,#777)}
+.sw-r[data-s=Running] .sw-g{color:#ffb86b}.sw-r[data-s=Running] .sw-n{color:var(--sa-ink,#fff);animation:swsh 1.6s ease-in-out infinite;animation-delay:calc(var(--k)*120ms)}
+.sw-r[data-s=Running] .sw-c{color:#9fd3ff}
+.sw-r[data-s=Completed] .sw-g{color:#6fdc84}.sw-r[data-s=Completed]{animation:swpop .7s ease-out both;animation-delay:calc(var(--k)*45ms)}
+.sw-r[data-s=Failed] .sw-g,.sw-r[data-s=Failed] .sw-n{color:#ff8d86}
+.sw-r[data-s=Cancelled] .sw-g,.sw-r[data-s=Cancelled] .sw-n{color:#ffcf7a}
+@keyframes swsh{50%{opacity:.55}}
+@keyframes swpop{0%{background:rgba(63,185,80,.28)}100%{background:transparent}}
+@media (prefers-reduced-motion:reduce){.sw-r[data-s=Running] .sw-n,.sw-r[data-s=Completed]{animation:none}}
