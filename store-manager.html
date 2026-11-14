@@ -1,140 +1,1756 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover">
-<meta name="theme-color" content="#0a0a0a">
-<title>Spectra AI | SPECSOFT®</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cursor.css">
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="spectra-ai.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Store Manager | SPECSOFT®</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Store Manager: everything it needs lives in this one file. */
+        .sm-app { position: relative; z-index: 2; flex: 1 1 auto; min-width: 0; width: min(1100px, 100%); margin: 0 auto; padding: 22px clamp(14px, 3vw, 30px) 80px; }
+        .sm-app [hidden] { display: none !important; }
+        .sm-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
+        .sm-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; margin-right: auto; }
+        .sm-head a, .sm-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 14px; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 9px; color: var(--text-primary); font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; transition: border-color .2s, background .2s, opacity .2s; }
+        .sm-head a:hover, .sm-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-dim); }
+        .sm-btn:disabled { opacity: .45; cursor: default; }
+        .sm-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg-base); font-weight: 600; }
+        .sm-btn--primary:hover:not(:disabled) { background: var(--accent); opacity: .88; }
+        .sm-btn--danger { color: #f23f43; }
+        .sm-btn--sm { min-height: 30px; padding: 0 10px; font-size: 12px; }
+        .sm-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0; }
+        .sm-tab { height: 34px; padding: 0 16px; background: none; border: 1px solid var(--border-subtle); border-radius: 999px; color: var(--text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+        .sm-tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg-base); font-weight: 600; }
+        .sm-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+        .sm-bar .sm-grow { flex: 1; }
+        .sm-note { color: var(--text-secondary); font-size: 13px; line-height: 1.55; max-width: 70ch; }
+        .sm-card { padding: 18px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; margin-bottom: 16px; }
+        .sm-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+        .sm-list { display: grid; gap: 8px; }
+        .sm-row { display: grid; grid-template-columns: 46px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .sm-row.is-off { opacity: .55; }
+        .sm-thumb { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 10px; background: var(--bg-card-hover); border: 1px solid var(--border-subtle); font-size: 24px; overflow: hidden; }
+        .sm-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .sm-main strong { display: block; font-size: 14px; font-weight: 600; }
+        .sm-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; align-items: center; color: var(--text-secondary); font-size: 12px; font-family: var(--font-mono); }
+        .sm-badge { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-hover); font-size: 11px; font-family: var(--font-sans); }
+        .sm-badge--live { background: var(--accent); color: var(--bg-base); border-color: var(--accent); font-weight: 600; }
+        .sm-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+        .sm-empty { padding: 28px; text-align: center; color: var(--text-secondary); border: 1px dashed var(--border-hover); border-radius: 12px; font-size: 14px; }
+        .sm-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+        .sm-form .sm-wide { grid-column: 1 / -1; }
+        .sm-field label { display: block; margin-bottom: 5px; color: var(--text-secondary); font-size: 12px; }
+        .sm-field input:not([type=checkbox]), .sm-field select, .sm-field textarea { width: 100%; min-height: 38px; padding: 8px 11px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; color: var(--text-primary); font: inherit; font-size: 13px; }
+        .sm-field textarea { resize: vertical; min-height: 70px; }
+        .sm-field input:focus, .sm-field select:focus, .sm-field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+        .sm-field .sm-hint { margin-top: 4px; color: var(--text-tertiary); font-size: 11.5px; }
+        .sm-check { display: flex; align-items: center; gap: 8px; min-height: 38px; font-size: 13px; cursor: pointer; }
+        .sm-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+        .sm-dlg { width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 30px); padding: 0; margin: auto; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-hover); border-radius: 16px; overflow: auto; }
+        .sm-dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(4px); }
+        .sm-dlg form { padding: 20px; }
+        .sm-dlg h3 { font-size: 18px; margin-bottom: 14px; }
+        .sm-dlg-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+        .sm-toast { position: fixed; left: 50%; bottom: 24px; z-index: 600; max-width: min(92vw, 440px); padding: 10px 18px; border-radius: 12px; background: var(--text-primary); color: var(--bg-base); font-size: 13.5px; opacity: 0; transform: translate(-50%, 12px); pointer-events: none; transition: opacity .2s, transform .2s; }
+        .sm-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+        .sm-toast.is-bad { background: #f23f43; color: #fff; }
+        .sm-gate { max-width: 560px; margin: 12vh auto; padding: 26px; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 16px; }
+        .sm-gate h1 { font-size: 22px; margin-bottom: 8px; }
+        .sm-gate pre { margin-top: 12px; padding: 12px; background: var(--code-bg); border: 1px solid var(--border-subtle); border-radius: 10px; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--code-text); }
+        .sm-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+        .sm-stat { flex: 1 1 140px; padding: 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .sm-stat strong { display: block; font-family: var(--font-mono); font-size: 22px; }
+        .sm-stat span { color: var(--text-secondary); font-size: 12px; }
+        .sm-dlg--wide { width: min(920px, calc(100vw - 24px)); }
+        .sm-framefield { display: flex; align-items: center; gap: 26px; padding: 18px 22px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; }
+        .fd { padding: 20px; }
+        .fd h3 { font-size: 18px; margin-bottom: 14px; }
+        .fd select { min-height: 34px; padding: 0 10px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; color: var(--text-primary); font: inherit; font-size: 13px; }
+        .fd-stage { display: flex; align-items: center; justify-content: center; gap: 40px; padding: 26px 16px; margin-bottom: 14px; background: #0b0b0b; border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .fd-stage.is-light { background: #f2f2f2; color: #111; }
+        .fd-stage.is-light .sp-avatar { color: #111; background: #ddd; }
+        .fd-av { padding: 16px; }
+        .fd-bar, .fd-tabs { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        .fd-bar .sm-check { min-height: 34px; margin-left: 4px; }
+        .fd-tabs .is-on { background: var(--accent); color: var(--bg-base); border-color: var(--accent); font-weight: 600; }
+        .fd-sep { flex: 1; }
+        .fd-ctl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 22px; padding: 16px; border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .fd-s label { display: flex; justify-content: space-between; margin-bottom: 4px; color: var(--text-secondary); font-size: 12px; }
+        .fd-s .sm-check { justify-content: flex-start; margin: 0; color: var(--text-primary); font-size: 13px; }
+        .fd-s output { font-family: var(--font-mono); color: var(--text-primary); }
+        .fd-s input[type=range] { width: 100%; accent-color: var(--accent); }
+        .fd-colors { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .fd-colors input[type=color] { width: 40px; height: 34px; padding: 0; background: none; border: 1px solid var(--border-hover); border-radius: 8px; cursor: pointer; }
+        .fd-x { width: 22px; height: 22px; margin-left: -4px; padding: 0; background: var(--bg-card); border: 1px solid var(--border-hover); border-radius: 50%; color: var(--text-secondary); line-height: 1; cursor: pointer; }
+        .fd-wide { grid-column: 1 / -1; }
+        .fd-stage--col { flex-direction: column; gap: 10px; }
+        .sm-titlerow { display: flex; align-items: center; justify-content: center; gap: 2px; color: #f2f2f2; }
+        .fd-stage.is-light .sm-titlerow { color: #111; }
+        .sm-titleslot { display: inline-flex; }
+        .sm-giftprev { display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 8px 12px; font-size: 18px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 10px; }
+        .sm-giftprev .spt { margin-left: 0; }
+        .sm-iconprev { display: grid; place-items: center; width: 44px; height: 44px; border: 1px dashed var(--border-hover); border-radius: 10px; font-size: 11px; color: var(--text-tertiary); background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0 / 12px 12px; }
+        .sm-iconprev img { max-width: 36px; max-height: 36px; object-fit: contain; }
+        .sm-titlepv { display: inline-flex; align-items: center; min-height: 40px; padding: 6px 14px; font-size: 18px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 10px; color: var(--text-primary); }
+        .sm-titlepv .spt { margin-left: 0; }
+        .sm-thumb--title { width: auto; min-width: 46px; max-width: 120px; padding: 0 6px; font-size: 10px; }
+        .sm-thumb--title .spt { margin-left: 0; }
+        .sm-pv { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px; margin-bottom: 14px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .sm-pv[hidden] { display: none; }
+        .sm-pv-note { font-size: 12px; color: var(--text-secondary); }
+        .sm-pv-stage { padding: 12px; }
+        .sm-multi { display: grid; gap: 2px; max-height: 190px; overflow: auto; padding: 8px 10px; background: var(--bg-base); border: 1px solid var(--border-hover); border-radius: 9px; }
+        .sm-multi .sm-check { min-height: 30px; }
+        .sm-warn { margin-bottom: 12px; padding: 10px 14px; border: 1px solid #f2a516; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+        .fd-tl input[type=range] { flex: 1; min-width: 140px; accent-color: var(--accent); }
+        .fd-tl output { min-width: 48px; font-family: var(--font-mono); font-size: 12px; text-align: right; }
+        .fd-imgrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .fd-thumb { width: 84px; height: 84px; object-fit: contain; border: 1px solid var(--border-subtle); border-radius: 10px; background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
+        .fd-empty { display: grid; place-items: center; width: 84px; height: 84px; border: 1px dashed var(--border-hover); border-radius: 10px; color: var(--text-tertiary); font-size: 11px; text-align: center; }
+        .sm-badge--easy { color: #23a55a; border-color: #23a55a; }
+        .sm-badge--medium { color: #3b9cff; border-color: #3b9cff; }
+        .sm-badge--hard { color: #a66bff; border-color: #a66bff; }
+        .sm-result { margin-top: 12px; padding: 12px 14px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 10px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
+        @media (max-width: 640px) { .sm-row { grid-template-columns: 40px 1fr; } .sm-actions { grid-column: 1 / -1; justify-content: flex-start; } .sm-thumb { width: 40px; height: 40px; } }
+        /* Super Emotes Lab */
+        .sm-superpv { display: inline-flex; align-items: center; gap: 12px; min-height: 64px; padding: 4px 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; color: var(--text-secondary); font-size: 13px; }
+        .sm-superpv img { display: block; }
+        .sx-stage { position: relative; display: flex; align-items: flex-end; justify-content: flex-start; height: 260px; margin-bottom: 12px; padding: 20px; overflow: hidden; background: radial-gradient(120% 120% at 50% 0%, #1a1a1a, #0a0a0a); border: 1px solid var(--border-subtle); border-radius: 12px; }
+        .sx-bubble { max-width: 70%; padding: 8px 14px 6px; background: #1c1c1c; border: 1px solid #2c2c2c; border-radius: 16px 16px 16px 4px; color: #eee; }
+        .sx-name { display: block; margin-bottom: 2px; color: #9a9a9a; font-size: 11px; }
+        .sx-empty { padding: 18px 8px; color: #8a8a8a; font-size: 13px; }
+        .sx-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        .sx-file { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .sx-file small { color: var(--text-secondary); font-size: 11px; word-break: break-all; }
+    </style>
 </head>
-<body class="sa-page" data-no-footer>
-<div class="grid-bg"></div><div class="scanlines"></div><div class="vignette"></div><div class="ambient-glow"></div>
+<body>
+    <script>try{var t=localStorage.getItem('specsoft-theme');if(t==='light')document.body.classList.add('light-mode')}catch(e){}</script>
+    <div class="grid-bg"></div><div class="scanlines"></div><div class="vignette"></div><div class="ambient-glow"></div>
 
-<!-- Icon sprite (stroke icons, inherit currentColor) -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="3"/><path d="M8 21l3-4"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" stroke-width="2.2"/></symbol>
-  <symbol id="i-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></symbol>
-  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16 16"/></symbol>
-  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2.5h8a2 2 0 012 2V18a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M8 14.5h8"/></symbol>
-  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></symbol>
-  <symbol id="i-spark" viewBox="0 0 24 24" fill="currentColor"><path d="M11 2.5c.4 4.6 1.9 6.1 6.5 6.5-4.6.4-6.1 1.9-6.5 6.5-.4-4.6-1.9-6.1-6.5-6.5C9.1 8.6 10.6 7.1 11 2.5z"/><path d="M18.5 14.5c.2 2 .9 2.8 2.9 2.9-2 .2-2.7.9-2.9 2.9-.2-2-.9-2.7-2.9-2.9 2-.1 2.7-.9 2.9-2.9z" opacity=".85"/></symbol>
-  <symbol id="i-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/></symbol>
-  <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 013 3L8 19z"/><path d="M14 7l3 3M12 20h8"/></symbol>
-  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 10.5l7 3 3 7z"/><path d="M21 3L10 13.5"/></symbol>
-  <symbol id="i-stop" viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2"/></symbol>
-  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></symbol>
-  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 012-2h9"/></symbol>
-  <symbol id="i-like" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4a1 1 0 01-1-1v-7a1 1 0 011-1z"/><path d="M7 11l4-7a2 2 0 012 2v3h5.3a2 2 0 012 2.4l-1.2 6A2 2 0 0117.1 20H7"/></symbol>
-  <symbol id="i-dislike" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(180 12 12)"><path d="M7 11v9H4a1 1 0 01-1-1v-7a1 1 0 011-1z"/><path d="M7 11l4-7a2 2 0 012 2v3h5.3a2 2 0 012 2.4l-1.2 6A2 2 0 0117.1 20H7"/></g></symbol>
-  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 00-14.5-4M4 5v3.5h3.5M4 13a8 8 0 0014.5 4M20 19v-3.5h-3.5"/></symbol>
-  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></symbol>
-  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10M18 11c0 4-6 3-12 6"/></symbol>
-  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3A4 4 0 0011 18.7l1-1"/></symbol>
-  <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
-  <symbol id="i-gamepad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="11" rx="5"/><path d="M7.5 10.5v4M5.5 12.5h4"/><circle cx="15.5" cy="11.5" r=".9" fill="currentColor"/><circle cx="18" cy="13.8" r=".9" fill="currentColor"/></symbol>
-  <symbol id="i-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 100 18c1.4 0 2-1 1.6-2-.5-1.2.2-2.5 1.6-2.5H17a4 4 0 004-4C21 6.5 17 3 12 3z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="10" cy="7.5" r="1" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1" fill="currentColor"/></symbol>
-  <symbol id="i-smile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14.5a5 5 0 008 0M9 9.5h.01M15 9.5h.01" stroke-width="2"/></symbol>
-<symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8 8a5 5 0 01-7-7l8.5-8.5a3.3 3.3 0 014.7 4.7l-8.5 8.5a1.7 1.7 0 01-2.4-2.4L15 7"/></symbol>
-  <symbol id="i-shot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 012-2h2l1.5-2h5L16 6h2a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></symbol>
-  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></symbol>
-  <symbol id="i-brain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a3 3 0 00-3 3 3 3 0 00-2 2.8A3 3 0 005.5 14 3 3 0 009 19a3 3 0 003-2.5V6.5A2.5 2.5 0 009 4zM15 4a3 3 0 013 3 3 3 0 012 2.8 3 3 0 01-1.5 4.2A3 3 0 0115 19a3 3 0 01-3-2.5"/></symbol>
-  <symbol id="i-radar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l5-5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
-    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 14v7"/></symbol>
-  <symbol id="i-archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 002 2h10a2 2 0 002-2V9M10 13h4"/></symbol>
-  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></symbol>
-</svg>
-
-<div class="sa-app" id="saApp">
-  <canvas id="saBg" aria-hidden="true"></canvas>
-  <div class="sa-back" id="saBack"></div>
-
-  <aside class="sa-side" id="saSide">
-    <button class="sa-x" id="saX" type="button" aria-label="Close menu">×</button>
-    <button class="sa-collapse" id="saCollapse" type="button" aria-label="Collapse sidebar">‹</button>
-    <a class="sa-logo" href="index.html" aria-label="SPECSOFT home">
-      <img src="assets/specsoft-logo.png" alt="SPECSOFT">
-    </a>
-    <div class="sa-rule"></div>
-    <nav class="sa-navs">
-      <button class="sa-nav on" id="saNew" type="button"><i class="sa-fi" data-i="chat"><svg><use href="#i-chat"/></svg></i><span class="sa-t">New chat</span></button>
-      <button class="sa-nav" id="saAssets" type="button"><i class="sa-fi" data-i="cube"><svg><use href="#i-cube"/></svg></i><span class="sa-t">Assets</span></button>
-      <button class="sa-nav" id="saSearch" type="button"><i class="sa-fi" data-i="search"><svg><use href="#i-search"/></svg></i><span class="sa-t">Search</span></button>
-      <button class="sa-nav" id="saLibrary" type="button"><i class="sa-fi" data-i="folder"><svg><use href="#i-folder"/></svg></i><span class="sa-t">Library</span></button>
-    </nav>
-    <div class="sa-list" id="saList"></div>
-    <div class="sa-rule"></div>
-    <button class="sa-nav sa-nav-s" id="saSettings" type="button"><i class="sa-fi" data-i="gear"><svg><use href="#i-gear"/></svg></i><span class="sa-t">Settings</span></button>
-    <a class="sa-acct" href="profile.html" aria-label="Your profile"><span class="sa-ava" data-user-avatar style="--sp-size:40px"></span><span class="sa-t sa-acct-n"><b data-user-name></b><b class="sa-guest" data-guest-only hidden>Log in</b></span><i class="sa-fi sa-t sa-chev" data-i="chev"><svg><use href="#i-chev"/></svg></i></a>
-  </aside>
-
-  <main class="sa-main">
-    <div class="sa-bgmark" aria-hidden="true">
-      <svg viewBox="0 0 1000 940" preserveAspectRatio="xMinYMid slice"><g fill="currentColor"><polygon points="40,330 400,40 640,40 280,330"/><polygon points="300,310 560,120 700,260 440,450"/><polygon points="-40,900 300,640 400,730 60,990"/></g></svg>
-    </div>
-    <div class="sa-art" aria-hidden="true"><img src="assets/spectra/spectra-hero.png" alt="" onerror="this.parentNode.style.display='none'"></div>
-
-    <header class="sa-top">
-      <button class="sa-ico sa-menu-btn" id="saBurger" type="button" aria-label="Menu">☰</button>
-      <img class="sa-face sa-face-s" src="assets/spectra/spectra-pfp.png" alt="Spectra">
-      <span class="sa-top-t">Spectra</span>
-    </header>
-
-    <div class="sa-scroll" id="saScroll">
-      <section class="sa-hero" id="saHero">
-        <p class="sa-welcome">WELCOME TO</p>
-        <h1 class="sa-wordmark"><img src="assets/specsoft-wordmark.png" alt="SPECSOFT"></h1>
-        <p class="sa-tag">Chat. Create. Explore.</p>
-        <div class="sa-hr"></div>
-        <div class="sa-greet"><img class="sa-face sa-face-s" src="assets/spectra/spectra-pfp.png" alt="Spectra" title="Poke her"><p class="sa-sub sa-bubble" id="saBubble"></p></div>
-        <div class="sa-sugs">
-          <button type="button" class="sa-sug" data-p="Give me 5 original game ideas for a small indie team."><i class="sa-fi" data-i="spark"><svg><use href="#i-spark"/></svg></i>Generate an idea</button>
-          <button type="button" class="sa-sug" data-p="Help me debug a Lua script for my Roblox game."><i class="sa-fi" data-i="code"><svg><use href="#i-code"/></svg></i>Help with code</button>
-          <button type="button" class="sa-sug" data-p="Help me design a new feature for my Roblox game."><i class="sa-fi" data-i="gamepad"><svg><use href="#i-gamepad"/></svg></i>Roblox help</button>
-          <button type="button" class="sa-sug" data-mode="search" data-p=""><i class="sa-fi" data-i="globe"><svg><use href="#i-globe"/></svg></i>Search the web</button>
-          <button type="button" class="sa-sug" data-mode="research" data-p=""><i class="sa-fi" data-i="radar"><svg><use href="#i-radar"/></svg></i>Deep research</button>
-          <button type="button" class="sa-sug" data-p=""><i class="sa-fi" data-i="pen"><svg><use href="#i-pen"/></svg></i>Just chat</button>
+    <div class="sm-app" id="app">
+        <div class="sm-gate" id="gate"><h1>Store Manager</h1><p class="sm-note">Checking your access...</p></div>
+        <div id="panel" hidden>
+            <header class="sm-head">
+                <h1>Store Manager</h1>
+                <a href="store.html">View store</a>
+            </header>
+            <nav class="sm-tabs" id="tabs" role="tablist" aria-label="Manager sections"></nav>
+            <section id="view"></section>
         </div>
-      </section>
-      <div id="saMsgs"></div>
     </div>
 
-    <div class="sa-composer">
-      <div class="sa-att" id="saAtt" hidden></div>
-      <input type="file" id="saFile" multiple hidden accept="image/*,.txt,.md,.json,.js,.ts,.py,.lua,.luau,.html,.css,.csv,.xml,.yml,.yaml,.java,.c,.cpp,.cs,.sql,.sh,.log">
-      <div class="sa-box">
-        <button class="sa-persona" id="saPersona" type="button" aria-label="Choose persona"><i class="sa-fi" data-i="spark"><svg><use href="#i-spark"/></svg></i></button>
-        <div class="sa-pmenu" id="saPMenu"></div>
-        <textarea id="saInput" rows="1" maxlength="4000" placeholder="Send a message to Spectra..." aria-label="Message Spectra"></textarea>
-        <button class="sa-send" id="saSend" type="button" aria-label="Send"><i class="sa-fi sa-i-send" data-i="send"><svg><use href="#i-send"/></svg></i><i class="sa-fi sa-i-stop" data-i="stop"><svg><use href="#i-stop"/></svg></i></button>
-      </div>
-      <div class="sa-hint">Enter to send · Shift+Enter for a new line · Spectra can make mistakes</div>
-    </div>
-  </main>
-</div>
+    <dialog class="sm-dlg" id="dlg"><form id="dlgForm" novalidate></form></dialog>
+    <dialog class="sm-dlg sm-dlg--wide" id="dlgFrame" aria-label="Frame designer"><div id="frameBody"></div></dialog>
+    <dialog class="sm-dlg sm-dlg--wide" id="dlgTitle" aria-label="Title editor"><div id="titleBody"></div></dialog>
+    <dialog class="sm-dlg sm-dlg--wide" id="dlgSuper" aria-label="Super Emotes Lab"><div id="superBody"></div></dialog>
+    <div class="sm-toast" id="toast" role="status" aria-live="polite"></div>
 
-<div class="sa-modal" id="saModal"><div class="sa-card"><input id="saQ" autocomplete="off"><div id="saRes"></div></div></div>
-<div class="sa-modal" id="saSet"><div class="sa-card sa-set"><h3>Settings</h3>
-  <label>Nickname<input id="saNick" maxlength="20" placeholder="What should Spectra call you?"></label>
-  <label class="sa-row"><span>Live expressions</span><input type="checkbox" id="saExpr"></label>
-  <label class="sa-row"><span>Typing animation</span><input type="checkbox" id="saTyping"></label>
-  <button class="sa-done" id="saSetClose" type="button">Done</button></div></div>
-<div class="sa-toast" id="saToast"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
-<script src="supabase-config.js"></script>
-<script src="chat-notify.js" defer></script>
-<script src="ban.js"></script>
-<script src="main.js?v=3"></script>
-<script src="emoji-data.js"></script>
-<script src="spectra-ai.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
-<script src="spectra-bg.js" defer></script>
-<script src="cursor.js" defer></script>
-<script src="gate.js"></script>
-<script src="seasons.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+    <script src="supabase-config.js"></script>
+    <script src="avatar-frames.js"></script>
+    <script src="name-titles.js"></script>
+    <script src="super-emotes.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        var CFG = window.SPECSOFT_CONFIG || {};
+        var sb = window.getSupabaseClient ? window.getSupabaseClient()
+            : ((window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY) ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null);
+        var $ = function (id) { return document.getElementById(id); };
+        var S = { tab: 'items', items: [], packs: [], codes: [], settings: null, featured: [], sales: [], names: {}, q: '', qKind: 'normal', rtok: 0 };
+        var TABS = [['items', 'Items'], ['featured', 'Featured'], ['packs', 'Credit packs'], ['codes', 'Codes'], ['credits', 'Credits & economy'], ['quests', 'Quests'], ['xp', 'XP & levels'], ['gifts', 'Gift items'], ['freemium', 'Free rewards'], ['sales', 'Sales']];
+
+        /* ---------- helpers ---------- */
+        function el(tag, props) {
+            var n = document.createElement(tag);
+            if (props) Object.keys(props).forEach(function (k) {
+                var v = props[k]; if (v == null || v === false) return;
+                if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v;
+                else if (k.slice(0, 2) === 'on') n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? '' : v);
+            });
+            for (var i = 2; i < arguments.length; i++) [].concat(arguments[i]).forEach(function (c) { if (c != null && c !== false) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+            return n;
+        }
+        var tt;
+        function toast(m, bad) { var t = $('toast'); t.textContent = m; t.classList.toggle('is-bad', !!bad); t.classList.add('is-on'); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove('is-on'); }, 3200); }
+        function fail(e) { var m = String(e && e.message || e); toast(/user_not_found/.test(m) ? 'No member with that username.' : /not_admin/.test(m) ? 'You are not a store admin.' : /bad_amount/.test(m) ? 'Enter a whole number that is not 0.' : /quest_admin|store_admin_grant_xp|store_admin_xp_lookup|xp_log/.test(m) ? 'Run supabase-store-quests.sql and then supabase-store-xp-admin.sql in Supabase.' : m, true); }
+        function fmt(n) { return (Number(n) || 0).toLocaleString('en-US'); }
+        function when(iso) { return iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : ''; }
+        function toLocalInput(iso) { if (!iso) return ''; var d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }
+        function numOrNull(v) { v = String(v == null ? '' : v).trim(); return v === '' ? null : Math.max(0, Math.floor(Number(v))); }
+        function confirmIt(m) { return window.confirm(m); }
+
+        /* ---------- generic form dialog ---------- */
+        // fields: [{ key, label, type: text|number|textarea|select|checkbox|datetime, options:[[value,label]], hint, wide, required }]
+        function openForm(opt) {
+            var form = $('dlgForm'), dlg = $('dlg'), inputs = {};
+            form.textContent = '';
+            var grid = el('div', { class: 'sm-form' });
+            opt.fields.forEach(function (f) {
+                var v = opt.values && opt.values[f.key], input;
+                if (f.type === 'textarea') input = el('textarea', { rows: '3', maxlength: f.max || null });
+                else if (f.type === 'select') input = el('select', null, f.options.map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+                else if (f.type === 'frame') {
+                    input = el('div', { class: 'sm-framefield' });
+                    input._frame = v || null;
+                    var fpv = el('span', { class: 'sp-avatar', style: '--sp-size:56px', text: 'A' });
+                    var paintF = function () { if (window.SpecFrames) window.SpecFrames.apply(fpv, input._frame); };
+                    input.appendChild(fpv);
+                    input.appendChild(el('button', { type: 'button', class: 'sm-btn', text: 'Open frame designer', onclick: function () { openDesigner(input._frame, function (fr) { input._frame = fr; paintF(); }); } }));
+                    paintF();
+                }
+                else if (f.type === 'title') {
+                    input = el('div', { class: 'sm-framefield' });
+                    input._title = v || null;
+                    var tpv = el('span', { class: 'sm-titlepv' });
+                    var paintT = function () { if (window.SpecTitles) window.SpecTitles.apply(tpv, input._title); if (!tpv.firstChild) tpv.textContent = 'No title yet'; };
+                    input.appendChild(tpv);
+                    input.appendChild(el('button', { type: 'button', class: 'sm-btn', text: 'Open title editor', onclick: function () { openTitleEditor(input._title, function (t) { input._title = t; paintT(); }); } }));
+                    paintT();
+                }
+                else if (f.type === 'super') {
+                    input = el('div', { class: 'sm-framefield' });
+                    input._super = v || null;
+                    var spv = el('span', { class: 'sm-superpv' });
+                    var paintS = function () {
+                        spv.textContent = '';
+                        var img = inputs.image_url && inputs.image_url.value.trim();
+                        if (input._super && window.SpecSuper && /^https:\/\//i.test(img || '')) {
+                            var im = el('img', { src: img, alt: 'super emote', draggable: 'false' });
+                            window.SpecSuper.decorate(im, input._super); im.style.setProperty('--sx-size', '52px');
+                            spv.appendChild(im); spv.appendChild(el('span', { text: 'Super emote (' + (input._super.fx || []).length + ' effects' + (input._super.sound ? ' + sound' : '') + ')' }));
+                        } else if (input._super) spv.appendChild(el('span', { text: 'Super emote (add the image in the Lab)' }));
+                        else spv.appendChild(el('span', { text: 'Normal emote (not super)' }));
+                    };
+                    input._paint = paintS;
+                    input.appendChild(spv);
+                    input.appendChild(el('button', { type: 'button', class: 'sm-btn', text: 'Open Super Emotes Lab', onclick: function () {
+                        openSuperLab(input._super, inputs.image_url ? inputs.image_url.value.trim() : '', function (res) {
+                            input._super = res.design;
+                            if (res.image && inputs.image_url) inputs.image_url.value = res.image;
+                            paintS();
+                        });
+                    } }));
+                    input.appendChild(el('button', { type: 'button', class: 'sm-btn', text: 'Make it a normal emote', onclick: function () { input._super = null; paintS(); } }));
+                    setTimeout(paintS, 0);
+                }
+                else if (f.type === 'multi') input = el('div', { class: 'sm-multi' }, f.options.length ? f.options.map(function (o) {
+                    var cb = el('input', { type: 'checkbox', value: o[0] });
+                    if ((v || []).indexOf(o[0]) >= 0) cb.checked = true;
+                    return el('label', { class: 'sm-check' }, cb, o[1]);
+                }) : el('span', { class: 'sm-note', text: 'No items to pick yet.' }));
+                else if (f.type === 'checkbox') input = el('input', { type: 'checkbox' });
+                else input = el('input', { type: f.type === 'datetime' ? 'datetime-local' : (f.type || 'text'), min: f.type === 'number' ? '0' : null, placeholder: f.placeholder || null, autocomplete: 'off' });
+                if (f.type === 'checkbox') input.checked = !!v;
+                else if (f.type === 'datetime') input.value = toLocalInput(v);
+                else if (f.type !== 'multi' && f.type !== 'frame' && f.type !== 'title' && f.type !== 'super') input.value = v == null ? '' : v;
+                inputs[f.key] = input;
+                var box = el('div', { class: 'sm-field' + (f.wide ? ' sm-wide' : '') });
+                if (f.type === 'checkbox') box.appendChild(el('label', { class: 'sm-check' }, input, f.label));
+                else { box.appendChild(el('label', { text: f.label })); box.appendChild(input); }
+                if (f.hint) box.appendChild(el('div', { class: 'sm-hint', text: f.hint }));
+                grid.appendChild(box);
+            });
+            var save = el('button', { type: 'submit', class: 'sm-btn sm-btn--primary', text: opt.saveLabel || 'Save' });
+            form.appendChild(el('h3', { text: opt.title }));
+            form.appendChild(grid);
+            if (opt.preview) {
+                var pv = opt.preview(inputs);
+                form.insertBefore(pv.node, grid);
+                grid.addEventListener('input', pv.update);
+                grid.addEventListener('change', pv.update);
+                pv.update();
+            }
+            form.appendChild(el('div', { class: 'sm-dlg-foot' }, el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { dlg.close(); } }), save));
+            form.onsubmit = async function (e) {
+                e.preventDefault();
+                var out = {};
+                for (var i = 0; i < opt.fields.length; i++) {
+                    var f = opt.fields[i], inp = inputs[f.key], val;
+                    if (f.type === 'frame') val = inp._frame;
+                    else if (f.type === 'title') val = inp._title;
+                    else if (f.type === 'super') val = inp._super;
+                    else if (f.type === 'multi') val = Array.from(inp.querySelectorAll('input:checked')).map(function (x) { return x.value; });
+                    else if (f.type === 'checkbox') val = inp.checked;
+                    else if (f.type === 'number') val = f.nullable ? numOrNull(inp.value) : (inp.value === '' ? null : Number(inp.value));
+                    else if (f.type === 'datetime') val = inp.value ? new Date(inp.value).toISOString() : null;
+                    else { val = inp.value.trim(); if (val === '' && f.nullable) val = null; }
+                    if (f.required && (val == null || val === '' || (f.type === 'number' && isNaN(val)))) { toast('Fill in: ' + f.label, true); inp.focus(); return; }
+                    out[f.key] = val;
+                }
+                save.disabled = true;
+                try { await opt.onSave(out); dlg.close(); } catch (err) { fail(err); } finally { save.disabled = false; }
+            };
+            dlg.showModal();
+            var first = form.querySelector('input,textarea,select'); if (first) first.focus();
+        }
+
+        /* ---------- data ---------- */
+        async function loadAll() {
+            var r = await Promise.all([
+                sb.from('store_items').select('*').order('sort', { ascending: true }).order('created_at', { ascending: true }),
+                sb.from('credit_packs').select('*').order('sort', { ascending: true }),
+                sb.from('apex_codes').select('*').order('created_at', { ascending: false }),
+                sb.from('store_settings').select('*').eq('id', 1).maybeSingle(),
+                sb.rpc('store_featured')
+            ]);
+            for (var i = 0; i < r.length; i++) if (r[i].error) throw r[i].error;
+            S.items = r[0].data || []; S.packs = r[1].data || []; S.codes = r[2].data || [];
+            S.settings = r[3].data; S.featured = r[4].data || [];
+            S.bundleItems = {};
+            try {
+                var b = await sb.from('store_bundle_items').select('bundle_id,item_id');
+                (b.data || []).forEach(function (x) { (S.bundleItems[x.bundle_id] = S.bundleItems[x.bundle_id] || []).push(x.item_id); });
+            } catch (e) { /* frames SQL not run yet */ }
+        }
+        async function reload(keepTab) { try { await loadAll(); render(); } catch (e) { fail(e); } }
+
+        /* ---------- ITEMS ---------- */
+        var ITEM_FIELDS = [
+            { key: 'name', label: 'Name', required: true },
+            { key: 'emoji', label: 'Emoji (used when there is no image)', nullable: true, placeholder: '🎁' },
+            { key: 'description', label: 'Description', type: 'textarea', wide: true, max: 240, nullable: true },
+            { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS and/or image)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['title', 'Title (styled text next to the name)'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
+            { key: 'emote_name', label: 'Emote code (Emote category only)', nullable: true, placeholder: 'pepe_happy', hint: 'Letters, numbers and _ + -. Members use it as :pepe_happy:. Needs an Image URL. Do not reuse a built-in emoji name.' },
+            { key: 'super_design', label: 'Super emote (Emote category only)', type: 'super', wide: true, hint: 'Optional. Turns this emote into a SUPER emote: a bigger sticker with effects and a sound that play for the whole chat when it is sent (one per message, 10 second cooldown). Needs supabase-store-super-emotes.sql.' },
+            { key: 'frame_design', label: 'Frame design (Frame category only)', type: 'frame', wide: true, hint: 'Opens the designer: upload a GIF / PNG / WebP image, add up to 4 CSS layers, pick shapes, colors and motion, with a live preview.' },
+            { key: 'title_design', label: 'Title design (Title category only)', type: 'title', wide: true, hint: 'Opens the editor: text, font, gradient colors, glow, animation and decorations, with a live preview. It shows next to the member name in chats and on their profile.' },
+            { key: 'boost_kind', label: 'Booster type (Boost category only)', type: 'select', options: [['', 'Not a booster (plain item)'], ['credits', 'Credit booster'], ['xp', 'XP booster']], hint: 'A booster pays strength x 1 credit (or XP) for every minute the member is online while it runs. Buying the same strength again adds time, a higher strength replaces it, a lower one is refused.' },
+            { key: 'boost_tier', label: 'Booster strength', type: 'select', options: [['2', '2x'], ['3', '3x'], ['5', '5x']] },
+            { key: 'boost_amount', label: 'Booster duration', type: 'number' },
+            { key: 'boost_unit', label: 'Duration unit', type: 'select', options: [['minutes', 'Minutes'], ['hours', 'Hours'], ['days', 'Days']] },
+            { key: 'bundle_items', label: 'Bundle contents (Bundle category only). Pick 2 or more', type: 'multi', wide: true, options: [] },
+            { key: 'rarity', label: 'Rarity', type: 'select', options: [['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary'], ['legacy', 'Legacy'], ['mythic', 'Mythic']] },
+            { key: 'price', label: 'Price (APEX Credits)', type: 'number', required: true },
+            { key: 'stock', label: 'Stock', type: 'number', nullable: true, hint: 'Leave empty for unlimited.' },
+            { key: 'per_user_limit', label: 'Max per person', type: 'number', nullable: true, hint: 'Leave empty to allow buying many. Use 1 for one-time items.' },
+            { key: 'sort', label: 'Sort order', type: 'number', hint: 'Lower numbers show first.' },
+            { key: 'image_url', label: 'Image URL (https). Required for emotes', wide: true, nullable: true, hint: 'Use a square PNG or GIF, about 128x128, on a host that stays online.' },
+            { key: 'in_rotation', label: 'Include in the automatic featured rotation', type: 'checkbox', wide: true },
+            { key: 'active', label: 'Visible in the store', type: 'checkbox', wide: true }
+        ];
+        function itemPayload(o) {
+            var isEmote = o.category === 'emote';
+            var code = isEmote ? String(o.emote_name || '').toLowerCase().replace(/[^a-z0-9_+-]/g, '').slice(0, 32) : null;
+            if (isEmote && !code) throw new Error('Emotes need a code like pepe_happy.');
+            if (isEmote && !/^https:\/\//i.test(o.image_url || '')) throw new Error('Emotes need an https image URL.');
+            if (isEmote) o.per_user_limit = 1;
+            var isFrame = o.category === 'frame', isBundle = o.category === 'bundle', isTitle = o.category === 'title', frame = null, title = null, boost = null;
+            if (o.category === 'boost' && o.boost_kind) {
+                var bm = Math.round(Number(o.boost_amount) * (o.boost_unit === 'days' ? 1440 : o.boost_unit === 'hours' ? 60 : 1));
+                if (!(bm >= 1 && bm <= 43200)) throw new Error('A booster lasts between 1 minute and 30 days.');
+                boost = { v: 1, kind: o.boost_kind, tier: Number(o.boost_tier) || 2, minutes: bm };
+                o.per_user_limit = null;          // boosters can always be bought again
+            }
+            if (isFrame) {
+                frame = window.SpecFrames ? window.SpecFrames.clean(o.frame_design) : null;
+                if (!frame) throw new Error('Design the frame first: press Open frame designer.');
+                o.per_user_limit = 1;
+            }
+            if (isTitle) {
+                title = window.SpecTitles ? window.SpecTitles.clean(o.title_design) : null;
+                if (!title) throw new Error('Design the title first: press Open title editor.');
+                o.per_user_limit = 1;
+            }
+            if (isBundle) {
+                if ((o.bundle_items || []).length < 2) throw new Error('Pick at least 2 items for a bundle.');
+                o.per_user_limit = 1;
+            }
+            var superData = null;
+            if (isEmote && o.super_design) {
+                superData = window.SpecSuper ? window.SpecSuper.clean(o.super_design) : null;
+                if (!superData) throw new Error('The super emote design is not valid. Open the Super Emotes Lab and press Use this super emote.');
+            }
+            var payload = { frame_data: frame, title_data: title, boost_data: boost, emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
+                per_user_limit: o.per_user_limit == null ? null : Math.max(1, o.per_user_limit), sort: Math.floor(o.sort || 0), image_url: o.image_url, in_rotation: o.in_rotation, active: o.active };
+            if (superData) payload.super_data = superData;      // only sent when set, so stores without the super emotes SQL keep working
+            return payload;
+        }
+        function itemErr(e) {
+            var msg = String(e && e.message || e);
+            if (/emote_name_key|duplicate/i.test(msg)) return new Error('That emote code is already used.');
+            if (/frame_rules/.test(msg)) return new Error('The database rejected this frame. Run supabase-store-frames-10mb.sql in Supabase (it reinstalls the newest frame validator: image frames + Frame Lab effects), then try again.');
+            if (/boost_rules/.test(msg)) return new Error('The database rejected this booster. Run supabase-store-boosters.sql in Supabase, then try again.');
+            if (/boost_data/.test(msg) && /column|schema/i.test(msg)) return new Error('Run supabase-store-boosters.sql in Supabase first (it adds the booster column).');
+            if (/title_rules/.test(msg)) return new Error('The database rejected this title. Run supabase-store-titles.sql, supabase-store-title-icons.sql and supabase-store-titles-v2.sql (in that order) in Supabase, then try again.');
+            if (/title_data/.test(msg) && /column|schema/i.test(msg)) return new Error('Run supabase-store-titles.sql in Supabase first (it adds the title_data column).');
+            if (/bundle_rules/.test(msg)) return new Error('Bundles can only hold normal items (no bundles inside bundles).');
+            if (/super_rules|store_super_ok|super_data/.test(msg)) return new Error('Run supabase-store-super-emotes.sql in Supabase first (it adds the super emote column, the store-super bucket and the cooldown rules), then try again.');
+            if (/emote_rules|category_check/.test(msg)) return new Error('Run supabase-store-emotes.sql and supabase-store-frames.sql first, then try again.');
+            return e;
+        }
+        async function syncBundle(id, ids) {
+            var d = await sb.from('store_bundle_items').delete().eq('bundle_id', id); if (d.error) throw itemErr(d.error);
+            if (!ids.length) return;
+            var n = await sb.from('store_bundle_items').insert(ids.map(function (x) { return { bundle_id: id, item_id: x }; })); if (n.error) throw itemErr(n.error);
+        }
+        function editItem(it) {
+            var isNew = !it, fd = (it && it.frame_data) || {};
+            var fields = ITEM_FIELDS.map(function (f) {
+                return f.key !== 'bundle_items' ? f : Object.assign({}, f, { options: S.items.filter(function (i) { return i.category !== 'bundle' && (!it || i.id !== it.id); }).map(function (i) { return [i.id, i.name + ' (' + fmt(i.price) + ')']; }) });
+            });
+            var bd = it && it.boost_data, bmin = bd ? Number(bd.minutes) : 60;
+            var base = { boost_kind: bd ? bd.kind : '', boost_tier: bd ? String(bd.tier) : '2',
+                         boost_amount: bmin % 1440 === 0 ? bmin / 1440 : (bmin % 60 === 0 ? bmin / 60 : bmin), boost_unit: bmin % 1440 === 0 ? 'days' : (bmin % 60 === 0 ? 'hours' : 'minutes'),
+                         super_design: it ? it.super_data : null, title_design: it ? it.title_data : (window.SpecTitles ? window.SpecTitles.TEMPLATES[0].title : null), frame_design: it ? it.frame_data : (window.SpecFrames ? window.SpecFrames.TEMPLATES[0].frame : null), bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
+            openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: fields,
+                values: Object.assign({}, it || { category: 'title', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' }, base),
+                onSave: async function (o) {
+                    var row = itemPayload(o);
+                    if (!isNew && it && it.super_data && !row.super_data) row.super_data = null;   // the item stopped being a super emote
+                    var r = await (isNew ? sb.from('store_items').insert(row).select('id').single() : sb.from('store_items').update(row).eq('id', it.id).select('id').single());
+                    if (r.error) throw itemErr(r.error);
+                    if (o.category === 'bundle') await syncBundle(r.data.id, o.bundle_items);
+                    else if (!isNew) await sb.from('store_bundle_items').delete().eq('bundle_id', r.data.id);
+                    toast(isNew ? 'Item added' : 'Item saved'); await reload();
+                } });
+        }
+        function pinItem(it) {
+            openForm({ title: 'Feature ' + it.name, saveLabel: 'Feature now',
+                fields: [{ key: 'days', label: 'Feature for how many days?', type: 'number', required: true, hint: 'It jumps to the top of Featured right away and ends by itself.' }],
+                values: { days: (S.settings && S.settings.rotation_days) || 3 },
+                onSave: async function (o) {
+                    var days = Math.max(0.04, Number(o.days) || 3);
+                    var until = new Date(Date.now() + days * 86400000).toISOString();
+                    var r = await sb.from('store_items').update({ featured_until: until, active: true }).eq('id', it.id); if (r.error) throw r.error;
+                    toast('Featured until ' + when(until)); await reload();
+                } });
+        }
+        async function patchItem(it, patch, msg) { var r = await sb.from('store_items').update(patch).eq('id', it.id); if (r.error) return fail(r.error); toast(msg); reload(); }
+        async function deleteItem(it) {
+            if (!confirmIt('Delete "' + it.name + '"? ' + (it.category === 'emote' ? 'Owners would LOSE this emote and old messages stop showing it. Use Hide instead to keep it working.' : 'People who bought it keep it in their history. To just hide it, use Hide instead.'))) return;
+            var r = await sb.from('store_items').delete().eq('id', it.id); if (r.error) return fail(r.error); toast('Item deleted'); reload();
+        }
+        function featState(it) {
+            var f = S.featured.find(function (x) { return x.item_id === it.id; });
+            return f ? (f.is_pinned ? { live: true, text: 'Featured until ' + when(f.ends_at) } : { live: true, text: 'In this rotation until ' + when(f.ends_at) }) : null;
+        }
+        function renderItems(root) {
+            root.appendChild(el('div', { class: 'sm-bar' },
+                el('button', { class: 'sm-btn sm-btn--primary', text: 'New item', onclick: function () { editItem(null); } }),
+                el('div', { class: 'sm-field sm-grow' }, el('input', { type: 'search', placeholder: 'Search items', value: S.q, 'aria-label': 'Search items', oninput: function (e) { S.q = e.target.value; paintItemRows(); } }))));
+            root.appendChild(el('div', { class: 'sm-list', id: 'itemRows' }));
+            paintItemRows();
+        }
+        function paintItemRows() {
+            var box = $('itemRows'); if (!box) return; box.textContent = '';
+            var q = S.q.toLowerCase(), list = S.items.filter(function (i) { return !q || (i.name + ' ' + (i.description || '')).toLowerCase().indexOf(q) >= 0; });
+            if (!list.length) { box.appendChild(el('div', { class: 'sm-empty', text: S.items.length ? 'No items match that search.' : 'No items yet. Add your first one.' })); return; }
+            list.forEach(function (it) {
+                var fs = featState(it), pinned = it.featured_until && new Date(it.featured_until) > new Date();
+                var thumb = el('div', { class: 'sm-thumb' });
+                if (it.category === 'frame' && it.frame_data && window.SpecFrames) {
+                    thumb.style.overflow = 'visible';
+                    var fav = el('span', { class: 'sp-avatar', style: '--sp-size:26px', text: 'A' });
+                    window.SpecFrames.apply(fav, it.frame_data); thumb.appendChild(fav);
+                } else if (it.category === 'boost' && it.boost_data) {
+                    thumb.textContent = it.boost_data.tier + 'x'; thumb.style.fontWeight = '800'; thumb.style.color = it.boost_data.kind === 'xp' ? '#38bdf8' : '#facc15';
+                } else if (it.category === 'title' && it.title_data && window.SpecTitles) {
+                    thumb.className = 'sm-thumb sm-thumb--title'; window.SpecTitles.apply(thumb, it.title_data);
+                } else if (/^https:\/\//i.test(it.image_url || '')) thumb.appendChild(el('img', { src: it.image_url, alt: '', referrerpolicy: 'no-referrer' })); else thumb.textContent = it.emoji || '🎁';
+                box.appendChild(el('div', { class: 'sm-row' + (it.active ? '' : ' is-off') },
+                    thumb,
+                    el('div', { class: 'sm-main' }, el('strong', { text: it.name }),
+                        el('div', { class: 'sm-meta' },
+                            el('span', { text: fmt(it.price) + ' credits' }), el('span', { text: it.category }), it.emote_name ? el('span', { text: ':' + it.emote_name + ':' }) : null, it.super_data ? el('span', { class: 'sm-badge sm-badge--live', text: '\u26A1 Super' }) : null, it.category === 'bundle' ? el('span', { text: ((S.bundleItems || {})[it.id] || []).length + ' items inside' }) : null, el('span', { text: it.rarity }),
+                            el('span', { text: it.stock == null ? 'unlimited' : it.stock + ' left' }),
+                            it.active ? null : el('span', { class: 'sm-badge', text: 'Hidden' }),
+                            it.in_rotation ? el('span', { class: 'sm-badge', text: 'In rotation pool' }) : null,
+                            fs ? el('span', { class: 'sm-badge sm-badge--live', text: fs.text }) : null)),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Edit', onclick: function () { editItem(it); } }),
+                        pinned ? el('button', { class: 'sm-btn sm-btn--sm', text: 'Unfeature', onclick: function () { patchItem(it, { featured_until: null }, 'Removed from featured'); } })
+                               : el('button', { class: 'sm-btn sm-btn--sm', text: 'Feature…', onclick: function () { pinItem(it); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: it.in_rotation ? 'Leave rotation' : 'Join rotation', onclick: function () { patchItem(it, { in_rotation: !it.in_rotation }, it.in_rotation ? 'Left the rotation pool' : 'Added to the rotation pool'); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: it.active ? 'Hide' : 'Show', onclick: function () { patchItem(it, { active: !it.active }, it.active ? 'Item hidden' : 'Item visible'); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: function () { deleteItem(it); } }))));
+            });
+        }
+
+        /* ---------- FEATURED ---------- */
+        function renderFeatured(root) {
+            var st = S.settings || {};
+            var live = el('div', { class: 'sm-list' });
+            if (!S.featured.length) live.appendChild(el('div', { class: 'sm-empty', text: 'Nothing is featured. Add items to the rotation pool, or feature one directly from the Items tab.' }));
+            S.featured.forEach(function (f) {
+                var it = S.items.find(function (i) { return i.id === f.item_id; }); if (!it) return;
+                live.appendChild(el('div', { class: 'sm-row' }, el('div', { class: 'sm-thumb', text: it.emoji || '🎁' }),
+                    el('div', { class: 'sm-main' }, el('strong', { text: it.name }), el('div', { class: 'sm-meta', text: (f.is_pinned ? 'Pinned' : 'Rotation') + ' · ends ' + when(f.ends_at) + ' · ' + fmt(it.price) + ' → ' + fmt(Math.round(it.price * (100 - f.discount) / 100)) + ' credits' })),
+                    el('div', { class: 'sm-actions' })));
+            });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Live now' }), live));
+            var pool = S.items.filter(function (i) { return i.active && i.in_rotation; }).length;
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Rotation settings' }),
+                el('p', { class: 'sm-note', text: 'The lineup is picked from the rotation pool (' + pool + ' item' + (pool === 1 ? '' : 's') + ' right now) and changes by itself every few days. Pinned items always show first and use up slots.' }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' },
+                    el('button', { class: 'sm-btn sm-btn--primary', text: 'Edit settings', onclick: function () {
+                        openForm({ title: 'Rotation settings', values: st, fields: [
+                            { key: 'rotation_days', label: 'Rotate every (days)', type: 'number', required: true },
+                            { key: 'rotation_slots', label: 'Featured slots', type: 'number', required: true, hint: '1 to 6.' },
+                            { key: 'featured_discount', label: 'Featured discount (%)', type: 'number', required: true, hint: '0 turns the discount off.' }],
+                            onSave: function (o) { return saveSettings({ rotation_days: o.rotation_days, rotation_slots: o.rotation_slots, featured_discount: o.featured_discount }); } });
+                    } }),
+                    el('button', { class: 'sm-btn', text: 'Start a new rotation now', onclick: async function () {
+                        if (!confirmIt('Start a fresh rotation now? The automatic picks change right away and the timer restarts. Pinned items are not affected.')) return;
+                        await saveSettings({ rotation_epoch: new Date().toISOString() }).catch(fail);
+                    } }),
+                    el('span', { class: 'sm-note', text: 'Every ' + (st.rotation_days || 3) + ' days · ' + (st.rotation_slots || 3) + ' slots · ' + (st.featured_discount || 0) + '% off' }))));
+        }
+        async function saveSettings(patch) {
+            patch.updated_at = new Date().toISOString();
+            var r = await sb.from('store_settings').update(patch).eq('id', 1); if (r.error) throw r.error;
+            toast('Settings saved'); await reload();
+        }
+
+        /* ---------- PACKS ---------- */
+        var PACK_FIELDS = [
+            { key: 'name', label: 'Pack name', required: true },
+            { key: 'price_label', label: 'Price shown (text)', required: true, placeholder: '$4.99' },
+            { key: 'credits', label: 'Credits', type: 'number', required: true },
+            { key: 'bonus', label: 'Bonus credits', type: 'number' },
+            { key: 'badge', label: 'Badge text (optional)', nullable: true, placeholder: 'Best value' },
+            { key: 'sort', label: 'Sort order', type: 'number' },
+            { key: 'checkout_url', label: 'Payment link (https)', wide: true, nullable: true, hint: 'Ko-fi, Stripe Payment Link, PayPal... Empty shows "Coming soon" to members.' },
+            { key: 'active', label: 'Visible in the store', type: 'checkbox', wide: true }
+        ];
+        function editPack(p) {
+            var isNew = !p;
+            openForm({ title: isNew ? 'New credit pack' : 'Edit ' + p.name, fields: PACK_FIELDS, values: p || { credits: 500, bonus: 0, sort: 0, active: true },
+                onSave: async function (o) {
+                    if (o.checkout_url && !/^https:\/\//i.test(o.checkout_url)) throw new Error('The payment link must start with https://');
+                    var row = { name: o.name, price_label: o.price_label, credits: Math.max(1, Math.floor(o.credits)), bonus: Math.max(0, Math.floor(o.bonus || 0)), badge: o.badge, sort: Math.floor(o.sort || 0), checkout_url: o.checkout_url, active: o.active };
+                    var r = await (isNew ? sb.from('credit_packs').insert(row) : sb.from('credit_packs').update(row).eq('id', p.id)); if (r.error) throw r.error;
+                    toast('Pack saved'); await reload();
+                } });
+        }
+        function renderPacks(root) {
+            root.appendChild(el('div', { class: 'sm-bar' }, el('button', { class: 'sm-btn sm-btn--primary', text: 'New pack', onclick: function () { editPack(null); } }),
+                el('span', { class: 'sm-note', text: 'Members pay through your payment link, then you add the credits from the Credits tab. Automatic delivery needs a payment webhook, which is a separate step.' })));
+            var list = el('div', { class: 'sm-list' });
+            if (!S.packs.length) list.appendChild(el('div', { class: 'sm-empty', text: 'No credit packs yet.' }));
+            S.packs.forEach(function (p) {
+                list.appendChild(el('div', { class: 'sm-row' + (p.active ? '' : ' is-off') }, el('div', { class: 'sm-thumb', text: '💎' }),
+                    el('div', { class: 'sm-main' }, el('strong', { text: p.name }), el('div', { class: 'sm-meta', text: fmt(p.credits) + (p.bonus ? ' + ' + fmt(p.bonus) + ' bonus' : '') + ' credits · ' + p.price_label + (p.checkout_url ? ' · link set' : ' · no link') + (p.badge ? ' · ' + p.badge : '') })),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Edit', onclick: function () { editPack(p); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: p.active ? 'Hide' : 'Show', onclick: async function () { var r = await sb.from('credit_packs').update({ active: !p.active }).eq('id', p.id); if (r.error) return fail(r.error); reload(); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete this pack?')) return; var r = await sb.from('credit_packs').delete().eq('id', p.id); if (r.error) return fail(r.error); reload(); } }))));
+            });
+            root.appendChild(list);
+        }
+
+        /* ---------- CODES ---------- */
+        function genCode() { var a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = ''; var b = new Uint8Array(8); crypto.getRandomValues(b); b.forEach(function (x) { s += a[x % a.length]; }); return s.slice(0, 4) + '-' + s.slice(4); }
+        function newCode() {
+            openForm({ title: 'New redeem code', values: { code: genCode(), credits: 50, active: true },
+                fields: [
+                    { key: 'code', label: 'Code', required: true, hint: 'Letters, numbers and dashes. Not case sensitive.' },
+                    { key: 'credits', label: 'Credits it gives', type: 'number', required: true },
+                    { key: 'max_uses', label: 'Max uses', type: 'number', nullable: true, hint: 'Empty = unlimited. Each person can redeem a code once.' },
+                    { key: 'expires_at', label: 'Expires', type: 'datetime', hint: 'Empty = never.' },
+                    { key: 'note', label: 'Note (only you see it)', wide: true, nullable: true, placeholder: 'Halloween giveaway' }],
+                onSave: async function (o) {
+                    var code = o.code.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+                    if (code.length < 3) throw new Error('The code needs at least 3 characters.');
+                    var r = await sb.from('apex_codes').insert({ code: code, credits: Math.max(1, Math.floor(o.credits)), max_uses: o.max_uses, expires_at: o.expires_at, note: o.note, active: true });
+                    if (r.error) throw (/duplicate/i.test(r.error.message) ? new Error('That code already exists.') : r.error);
+                    toast('Code created: ' + code.toUpperCase()); await reload();
+                } });
+        }
+        function renderCodes(root) {
+            root.appendChild(el('div', { class: 'sm-bar' }, el('button', { class: 'sm-btn sm-btn--primary', text: 'New code', onclick: newCode }),
+                el('span', { class: 'sm-note', text: 'Share codes at events, giveaways or in chat. They are the main way people get big chunks of credits.' })));
+            var list = el('div', { class: 'sm-list' });
+            if (!S.codes.length) list.appendChild(el('div', { class: 'sm-empty', text: 'No codes yet.' }));
+            S.codes.forEach(function (c) {
+                var expired = c.expires_at && new Date(c.expires_at) < new Date(), spent = c.max_uses != null && c.uses >= c.max_uses;
+                list.appendChild(el('div', { class: 'sm-row' + (c.active && !expired && !spent ? '' : ' is-off') }, el('div', { class: 'sm-thumb', text: '🎟️' }),
+                    el('div', { class: 'sm-main' }, el('strong', { text: c.code.toUpperCase() }),
+                        el('div', { class: 'sm-meta', text: fmt(c.credits) + ' credits · used ' + c.uses + (c.max_uses != null ? '/' + c.max_uses : '') + (c.expires_at ? ' · ' + (expired ? 'expired ' : 'expires ') + when(c.expires_at) : '') + (c.note ? ' · ' + c.note : '') + (c.active ? '' : ' · off') })),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Copy', onclick: function () { navigator.clipboard && navigator.clipboard.writeText(c.code.toUpperCase()); toast('Code copied'); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: c.active ? 'Turn off' : 'Turn on', onclick: async function () { var r = await sb.from('apex_codes').update({ active: !c.active }).eq('code', c.code); if (r.error) return fail(r.error); reload(); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete this code?')) return; var r = await sb.from('apex_codes').delete().eq('code', c.code); if (r.error) return fail(r.error); reload(); } }))));
+            });
+            root.appendChild(list);
+        }
+
+        /* ---------- GIFT ITEMS (give a title, frame or anything else to one member) ---------- */
+        function renderGifts(root) {
+            var CATS = { title: 'Titles', frame: 'Frames', bundle: 'Bundles', emote: 'Emotes', theme: 'Themes', boost: 'Boosts', cosmetic: 'Cosmetics', badge: 'Badges', misc: 'Other' };
+            var user = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'giUser', list: 'giUsers' });
+            var dl = el('datalist', { id: 'giUsers' });
+            var cat = el('select', { id: 'giCat' }, el('option', { value: '', text: 'All categories' }),
+                Object.keys(CATS).filter(function (k) { return S.items.some(function (i) { return i.category === k; }); }).map(function (k) { return el('option', { value: k, text: CATS[k] }); }));
+            var pick = el('select', { id: 'giItem' });
+            var prev = el('div', { class: 'sm-giftprev' });
+            function fill() {
+                var keep = pick.value; pick.textContent = '';
+                S.items.filter(function (i) { return !cat.value || i.category === cat.value; })
+                    .sort(function (a, b) { return (a.category === 'title' ? -1 : 0) - (b.category === 'title' ? -1 : 0) || (a.sort || 0) - (b.sort || 0); })
+                    .forEach(function (i) { pick.appendChild(el('option', { value: i.id, text: (CATS[i.category] || i.category) + ': ' + i.name + ' (' + i.rarity + ')' + (i.active ? '' : ' [hidden]') })); });
+                if (keep) pick.value = keep;
+                look();
+            }
+            function look() {
+                prev.textContent = '';
+                var it = S.items.find(function (i) { return i.id === pick.value; });
+                if (it && it.category === 'title' && it.title_data && window.SpecTitles) {
+                    var slot = el('span', { class: 'sm-titleslot' }); window.SpecTitles.apply(slot, it.title_data);
+                    prev.appendChild(el('strong', { text: (user.value.trim() || 'Username') + ' ' })); prev.appendChild(slot);
+                } else if (it) prev.appendChild(el('span', { class: 'sm-note', text: it.description || it.name }));
+            }
+            cat.onchange = fill; pick.onchange = look; user.addEventListener('input', look);
+            var qt = null;
+            user.addEventListener('input', function () {
+                clearTimeout(qt);
+                var q = user.value.trim().replace(/[%_,()]/g, '');
+                if (q.length < 2) return;
+                qt = setTimeout(async function () {
+                    try {
+                        var r = await sb.from('profiles').select('username,display_name').ilike('username', q + '%').limit(8);
+                        dl.textContent = '';
+                        (r.data || []).forEach(function (u) { dl.appendChild(el('option', { value: u.username, label: u.display_name || '' })); });
+                    } catch (e) { /* suggestions are optional */ }
+                }, 250);
+            });
+            function giveMsg(e) {
+                var m = String(e && e.message || e);
+                if (/already_owned/.test(m)) return 'They already own that (or everything inside it).';
+                if (/not_owned/.test(m)) return 'They do not own that item.';
+                if (/booster_blocked/.test(m)) return 'They have a stronger booster of that kind running right now.';
+                if (/booster_max/.test(m)) return 'That would stack more than 30 days of that booster for them.';
+                if (/item_unavailable/.test(m)) return 'That item no longer exists. Refresh the page.';
+                if (/store_admin_(give|take)_item/.test(m) && /function|schema/i.test(m)) return 'Run supabase-store-gifts.sql in Supabase first.';
+                return null;
+            }
+            var send = el('button', { class: 'sm-btn sm-btn--primary', type: 'button', text: 'Send to member', onclick: async function () {
+                var u = user.value.trim(), it = S.items.find(function (i) { return i.id === pick.value; });
+                if (!u || !it) return toast('Pick a member and an item.', true);
+                if (!confirmIt('Give "' + it.name + '" to ' + u + ' for free?')) return;
+                send.disabled = true;
+                try { var r = await sb.rpc('store_admin_give_item', { p_username: u, p_item: it.id }); if (r.error) throw r.error;
+                    toast(u + ' received: ' + (r.data.granted || [it.name]).join(', ')); }
+                catch (e) { var g = giveMsg(e); if (g) toast(g, true); else fail(e); } finally { send.disabled = false; }
+            } });
+            var take = el('button', { class: 'sm-btn sm-btn--danger', type: 'button', text: 'Take back', onclick: async function () {
+                var u = user.value.trim(), it = S.items.find(function (i) { return i.id === pick.value; });
+                if (!u || !it) return toast('Pick a member and an item.', true);
+                if (!confirmIt('Remove one copy of "' + it.name + '" from ' + u + '? If it was equipped it is unequipped.')) return;
+                take.disabled = true;
+                try { var r = await sb.rpc('store_admin_take_item', { p_username: u, p_item: it.id }); if (r.error) throw r.error; toast('Removed "' + it.name + '" from ' + u); }
+                catch (e) { var g = giveMsg(e); if (g) toast(g, true); else fail(e); } finally { take.disabled = false; }
+            } });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Give an item to a member' }),
+                el('p', { class: 'sm-note', text: 'Type a username, choose a title (or a frame, bundle...) and send it. It shows up in their items right away, free, with no stock used. They can equip it from the store or their profile.' }),
+                el('div', { class: 'sm-form', style: 'margin-top:12px' },
+                    el('div', { class: 'sm-field' }, el('label', { for: 'giUser', text: 'Username' }), user, dl),
+                    el('div', { class: 'sm-field' }, el('label', { for: 'giCat', text: 'Category' }), cat),
+                    el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'giItem', text: 'Item' }), pick),
+                    el('div', { class: 'sm-field sm-wide' }, el('label', { text: 'Preview' }), prev)),
+                el('div', { class: 'sm-dlg-foot' }, take, send)));
+            cat.value = S.items.some(function (i) { return i.category === 'title'; }) ? 'title' : '';
+            fill();
+        }
+
+        /* ---------- CREDITS & ECONOMY ---------- */
+        function renderCredits(root) {
+            var st = S.settings || {};
+            var user = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'gUser' });
+            var amt = el('input', { type: 'number', placeholder: '100 or -50', id: 'gAmt' });
+            var why = el('input', { type: 'text', placeholder: 'Pack purchase, giveaway, correction...', id: 'gWhy', maxlength: '80' });
+            var go = el('button', { class: 'sm-btn sm-btn--primary', type: 'button', text: 'Apply', onclick: async function () {
+                var n = Math.trunc(Number(amt.value)); if (!user.value.trim() || !n) return toast('Enter a username and an amount.', true);
+                if (!confirmIt((n > 0 ? 'Give ' : 'Remove ') + fmt(Math.abs(n)) + ' APEX Credits ' + (n > 0 ? 'to ' : 'from ') + user.value.trim() + '?')) return;
+                go.disabled = true;
+                try { var r = await sb.rpc('store_admin_grant', { p_username: user.value.trim(), p_amount: n, p_reason: why.value.trim() }); if (r.error) throw r.error;
+                    toast(user.value.trim() + ' now has ' + fmt(r.data.balance) + ' credits'); amt.value = ''; why.value = ''; } catch (e) { fail(e); } finally { go.disabled = false; }
+            } });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Give or remove credits' }),
+                el('p', { class: 'sm-note', text: 'Use this to deliver credit packs after a payment, run giveaways or fix mistakes. A minus number removes credits (never below 0).' }),
+                el('div', { class: 'sm-form', style: 'margin-top:12px' },
+                    el('div', { class: 'sm-field' }, el('label', { for: 'gUser', text: 'Username' }), user),
+                    el('div', { class: 'sm-field' }, el('label', { for: 'gAmt', text: 'Amount' }), amt),
+                    el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'gWhy', text: 'Reason (saved in their history)' }), why)),
+                el('div', { class: 'sm-dlg-foot' }, go)));
+            var tr = el('div', { class: 'sm-card' }, el('h2', { text: 'Transfer rules' }),
+                el('p', { class: 'sm-note', text: (st.transfers_enabled === false ? 'Sending credits is OFF. ' : 'Sending is on. ') + 'Fee ' + (st.transfer_fee_percent || 0) + '%, cap ' + (st.transfer_daily_cap ? fmt(st.transfer_daily_cap) + ' per 24h' : 'none') + ', accounts must be ' + (st.transfer_min_age_days || 0) + '+ days old. A cap and an age limit stop people farming daily check-ins on extra accounts.' }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit transfer rules', onclick: function () {
+                    openForm({ title: 'Transfer rules', values: st, fields: [
+                        { key: 'transfers_enabled', label: 'Members can send credits', type: 'checkbox', wide: true },
+                        { key: 'transfer_fee_percent', label: 'Fee (%)', type: 'number', required: true, hint: '0 to 50. Paid by the sender on top of the amount.' },
+                        { key: 'transfer_daily_cap', label: 'Max sent per 24h', type: 'number', required: true, hint: '0 = no limit.' },
+                        { key: 'transfer_min_age_days', label: 'Minimum account age (days)', type: 'number', required: true }],
+                        onSave: function (o) { return saveSettings({ transfers_enabled: o.transfers_enabled, transfer_fee_percent: Math.min(50, Math.max(0, Math.floor(o.transfer_fee_percent))), transfer_daily_cap: Math.max(0, Math.floor(o.transfer_daily_cap)), transfer_min_age_days: Math.max(0, Math.floor(o.transfer_min_age_days)) }); } });
+                } })));
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Earning rates' }),
+                el('p', { class: 'sm-note', text: 'Today: ' + (st.daily_amount || 0) + ' credits a day' + (st.streak_every ? ', plus ' + (st.streak_bonus || 0) + ' every ' + st.streak_every + ' days in a row.' : '.') + ' Keep these low to keep credits hard to get.' }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit earning rates', onclick: function () {
+                    openForm({ title: 'Earning rates', values: st, fields: [
+                        { key: 'daily_amount', label: 'Daily check-in credits', type: 'number', required: true },
+                        { key: 'streak_every', label: 'Bonus every N days in a row', type: 'number', required: true, hint: '0 turns the streak bonus off.' },
+                        { key: 'streak_bonus', label: 'Streak bonus credits', type: 'number', required: true }],
+                        onSave: function (o) { return saveSettings({ daily_amount: o.daily_amount, streak_every: o.streak_every, streak_bonus: o.streak_bonus }); } });
+                } }))));
+            root.appendChild(tr);
+        }
+
+        /* ---------- SALES ---------- */
+        async function renderSales(root) {
+            root.appendChild(el('div', { class: 'sm-note', text: 'Loading sales...' }));
+            var r = await sb.from('store_purchases').select('*').order('created_at', { ascending: false }).limit(100);
+            root.textContent = '';
+            if (r.error) return root.appendChild(el('div', { class: 'sm-empty', text: r.error.message }));
+            S.sales = r.data || [];
+            var ids = Array.from(new Set(S.sales.map(function (x) { return x.user_id; })));
+            if (ids.length) { var p = await sb.from('profiles').select('id,username,display_name').in('id', ids); (p.data || []).forEach(function (u) { S.names[u.id] = u.display_name || u.username; }); }
+            var total = S.sales.reduce(function (a, x) { return a + x.price_paid; }, 0);
+            root.appendChild(el('div', { class: 'sm-stats' },
+                el('div', { class: 'sm-stat' }, el('strong', { text: String(S.sales.length) }), el('span', { text: 'Recent sales (last 100)' })),
+                el('div', { class: 'sm-stat' }, el('strong', { text: fmt(total) }), el('span', { text: 'Credits spent in them' }))));
+            var list = el('div', { class: 'sm-list' });
+            if (!S.sales.length) list.appendChild(el('div', { class: 'sm-empty', text: 'No sales yet.' }));
+            S.sales.forEach(function (x) { list.appendChild(el('div', { class: 'sm-row' }, el('div', { class: 'sm-thumb', text: '🧾' }), el('div', { class: 'sm-main' }, el('strong', { text: x.item_name }), el('div', { class: 'sm-meta', text: (S.names[x.user_id] || x.user_id.slice(0, 8)) + ' · ' + fmt(x.price_paid) + ' credits · ' + when(x.created_at) })), el('div'))); });
+            root.appendChild(list);
+        }
+
+        /* FRAME DESIGNER START */
+        var LT = [['ring', 'Solid ring'], ['gradient', 'Gradient ring'], ['dashed', 'Dashed ring'], ['dotted', 'Dotted ring'], ['glow', 'Soft glow'], ['dots', 'Orbiting dots'], ['sparkles', 'Sparkles'], ['ripple', 'Ripple waves'],
+            ['lightning', 'Lightning (Lab)'], ['hearts', 'Floating hearts (Lab)'], ['stars', 'Rising stars (Lab)'], ['snow', 'Snowfall (Lab)'], ['shimmer', 'Shimmer sweep (Lab)'], ['glitch', 'Glitch (Lab)']];
+        var MAXC = { ring: 1, dashed: 1, dotted: 1, ripple: 1, glow: 2, gradient: 5, dots: 5, sparkles: 5, lightning: 3, hearts: 5, stars: 5, snow: 3, shimmer: 2, glitch: 3 };
+        var SPIN = ['width', 'gap', 'opacity', 'speed', 'dir', 'pulse', 'pulseSpeed', 'flicker', 'delay'];
+        var SHOW = {
+            ring: ['width', 'gap', 'opacity', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
+            gradient: ['width', 'gap', 'arc', 'opacity', 'speed', 'dir', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
+            dashed: SPIN, dotted: SPIN,
+            glow: ['width', 'blur', 'gap', 'opacity', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
+            dots: ['size', 'count', 'gap', 'opacity', 'speed', 'dir', 'pulse', 'pulseSpeed', 'flicker', 'delay'],
+            sparkles: ['size', 'count', 'gap', 'opacity', 'speed', 'dir', 'pulseSpeed', 'flicker', 'delay'],
+            ripple: ['width', 'gap', 'opacity', 'speed', 'size', 'count', 'delay'],
+            lightning: ['size', 'count', 'gap', 'opacity', 'speed', 'delay'],
+            hearts: ['size', 'count', 'gap', 'opacity', 'speed', 'blur', 'delay'],
+            stars: ['size', 'count', 'gap', 'opacity', 'speed', 'blur', 'delay'],
+            snow: ['size', 'count', 'gap', 'opacity', 'speed', 'blur', 'delay'],
+            shimmer: ['opacity', 'arc', 'speed', 'delay'],
+            glitch: ['width', 'gap', 'opacity', 'speed', 'flicker', 'delay']
+        };
+        // every effect can also cycle through all the colors
+        Object.keys(SHOW).forEach(function (k) { SHOW[k] = SHOW[k].concat(['hue']); });
+        var CTL = { width: ['Thickness', 0.5], gap: ['Gap from avatar', 0.5], opacity: ['Opacity', 1], speed: ['Seconds per turn (0 = still)', 0.5], pulse: ['Pulse strength', 1], pulseSpeed: ['Pulse seconds', 0.1], flicker: ['Flicker', 1], count: ['Count', 1], size: ['Size', 0.5], arc: ['Gradient length (%)', 1], blur: ['Glow size', 1], delay: ['Start delay (seconds)', 0.1], hue: ['Rainbow color cycle (seconds, 0 = off)', 1] };
+        var LBL = { glow: { width: 'Glow spread' }, sparkles: { pulseSpeed: 'Twinkle seconds' }, ripple: { speed: 'Seconds per wave', size: 'Spread', count: 'Waves (1 to 3)' },
+            lightning: { size: 'Bolt size', gap: 'Distance from avatar', speed: 'Seconds between flashes' },
+            hearts: { size: 'Heart size', speed: 'Seconds per drift', blur: 'Drift distance' },
+            stars: { size: 'Star size', speed: 'Seconds per drift', blur: 'Drift distance' },
+            snow: { size: 'Flake size', speed: 'Seconds per fall', blur: 'Fall distance' },
+            shimmer: { arc: 'Shine width (%)', speed: 'Seconds per sweep' },
+            glitch: { width: 'Ring thickness', speed: 'Seconds per glitch burst' } };
+
+        function hsl(h, s, l) {
+            s /= 100; l /= 100;
+            var k = function (n) { return (n + h / 30) % 12; }, a = s * Math.min(l, 1 - l);
+            var f = function (n) { return Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); };
+            return '#' + f(0) + f(8) + f(4);
+        }
+        function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+        function rnd(a, b, step) { var v = a + Math.random() * (b - a); return step ? Math.round(v / step) * step : v; }
+        var LABPOOL = ['lightning', 'hearts', 'stars', 'snow', 'shimmer'];
+        var LABTUNE = {
+            lightning: function () { return { size: rnd(4, 8, 0.5), count: Math.round(rnd(3, 6)), gap: rnd(2, 5, 0.5), speed: rnd(2, 4, 0.5) }; },
+            hearts: function () { return { size: rnd(4, 7, 0.5), count: Math.round(rnd(4, 8)), gap: rnd(1, 4, 0.5), speed: rnd(2.5, 5, 0.5), blur: rnd(10, 18, 1) }; },
+            stars: function () { return { size: rnd(4, 7, 0.5), count: Math.round(rnd(4, 8)), gap: rnd(1, 4, 0.5), speed: rnd(2.5, 5, 0.5), blur: rnd(10, 18, 1) }; },
+            snow: function () { return { size: rnd(2, 4, 0.5), count: Math.round(rnd(6, 10)), gap: rnd(0, 3, 0.5), speed: rnd(3, 6, 0.5), blur: rnd(12, 20, 1) }; },
+            shimmer: function () { return { opacity: rnd(35, 60, 5), speed: rnd(3, 6, 0.5), arc: pick([40, 50, 60]) }; }
+        };
+        function randomFrame() {
+            var h = Math.floor(Math.random() * 360), n = 1 + Math.floor(Math.random() * 3), layers = [];
+            var pal = [hsl(h, 85, 60), hsl((h + 40 + Math.random() * 60) % 360, 85, 62), hsl((h + 180) % 360, 80, 65)];
+            var shape = Math.random() < 0.7 ? 'circle' : pick(['squircle', 'rounded', 'petal', 'blob']);
+            for (var i = 0; i < n; i++) {
+                var type = i === 0 ? pick(['gradient', 'gradient', 'ring', 'dashed', 'dotted']) : pick(['gradient', 'glow', 'dots', 'sparkles', 'ripple', 'ring', 'dotted'].concat(layers.some(function (x) { return LABTUNE[x.type]; }) ? [] : LABPOOL));
+                var cols = type === 'glow' ? pal.slice(0, 2) : (type === 'gradient' || type === 'dots' || type === 'sparkles') ? pal.slice(0, 2 + Math.floor(Math.random() * 2)) : (type === 'lightning' || type === 'hearts' || type === 'stars' || type === 'snow') ? pal.slice(0, 3) : type === 'shimmer' ? ['#ffffff'] : [pal[i % 3]];
+                layers.push({ type: type, colors: cols, width: rnd(2, 7, 0.5), gap: rnd(0, 8, 0.5) + i * 1.5, opacity: rnd(60, 100, 5), speed: rnd(2, 12, 0.5), dir: Math.random() < 0.5 ? 1 : -1,
+                    pulse: Math.random() < 0.3 ? rnd(10, 40, 5) : 0, pulseSpeed: rnd(1.2, 3.5, 0.1), flicker: Math.random() < 0.2 ? rnd(20, 60, 5) : 0, count: Math.round(rnd(4, 10)), size: rnd(3, 8, 0.5), arc: pick([40, 55, 70, 100]), blur: rnd(6, 18, 1), delay: 0, hue: 0, blend: 'normal' });
+                if (LABTUNE[type]) Object.assign(layers[layers.length - 1], LABTUNE[type]());
+            }
+            return window.SpecFrames.clean({ v: 2, shape: shape, avatarShape: shape !== 'circle' && Math.random() < 0.5, layers: layers });
+        }
+        function newLayer() { return window.SpecFrames.clean({ v: 2, layers: [{ type: 'ring', colors: ['#38bdf8'] }] }).layers[0]; }
+        function typeName(t) { return (LT.filter(function (x) { return x[0] === t; })[0] || [0, t])[1]; }
+
+        /* image frames: upload to the public "store-frames" bucket */
+        function imageSize(file) {
+            return new Promise(function (res, rej) {
+                var u = URL.createObjectURL(file), im = new Image();
+                im.onload = function () { URL.revokeObjectURL(u); res({ w: im.naturalWidth, h: im.naturalHeight }); };
+                im.onerror = function () { URL.revokeObjectURL(u); rej(new Error('That file is not a readable image.')); };
+                im.src = u;
+            });
+        }
+        var FRAME_MAX_MB = 10, FRAME_MAX_PX = 2048;
+        async function uploadFrameImage(file) {
+            var EXT = { 'image/png': 'png', 'image/apng': 'png', 'image/x-png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }, MIME = { png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+            var ext = EXT[String(file.type || '').toLowerCase()];
+            if (!ext) { var m = /\.(png|gif|webp)$/i.exec(file.name || ''); if (m) ext = m[1].toLowerCase(); }   // some browsers / systems leave file.type empty
+            if (!ext) throw new Error('Use a PNG, GIF or WebP image (JPG has no see-through background, so it cannot be a frame).');
+            var type = MIME[ext];
+            if (file.size > FRAME_MAX_MB * 1024 * 1024) throw new Error('That file is ' + (file.size / 1048576).toFixed(1) + ' MB. The limit is ' + FRAME_MAX_MB + ' MB. Shrink it, or lower the frame rate or size of the GIF.');
+            var d = await imageSize(file);
+            if (d.w < 64 || d.h < 64) throw new Error('The image is too small. Use at least 64 x 64 pixels (512 x 512 is ideal).');
+            if (d.w > FRAME_MAX_PX || d.h > FRAME_MAX_PX) throw new Error('The image is too big (' + d.w + ' x ' + d.h + '). Use at most ' + FRAME_MAX_PX + ' x ' + FRAME_MAX_PX + ' pixels (512 x 512 is ideal).');
+            var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+            var path = 'frames/' + id + '.' + ext;
+            // re-wrap so the upload always carries a correct content type, even when the browser reported none
+            var blob = file.type === type ? file : new Blob([file], { type: type });
+            var r = await sb.storage.from('store-frames').upload(path, blob, { contentType: type, cacheControl: '31536000', upsert: false });
+            if (r.error) throw r.error;
+            return sb.storage.from('store-frames').getPublicUrl(path).data.publicUrl;
+        }
+        function uploadMsg(e) {
+            var m = String((e && (e.message || e.error)) || e), code = String((e && (e.statusCode || e.status)) || '');
+            if (/bucket not found/i.test(m)) return 'The store-frames bucket does not exist yet. Run supabase-store-frames-10mb.sql in Supabase.';
+            if (/exceeded the maximum allowed size|payload too large|too large/i.test(m) || code === '413') return 'The server rejected the size. Run supabase-store-frames-10mb.sql in Supabase (it raises the bucket limit to 10 MB). If it still fails, raise the global limit in Supabase > Storage > Settings.';
+            if (/row-level security|not authorized|unauthorized|permission|violates/i.test(m) || code === '403') return 'Upload blocked. Run supabase-store-frames-10mb.sql and make sure you are signed in with a store admin account.';
+            if (/mime|not supported|unsupported/i.test(m)) return 'The server only accepts PNG, GIF and WebP. Run supabase-store-frames-10mb.sql if this file is one of those.';
+            if (/failed to fetch|networkerror|load failed/i.test(m)) return 'Network error while uploading. Check your connection and try again.';
+            return m;
+        }
+        var IMGCTL = [['scale', 'Size (1 = same as the avatar)', 0.5, 3, 0.05], ['x', 'Move left / right (%)', -50, 50, 1], ['y', 'Move up / down (%)', -50, 50, 1], ['rot', 'Rotate (degrees)', -180, 180, 1]];
+
+        function openDesigner(initial, done) {
+            var SF = window.SpecFrames, dlg = $('dlgFrame'), body = $('frameBody');
+            if (!SF) { toast('avatar-frames.js is missing from this page.', true); return; }
+            var D = { f: JSON.parse(JSON.stringify(SF.toV2(initial) || SF.TEMPLATES[0].frame)), sel: 0, light: false, paused: false, t: 0 };
+            var avs = [];
+            function syncAnim() {
+                if (!D.paused) return;
+                avs.forEach(function (a) { if (a.getAnimations) a.getAnimations({ subtree: true }).forEach(function (an) { try { an.pause(); an.currentTime = D.t * 1000; } catch (e) { /* ignore */ } }); });
+            }
+            function paint() { avs.forEach(function (a) { SF.apply(a, D.f); }); syncAnim(); }
+
+            function imageCard() {
+                var im = D.f.image, card = el('div', { class: 'fd-ctl', style: 'margin-bottom:12px' });
+                var file = el('input', { type: 'file', accept: 'image/png,image/gif,image/webp', hidden: true });
+                var label = im ? 'Replace image' : 'Upload image (PNG, GIF, WebP)';
+                var up = el('button', { type: 'button', class: 'sm-btn sm-btn--sm' + (im ? '' : ' sm-btn--primary'), text: label, onclick: function () { file.click(); } });
+                file.onchange = async function () {
+                    var f = file.files && file.files[0]; file.value = '';
+                    if (!f) return;
+                    up.disabled = true; up.textContent = 'Uploading...';
+                    try {
+                        var src = await uploadFrameImage(f);
+                        var keep = D.f.image || { scale: 1.35, x: 0, y: 0, rot: 0 };
+                        var next = JSON.parse(JSON.stringify(D.f));
+                        next.v = 3; next.image = { src: src, scale: keep.scale, x: keep.x, y: keep.y, rot: keep.rot };
+                        if (!SF.clean(next)) throw new Error('That image address is not on this project storage. Check SUPABASE_URL in supabase-config.js.');
+                        D.f = next; toast('Image uploaded'); render();
+                    } catch (e) { toast(uploadMsg(e), true); up.disabled = false; up.textContent = label; }
+                };
+                var top = el('div', { class: 'fd-imgrow' });
+                if (im) {
+                    var th = el('img', { class: 'fd-thumb', alt: '' }); th.src = im.src; top.appendChild(th);
+                } else top.appendChild(el('div', { class: 'fd-empty', text: 'No image' }));
+                var side = el('div', null,
+                    el('div', { class: 'sm-note', style: 'margin-bottom:8px', text: 'Transparent PNG, GIF or WebP. Square works best (512 x 512), max 10 MB. Keep the middle see-through so the avatar shows. Big or long GIFs make chats heavy.' }),
+                    el('div', { class: 'fd-bar', style: 'margin:0' }, up,
+                        im ? el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Remove image', onclick: function () {
+                            delete D.f.image; D.f.v = 2; if (!D.f.layers.length) D.f.layers.push(newLayer()); D.sel = 0; render();
+                        } }) : null),
+                    file);
+                top.appendChild(side);
+                card.appendChild(el('div', { class: 'fd-s fd-wide' }, el('label', null, 'Image overlay'), top));
+                if (im) IMGCTL.forEach(function (c) {
+                    var k = c[0], out = el('output', { text: String(im[k]) });
+                    var rng = el('input', { type: 'range', min: String(c[2]), max: String(c[3]), step: String(c[4]), value: String(im[k]), 'aria-label': c[1] });
+                    rng.oninput = function () { D.f.image[k] = Number(rng.value); out.textContent = rng.value; paint(); };
+                    card.appendChild(el('div', { class: 'fd-s' }, el('label', null, c[1], out), rng));
+                });
+                return card;
+            }
+
+            function render() {
+                body.textContent = '';
+                avs = [];
+                if (D.sel >= D.f.layers.length) D.sel = D.f.layers.length - 1;
+                if (D.sel < 0) D.sel = 0;
+                var l = D.f.layers[D.sel], wrap = el('div', { class: 'fd' });
+                wrap.appendChild(el('h3', { text: 'Frame designer' }));
+
+                var stage = el('div', { class: 'fd-stage' + (D.light ? ' is-light' : '') });
+                [36, 64, 120].forEach(function (sz) {
+                    var a = el('span', { class: 'sp-avatar', style: '--sp-size:' + sz + 'px', text: 'A' });
+                    avs.push(a); stage.appendChild(el('div', { class: 'fd-av' }, a));
+                });
+                wrap.appendChild(stage);
+
+                var pb = el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.paused ? 'Play' : 'Pause' });
+                var tl = el('input', { type: 'range', min: '0', max: '12', step: '0.05', value: String(D.t), 'aria-label': 'Scrub the animation timeline' });
+                var tlOut = el('output', { text: D.t.toFixed(2) + 's' });
+                pb.onclick = function () {
+                    if (!D.paused) {
+                        var an = avs[0] && avs[0].getAnimations ? avs[0].getAnimations({ subtree: true })[0] : null;
+                        D.t = an && an.currentTime != null ? (Number(an.currentTime) / 1000) % 12 : 0; D.paused = true;
+                    } else D.paused = false;
+                    render();
+                };
+                tl.oninput = function () { D.t = Number(tl.value); tlOut.textContent = D.t.toFixed(2) + 's'; if (!D.paused) { D.paused = true; pb.textContent = 'Play'; } syncAnim(); };
+                wrap.appendChild(el('div', { class: 'fd-bar fd-tl' }, el('span', { class: 'sm-note', text: 'Timeline (CSS effects; GIFs keep playing)' }), pb, tl, tlOut));
+
+                var tpl = el('select', { 'aria-label': 'Template' }, el('option', { value: '', text: 'Start from a template' }), SF.TEMPLATES.map(function (t, i) { return el('option', { value: String(i), text: t.name }); }));
+                tpl.onchange = function () { if (tpl.value === '') return; D.f = JSON.parse(JSON.stringify(SF.TEMPLATES[Number(tpl.value)].frame)); D.sel = 0; render(); };
+                var shape = el('select', { 'aria-label': 'Frame shape' }, SF.SHAPES.map(function (s) { return el('option', { value: s, text: 'Shape: ' + s }); }));
+                shape.value = D.f.shape; shape.onchange = function () { D.f.shape = shape.value; paint(); };
+                var follow = el('input', { type: 'checkbox' }); follow.checked = !!D.f.avatarShape; follow.onchange = function () { D.f.avatarShape = follow.checked; paint(); };
+                wrap.appendChild(el('div', { class: 'fd-bar' }, tpl, shape,
+                    el('label', { class: 'sm-check' }, follow, 'Avatar follows shape'),
+                    el('span', { class: 'fd-sep' }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Randomize', onclick: function () { var keep = D.f.image, nf = randomFrame(); if (nf) { D.f = nf; if (keep) { D.f.v = 3; D.f.image = keep; } } D.sel = 0; render(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.light ? 'Dark preview' : 'Light preview', onclick: function () { D.light = !D.light; render(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Copy JSON', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(JSON.stringify(SF.clean(D.f))); toast('Frame JSON copied'); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Paste JSON', onclick: function () {
+                        var t = window.prompt('Paste a frame JSON'); if (!t) return;
+                        try { var f = SF.toV2(JSON.parse(t)); if (!f) throw new Error('bad'); D.f = f; D.sel = 0; render(); } catch (e) { toast('That is not a valid frame.', true); }
+                    } })));
+
+                wrap.appendChild(imageCard());
+
+                var tabs = el('div', { class: 'fd-tabs' });
+                D.f.layers.forEach(function (ly, i) { tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm' + (i === D.sel ? ' is-on' : ''), text: (i + 1) + '. ' + typeName(ly.type), onclick: function () { D.sel = i; render(); } })); });
+                if (D.f.layers.length < 4) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Add layer', onclick: function () { D.f.layers.push(newLayer()); D.sel = D.f.layers.length - 1; render(); } }));
+                tabs.appendChild(el('span', { class: 'fd-sep' }));
+                if (l && D.f.layers.length < 4) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Duplicate', onclick: function () { D.f.layers.splice(D.sel + 1, 0, JSON.parse(JSON.stringify(l))); D.sel++; render(); } }));
+                if (l) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Up', disabled: D.sel === 0, onclick: function () { var a = D.f.layers; a.splice(D.sel - 1, 0, a.splice(D.sel, 1)[0]); D.sel--; render(); } }));
+                if (l) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Down', disabled: D.sel === D.f.layers.length - 1, onclick: function () { var a = D.f.layers; a.splice(D.sel + 1, 0, a.splice(D.sel, 1)[0]); D.sel++; render(); } }));
+                if (l) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete layer', disabled: D.f.layers.length < (D.f.image ? 1 : 2), onclick: function () { D.f.layers.splice(D.sel, 1); render(); } }));
+                wrap.appendChild(tabs);
+
+                if (l) {
+                var ctl = el('div', { class: 'fd-ctl' });
+                var type = el('select', { 'aria-label': 'Layer type' }, LT.map(function (t) { return el('option', { value: t[0], text: t[1] }); }));
+                type.value = l.type;
+                type.onchange = function () { l.type = type.value; l.colors = l.colors.slice(0, MAXC[l.type]); render(); };
+                ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Layer type'), type));
+                var blend = el('select', { 'aria-label': 'Blend mode' }, (SF.BLENDS || ['normal']).map(function (b) { return el('option', { value: b, text: b }); }));
+                blend.value = l.blend || 'normal'; blend.onchange = function () { l.blend = blend.value; paint(); };
+                ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Blend with the other layers'), blend));
+
+                var cr = el('div', { class: 'fd-colors' });
+                l.colors.forEach(function (col, i) {
+                    var inp = el('input', { type: 'color', value: col, 'aria-label': 'Color ' + (i + 1) });
+                    inp.oninput = function () { l.colors[i] = inp.value; paint(); };
+                    cr.appendChild(inp);
+                    if (l.colors.length > 1) cr.appendChild(el('button', { type: 'button', class: 'fd-x', 'aria-label': 'Remove color ' + (i + 1), text: '\u00d7', onclick: function () { l.colors.splice(i, 1); render(); } }));
+                });
+                if (l.colors.length < MAXC[l.type]) cr.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Color', onclick: function () { l.colors.push(l.colors[l.colors.length - 1]); render(); } }));
+                ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Colors (' + l.colors.length + ' of ' + MAXC[l.type] + ')'), cr));
+
+                SHOW[l.type].forEach(function (k) {
+                    if (k === 'dir') {
+                        var rev = el('input', { type: 'checkbox' }); rev.checked = l.dir < 0; rev.onchange = function () { l.dir = rev.checked ? -1 : 1; paint(); };
+                        ctl.appendChild(el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, rev, 'Spin the other way')));
+                        return;
+                    }
+                    var lim = SF.LIMITS[k], out = el('output', { text: String(l[k]) });
+                    var rng = el('input', { type: 'range', min: String(lim[0]), max: String(lim[1]), step: String(CTL[k][1]), value: String(l[k]), 'aria-label': (LBL[l.type] && LBL[l.type][k]) || CTL[k][0] });
+                    rng.oninput = function () { l[k] = Number(rng.value); out.textContent = rng.value; paint(); };
+                    ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, (LBL[l.type] && LBL[l.type][k]) || CTL[k][0], out), rng));
+                });
+                wrap.appendChild(ctl);
+                } else wrap.appendChild(el('p', { class: 'sm-note', text: 'No CSS layers: only the image shows. Add a layer for a ring or glow around it.' }));
+
+                wrap.appendChild(el('div', { class: 'sm-dlg-foot' },
+                    el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { dlg.close(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--primary', text: 'Use this frame', onclick: function () {
+                        var f = SF.clean(D.f); if (!f) { toast('This frame is not valid.', true); return; }
+                        dlg.close(); done(f);
+                    } })));
+                body.appendChild(wrap);
+                paint();
+            }
+            render();
+            if (!dlg.open) dlg.showModal();
+        }
+        /* FRAME DESIGNER END */
+
+        /* ---------- SUPER EMOTES LAB ---------- */
+        var SUPER_MAX_MB = 10;
+        function superUploadMsg(e) {
+            var m = String((e && (e.message || e.error)) || e), code = String((e && (e.statusCode || e.status)) || '');
+            if (/bucket not found/i.test(m)) return 'The store-super bucket does not exist yet. Run supabase-store-super-emotes.sql in Supabase.';
+            if (/exceeded the maximum allowed size|payload too large/i.test(m) || code === '413') return 'The server rejected the size. Run supabase-store-super-emotes.sql (10 MB limit) and check that Supabase > Storage > Settings allows 10 MB or more.';
+            if (/row-level security|not authorized|unauthorized|permission|violates/i.test(m) || code === '403') return 'Upload blocked. Run supabase-store-super-emotes.sql and make sure you are signed in with a store admin account.';
+            if (/mime|not supported|unsupported/i.test(m)) return 'The server does not accept this file type. Images: PNG, GIF, WebP. Sounds: MP3, OGG, WAV, M4A.';
+            if (/failed to fetch|networkerror|load failed/i.test(m)) return 'Network error while uploading. Check your connection and try again.';
+            return m;
+        }
+        async function uploadSuperFile(file, kind) {
+            var BY_TYPE = kind === 'image'
+                ? { 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }
+                : { 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/wave': 'wav', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a' };
+            var MIME = { png: 'image/png', gif: 'image/gif', webp: 'image/webp', mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', m4a: 'audio/mp4' };
+            var ext = BY_TYPE[String(file.type || '').toLowerCase()];
+            if (!ext) { var mm = (kind === 'image' ? /\.(png|gif|webp)$/i : /\.(mp3|ogg|wav|m4a)$/i).exec(file.name || ''); if (mm) ext = mm[1].toLowerCase(); }
+            if (!ext) throw new Error(kind === 'image' ? 'Use a PNG, GIF or WebP image.' : 'Use an MP3, OGG, WAV or M4A sound.');
+            if (file.size > SUPER_MAX_MB * 1024 * 1024) throw new Error('That file is ' + (file.size / 1048576).toFixed(1) + ' MB. The limit is ' + SUPER_MAX_MB + ' MB.');
+            if (kind === 'image') {
+                var dim = await imageSize(file);
+                if (dim.w < 32 || dim.h < 32) throw new Error('The image is too small. Use at least 32 x 32 pixels (256 x 256 is ideal).');
+                if (dim.w > 2048 || dim.h > 2048) throw new Error('The image is too big (' + dim.w + ' x ' + dim.h + '). Use at most 2048 x 2048 pixels.');
+            }
+            var type = MIME[ext];
+            var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+            var path = (kind === 'image' ? 'emotes/' : 'sounds/') + id + '.' + ext;
+            var blob = file.type === type ? file : new Blob([file], { type: type });
+            var r = await sb.storage.from('store-super').upload(path, blob, { contentType: type, cacheControl: '31536000', upsert: false });
+            if (r.error) throw new Error(superUploadMsg(r.error));
+            return sb.storage.from('store-super').getPublicUrl(path).data.publicUrl;
+        }
+
+        function openSuperLab(initial, imageUrl, done) {
+            var SS = window.SpecSuper, dlg = $('dlgSuper'), body = $('superBody');
+            if (!SS) { toast('super-emotes.js is missing from this page.', true); return; }
+            var D = { d: JSON.parse(JSON.stringify(SS.clean(initial) || SS.TEMPLATES[0].design)), img: imageUrl || '', sel: 0 };
+            var stage, stickerImg, empty, previewAudio = null;
+            if (!dlg._sxBound) { dlg._sxBound = true; dlg.addEventListener('close', function () { SS.stop(); }); }
+
+            function stopPreviewAudio() { if (previewAudio) { try { previewAudio.pause(); } catch (e) { /* ignore */ } previewAudio = null; } }
+            function paint() {
+                if (!stickerImg) return;
+                stickerImg.className = ''; stickerImg.removeAttribute('style');
+                if (D.img) stickerImg.src = D.img;
+                SS.decorate(stickerImg, D.d, { noIntro: true });      // the intro / loop / outro only play on Test
+                stickerImg.style.display = D.img ? '' : 'none'; empty.style.display = D.img ? 'none' : '';
+            }
+            function originOf() {
+                var a = stickerImg.getBoundingClientRect(), b = stage.getBoundingClientRect();
+                return D.img ? { x: a.left - b.left + a.width / 2, y: a.top - b.top + a.height / 2 } : null;
+            }
+            function test() {
+                var d = SS.clean(D.d); if (!d) { toast('This design is not valid.', true); return; }
+                paint();
+                SS.play(d, { host: stage, origin: originOf(), force: true, sticker: D.img ? stickerImg : null });
+            }
+            function slider(label, get, set, lo, hi, step, fmtv) {
+                var out = el('output', { text: fmtv ? fmtv(get()) : String(get()) });
+                var rng = el('input', { type: 'range', min: String(lo), max: String(hi), step: String(step), value: String(get()), 'aria-label': label });
+                rng.oninput = function () { set(Number(rng.value)); out.textContent = fmtv ? fmtv(Number(rng.value)) : rng.value; paint(); };
+                return el('div', { class: 'fd-s' }, el('label', null, label, out), rng);
+            }
+            function fileCard(kind) {
+                var isImg = kind === 'image', has = isImg ? !!D.img : !!D.d.sound;
+                var fi = el('input', { type: 'file', accept: isImg ? 'image/png,image/gif,image/webp' : 'audio/mpeg,audio/ogg,audio/wav,audio/mp4,.mp3,.ogg,.wav,.m4a', hidden: true });
+                var btn = el('button', { type: 'button', class: 'sm-btn sm-btn--sm' + (has ? '' : ' sm-btn--primary'), text: has ? (isImg ? 'Replace image' : 'Replace sound') : (isImg ? 'Upload image (PNG, GIF, WebP)' : 'Upload sound (MP3, OGG, WAV, M4A)'), onclick: function () { fi.click(); } });
+                fi.onchange = async function () {
+                    var f = fi.files && fi.files[0]; fi.value = '';
+                    if (!f) return;
+                    btn.disabled = true; btn.textContent = 'Uploading...';
+                    try {
+                        var url = await uploadSuperFile(f, kind);
+                        if (isImg) D.img = url; else { D.d.sound = { src: url, vol: (D.d.sound && D.d.sound.vol) || 0.8 }; if (!SS.clean(D.d).sound) throw new Error('That sound address is not on this project storage. Check SUPABASE_URL in supabase-config.js.'); }
+                        toast(isImg ? 'Image uploaded' : 'Sound uploaded'); render();
+                    } catch (e) { toast(superUploadMsg(e), true); btn.disabled = false; btn.textContent = 'Try again'; }
+                };
+                var row = el('div', { class: 'sx-file' }, btn, fi);
+                if (isImg) {
+                    var link = el('input', { type: 'text', placeholder: '...or paste a live image link (emoji.gg, any https .png / .gif / .webp)', autocomplete: 'off', style: 'flex:1;min-width:230px;min-height:32px;padding:0 10px;background:var(--bg-base);border:1px solid var(--border-hover);border-radius:9px;color:var(--text-primary);font:inherit;font-size:12.5px' });
+                    var useLink = el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Use link', onclick: function () {
+                        var u = link.value.trim();
+                        if (!/^https:\/\/[^\s"'<>]{4,480}\.(?:png|gif|webp)(?:\?[^\s"'<>]*)?$/i.test(u)) { toast('Paste an https link that ends in .png, .gif or .webp (on emoji.gg: right click the emoji > Copy image address).', true); return; }
+                        useLink.disabled = true; useLink.textContent = 'Checking...';
+                        var probe = new Image();
+                        probe.onload = function () { D.img = u; toast('Link works. Using it.'); render(); };
+                        probe.onerror = function () { useLink.disabled = false; useLink.textContent = 'Use link'; toast('That link did not load as an image. Check it opens in a new tab.', true); };
+                        probe.referrerPolicy = 'no-referrer'; probe.src = u;
+                    } });
+                    row.appendChild(link); row.appendChild(useLink);
+                    if (D.img && !/\/storage\/v1\/object\/public\/store-super\//.test(D.img)) row.appendChild(el('small', { text: 'Hosted link: it stays live only while the host keeps it. Uploading is safer.' }));
+                }
+                if (!isImg && has) {
+                    row.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Play', onclick: function () { stopPreviewAudio(); try { previewAudio = new Audio(D.d.sound.src); previewAudio.volume = D.d.sound.vol; previewAudio.play().catch(function () { toast('The browser could not play that file.', true); }); } catch (e) { /* ignore */ } } }));
+                    row.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Remove sound', onclick: function () { stopPreviewAudio(); D.d.sound = null; render(); } }));
+                }
+                var cur = isImg ? D.img : (D.d.sound && D.d.sound.src);
+                if (cur) row.appendChild(el('small', { text: cur.split('/').slice(-1)[0] }));
+                return row;
+            }
+
+            function render() {
+                body.textContent = '';
+                var wrap = el('div', { class: 'fd' });
+                wrap.appendChild(el('h3', { text: 'Super Emotes Lab' }));
+
+                /* live preview stage = a fake chat pane the effects play inside */
+                stage = el('div', { class: 'sx-stage' });
+                stickerImg = el('img', { alt: 'preview', draggable: 'false', referrerpolicy: 'no-referrer' });
+                empty = el('div', { class: 'sx-empty', text: 'Upload the emote image first (PNG, GIF or WebP, 10 MB max).' });
+                stage.appendChild(el('div', { class: 'sx-bubble' }, el('span', { class: 'sx-name', text: 'A member' }), stickerImg, empty));
+                wrap.appendChild(stage);
+                wrap.appendChild(el('div', { class: 'sx-actions' },
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--primary', text: 'Test effects + sound', onclick: test }),
+                    el('button', { type: 'button', class: 'sm-btn', text: 'Stop', onclick: function () { SS.stop(); stopPreviewAudio(); } }),
+                    el('span', { class: 'sm-note', text: 'Effects and animations also show with Reduce motion on. Only Ultra reduce motion hides them (members then see just the sticker and hear the sound). The Test button ignores your mute and motion settings.' })));
+
+                /* template */
+                var tsel = el('select', { 'aria-label': 'Start from a template' }, [el('option', { value: '', text: 'Start from a template...' })].concat(SS.TEMPLATES.map(function (t) { return el('option', { value: t.id, text: t.name }); })));
+                tsel.onchange = function () {
+                    var t = SS.TEMPLATES.filter(function (x) { return x.id === tsel.value; })[0]; if (!t) return;
+                    var keepSound = D.d.sound; D.d = JSON.parse(JSON.stringify(t.design)); D.d.sound = keepSound; D.sel = 0; render();
+                };
+                wrap.appendChild(el('div', { class: 'fd-bar' }, tsel));
+
+                /* image + sound */
+                var files = el('div', { class: 'fd-ctl', style: 'margin-bottom:12px' },
+                    el('div', { class: 'fd-s fd-wide' }, el('label', null, 'Emote image'), fileCard('image')),
+                    el('div', { class: 'fd-s fd-wide' }, el('label', null, 'Sound effect (optional, plays when it is sent)'), fileCard('sound')));
+                if (D.d.sound) files.appendChild(slider('Sound volume', function () { return D.d.sound.vol; }, function (v) { D.d.sound.vol = v; }, 0.05, 1, 0.05, function (v) { return Math.round(v * 100) + '%'; }));
+                wrap.appendChild(files);
+
+                /* sticker style */
+                var hl = el('input', { type: 'color', value: D.d.hl, 'aria-label': 'Highlight color' });
+                hl.oninput = function () { D.d.hl = hl.value; paint(); };
+                function animSel(label, list, key) {
+                    var sel = el('select', { 'aria-label': label }, list.map(function (a) { return el('option', { value: a[0], text: a[1] }); })); sel.value = D.d[key];
+                    sel.onchange = function () { D.d[key] = sel.value; test(); };
+                    return el('div', { class: 'fd-s' }, el('label', null, label), sel);
+                }
+                var impact = el('input', { type: 'checkbox' }); impact.checked = !!D.d.impact; impact.onchange = function () { D.d.impact = impact.checked; test(); };
+                var glow = el('input', { type: 'checkbox' }); glow.checked = D.d.glow; glow.onchange = function () { D.d.glow = glow.checked; paint(); };
+                wrap.appendChild(el('div', { class: 'fd-ctl', style: 'margin-bottom:12px' },
+                    slider('Sticker size (px)', function () { return D.d.size; }, function (v) { D.d.size = v; }, 48, 128, 2),
+                    slider('Effects last (seconds)', function () { return D.d.dur; }, function (v) { D.d.dur = v; }, 1000, 6000, 250, function (v) { return (v / 1000).toFixed(2).replace(/\.?0+$/, '') + 's'; }),
+                    el('div', { class: 'fd-s' }, el('label', null, 'Highlight color (picker glow + sticker glow)'), el('div', { class: 'fd-colors' }, hl)),
+                    animSel('Intro (when it appears)', SS.INTROS, 'intro'),
+                    animSel('Loop (while the effects run)', SS.LOOPS, 'loop'),
+                    animSel('Outro (closing move, then it settles back)', SS.OUTROS, 'outro'),
+                    el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, impact, 'Impact on landing: shockwave + screen shake (Zoom slam, Dash in, Drop)')),
+                    el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, glow, 'Soft glow in the highlight color (off = clean sticker, no outline)'))));
+
+                /* effect layers */
+                var fx = D.d.fx;
+                if (D.sel >= fx.length) D.sel = Math.max(0, fx.length - 1);
+                var tabs = el('div', { class: 'fd-tabs' });
+                fx.forEach(function (l, i) {
+                    var label = (SS.FX.filter(function (x) { return x[0] === l.type; })[0] || [0, l.type])[1].replace(/ \(.*\)$/, '');
+                    tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm' + (i === D.sel ? ' is-on' : ''), text: (i + 1) + '. ' + label, onclick: function () { D.sel = i; render(); } }));
+                });
+                if (fx.length < SS.LIMITS.layers) tabs.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Add effect', onclick: function () { fx.push({ type: 'burst', colors: ['#ffffff', D.d.hl], amount: 6, speed: 5, delay: 0 }); D.sel = fx.length - 1; render(); } }));
+                wrap.appendChild(tabs);
+                if (fx.length) {
+                    var l = fx[D.sel];
+                    var type = el('select', { 'aria-label': 'Effect type' }, SS.FX.map(function (x) { return el('option', { value: x[0], text: x[1] }); })); type.value = l.type;
+                    type.onchange = function () { l.type = type.value; render(); };
+                    var cols = el('div', { class: 'fd-colors' });
+                    l.colors.forEach(function (c, ci) {
+                        var inp = el('input', { type: 'color', value: c, 'aria-label': 'Color ' + (ci + 1) }); inp.oninput = function () { l.colors[ci] = inp.value; };
+                        cols.appendChild(inp);
+                        if (l.colors.length > 1) cols.appendChild(el('button', { type: 'button', class: 'fd-x', text: '\u00d7', 'aria-label': 'Remove color', onclick: function () { l.colors.splice(ci, 1); render(); } }));
+                    });
+                    if (l.colors.length < SS.LIMITS.colors) cols.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Color', onclick: function () { l.colors.push('#ffffff'); render(); } }));
+                    wrap.appendChild(el('div', { class: 'fd-ctl', style: 'margin-top:12px' },
+                        el('div', { class: 'fd-s' }, el('label', null, 'Effect'), type),
+                        el('div', { class: 'fd-s' }, el('label', null, 'Colors'), cols),
+                        slider('Amount / strength', function () { return l.amount; }, function (v) { l.amount = v; }, 1, 10, 1),
+                        slider('Speed', function () { return l.speed; }, function (v) { l.speed = v; }, 1, 10, 1),
+                        slider('Starts after (ms)', function () { return l.delay; }, function (v) { l.delay = v; }, 0, 2000, 50),
+                        el('div', { class: 'fd-s' }, el('button', { type: 'button', class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Remove this effect', onclick: function () { fx.splice(D.sel, 1); render(); } }))));
+                } else wrap.appendChild(el('p', { class: 'sm-note', text: 'No effects yet: the emote is only a sticker (plus its sound). Press + Add effect, or pick a template above.' }));
+
+                wrap.appendChild(el('div', { class: 'sm-dlg-foot' },
+                    el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { SS.stop(); stopPreviewAudio(); dlg.close(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--primary', text: 'Use this super emote', onclick: function () {
+                        var c = SS.clean(D.d);
+                        if (!c) { toast('This super emote is not valid.', true); return; }
+                        if (!/^https:\/\//i.test(D.img || '')) { toast('Upload the emote image (or put an https image link in the item form first).', true); return; }
+                        SS.stop(); stopPreviewAudio(); dlg.close(); done({ design: c, image: D.img });
+                    } })));
+                body.appendChild(wrap);
+                paint();
+            }
+            render();
+            if (!dlg.open) dlg.showModal();
+        }
+        /* SUPER EMOTES LAB END */
+
+        /* ---------- TITLE ICONS (Flaticon downloads) ---------- */
+        async function uploadTitleIcon(file) {
+            var EXT = { 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' }, MIME = { png: 'image/png', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml' };
+            var ext = EXT[String(file.type || '').toLowerCase()];
+            if (!ext) { var m = /\.(png|webp|gif|svg)$/i.exec(file.name || ''); if (m) ext = m[1].toLowerCase(); }
+            if (!ext) throw new Error('Use a PNG, SVG, WebP or GIF icon (Flaticon gives you PNG or SVG).');
+            if (file.size > 2 * 1024 * 1024) throw new Error('That icon is ' + (file.size / 1048576).toFixed(1) + ' MB. The limit is 2 MB. Download a smaller size (128 px is plenty).');
+            if (ext !== 'svg') {
+                var d = await imageSize(file);
+                if (d.w < 16 || d.h < 16) throw new Error('The icon is too small. Use at least 16 x 16 pixels (128 x 128 is ideal).');
+                if (d.w > 1024 || d.h > 1024) throw new Error('The icon is too big. Use at most 1024 x 1024 pixels (128 x 128 is ideal).');
+            }
+            var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+            var path = 'icons/' + id + '.' + ext, type = MIME[ext];
+            var blob = file.type === type ? file : new Blob([file], { type: type });
+            var r = await sb.storage.from('store-icons').upload(path, blob, { contentType: type, cacheControl: '31536000', upsert: false });
+            if (r.error) throw r.error;
+            return sb.storage.from('store-icons').getPublicUrl(path).data.publicUrl;
+        }
+        function iconUploadMsg(e) {
+            var m = String((e && (e.message || e.error)) || e), code = String((e && (e.statusCode || e.status)) || '');
+            if (/bucket not found/i.test(m)) return 'The store-icons bucket does not exist yet. Run supabase-store-title-icons.sql in Supabase.';
+            if (/row-level security|not authorized|unauthorized|permission|violates/i.test(m) || code === '403') return 'Upload blocked. Run supabase-store-title-icons.sql and sign in with a store admin account.';
+            if (/exceeded the maximum allowed size|too large/i.test(m) || code === '413') return 'The server rejected the size (limit is 2 MB). Run supabase-store-title-icons.sql if you have not.';
+            if (/mime|not supported|unsupported/i.test(m)) return 'The server only accepts PNG, SVG, WebP and GIF icons. Run supabase-store-title-icons.sql if this file is one of those.';
+            return m;
+        }
+
+        /* ---------- TITLE EDITOR ---------- */
+        function openTitleEditor(initial, done) {
+            var ST = window.SpecTitles, dlg = $('dlgTitle'), body = $('titleBody');
+            if (!ST) { toast('name-titles.js is missing from this page.', true); return; }
+            var D = { f: JSON.parse(JSON.stringify(ST.clean(initial) || ST.TEMPLATES[0].title)), light: false };
+            var slots = [];
+            function paint() { slots.forEach(function (s) { ST.apply(s, D.f); }); }
+
+            function slider(label, key, step) {
+                var lim = ST.LIMITS[key], out = el('output', { text: String(D.f[key]) });
+                var rng = el('input', { type: 'range', min: String(lim[0]), max: String(lim[1]), step: String(step), value: String(D.f[key]), 'aria-label': label });
+                rng.oninput = function () { D.f[key] = Number(rng.value); out.textContent = rng.value; paint(); };
+                return el('div', { class: 'fd-s' }, el('label', null, label, out), rng);
+            }
+            function pick(label, key, opts, after) {
+                var s = el('select', { 'aria-label': label }, opts.map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+                s.value = String(D.f[key] == null ? '' : D.f[key]);
+                s.onchange = function () { D.f[key] = key === 'weight' ? Number(s.value) : s.value; if (after) after(); paint(); };
+                return el('div', { class: 'fd-s' }, el('label', null, label), s);
+            }
+            function iconPicker(label, key) {
+                var prev = el('span', { class: 'sm-iconprev' }), file = el('input', { type: 'file', accept: 'image/png,image/svg+xml,image/webp,image/gif,.png,.svg,.webp,.gif', hidden: true });
+                function paintI() {
+                    prev.textContent = '';
+                    if (D.f[key] && ST.iconOk(D.f[key])) { var im = el('img', { src: D.f[key], alt: '', referrerpolicy: 'no-referrer' }); im.onerror = function () { im.replaceWith(document.createTextNode('?')); }; prev.appendChild(im); }
+                    else prev.appendChild(document.createTextNode('none'));
+                }
+                var lnk = el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Flaticon link' });
+                lnk.onclick = function () {
+                    var t = window.prompt('Paste a Flaticon link: the image link (cdn-icons-png.flaticon.com/.../123456.png) or the icon page link (flaticon.com/free-icon/name_123456).');
+                    if (!t) return;
+                    var u = ST.iconFromLink(t);
+                    if (!u) { toast('That is not a Flaticon link I can use. Paste the image link or the icon page link.', true); return; }
+                    D.f[key] = u; toast('Icon link set'); render();
+                };
+                var up = el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.f[key] ? 'Replace' : 'Upload icon' });
+                up.onclick = function () { file.click(); };
+                file.onchange = async function () {
+                    var fl = file.files && file.files[0]; file.value = '';
+                    if (!fl) return;
+                    up.disabled = true; up.textContent = 'Uploading...';
+                    try { D.f[key] = await uploadTitleIcon(fl); toast('Icon uploaded'); render(); }
+                    catch (e) { toast(iconUploadMsg(e), true); up.disabled = false; up.textContent = D.f[key] ? 'Replace' : 'Upload icon'; }
+                };
+                paintI();
+                return el('div', { class: 'fd-s' }, el('label', null, label), el('div', { class: 'fd-imgrow' }, prev, up, lnk, file,
+                    D.f[key] ? el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Remove', onclick: function () { D.f[key] = null; render(); } }) : null));
+            }
+            function check(label, key) {
+                var c = el('input', { type: 'checkbox' }); c.checked = !!D.f[key];
+                c.onchange = function () { D.f[key] = c.checked; paint(); };
+                return el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, c, label));
+            }
+
+            function render() {
+                body.textContent = ''; slots = [];
+                var wrap = el('div', { class: 'fd' });
+                wrap.appendChild(el('h3', { text: 'Title editor' }));
+
+                var stage = el('div', { class: 'fd-stage fd-stage--col' + (D.light ? ' is-light' : '') });
+                [14, 20, 30].forEach(function (px) {
+                    var slot = el('span', { class: 'sm-titleslot' });
+                    slots.push(slot);
+                    stage.appendChild(el('div', { class: 'sm-titlerow', style: 'font-size:' + px + 'px' }, el('strong', { text: 'Username' }), slot));
+                });
+                wrap.appendChild(stage);
+
+                var tpl = el('select', { 'aria-label': 'Template' }, el('option', { value: '', text: 'Start from a template' }), ST.TEMPLATES.map(function (t, i) { return el('option', { value: String(i), text: t.name }); }));
+                tpl.onchange = function () { if (tpl.value === '') return; D.f = JSON.parse(JSON.stringify(ST.TEMPLATES[Number(tpl.value)].title)); render(); };
+                wrap.appendChild(el('div', { class: 'fd-bar' }, tpl, el('span', { class: 'fd-sep' }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: D.light ? 'Dark preview' : 'Light preview', onclick: function () { D.light = !D.light; render(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Copy JSON', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(JSON.stringify(ST.clean(D.f))); toast('Title JSON copied'); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Paste JSON', onclick: function () {
+                        var t = window.prompt('Paste a title JSON'); if (!t) return;
+                        try { var f = ST.clean(JSON.parse(t)); if (!f) throw new Error('bad'); D.f = f; render(); } catch (e) { toast('That is not a valid title.', true); }
+                    } })));
+
+                var ctl = el('div', { class: 'fd-ctl' });
+
+                var txt = el('input', { type: 'text', maxlength: String(ST.TEXT_MAX), placeholder: 'Title text', 'aria-label': 'Title text', autocomplete: 'off' });
+                txt.value = D.f.text;
+                txt.oninput = function () { D.f.text = txt.value; paint(); };
+                ctl.appendChild(el('div', { class: 'fd-s fd-wide' }, el('label', null, 'Text (max ' + ST.TEXT_MAX + ' characters)'), txt));
+
+                ctl.appendChild(pick('Font', 'font', Object.keys(ST.FONTS).map(function (k) { return [k, ST.FONTS[k][0]]; })));
+                ctl.appendChild(pick('Weight', 'weight', [[400, 'Regular'], [500, 'Medium'], [600, 'Semi-bold'], [700, 'Bold'], [800, 'Extra bold'], [900, 'Black']].map(function (w) { return [String(w[0]), w[1]]; })));
+                ctl.appendChild(check('Italic', 'italic'));
+                ctl.appendChild(check('ALL CAPS', 'caps'));
+                ctl.appendChild(slider('Letter spacing', 'spacing', 0.5));
+                ctl.appendChild(slider('Size', 'size', 0.05));
+
+                /* colors */
+                var cols = el('div', { class: 'fd-colors' });
+                D.f.colors.forEach(function (c, i) {
+                    var ci = el('input', { type: 'color', value: c, 'aria-label': 'Color ' + (i + 1) });
+                    ci.oninput = function () { D.f.colors[i] = ci.value; paint(); };
+                    cols.appendChild(ci);
+                    if (D.f.colors.length > 1) cols.appendChild(el('button', { type: 'button', class: 'fd-x', text: '×', 'aria-label': 'Remove color ' + (i + 1), onclick: function () { D.f.colors.splice(i, 1); if (D.f.colors.length < 2) D.f.fill = 'solid'; render(); } }));
+                });
+                if (D.f.colors.length < 5) cols.appendChild(el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: '+ Color', onclick: function () { D.f.colors.push(D.f.colors[D.f.colors.length - 1]); render(); } }));
+                ctl.appendChild(el('div', { class: 'fd-s fd-wide' }, el('label', null, 'Colors (up to 5)'), cols));
+
+                ctl.appendChild(pick('Fill', 'fill', [['solid', 'Solid (first color)'], ['gradient', 'Gradient (needs 2+ colors)']]));
+                ctl.appendChild(slider('Gradient angle (deg)', 'angle', 5));
+                ctl.appendChild(slider('Gradient flow (seconds, 0 = still)', 'flow', 0.5));
+
+                function fxPick(label, key) {
+                    var s = el('select', { 'aria-label': label }, el('option', { value: 'none', text: 'None' }),
+                        ST.EFFECT_GROUPS.map(function (g) { return el('optgroup', { label: g[0] }, Object.keys(g[1]).map(function (k) { return el('option', { value: k, text: g[1][k] }); })); }));
+                    s.value = D.f[key] || 'none';
+                    s.onchange = function () { D.f[key] = s.value; paint(); };
+                    return el('div', { class: 'fd-s' }, el('label', null, label), s);
+                }
+                ctl.appendChild(fxPick('Effect 1', 'effect'));
+                ctl.appendChild(fxPick('Effect 2', 'effect2'));
+                ctl.appendChild(fxPick('Effect 3', 'effect3'));
+                ctl.appendChild(el('p', { class: 'sm-note fd-wide', text: 'Effects from different groups stack. Two effects from the same group (for example Float and Bounce) replace each other, the later slot wins.' }));
+                ctl.appendChild(slider('Glow strength', 'strength', 5));
+                ctl.appendChild(slider('Effect speed (seconds per loop)', 'speed', 0.1));
+
+                ctl.appendChild(pick('Decoration', 'deco', Object.keys(ST.DECOS).map(function (k) { return [k, ST.DECOS[k]]; })));
+                ctl.appendChild(iconPicker('Icon before the text', 'iconL'));
+                ctl.appendChild(iconPicker('Icon after the text', 'iconR'));
+                ctl.appendChild(slider('Icon size', 'iconSize', 0.05));
+                if (D.f.left || D.f.right) ctl.appendChild(el('div', { class: 'fd-s' }, el('label', null, 'Old text symbol (' + (D.f.left || '') + ' ' + (D.f.right || '') + ')'),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--sm', text: 'Remove it', onclick: function () { D.f.left = ''; D.f.right = ''; render(); } })));
+
+                var oc = el('input', { type: 'checkbox' }); oc.checked = !!D.f.outline;
+                var oci = el('input', { type: 'color', value: D.f.outline || '#000000', 'aria-label': 'Outline color' });
+                oc.onchange = function () { D.f.outline = oc.checked ? oci.value : null; paint(); };
+                oci.oninput = function () { if (oc.checked) { D.f.outline = oci.value; paint(); } };
+                ctl.appendChild(el('div', { class: 'fd-s' }, el('label', { class: 'sm-check' }, oc, 'Outline'), oci));
+                wrap.appendChild(ctl);
+
+                wrap.appendChild(el('div', { class: 'sm-dlg-foot' },
+                    el('button', { type: 'button', class: 'sm-btn', text: 'Cancel', onclick: function () { dlg.close(); } }),
+                    el('button', { type: 'button', class: 'sm-btn sm-btn--primary', text: 'Use this title', onclick: function () {
+                        var t = ST.clean(D.f); if (!t) { toast('Type the title text first.', true); return; }
+                        dlg.close(); done(t);
+                    } })));
+                body.appendChild(wrap);
+                paint();
+            }
+            render();
+            if (!dlg.open) dlg.showModal();
+        }
+        /* TITLE EDITOR END */
+
+        /* ---------- QUESTS (task manager) ---------- */
+        var QKINDS = [['normal', 'Normal'], ['daily', 'Daily'], ['weekly', 'Weekly']];
+        var QDIFF = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+        var QMETRICS = [
+            ['online_minutes', 'Minutes spent on the site', '⏱️'],
+            ['daily_checkin', 'Daily check-ins', '✅'],
+            ['send_messages', 'Chat messages sent', '💬'],
+            ['buy_item', 'Items bought in the store', '🛍️'],
+            ['spend_credits', 'APEX Credits spent in the store', '💰'],
+            ['equip_frame', 'Frames equipped', '🖼️'],
+            ['visit_store', 'Open the Store (target is always 1)', '👀'],
+            ['visit_profile', 'Open the Profile (target is always 1)', '🙂'],
+            ['visit_chats', 'Open Chats (target is always 1)', '📨'],
+            ['send_credits', 'Send credits to someone (easy to farm, use small rewards)', '💸'],
+            ['redeem_code', 'Redeem a code (easy to farm, use small rewards)', '🎟️']
+        ];
+        function metricInfo(k) {
+            for (var i = 0; i < QMETRICS.length; i++) if (QMETRICS[i][0] === k) return { label: QMETRICS[i][1], icon: QMETRICS[i][2] };
+            return { label: k, icon: '❔' };
+        }
+        var QUEST_FIELDS = [
+            { key: 'kind', label: 'Board', type: 'select', options: QKINDS },
+            { key: 'difficulty', label: 'Difficulty', type: 'select', options: [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']], hint: 'A board shows one easy, one medium and one hard quest when it can.' },
+            { key: 'title', label: 'Title (max 60 characters)', required: true, wide: true, placeholder: 'Hang out' },
+            { key: 'description', label: 'Description (tell members what to do)', type: 'textarea', wide: true, max: 160, nullable: true },
+            { key: 'metric', label: 'What it counts', type: 'select', wide: true, options: QMETRICS.map(function (m) { return [m[0], m[2] + ' ' + m[1]]; }), hint: 'Progress is counted automatically. "Open ..." quests always have a target of 1.' },
+            { key: 'target', label: 'Target amount', type: 'number', required: true },
+            { key: 'reward_ac', label: 'Reward: APEX Credits', type: 'number', required: true },
+            { key: 'reward_xp', label: 'Reward: XP', type: 'number', required: true },
+            { key: 'sort', label: 'Sort order', type: 'number' },
+            { key: 'active', label: 'Active (can appear on boards)', type: 'checkbox', wide: true }
+        ];
+        function clampInt(v, lo, hi) { v = Math.floor(Number(v)); if (!isFinite(v)) v = lo; return Math.min(hi, Math.max(lo, v)); }
+        function questPayload(o) {
+            var title = String(o.title || '').trim();
+            if (!title) throw new Error('Give the quest a title.');
+            if (title.length > 60) throw new Error('The title can be at most 60 characters.');
+            var target = clampInt(o.target, 1, 100000);
+            if (String(o.metric).indexOf('visit_') === 0) target = 1;
+            return { kind: o.kind, title: title, description: String(o.description || '').trim().slice(0, 160), metric: o.metric, target: target,
+                reward_ac: clampInt(o.reward_ac, 0, 100000), reward_xp: clampInt(o.reward_xp, 0, 100000), difficulty: o.difficulty,
+                sort: clampInt(o.sort, -100000, 100000), active: !!o.active };
+        }
+        function editQuest(q, asCopy) {
+            var isNew = !q || asCopy;
+            var base = q
+                ? { kind: q.kind, difficulty: q.difficulty, title: asCopy ? q.title + ' (copy)' : q.title, description: q.description, metric: q.metric, target: q.target, reward_ac: q.reward_ac, reward_xp: q.reward_xp, sort: q.sort, active: q.active }
+                : { kind: S.qKind, difficulty: 'easy', metric: 'online_minutes', target: 5, reward_ac: 3, reward_xp: 5, sort: 0, active: true };
+            openForm({ title: isNew ? 'New quest' : 'Edit ' + q.title, fields: QUEST_FIELDS, values: base,
+                onSave: async function (o) {
+                    var row = questPayload(o);
+                    var r = await (isNew ? sb.from('quest_defs').insert(row) : sb.from('quest_defs').update(row).eq('id', q.id));
+                    if (r.error) throw r.error;
+                    S.qKind = row.kind; toast('Quest saved'); await reload();
+                } });
+        }
+        function boardPay(list, st) {
+            // what one full board (one quest per difficulty) pays on average
+            var ac = 0, xp = 0;
+            ['easy', 'medium', 'hard'].forEach(function (d) {
+                var g = list.filter(function (q) { return q.active && q.difficulty === d; });
+                if (!g.length) return;
+                ac += g.reduce(function (a, q) { return a + q.reward_ac; }, 0) / g.length;
+                xp += g.reduce(function (a, q) { return a + q.reward_xp; }, 0) / g.length;
+            });
+            return { ac: Math.round(ac), xp: Math.round(xp) };
+        }
+        async function renderQuests(root) {
+            var tok = S.rtok;
+            root.appendChild(el('div', { class: 'sm-note', text: 'Loading quests...' }));
+            var r = await Promise.all([
+                sb.from('quest_defs').select('*').order('sort', { ascending: true }).order('created_at', { ascending: true }),
+                sb.rpc('quest_admin_live'),
+                sb.rpc('quest_admin_stats')
+            ]);
+            if (tok !== S.rtok) return;
+            root.textContent = '';
+            if (r[0].error) return root.appendChild(el('div', { class: 'sm-empty', text: 'Quests are not set up yet. Run supabase-store-quests.sql, then supabase-store-xp-admin.sql, in the Supabase SQL Editor.' }));
+            var all = r[0].data || [], st = S.settings || {};
+            var live = {}, ends = {}, stats = {};
+            if (!r[1].error) (r[1].data || []).forEach(function (x) { live[x.quest_id] = x.kind; ends[x.kind] = x.ends_at; });
+            if (!r[2].error) (r[2].data || []).forEach(function (x) { stats[x.quest_id] = x; });
+            var adminSql = !r[1].error;
+
+            var claims7 = 0, claimsAll = 0;
+            Object.keys(stats).forEach(function (k) { claims7 += Number(stats[k].claims_7d) || 0; claimsAll += Number(stats[k].claims) || 0; });
+            root.appendChild(el('div', { class: 'sm-stats' },
+                el('div', { class: 'sm-stat' }, el('strong', { text: String(all.filter(function (q) { return q.active; }).length) }), el('span', { text: 'Active quests' })),
+                el('div', { class: 'sm-stat' }, el('strong', { text: fmt(claims7) }), el('span', { text: 'Quests claimed, last 7 days' })),
+                el('div', { class: 'sm-stat' }, el('strong', { text: fmt(claimsAll) }), el('span', { text: 'Quests claimed, all time' }))));
+
+            root.appendChild(el('div', { class: 'sm-bar' },
+                el('button', { class: 'sm-btn sm-btn--primary', text: 'New quest', onclick: function () { editQuest(null); } }),
+                el('button', { class: 'sm-btn', text: 'Refresh normal board now', disabled: !adminSql, onclick: async function () {
+                    if (!confirmIt('Start a fresh NORMAL board right now? Everyone gets a new set of 3 quests and the timer restarts. Progress on the old normal board is lost.')) return;
+                    await saveSettings({ quest_epoch: new Date().toISOString() }).catch(fail);
+                } }),
+                el('button', { class: 'sm-btn', text: 'Shuffle all boards', disabled: !adminSql, onclick: async function () {
+                    if (!confirmIt('Re-pick the quests on the normal, daily and weekly boards? Progress already made on quests that come back is kept.')) return;
+                    await saveSettings({ quest_seed: ((Number(st.quest_seed) || 0) + 1) % 1000000 }).catch(fail);
+                } })));
+            if (!adminSql) root.appendChild(el('div', { class: 'sm-warn', text: 'Run supabase-store-xp-admin.sql to unlock the LIVE badges, claim counts and the two board buttons.' }));
+
+            var tabs = el('nav', { class: 'sm-tabs', role: 'tablist', 'aria-label': 'Quest boards' });
+            QKINDS.forEach(function (k) {
+                var n = all.filter(function (q) { return q.kind === k[0] && q.active; }).length;
+                tabs.appendChild(el('button', { class: 'sm-tab', role: 'tab', 'aria-selected': String(S.qKind === k[0]), text: k[1] + ' (' + n + ')', onclick: function () { S.qKind = k[0]; render(); } }));
+            });
+            root.appendChild(tabs);
+
+            var list = all.filter(function (q) { return q.kind === S.qKind; });
+            var active = list.filter(function (q) { return q.active; });
+            var pay = boardPay(list, st);
+            var line = (S.qKind === 'normal' ? 'New board every ' + (st.quest_normal_hours || 5) + ' hours.' : S.qKind === 'daily' ? 'New board every day at midnight UTC.' : 'New board every Monday at midnight UTC.') +
+                (ends[S.qKind] ? ' Current board ends ' + when(ends[S.qKind]) + '.' : '') +
+                ' A full board pays about ' + fmt(pay.ac) + ' credits + ' + fmt(pay.xp) + ' XP.' +
+                (S.qKind === 'normal' ? ' That is about ' + fmt(Math.round(pay.ac * 24 / (st.quest_normal_hours || 5))) + ' credits a day if someone clears every board.' : '');
+            root.appendChild(el('p', { class: 'sm-note', style: 'margin-bottom:12px', text: line }));
+
+            if (active.length < 3) root.appendChild(el('div', { class: 'sm-warn', text: 'Only ' + active.length + ' active quest' + (active.length === 1 ? '' : 's') + ' on this board, so members will see fewer than 3. Add more.' }));
+            else {
+                var missing = ['easy', 'medium', 'hard'].filter(function (d) { return !active.some(function (q) { return q.difficulty === d; }); });
+                if (missing.length) root.appendChild(el('div', { class: 'sm-warn', text: 'No active ' + missing.join(' or ') + ' quest here, so a slot is filled from the other difficulties.' }));
+            }
+
+            var box = el('div', { class: 'sm-list' });
+            if (!list.length) box.appendChild(el('div', { class: 'sm-empty', text: 'No ' + S.qKind + ' quests yet.' }));
+            list.forEach(function (q) {
+                var m = metricInfo(q.metric), sx = stats[q.id];
+                box.appendChild(el('div', { class: 'sm-row' + (q.active ? '' : ' is-off') },
+                    el('div', { class: 'sm-thumb', text: m.icon }),
+                    el('div', { class: 'sm-main' },
+                        el('strong', { text: q.title }),
+                        el('div', { class: 'sm-meta' },
+                            el('span', { class: 'sm-badge sm-badge--' + q.difficulty, text: QDIFF[q.difficulty] || q.difficulty }),
+                            live[q.id] ? el('span', { class: 'sm-badge sm-badge--live', text: 'LIVE NOW' }) : null,
+                            el('span', { text: fmt(q.target) + ' · ' + m.label + ' · +' + fmt(q.reward_ac) + ' credits · +' + fmt(q.reward_xp) + ' XP' + (sx ? ' · claimed ' + fmt(sx.claims) + ' (7d: ' + fmt(sx.claims_7d) + ')' : '') + (q.active ? '' : ' · off') })),
+                        q.description ? el('div', { class: 'sm-note', style: 'margin-top:4px', text: q.description }) : null),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Edit', onclick: function () { editQuest(q); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Copy', onclick: function () { editQuest(q, true); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: q.active ? 'Turn off' : 'Turn on', onclick: async function () { var u = await sb.from('quest_defs').update({ active: !q.active }).eq('id', q.id); if (u.error) return fail(u.error); reload(); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete "' + q.title + '"? Its progress and claim history are deleted too. Turn it off instead to keep them.')) return; var d = await sb.from('quest_defs').delete().eq('id', q.id); if (d.error) return fail(d.error); reload(); } }))));
+            });
+            root.appendChild(box);
+        }
+
+        /* ---------- XP & LEVELS ---------- */
+        async function renderXp(root) {
+            var tok = S.rtok, st = S.settings || {};
+            var per = Number(st.xp_seconds_per_xp) || 180;
+
+            var user = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'xUser' });
+            var amt = el('input', { type: 'number', placeholder: '50 or -20', id: 'xAmt' });
+            var why = el('input', { type: 'text', placeholder: 'Event winner, bug report, correction...', id: 'xWhy', maxlength: '80' });
+            var out = el('div', { class: 'sm-result', hidden: true });
+            function showInfo(d, prefix) {
+                var x = d.xp || {};
+                out.hidden = false;
+                out.textContent = (prefix || '') + '@' + d.username + ' · level ' + x.level + ' · ' + fmt(x.xp) + ' XP (' + fmt(x.into) + ' / ' + fmt(x.need) + ' to the next level)' +
+                    (d.balance != null ? ' · ' + fmt(d.balance) + ' credits' : '') + ' · time-on-site XP today ' + fmt(x.day_xp) + (Number(x.day_cap) > 0 ? ' / ' + fmt(x.day_cap) : '');
+            }
+            var look = el('button', { class: 'sm-btn', type: 'button', text: 'Look up', onclick: async function () {
+                if (!user.value.trim()) return toast('Enter a username.', true);
+                look.disabled = true;
+                try { var r = await sb.rpc('store_admin_xp_lookup', { p_username: user.value.trim() }); if (r.error) throw r.error; showInfo(r.data); } catch (e) { fail(e); } finally { look.disabled = false; }
+            } });
+            var go = el('button', { class: 'sm-btn sm-btn--primary', type: 'button', text: 'Apply', onclick: async function () {
+                var n = Math.trunc(Number(amt.value));
+                if (!user.value.trim() || !n) return toast('Enter a username and an amount.', true);
+                if (!confirmIt((n > 0 ? 'Give ' : 'Remove ') + fmt(Math.abs(n)) + ' XP ' + (n > 0 ? 'to ' : 'from ') + user.value.trim() + '?')) return;
+                go.disabled = true;
+                try {
+                    var r = await sb.rpc('store_admin_grant_xp', { p_username: user.value.trim(), p_amount: n, p_reason: why.value.trim() });
+                    if (r.error) throw r.error;
+                    toast('@' + r.data.username + ' is now level ' + r.data.xp.level + ' with ' + fmt(r.data.xp.xp) + ' XP');
+                    showInfo(r.data, 'Done: ');
+                    amt.value = ''; why.value = '';
+                    loadLog();
+                } catch (e) { fail(e); } finally { go.disabled = false; }
+            } });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Give or remove XP' }),
+                el('p', { class: 'sm-note', text: 'Use it for event winners, rewards or fixes. A minus number removes XP (never below 0). Positive grants also send the member a notice when your notices table exists. Every change is logged below.' }),
+                el('div', { class: 'sm-form', style: 'margin-top:12px' },
+                    el('div', { class: 'sm-field' }, el('label', { for: 'xUser', text: 'Username' }), user),
+                    el('div', { class: 'sm-field' }, el('label', { for: 'xAmt', text: 'XP amount' }), amt),
+                    el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'xWhy', text: 'Reason (saved in the log)' }), why)),
+                el('div', { class: 'sm-dlg-foot' }, look, go),
+                out));
+
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'XP settings' }),
+                el('p', { class: 'sm-note', text: '1 XP for every ' + (Math.round(per / 60 * 10) / 10) + ' minutes of activity · ' + (Number(st.xp_daily_cap) > 0 ? 'max ' + fmt(st.xp_daily_cap) + ' XP a day from time on site' : 'no daily cap') + ' · normal quests refresh every ' + (st.quest_normal_hours || 5) + ' hours. Quest XP never counts toward the daily cap.' }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit XP settings', onclick: function () {
+                    openForm({ title: 'XP settings', values: st, fields: [
+                        { key: 'xp_seconds_per_xp', label: 'Seconds of activity per 1 XP', type: 'number', required: true, hint: '30 to 3600. 180 = 1 XP every 3 minutes.' },
+                        { key: 'xp_daily_cap', label: 'Max XP per day from time on site', type: 'number', required: true, hint: '0 = no limit. Stops idle tabs from farming.' },
+                        { key: 'quest_normal_hours', label: 'Normal board refreshes every (hours)', type: 'number', required: true, hint: '1 to 48.' }],
+                        onSave: function (o) { return saveSettings({ xp_seconds_per_xp: clampInt(o.xp_seconds_per_xp, 30, 3600), xp_daily_cap: clampInt(o.xp_daily_cap, 0, 100000), quest_normal_hours: clampInt(o.quest_normal_hours, 1, 48) }); } });
+                } }))));
+
+            var lad = el('div', { class: 'sm-stats' });
+            [2, 3, 4, 5, 7, 10, 15, 20].forEach(function (L) {
+                var need = 20 * (L - 1) * (L - 1), hours = need * per / 3600;
+                lad.appendChild(el('div', { class: 'sm-stat' }, el('strong', { text: 'Level ' + L }), el('span', { text: fmt(need) + ' XP · about ' + (hours < 10 ? Math.round(hours * 10) / 10 : Math.round(hours)) + 'h online' })));
+            });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Level ladder' }),
+                el('p', { class: 'sm-note', text: 'Level n starts at 20 × (n − 1)² XP. The hours show how long it takes with time on site alone, at your current rate and before quests.', style: 'margin-bottom:12px' }), lad));
+
+            var logBox = el('div', { class: 'sm-list' });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Recent XP changes by staff' }), logBox));
+            async function loadLog() {
+                var r = await sb.from('xp_log').select('*').order('created_at', { ascending: false }).limit(20);
+                if (tok !== S.rtok) return;
+                logBox.textContent = '';
+                if (r.error) return logBox.appendChild(el('div', { class: 'sm-empty', text: 'Run supabase-store-xp-admin.sql to keep a log of XP changes.' }));
+                var rows = r.data || [];
+                if (!rows.length) return logBox.appendChild(el('div', { class: 'sm-empty', text: 'No XP grants yet.' }));
+                var ids = Array.from(new Set(rows.map(function (x) { return x.user_id; })));
+                var p = await sb.from('profiles').select('id,username,display_name').in('id', ids);
+                (p.data || []).forEach(function (u) { S.names[u.id] = u.display_name || u.username; });
+                if (tok !== S.rtok) return;
+                rows.forEach(function (x) {
+                    logBox.appendChild(el('div', { class: 'sm-row' }, el('div', { class: 'sm-thumb', text: Number(x.delta) > 0 ? '⭐' : '➖' }),
+                        el('div', { class: 'sm-main' }, el('strong', { text: S.names[x.user_id] || x.user_id.slice(0, 8) }),
+                            el('div', { class: 'sm-meta', text: (Number(x.delta) > 0 ? '+' : '') + fmt(x.delta) + ' XP · ' + x.reason + ' · ' + when(x.created_at) }))));
+                });
+            }
+            loadLog();
+        }
+
+
+        /* ---------- FREE REWARDS (freemium: ad -> guaranteed rewards -> pick 1 of 3 cards) ---------- */
+        var FR_KIND_ICON = { credits: '🪙', xp: '⚡', booster: '🚀', title: '🏷️', frame: '🖼️', emote: '😎', item: '🎁' };
+        var FR_KINDS = [['credits', 'Credits'], ['xp', 'XP'], ['booster', 'Booster'], ['item', 'Specific items (you pick them)'], ['title', 'Random title'], ['frame', 'Random frame'], ['emote', 'Random emote']];
+        var FR_RARITY = [['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary'], ['legacy', 'Legacy'], ['mythic', 'Mythic']];
+        function frMin(m) { m = Number(m) || 0; return m >= 1440 && m % 1440 === 0 ? (m / 1440) + 'd' : (m >= 60 && m % 60 === 0 ? (m / 60) + 'h' : m + ' min'); }
+        var FR_ITEM_CATS = { title: 'Title', frame: 'Frame', emote: 'Emote' };
+        function frItemOptions() {
+            return S.items.filter(function (i) { return FR_ITEM_CATS[i.category] && i.stock == null; })
+                .map(function (i) { return [i.id, (i.emoji ? i.emoji + ' ' : '') + i.name + ' (' + FR_ITEM_CATS[i.category] + ', ' + i.rarity + (i.active ? '' : ', hidden') + ')']; });
+        }
+        function frItemNames(ids) {
+            var names = (ids || []).map(function (id) { var it = S.items.find(function (i) { return i.id === id; }); return it ? it.name + (it.active ? '' : ' (hidden, will not drop)') : 'missing item'; });
+            if (!names.length) return 'No items picked yet';
+            if (names.length === 1) return 'Gives: ' + names[0];
+            return 'One of: ' + names.slice(0, 4).join(', ') + (names.length > 4 ? ' +' + (names.length - 4) + ' more' : '');
+        }
+        function frSummary(p) {
+            var x = p.params || {};
+            if (p.kind === 'item') return frItemNames(x.item_ids);
+            if (p.kind === 'credits') return fmt(x.min) + ' to ' + fmt(x.max) + ' credits';
+            if (p.kind === 'xp') return fmt(x.min) + ' to ' + fmt(x.max) + ' XP';
+            if (p.kind === 'booster') return x.tier + 'x ' + (x.boost === 'xp' ? 'XP' : 'credit') + ' booster for ' + frMin(x.minutes);
+            return 'Any unowned, unlimited-stock ' + p.kind + ' up to ' + (x.max_rarity || 'epic');
+        }
+        function frPayload(o) {
+            var kind = o.kind, w = clampInt(o.weight, 1, 1000), params = {};
+            if (kind === 'credits' || kind === 'xp') {
+                var lo = clampInt(o.amount_min, 1, 1000000), hi = clampInt(o.amount_max, 1, 1000000);
+                if (hi < lo) throw new Error('The maximum amount cannot be lower than the minimum.');
+                params = { min: lo, max: hi };
+            } else if (kind === 'booster') {
+                params = { boost: o.boost_kind === 'credits' ? 'credits' : 'xp', tier: Number(o.boost_tier) || 2, minutes: clampInt(o.boost_minutes, 1, 43200) };
+            } else if (kind === 'item') {
+                var ids = (o.item_ids || []).slice(0, 12);
+                if (!ids.length) throw new Error('Pick at least one item to give (up to 12).');
+                params = { item_ids: ids };
+            } else params = { max_rarity: o.max_rarity || 'epic' };
+            return { kind: kind, weight: w, params: params, label: o.label || null, active: !!o.active, sort: clampInt(o.sort, 0, 100000) };
+        }
+        function editFrPool(p) {
+            var x = (p && p.params) || {};
+            var base = p ? { kind: p.kind, weight: p.weight, label: p.label || '', active: p.active, sort: p.sort,
+                             amount_min: x.min || 50, amount_max: x.max || 150, boost_kind: x.boost || 'xp', boost_tier: String(x.tier || 2), boost_minutes: x.minutes || 60, max_rarity: x.max_rarity || 'epic', item_ids: x.item_ids || [] }
+                : { kind: 'credits', weight: 10, label: '', active: true, sort: 0, amount_min: 50, amount_max: 150, boost_kind: 'xp', boost_tier: '2', boost_minutes: 60, max_rarity: 'epic', item_ids: [] };
+            openForm({ title: p ? 'Edit reward' : 'New reward', values: base, fields: [
+                { key: 'kind', label: 'Reward type', type: 'select', options: FR_KINDS, required: true },
+                { key: 'weight', label: 'Weight (higher = shows up more often)', type: 'number', required: true, hint: '1 to 1000. Odds are this weight divided by the total of all active rewards.' },
+                { key: 'label', label: 'Name for you (optional)', nullable: true, hint: 'Only shown here in the manager.' },
+                { key: 'amount_min', label: 'Minimum amount (Credits / XP only)', type: 'number' },
+                { key: 'amount_max', label: 'Maximum amount (Credits / XP only)', type: 'number', hint: 'A random amount between the two is rolled for every card.' },
+                { key: 'boost_kind', label: 'Booster kind (Booster only)', type: 'select', options: [['xp', 'XP booster'], ['credits', 'Credit booster']] },
+                { key: 'boost_tier', label: 'Booster strength (Booster only)', type: 'select', options: [['2', '2x'], ['3', '3x'], ['5', '5x']] },
+                { key: 'boost_minutes', label: 'Booster minutes (Booster only)', type: 'number', hint: '60 = 1 hour, 1440 = 1 day.' },
+                { key: 'item_ids', label: 'Items to give (Specific items only)', type: 'multi', options: frItemOptions(), hint: 'Tick the exact titles, frames or emotes you made. Pick 1 to give that item, or several and each card gives one random one the member does not own yet. Only items with unlimited stock are listed; hidden items will not drop.' },
+                { key: 'max_rarity', label: 'Highest rarity (Title / Frame / Emote only)', type: 'select', options: FR_RARITY, hint: 'Only active items with unlimited stock that the member does not own yet can come up.' },
+                { key: 'sort', label: 'Sort order', type: 'number' },
+                { key: 'active', label: 'Active (can appear on cards)', type: 'checkbox', wide: true }],
+                onSave: async function (o) {
+                    var row = frPayload(o);
+                    var r = await (p ? sb.from('freemium_pool').update(row).eq('id', p.id) : sb.from('freemium_pool').insert(row));
+                    if (r.error) throw r.error;
+                    toast('Reward saved'); render();
+                } });
+        }
+        async function renderFreemium(root) {
+            var tok = S.rtok;
+            root.appendChild(el('div', { class: 'sm-note', text: 'Loading free rewards...' }));
+            var r = await Promise.all([
+                sb.from('freemium_settings').select('*').eq('id', 1).maybeSingle(),
+                sb.from('freemium_pool').select('*').order('sort', { ascending: true }).order('created_at', { ascending: true })
+            ]);
+            if (tok !== S.rtok) return;
+            root.textContent = '';
+            if (r[0].error || !r[0].data) return root.appendChild(el('div', { class: 'sm-empty', text: 'Free rewards are not set up yet. Run supabase-store-freemium.sql in the Supabase SQL Editor.' }));
+            var st = r[0].data, pool = r[1].data || [];
+            var act = pool.filter(function (p) { return p.active; });
+            var total = act.reduce(function (a, p) { return a + p.weight; }, 0);
+            var mins = Math.round(Number(st.cooldown_hours) * 60);
+
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Free rewards' + (st.active ? '' : ' (paused)') }),
+                el('p', { class: 'sm-note', text: 'Every ' + (mins % 60 === 0 ? (mins / 60) + ' hour(s)' : mins + ' minutes') + ' a member watches an ad (' + st.ad_seconds + 's placeholder for now), gets ' + fmt(st.credits) + ' credits, ' + fmt(st.xp) + ' XP and a ' + st.booster_tier + 'x booster for ' + frMin(st.booster_minutes) + ' (credit or XP, random), then picks 1 of 3 face-down cards from the pool below.' + (Number(st.pity_limit) > 0 ? ' After ' + st.pity_limit + ' claims without a title or frame card, the next offer includes one.' : '') }),
+                el('div', { class: 'sm-bar', style: 'margin-top:12px' }, el('button', { class: 'sm-btn', text: 'Edit settings', onclick: function () {
+                    openForm({ title: 'Free rewards settings', values: { active: st.active, cooldown_minutes: mins, ad_seconds: st.ad_seconds, credits: st.credits, xp: st.xp, booster_minutes: st.booster_minutes, booster_tier: String(st.booster_tier), pity_limit: st.pity_limit, streak_warn_hours: st.streak_warn_hours == null ? 11 : st.streak_warn_hours, streak_reset_hours: st.streak_reset_hours == null ? 12 : st.streak_reset_hours, shield_every: st.shield_every == null ? 7 : st.shield_every, shield_max: st.shield_max == null ? 3 : st.shield_max, shield_grace_hours: st.shield_grace_hours == null ? 12 : st.shield_grace_hours }, fields: [
+                        { key: 'active', label: 'Free rewards are on', type: 'checkbox', wide: true },
+                        { key: 'cooldown_minutes', label: 'Minutes between claims', type: 'number', required: true, hint: '300 = 5 hours. Lower it to test, then put it back.' },
+                        { key: 'ad_seconds', label: 'Ad length in seconds (placeholder timer)', type: 'number', required: true, hint: '0 to 120. The server refuses a claim that comes in faster than this.' },
+                        { key: 'credits', label: 'Guaranteed credits', type: 'number', required: true },
+                        { key: 'xp', label: 'Guaranteed XP', type: 'number', required: true },
+                        { key: 'booster_tier', label: 'Guaranteed booster strength', type: 'select', options: [['2', '2x'], ['3', '3x'], ['5', '5x']] },
+                        { key: 'booster_minutes', label: 'Guaranteed booster minutes', type: 'number', required: true, hint: '1 to 1440. 15 = 15 minutes.' },
+                        { key: 'pity_limit', label: 'Pity: guarantee a title/frame card after this many claims without one', type: 'number', required: true, hint: '0 turns it off.' },
+                        { key: 'streak_warn_hours', label: 'Streak warning after (hours since the last claim)', type: 'number', required: true, hint: '11 = warn members one hour before the streak ends.' },
+                        { key: 'streak_reset_hours', label: 'Streak resets after (hours since the last claim)', type: 'number', required: true, hint: '12 = the streak counter goes back to 0 if nobody claims in 12 hours. Must be higher than the cooldown and the warning.' },
+                        { key: 'shield_every', label: 'Streak shield: earn one every this many streak', type: 'number', required: true, hint: '7 = a shield at streak 7, 14, 21... 0 turns shields off.' },
+                        { key: 'shield_max', label: 'Streak shield: most a member can hold', type: 'number', required: true, hint: '3 is a good start. 0 turns shields off.' },
+                        { key: 'shield_grace_hours', label: 'Streak shield: extra hours after the reset to still be saved', type: 'number', required: true, hint: '12 = a member who claims up to 12 hours after the streak would reset keeps it (and uses one shield).' }],
+                        onSave: async function (o) {
+                            var row = { active: !!o.active, cooldown_hours: clampInt(o.cooldown_minutes, 1, 10080) / 60, ad_seconds: clampInt(o.ad_seconds, 0, 120), credits: clampInt(o.credits, 0, 100000), xp: clampInt(o.xp, 0, 100000),
+                                booster_tier: Number(o.booster_tier) || 2, booster_minutes: clampInt(o.booster_minutes, 1, 1440), pity_limit: clampInt(o.pity_limit, 0, 1000),
+                                streak_warn_hours: Math.min(720, Math.max(0.01, Number(o.streak_warn_hours) || 11)), streak_reset_hours: Math.min(720, Math.max(0.01, Number(o.streak_reset_hours) || 12)),
+                                shield_every: clampInt(o.shield_every, 0, 1000), shield_max: clampInt(o.shield_max, 0, 100), shield_grace_hours: Math.min(720, Math.max(0.01, Number(o.shield_grace_hours) || 12)), updated_at: new Date().toISOString() };
+                            if (row.streak_warn_hours >= row.streak_reset_hours) throw new Error('The streak warning must come before the streak reset.');
+                            if (row.streak_reset_hours * 60 <= clampInt(o.cooldown_minutes, 1, 10080)) throw new Error('The streak reset time must be longer than the cooldown, or nobody could keep a streak.');
+                            var u = await sb.from('freemium_settings').update(row).eq('id', 1); if (u.error) throw u.error;
+                            toast('Free rewards settings saved'); render();
+                        } });
+                } }))));
+
+            root.appendChild(el('div', { class: 'sm-stats' },
+                el('div', { class: 'sm-stat' }, el('strong', { text: String(act.length) }), el('span', { text: 'Active rewards in the pool' })),
+                el('div', { class: 'sm-stat' }, el('strong', { text: fmt(total) }), el('span', { text: 'Total weight' }))));
+            if (!act.length) root.appendChild(el('div', { class: 'sm-warn', text: 'The pool is empty. Every card would just be 25 credits until you add rewards.' }));
+
+            root.appendChild(el('div', { class: 'sm-bar' }, el('button', { class: 'sm-btn sm-btn--primary', text: 'New reward', onclick: function () { editFrPool(null); } }),
+                el('span', { class: 'sm-note', text: 'Each offer rolls 3 different reward types from here. Members never see the odds or the cards before they pick.' })));
+            var list = el('div', { class: 'sm-list' });
+            if (!pool.length) list.appendChild(el('div', { class: 'sm-empty', text: 'No rewards yet.' }));
+            pool.forEach(function (p) {
+                var pct = p.active && total ? Math.round((p.weight / total) * 1000) / 10 : 0;
+                list.appendChild(el('div', { class: 'sm-row' + (p.active ? '' : ' is-off') }, el('div', { class: 'sm-thumb', text: FR_KIND_ICON[p.kind] || '🎁' }),
+                    el('div', { class: 'sm-main' }, el('strong', { text: p.label || (FR_KINDS.filter(function (k) { return k[0] === p.kind; })[0] || [0, p.kind])[1] }),
+                        el('div', { class: 'sm-meta', text: frSummary(p) + ' · weight ' + p.weight + (p.active ? ' · about ' + pct + '% per pick' : ' · hidden') })),
+                    el('div', { class: 'sm-actions' },
+                        el('button', { class: 'sm-btn sm-btn--sm', text: 'Edit', onclick: function () { editFrPool(p); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm', text: p.active ? 'Hide' : 'Show', onclick: async function () { var u = await sb.from('freemium_pool').update({ active: !p.active }).eq('id', p.id); if (u.error) return fail(u.error); render(); } }),
+                        el('button', { class: 'sm-btn sm-btn--sm sm-btn--danger', text: 'Delete', onclick: async function () { if (!confirmIt('Delete this reward from the pool?')) return; var u = await sb.from('freemium_pool').delete().eq('id', p.id); if (u.error) return fail(u.error); render(); } }))));
+            });
+            root.appendChild(list);
+
+            var who = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'frUser' });
+            var reset = el('button', { class: 'sm-btn', type: 'button', text: 'Reset cooldown', onclick: async function () {
+                if (!who.value.trim()) return toast('Enter a username.', true);
+                if (!confirmIt('Reset the free reward cooldown for ' + who.value.trim() + '? Any card they have not picked yet is removed.')) return;
+                reset.disabled = true;
+                try { var u = await sb.rpc('freemium_admin_reset', { p_username: who.value.trim() }); if (u.error) throw u.error; toast('Cooldown reset for ' + who.value.trim()); }
+                catch (e) { fail(e); } finally { reset.disabled = false; }
+            } });
+            root.appendChild(el('div', { class: 'sm-card' }, el('h2', { text: 'Testing tools' }),
+                el('p', { class: 'sm-note', text: 'Make a member claim again right away (for example your own test account).' }),
+                el('div', { class: 'sm-form', style: 'margin-top:12px' }, el('div', { class: 'sm-field sm-wide' }, el('label', { for: 'frUser', text: 'Username' }), who)),
+                el('div', { class: 'sm-dlg-foot' }, reset)));
+        }
+
+        /* ---------- shell ---------- */
+        function render() {
+            var tabs = $('tabs'); tabs.textContent = '';
+            TABS.forEach(function (t) { tabs.appendChild(el('button', { class: 'sm-tab', role: 'tab', 'aria-selected': String(S.tab === t[0]), text: t[1], onclick: function () { S.tab = t[0]; render(); } })); });
+            var v = $('view'); v.textContent = ''; S.rtok = (S.rtok || 0) + 1;
+            ({ items: renderItems, featured: renderFeatured, packs: renderPacks, codes: renderCodes, credits: renderCredits, quests: renderQuests, xp: renderXp, gifts: renderGifts, freemium: renderFreemium, sales: renderSales })[S.tab](v);
+        }
+
+        async function start() {
+            var gate = $('gate');
+            if (!sb) { gate.innerHTML = '<h1>Store Manager</h1><p class="sm-note">Cannot connect. Check supabase-config.js.</p>'; return; }
+            var s = await sb.auth.getSession(), user = s.data && s.data.session && s.data.session.user;
+            if (!user) { gate.innerHTML = '<h1>Store Manager</h1><p class="sm-note">Sign in first, then come back to this page.</p><p style="margin-top:12px"><a class="sm-btn" href="login.html">Sign in</a></p>'; return; }
+            var a = await sb.rpc('store_is_admin');
+            if (a.error) { gate.innerHTML = '<h1>Store Manager</h1><p class="sm-note">The store is not set up yet. Run supabase-store.sql in the Supabase SQL Editor, then reload.</p>'; return; }
+            if (a.data !== true) {
+                gate.innerHTML = '<h1>No access</h1><p class="sm-note">This account is not a store admin. To make it one, run this in the Supabase SQL Editor:</p>';
+                gate.appendChild(el('pre', { text: "insert into public.store_admins (user_id) values ('" + user.id + "');" }));
+                return;
+            }
+            try { await loadAll(); } catch (e) { gate.innerHTML = '<h1>Store Manager</h1><p class="sm-note">Could not load the store. Run supabase-store.sql first.</p>'; return; }
+            gate.hidden = true; $('panel').hidden = false;
+            render();
+        }
+        start();
+    })();
+    </script>
 </body>
 </html>
