@@ -15,6 +15,7 @@
   document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:absolute" aria-hidden="true">' +
     '<symbol id="i-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></symbol>' +
     '<symbol id="i-heart" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol></svg>');
+  const gic = (name, cls) => (window.SpectraGiftIcons ? window.SpectraGiftIcons.html(name, cls) : mic('gift'));   // gift icon picked by the gift name (no emoji)
   const mic = n => '<i class="sa-fi"><svg><use href="#i-' + n + '"/></svg></i>';
 
   /* ---- data ---- */
@@ -78,7 +79,7 @@
   /* ---- Bond Status ---- */
   function renderStat() {
     title.textContent = 'Bond Status';
-    if (!st) { body.innerHTML = '<div class="sb-empty"><span class="e">\ud83d\udc97</span><b>Bond is not available</b><p>Log in to build a bond with Spectra, then try again.</p></div>'; return; }
+    if (!st) { body.innerHTML = '<div class="sb-empty"><span class="e">' + mic('heart') + '</span><b>Bond is not available</b><p>Log in to build a bond with Spectra, then try again.</p></div>'; return; }
     const s = st, p = pct(s), C = 326.73, off = (C * (1 - p / 100)).toFixed(2);
     const d = s.last_chat_at ? Math.floor((Date.now() - new Date(s.last_chat_at).getTime()) / 864e5) : null;
     const ms = [10, 25, 50, 75, 100].find(x => x > s.level);
@@ -108,10 +109,10 @@
   function renderInv() {
     title.textContent = 'Gift Inventory';
     if (!gl) { body.innerHTML = '<div class="sb-empty"><p>Loading...</p></div>'; return; }
-    if (gerr) { body.innerHTML = '<div class="sb-empty"><span class="e">\ud83c\udf81</span><b>Gifts are not available</b><p>Log in and try again in a moment.</p></div>'; return; }
+    if (gerr) { body.innerHTML = '<div class="sb-empty"><span class="e">' + gic('gift') + '</span><b>Gifts are not available</b><p>Log in and try again in a moment.</p></div>'; return; }
     body.innerHTML = inv.length
-      ? '<div class="sb-grid">' + inv.map(g => '<div class="sb-gift ' + rar(g.rarity) + '"><span class="q">\u00d7' + g.qty + '</span><span class="e">' + esc(g.emoji) + '</span><span class="n">' + esc(g.name) + '</span><span class="m">+' + g.bond_xp + ' bond XP</span>' + (g.favorite ? '<span class="fav">\u2605 Her favorite \u00b7 2x XP</span>' : '') + '<button type="button" data-send="' + esc(g.id) + '">Send to Spectra</button></div>').join('') + '</div><a class="sb-cta ghost" href="' + SHOP + '">Buy more in the Store</a>'
-      : '<div class="sb-empty"><span class="e">\ud83c\udf81</span><b>No gifts yet</b><p>Buy gifts with APEX Credits in the Store, then send them to Spectra to grow your bond.</p><a class="sb-cta" href="' + SHOP + '">Go to Shop</a></div>';
+      ? '<div class="sb-grid">' + inv.map(g => '<div class="sb-gift ' + rar(g.rarity) + '"><span class="q">\u00d7' + g.qty + '</span><span class="e">' + gic(g.name) + '</span><span class="n">' + esc(g.name) + '</span><span class="m">+' + g.bond_xp + ' bond XP</span>' + (g.favorite ? '<span class="fav">\u2605 Her favorite \u00b7 2x XP</span>' : '') + '<button type="button" data-send="' + esc(g.id) + '">Send to Spectra</button></div>').join('') + '</div><a class="sb-cta ghost" href="' + SHOP + '">Buy more in the Store</a>'
+      : '<div class="sb-empty"><span class="e">' + gic('gift') + '</span><b>No gifts yet</b><p>Buy gifts with APEX Credits in the Store, then send them to Spectra to grow your bond.</p><a class="sb-cta" href="' + SHOP + '">Go to Shop</a></div>';
   }
 
   async function send(id, b) {
@@ -121,7 +122,7 @@
       if (!j || !j.ok) say(j && j.error === 'empty' ? 'You do not have that gift anymore' : j && j.error === 'login' ? 'Log in to send gifts' : 'Could not send the gift');
       else {
         setStatus(j);
-        say('Sent ' + j.emoji + ' ' + j.name + ' \u00b7 +' + j.gain + ' bond XP' + (j.favorite ? ' (her favorite!)' : '') + (j.leveled_up ? ' \u00b7 Bond Lv ' + j.level + '!' : ''));
+        say('Sent ' + j.name + ' \u00b7 +' + j.gain + ' bond XP' + (j.favorite ? ' (her favorite!)' : '') + (j.leveled_up ? ' \u00b7 Bond Lv ' + j.level + '!' : ''));
         if (j.leveled_up) pulse();
         float(j.gain); close(); react(j);
       }

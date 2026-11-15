@@ -32,6 +32,8 @@
     const r = await c.rpc(name, args || {}); if (r.error) throw r.error; return r.data;
   }
   let J = null, view = false, tab = LS('sj.tab', 'daily'), cps = {}, busy = false, busyF = false, flipping = false;
+  let lastErr = '';
+  const HINT = { '404': 'the spectra-journal function is not deployed', '400': 'the wrong code is deployed as spectra-journal', '401': 'log in again', login: 'log in again', plan: 'run spectra-journal.sql', no_gemini_key: 'the Gemini key is missing', ai_empty: 'the AI gave nothing usable', save: 'saving failed, check the function logs', '500': 'server error, check the function logs', '502': 'the AI gave nothing usable', rate: 'too fast, wait a minute', 'Failed to fetch': 'the function cannot be reached (is it deployed?)' };
   let fails = 0, lastTry = 0, lastLoad = 0, lastToast = 0, forceUntil = 0, newIds = new Set(), hold = false;
   const wide = () => window.matchMedia('(min-width:900px)').matches;
   const reduced = () => window.matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -80,7 +82,7 @@
   }
   async function generate(o) {
     o = o || {};
-    if (busy) return null; busy = true; lastTry = Date.now();
+    if (busy) return null; busy = true; lastTry = Date.now(); lastErr = '';
     let out = null;
     try {
       const c = sbc(); const s = c && (await c.auth.getSession()).data.session; if (!s) { busy = false; return null; }
@@ -95,7 +97,7 @@
       fails = 0; out = j;
       await load();
       if (j.added > 0 && !o.force && !view && Date.now() - lastToast > 30 * 60000) { lastToast = Date.now(); say('I wrote in my journal 📓'); }
-    } catch (e) { if (!o.force) fails++; console.warn('Spectra journal: could not write an entry', (e && e.message) || e); }
+    } catch (e) { lastErr = String((e && e.message) || e); if (!o.force) fails++; console.warn('Spectra journal: could not write an entry', (e && e.message) || e); }
     busy = false; return out;
   }
   function tick() {
@@ -112,7 +114,7 @@
     const before = normL(key); busyF = true; hold = true; drawForce();
     const j = await generate({ force: true, tab: key });
     busyF = false; hold = false;
-    if (!j) say('I couldn\u2019t write just now, try again 😭');
+    if (!j) say('I couldn\u2019t write: ' + (HINT[lastErr] || lastErr || 'unknown error') + (HINT[lastErr] ? ' (' + lastErr + ')' : '') + ' 😭');
     else if (j.added < 1) { say(WHY[j.reason] || 'not now bro 😤'); if (j.wait_s) forceUntil = Date.now() + j.wait_s * 1000; }
     if (view && J) {
       const to = lastSpread(key);

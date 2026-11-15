@@ -155,6 +155,7 @@
     <script src="avatar-frames.js"></script>
     <script src="name-titles.js"></script>
     <script src="super-emotes.js"></script>
+    <script src="spectra-gift-icons.js"></script>
     <script>
     (function () {
         'use strict';
@@ -463,7 +464,7 @@
                     thumb.textContent = it.boost_data.tier + 'x'; thumb.style.fontWeight = '800'; thumb.style.color = it.boost_data.kind === 'xp' ? '#38bdf8' : '#facc15';
                 } else if (it.category === 'title' && it.title_data && window.SpecTitles) {
                     thumb.className = 'sm-thumb sm-thumb--title'; window.SpecTitles.apply(thumb, it.title_data);
-                } else if (/^https:\/\//i.test(it.image_url || '')) thumb.appendChild(el('img', { src: it.image_url, alt: '', referrerpolicy: 'no-referrer' })); else thumb.textContent = it.emoji || '🎁';
+                } else if (/^https:\/\//i.test(it.image_url || '')) thumb.appendChild(el('img', { src: it.image_url, alt: '', referrerpolicy: 'no-referrer' })); else if (it.bond_xp != null && window.SpectraGiftIcons) { thumb.innerHTML = window.SpectraGiftIcons.html(it.name); var gsv = thumb.firstChild; if (gsv) { gsv.style.width = '70%'; gsv.style.height = '70%'; gsv.style.display = 'block'; gsv.style.margin = 'auto'; } } else thumb.textContent = it.emoji || '🎁';
                 box.appendChild(el('div', { class: 'sm-row' + (it.active ? '' : ' is-off') },
                     thumb,
                     el('div', { class: 'sm-main' }, el('strong', { text: it.name }),

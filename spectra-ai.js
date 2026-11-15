@@ -297,7 +297,8 @@ function msgEl(m, last) {
     d.innerHTML = '<div class="sa-b"></div>'; const b = d.firstChild; let tx = m.show || m.content;
     if (m.giftSent) {   // a real gift (bond system): an icon chip, never plain text
       const gt = document.createElement('div'); gt.className = 'sa-ut';
-      gt.innerHTML = '<div class="sb-giftmsg"><svg class="sb-giftic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg><span>You sent Spectra a gift</span><b>' + esc(String(m.giftSent.name || 'a gift')) + '</b></div>';
+      const gi = window.SpectraGiftIcons ? window.SpectraGiftIcons.html(m.giftSent.name, 'sb-giftic') : '';
+      gt.innerHTML = '<div class="sb-giftmsg">' + (gi || '<svg class="sb-giftic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>') + '<span>You sent Spectra a gift</span><b>' + esc(String(m.giftSent.name || 'a gift')) + '</b></div>';
       b.appendChild(gt); return d;
     }
     if (m._imgs && m._imgs.length) {

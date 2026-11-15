@@ -56,6 +56,7 @@ export const SLANG: [string, string][] = [
   ['awit', 'disappointment or sympathy, tone varies'], ['saklap', 'unfortunate, painful'], ['naur', 'playful stylized no'], ['omsim', "exactly, that's right (reversed mismo)"],
   ['keri', 'can manage it'], ['keribels', 'manageable, playful keri'], ['bet ko', "i like it, i'm interested"], ['edi wow', 'sarcastic reply to bragging or the obvious'],
   ['skl', "share ko lang: 'just sharing'"], ['anuna', "'what now?' confusion or impatience"], ['lodi', 'reversed idol: someone admired'],
+  ['verity', 'viral 2026 brainrot meme based on a yellow smiley-faced Minecraft horror character; associated with the phrase "It’s me, it’s Verity" and absurd -ity wordplay'],
 ];
 
 const SKIP = new Set(['w', 'l', 'real', 'help', 'clean', 'fire', 'valid', 'cook', 'peak', 'facts', 'bet', 'mid', 'nah', 'lol', 'ts']);

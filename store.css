@@ -718,3 +718,14 @@ body.light-mode .st-pip.is-done .apex-ico { filter: none; }
 .ms-admin-sub { margin-top: 16px; }
 .ms-admin-frame { margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .ms-claim { transition: none; } }
+
+/* ---------------- staff: Superior items ---------------- */
+.ms-check { display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; color: var(--text-secondary); font-size: 13px; cursor: pointer; }
+.ms-items { display: grid; gap: 14px; margin-top: 10px; }
+.ms-slot { display: grid; gap: 6px; }
+.ms-slot strong { font-size: 13px; font-weight: 600; }
+.ms-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ms-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 11px; border: 1px solid var(--border-hover); border-radius: 999px; font-size: 12.5px; }
+.ms-chip button { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-secondary); font-size: 15px; line-height: 1; cursor: pointer; }
+.ms-chip button:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+.ms-chip button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

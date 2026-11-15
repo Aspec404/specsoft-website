@@ -16,7 +16,7 @@
         cat: 'all', q: '', limit: 24, buying: null, busy: false,
         bundles: {}, equipped: null, equippedTitle: null, me: null,
         tx: [], txMore: false, txBefore: null, txFilter: 'all', txBusy: false, txReady: false, pendingSend: null, receipt: null,
-        quests: null, questTab: 'normal', questBusy: false, questErr: '', questReloadAt: 0, skew: 0, xp: null
+        hidden: [], quests: null, questTab: 'normal', questBusy: false, questErr: '', questReloadAt: 0, skew: 0, xp: null
     };
 
     var PAGE = 24;   // items shown in the shop grid at first; Load more adds this many
@@ -130,7 +130,7 @@
     async function loadUser() {
         var s = await sb.auth.getSession();
         S.user = s && s.data && s.data.session ? s.data.session.user : null;
-        S.wallet = null; S.owned = [];
+        S.wallet = null; S.owned = []; S.hidden = [];
         if (!S.user) return;
         var r = await Promise.all([
             sb.rpc('apex_wallet'),
@@ -143,6 +143,7 @@
         S.equipped = (!r[2].error && r[2].data && r[2].data.frame_item) || null;
         S.equippedTitle = (!r[2].error && r[2].data && r[2].data.title_item) || null;
         S.me = (!r[3].error && r[3].data) || null;
+        try { var ho = await sb.rpc('superior_owned_items'); S.hidden = (!ho.error && Array.isArray(ho.data)) ? ho.data : []; } catch (e2) { S.hidden = []; }   // Superior items that are switched off in the store
         try { var a = await sb.rpc('store_is_admin'); $('stManage').hidden = !(a && a.data === true); } catch (e) { /* not an admin */ }
     }
 
@@ -324,11 +325,20 @@
         finally { S.busy = false; }
     }
 
+    function giftArt(item, big) {
+        var px = typeof big === 'number' ? Math.round(big * 0.62) : (big ? 68 : 54);
+        var s = el('span', { class: 'st-emoji' });
+        s.style.cssText = 'display:block;width:' + px + 'px;height:' + px + 'px;font-size:0;line-height:0;color:var(--text-primary)';
+        s.innerHTML = window.SpectraGiftIcons.html(item.name);
+        var sv = s.firstChild; if (sv) { sv.style.width = '100%'; sv.style.height = '100%'; sv.style.display = 'block'; }
+        return s;
+    }
     function mediaOf(item, big) {
         if (item.category === 'frame' && item.frame_data) return frameAvatar(item.frame_data, typeof big === 'number' ? big : (big ? 92 : 72));
         if (item.category === 'boost' && item.boost_data) return boostArt(item.boost_data);
         if (item.category === 'title' && item.title_data) return titleArt(item.title_data, typeof big === 'number' ? Math.round(big * 0.45) : (big ? 26 : 20));
         if (item.category === 'bundle') return bundleArt(item);
+        if (isGift(item) && !safeUrl(item.image_url) && window.SpectraGiftIcons) return giftArt(item, big);   // no emoji: a line icon picked by the gift name
         var url = safeUrl(item.image_url);
         if (url) {
             var img = el('img', { src: url, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
@@ -502,7 +512,7 @@
         S.owned.forEach(function (p) {
             var key = p.item_id || p.item_name;
             if (seen[key]) return; seen[key] = true;
-            var it = S.items.find(function (i) { return i.id === p.item_id; }) || { name: p.item_name, rarity: 'common', emoji: '🎁' };
+            var it = S.items.find(function (i) { return i.id === p.item_id; }) || S.hidden.find(function (i) { return i.id === p.item_id; }) || { name: p.item_name, rarity: 'common', emoji: '🎁' };
             if (it.category === 'bundle') return;          // the items inside are listed on their own
             if (isGift(it)) return;                        // gifts live in the Gift Inventory in Spectra chat
             var isFrame = it.category === 'frame' && it.id, isTitle = it.category === 'title' && it.id, wearable = isFrame || isTitle;
@@ -951,7 +961,7 @@
         : ((window.supabase && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY) ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null);
     if (!sb) return;
 
-    var M = { user: null, plans: {}, cur: 'USD', member: null, admin: false, rewards: null, frames: [], frameItem: null };
+    var M = { user: null, plans: {}, cur: 'USD', member: null, admin: false, rewards: null, frames: [], frameItem: null, allItems: [], superItems: [] };
     var DEFAULT_PLANS = { PHP: { price_label: '₱149', checkout_url: null }, USD: { price_label: '$8', checkout_url: null } };
     var CUR_KEY = 'specsoft.membership.currency';
 
@@ -1055,10 +1065,13 @@
         }
         if (M.admin) {
             var f = await Promise.all([
-                sb.from('store_items').select('id,name,active').eq('category', 'frame').order('created_at', { ascending: false }),
-                sb.from('membership_settings').select('frame_item').eq('id', 1).maybeSingle()
+                sb.from('store_items').select('id,name,category,active').order('created_at', { ascending: false }),
+                sb.from('membership_settings').select('frame_item').eq('id', 1).maybeSingle(),
+                sb.from('membership_items').select('item_id,slot')
             ]);
-            M.frames = f[0].error ? [] : (f[0].data || []);
+            M.allItems = f[0].error ? [] : (f[0].data || []);
+            M.frames = M.allItems.filter(function (i) { return i.category === 'frame'; });
+            M.superItems = f[2].error ? [] : (f[2].data || []);
             M.frameItem = (!f[1].error && f[1].data && f[1].data.frame_item) || null;
         }
     }
@@ -1180,6 +1193,53 @@
             el('button', { type: 'button', class: 'st-btn st-btn--primary', text: 'Use as Superior frame', onclick: function () { save(sel.value); } }));
     }
 
+    var SLOTS = [['frame', 'Profile frame', 'frame'], ['title', 'Title', 'title'], ['badge', 'Badge', 'badge'], ['cosmetic', 'Cosmetic', 'cosmetic'], ['theme', 'Theme', 'theme'], ['emote', 'Emote', 'emote'], ['other', 'Other item', null]];
+    var SLOT_CATS = ['frame', 'title', 'badge', 'cosmetic', 'theme', 'emote'];
+
+    // gives (store_admin_give_item) or takes back (store_admin_take_item) every Superior item for one member
+    async function bulkItems(u, rpcName) {
+        var ids = M.superItems.map(function (r) { return r.item_id; }), done = 0, skipped = 0;
+        for (var i = 0; i < ids.length; i++) {
+            var r = await sb.rpc(rpcName, { p_username: u, p_item: ids[i] });
+            if (r.error) skipped++; else done++;
+        }
+        return { total: ids.length, done: done, skipped: skipped };
+    }
+
+    function itemsBox() {
+        var wrap = el('div', { class: 'ms-items' });
+        function draw() {
+            wrap.textContent = '';
+            var used = {};
+            M.superItems.forEach(function (r) { used[r.item_id] = true; });
+            SLOTS.forEach(function (sl) {
+                var opts = M.allItems.filter(function (i) { return !used[i.id] && (sl[2] ? i.category === sl[2] : SLOT_CATS.indexOf(i.category) < 0); });
+                var sel = el('select', { class: 'st-field', 'aria-label': sl[1] }, el('option', { value: '', text: 'Choose an item' }),
+                    opts.map(function (i) { return el('option', { value: i.id, text: i.name + (i.active ? ' (on sale)' : '') }); }));
+                var add = el('button', { type: 'button', class: 'st-btn', text: 'Add', onclick: async function () {
+                    if (!sel.value) { sel.focus(); return; }
+                    var r = await sb.from('membership_items').insert({ item_id: sel.value, slot: sl[0] });
+                    if (r.error) { toast('Could not add it: ' + r.error.message, true); return; }
+                    M.superItems.push({ item_id: sel.value, slot: sl[0] });
+                    draw();
+                } });
+                var chips = el('div', { class: 'ms-chips' }, M.superItems.filter(function (r) { return r.slot === sl[0]; }).map(function (r) {
+                    var it = M.allItems.find(function (i) { return i.id === r.item_id; });
+                    var name = it ? it.name : 'Deleted item';
+                    return el('span', { class: 'ms-chip' }, name, el('button', { type: 'button', 'aria-label': 'Remove ' + name, text: '\u00D7', onclick: async function () {
+                        var d = await sb.from('membership_items').delete().eq('item_id', r.item_id);
+                        if (d.error) { toast('Could not remove it: ' + d.error.message, true); return; }
+                        M.superItems = M.superItems.filter(function (x) { return x.item_id !== r.item_id; });
+                        draw();
+                    } }));
+                }));
+                wrap.appendChild(el('div', { class: 'ms-slot' }, el('strong', { text: sl[1] }), el('div', { class: 'ms-admin-row' }, sel, add), chips));
+            });
+        }
+        draw();
+        return wrap;
+    }
+
     function adminBox() {
         var who = el('input', { type: 'text', class: 'st-field', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', 'aria-label': 'Username' });
         var days = el('input', { type: 'number', class: 'st-field', value: '30', min: '1', max: '400', 'aria-label': 'Days' });
@@ -1192,12 +1252,41 @@
                 toast(okMsg(u, r.data));
             };
         }
+        var withItems = el('input', { type: 'checkbox', id: 'msWithItems', checked: true });
+        async function grantDays() {
+            var u = who.value.trim().replace(/^@/, '');
+            if (!u) { who.focus(); return; }
+            var r = await sb.rpc('store_admin_grant_superior', { p_username: u, p_days: Math.floor(Number(days.value)) || 30 });
+            if (r.error) { toast(/user_not_found/.test(r.error.message) ? 'No member with that username.' : 'That did not work: ' + r.error.message, true); return; }
+            var msg = '@' + u + ' is Superior until ' + fmtDate(r.data && r.data.expires_at) + '.';
+            if (withItems.checked && M.superItems.length) {
+                var g = await bulkItems(u, 'store_admin_give_item');
+                msg += ' Items given: ' + g.done + ' of ' + g.total + (g.skipped ? ' (' + g.skipped + ' skipped, probably already owned)' : '') + '.';
+            }
+            toast(msg);
+        }
+        function itemsAction(rpcName, verb) {
+            return async function () {
+                var u = who.value.trim().replace(/^@/, '');
+                if (!u) { who.focus(); return; }
+                if (!M.superItems.length) { toast('Add some Superior items first.', true); return; }
+                var g = await bulkItems(u, rpcName);
+                toast(verb + ' ' + g.done + ' of ' + g.total + ' Superior items for @' + u + (g.skipped ? ' (' + g.skipped + ' skipped)' : '') + '.');
+            };
+        }
         return el('div', { class: 'ms-admin' },
             el('h4', { text: 'Staff: activate Superior after a payment' }),
             el('div', { class: 'ms-admin-row' }, who, days,
-                el('button', { type: 'button', class: 'st-btn st-btn--primary', text: 'Grant days', onclick: run('store_admin_grant_superior', function () { return { p_days: Math.floor(Number(days.value)) || 30 }; }, function (u, d) { return '@' + u + ' is Superior until ' + fmtDate(d && d.expires_at) + '.'; }) }),
+                el('button', { type: 'button', class: 'st-btn st-btn--primary', text: 'Grant days', onclick: grantDays }),
                 el('button', { type: 'button', class: 'st-btn', text: 'Revoke', onclick: run('store_admin_revoke_superior', function () { return {}; }, function (u) { return 'Superior removed from @' + u + '.'; }) })),
-            el('h4', { class: 'ms-admin-sub', text: 'Staff: custom Superior profile frame' }),
+            el('label', { class: 'ms-check', for: 'msWithItems' }, withItems, 'Also give the Superior items listed below'),
+            el('div', { class: 'ms-admin-row' },
+                el('button', { type: 'button', class: 'st-btn', text: 'Give Superior items', onclick: itemsAction('store_admin_give_item', 'Gave') }),
+                el('button', { type: 'button', class: 'st-btn', text: 'Take Superior items back', onclick: itemsAction('store_admin_take_item', 'Took back') })),
+            el('h4', { class: 'ms-admin-sub', text: 'Staff: Superior items' }),
+            el('p', { class: 'ms-small', text: 'Pick which store items belong to Superior. Switch them off in Store Manager so nobody can buy them; members still see and equip the ones they are given.' }),
+            itemsBox(),
+            el('h4', { class: 'ms-admin-sub', text: 'Staff: automatic Superior frame' }),
             framePicker(),
             el('p', { class: 'ms-small', text: 'Create an image frame in Store Manager first (category Frame), switch it off so it is not sold, then pick it here.' }));
     }
