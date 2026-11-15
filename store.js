@@ -19,7 +19,7 @@
         quests: null, questTab: 'normal', questBusy: false, questErr: '', questReloadAt: 0, skew: 0, xp: null
     };
 
-    var CATS = [['all', 'All'], ['bundle', 'Bundles'], ['frame', 'Frames'], ['emote', 'Emotes'], ['title', 'Titles'], ['theme', 'Themes'], ['boost', 'Boosts'], ['cosmetic', 'Cosmetics'], ['misc', 'Misc']];
+    var CATS = [['all', 'All'], ['bundle', 'Bundles'], ['gift', 'Gifts'], ['frame', 'Frames'], ['emote', 'Emotes'], ['title', 'Titles'], ['theme', 'Themes'], ['boost', 'Boosts'], ['cosmetic', 'Cosmetics'], ['misc', 'Misc']];
     var RARITY = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', legacy: 'Legacy', mythic: 'Mythic' };
     var ERR = {
         not_signed_in: 'Sign in to do that.',
@@ -104,6 +104,9 @@
     }
     function ownedCount(item) { return S.owned.filter(function (p) { return p.item_id === item.id; }).length; }
     function isOwnedMax(item) { return item.per_user_limit != null && ownedCount(item) >= item.per_user_limit; }
+    /* Spectra bond gifts are normal store items that carry bond_xp (see spectra-bond-shop.sql). They get their own Gifts tab. */
+    function isGift(item) { return item.category === 'gift' || item.bond_xp != null; }
+    function catOf(item) { return isGift(item) ? 'gift' : item.category; }
 
     /* ---------- data ---------- */
     async function loadPublic() {
@@ -378,6 +381,7 @@
             el('h3', { text: item.name }),
             item.category === 'emote' && item.emote_name ? el('div', { class: 'st-emote-code', text: ':' + item.emote_name + ':' + (item.super_data ? '  \u26A1 SUPER EMOTE' : '') }) : null,
             item.category === 'bundle' ? el('div', { class: 'st-emote-code', text: bundleLine(item) }) : null,
+            isGift(item) && item.bond_xp != null ? el('div', { class: 'st-emote-code', text: '+' + item.bond_xp + ' bond XP' + (item.bond_favorite ? ' \u2605 her favorite (2x)' : '') }) : null,
             item.description ? el('p', { text: item.description }) : null,
             el('div', { class: 'st-card-foot' }, priceView(item), buyButton(item, price))));
         return card;
@@ -409,7 +413,7 @@
         var box = $('stChips');
         box.textContent = '';
         CATS.forEach(function (c) {
-            if (c[0] !== 'all' && !S.items.some(function (i) { return i.category === c[0]; })) return;
+            if (c[0] !== 'all' && !S.items.some(function (i) { return catOf(i) === c[0]; })) return;
             box.appendChild(el('button', { type: 'button', class: 'st-chip', role: 'tab', 'aria-selected': String(S.cat === c[0]), text: c[1], onclick: function () { S.cat = c[0]; paintChips(); paintGrid(); } }));
         });
     }
@@ -419,7 +423,7 @@
         grid.textContent = '';
         var q = S.q.toLowerCase();
         var list = S.items.filter(function (i) {
-            return (S.cat === 'all' || i.category === S.cat) && (!q || (i.name + ' ' + i.description).toLowerCase().indexOf(q) >= 0);
+            return (S.cat === 'all' || catOf(i) === S.cat) && (!q || (i.name + ' ' + i.description).toLowerCase().indexOf(q) >= 0);
         });
         $('stItemsSub').textContent = S.items.length ? S.items.length + ' item' + (S.items.length === 1 ? '' : 's') + ' in the store' : '';
         if (!list.length) {
@@ -477,6 +481,7 @@
             if (seen[key]) return; seen[key] = true;
             var it = S.items.find(function (i) { return i.id === p.item_id; }) || { name: p.item_name, rarity: 'common', emoji: '🎁' };
             if (it.category === 'bundle') return;          // the items inside are listed on their own
+            if (isGift(it)) return;                        // gifts live in the Gift Inventory in Spectra chat
             var isFrame = it.category === 'frame' && it.id, isTitle = it.category === 'title' && it.id, wearable = isFrame || isTitle;
             var worn = isFrame ? S.equipped === it.id : (isTitle && S.equippedTitle === it.id);
             box.appendChild(el('div', { class: 'st-own is-' + it.rarity + (worn ? ' is-equipped' : '') + (isTitle ? ' st-own--title' : '') },
@@ -507,7 +512,8 @@
             });
             if (have) { warn.hidden = false; warn.textContent = 'You already own ' + have + ' of these. You still get the rest, at the same price.'; }
         }
-        $('stBuyDesc').textContent = (item.description || '') + (item.category === 'emote' ? ((item.description ? ' ' : '') + 'Goes straight to MY EMOTES in chats. Type it as :' + item.emote_name + ':') : '');
+        $('stBuyDesc').textContent = (item.description || '') + (item.category === 'emote' ? ((item.description ? ' ' : '') + 'Goes straight to MY EMOTES in chats. Type it as :' + item.emote_name + ':') : '')
+            + (isGift(item) && item.bond_xp != null ? ((item.description ? ' ' : '') + 'Send it to Spectra from the sparkle menu in her chat for +' + item.bond_xp + ' bond XP' + (item.bond_favorite ? ' (double, it is her favorite).' : '.')) : '');
         [['stBuyPrice', price], ['stBuyBal', bal], ['stBuyAfter', bal - price]].forEach(function (x) {
             var n = $(x[0]); n.textContent = ''; n.appendChild(apexIcon()); n.appendChild(document.createTextNode(fmt(x[1])));
         });
@@ -542,6 +548,7 @@
                 : item.category === 'bundle' ? item.name + ': ' + (r.data.granted || []).length + ' items added' + (autoWear ? ' and your new frame is on' : '')
                 : item.category === 'frame' ? item.name + (autoWear ? ' bought and equipped' : ' bought. Press Equip to wear it')
                 : item.category === 'title' ? item.name + (autoTitle ? ' bought and equipped' : ' bought. Press Equip to wear it')
+                : isGift(item) ? item.name + ' is in your Gift Inventory. Send it from the sparkle menu in Spectra chat'
                 : item.category === 'boost' && item.boost_data ? item.name + ' is running: ' + item.boost_data.tier + 'x ' + (item.boost_data.kind === 'xp' ? 'XP' : 'credits') + ' for ' + durLabel(item.boost_data.minutes) + ' of online time'
                 : 'Bought ' + item.name + ' for ' + fmt(r.data.price) + ' credits');
             if (autoWear) setTimeout(function () { equipFrame(newFrame.id, true); }, 60);
@@ -857,6 +864,10 @@
         $('stBuy').addEventListener('click', function (e) { if (e.target === $('stBuy')) $('stBuy').close(); });
         var t; $('stSearch').addEventListener('input', function (e) { var v = e.target.value; clearTimeout(t); t = setTimeout(function () { S.q = v.trim(); paintGrid(); }, 150); });
         setInterval(paintClock, 1000);
+        window.addEventListener('hashchange', function () {
+            if (location.hash !== '#gifts' || !S.items.some(isGift)) return;
+            S.cat = 'gift'; paintChips(); paintGrid(); var sec = $('items'); if (sec && sec.scrollIntoView) sec.scrollIntoView();
+        });
         // xp.js pings once a minute: when it answers, refresh the quest progress too (at most every 20 seconds)
         // free rewards (freemium.js): credits, XP, titles or frames may have just arrived, so refresh the wallet and your items
         window.addEventListener('freemium:reward', function () {
@@ -886,11 +897,12 @@
         }
         if (S.user && window.SpecFrames) { var mine = S.items.find(function (i) { return i.id === S.equipped; }); window.SpecFrames.setMine(S.user.id, mine ? mine.frame_data : null); }
         if (S.user && window.SpecTitles) { var myT = S.items.find(function (i) { return i.id === S.equippedTitle; }); window.SpecTitles.setMine(S.user.id, myT ? myT.title_data : null); }
+        if (location.hash === '#gifts' && S.items.some(isGift)) S.cat = 'gift';
         paintWallet(); paintChips(); paintGrid(); paintFeatured(); paintPacks(); paintEarn(); paintOwned();
         paintQuests(); loadQuests();
         if (S.user) loadTx(true);
         if (window.ApexCredits && S.wallet) window.ApexCredits.set(Number(S.wallet.balance));
-        if (location.hash) { try { var t2 = document.querySelector(location.hash); if (t2 && t2.scrollIntoView) t2.scrollIntoView(); } catch (e3) { /* odd hash */ } }
+        if (location.hash) { try { var t2 = document.querySelector(location.hash === '#gifts' ? '#items' : location.hash); if (t2 && t2.scrollIntoView) t2.scrollIntoView(); } catch (e3) { /* odd hash */ } }
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

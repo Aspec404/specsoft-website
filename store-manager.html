@@ -315,7 +315,7 @@
             { key: 'name', label: 'Name', required: true },
             { key: 'emoji', label: 'Emoji (used when there is no image)', nullable: true, placeholder: '🎁' },
             { key: 'description', label: 'Description', type: 'textarea', wide: true, max: 240, nullable: true },
-            { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS and/or image)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['title', 'Title (styled text next to the name)'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
+            { key: 'category', label: 'Category', type: 'select', options: [['frame', 'Profile frame (CSS and/or image)'], ['bundle', 'Bundle (several items at once)'], ['emote', 'Emote (goes to MY EMOTES in chats)'], ['title', 'Title (styled text next to the name)'], ['gift', 'Gift (members send it to Spectra for bond XP)'], ['theme', 'Theme'], ['boost', 'Boost'], ['cosmetic', 'Cosmetic'], ['misc', 'Misc']] },
             { key: 'emote_name', label: 'Emote code (Emote category only)', nullable: true, placeholder: 'pepe_happy', hint: 'Letters, numbers and _ + -. Members use it as :pepe_happy:. Needs an Image URL. Do not reuse a built-in emoji name.' },
             { key: 'super_design', label: 'Super emote (Emote category only)', type: 'super', wide: true, hint: 'Optional. Turns this emote into a SUPER emote: a bigger sticker with effects and a sound that play for the whole chat when it is sent (one per message, 10 second cooldown). Needs supabase-store-super-emotes.sql.' },
             { key: 'frame_design', label: 'Frame design (Frame category only)', type: 'frame', wide: true, hint: 'Opens the designer: upload a GIF / PNG / WebP image, add up to 4 CSS layers, pick shapes, colors and motion, with a live preview.' },
@@ -324,6 +324,8 @@
             { key: 'boost_tier', label: 'Booster strength', type: 'select', options: [['2', '2x'], ['3', '3x'], ['5', '5x']] },
             { key: 'boost_amount', label: 'Booster duration', type: 'number' },
             { key: 'boost_unit', label: 'Duration unit', type: 'select', options: [['minutes', 'Minutes'], ['hours', 'Hours'], ['days', 'Days']] },
+            { key: 'bond_xp', label: 'Bond XP when sent to Spectra (Gift category only)', type: 'number', nullable: true, hint: 'How much friendship XP Spectra gets when a member sends this gift. A level needs 48 XP at Lv 1 up to 832 XP at Lv 99, so 5 to 50 is a snack and 100+ is a big gift.' },
+            { key: 'bond_favorite', label: 'Spectra loves this gift (double bond XP)', type: 'checkbox', wide: true },
             { key: 'bundle_items', label: 'Bundle contents (Bundle category only). Pick 2 or more', type: 'multi', wide: true, options: [] },
             { key: 'rarity', label: 'Rarity', type: 'select', options: [['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary'], ['legacy', 'Legacy'], ['mythic', 'Mythic']] },
             { key: 'price', label: 'Price (APEX Credits)', type: 'number', required: true },
@@ -368,6 +370,13 @@
             }
             var payload = { frame_data: frame, title_data: title, boost_data: boost, emote_name: code, name: o.name, emoji: o.emoji, description: o.description || '', category: o.category, rarity: o.rarity, price: Math.max(0, Math.floor(o.price)), stock: o.stock,
                 per_user_limit: o.per_user_limit == null ? null : Math.max(1, o.per_user_limit), sort: Math.floor(o.sort || 0), image_url: o.image_url, in_rotation: o.in_rotation, active: o.active };
+            if (o.category === 'gift') {
+                var gx = Math.floor(Number(o.bond_xp));
+                if (!(gx >= 1 && gx <= 5000)) throw new Error('Gifts need Bond XP between 1 and 5000.');
+                payload.bond_xp = gx; payload.bond_favorite = !!o.bond_favorite;
+                payload.bond_stock_max = o.stock == null ? null : Math.max(0, Math.floor(o.stock));   // the daily restock level follows the stock you set here
+                payload.per_user_limit = null;                                                          // gifts can be bought again and again
+            }
             if (superData) payload.super_data = superData;      // only sent when set, so stores without the super emotes SQL keep working
             return payload;
         }
@@ -381,7 +390,8 @@
             if (/title_data/.test(msg) && /column|schema/i.test(msg)) return new Error('Run supabase-store-titles.sql in Supabase first (it adds the title_data column).');
             if (/bundle_rules/.test(msg)) return new Error('Bundles can only hold normal items (no bundles inside bundles).');
             if (/super_rules|store_super_ok|super_data/.test(msg)) return new Error('Run supabase-store-super-emotes.sql in Supabase first (it adds the super emote column, the store-super bucket and the cooldown rules), then try again.');
-            if (/emote_rules|category_check/.test(msg)) return new Error('Run supabase-store-emotes.sql and supabase-store-frames.sql first, then try again.');
+            if (/bond_xp|bond_favorite|bond_stock_max/.test(msg) && /column|schema/i.test(msg)) return new Error('Run spectra-bond-shop.sql in Supabase first (it adds the gift columns), then try again.');
+            if (/emote_rules|category_check/.test(msg)) return new Error('The database does not accept this category yet. For Gifts run spectra-bond-gift-category.sql in Supabase. For emotes and frames run supabase-store-emotes.sql and supabase-store-frames.sql. Then try again.');
             return e;
         }
         async function syncBundle(id, ids) {
@@ -399,9 +409,10 @@
                          boost_amount: bmin % 1440 === 0 ? bmin / 1440 : (bmin % 60 === 0 ? bmin / 60 : bmin), boost_unit: bmin % 1440 === 0 ? 'days' : (bmin % 60 === 0 ? 'hours' : 'minutes'),
                          super_design: it ? it.super_data : null, title_design: it ? it.title_data : (window.SpecTitles ? window.SpecTitles.TEMPLATES[0].title : null), frame_design: it ? it.frame_data : (window.SpecFrames ? window.SpecFrames.TEMPLATES[0].frame : null), bundle_items: it ? ((S.bundleItems || {})[it.id] || []) : [] };
             openForm({ title: isNew ? 'New item' : 'Edit ' + it.name, fields: fields,
-                values: Object.assign({}, it || { category: 'title', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁' }, base),
+                values: Object.assign({}, it || { category: 'title', rarity: 'common', price: 100, sort: 0, per_user_limit: 1, active: true, in_rotation: false, emoji: '🎁', bond_xp: 10, bond_favorite: false }, base),
                 onSave: async function (o) {
                     var row = itemPayload(o);
+                    if (!isNew && it && it.bond_xp != null && o.category !== 'gift') { row.bond_xp = null; row.bond_favorite = false; row.bond_stock_max = null; }   // the item stopped being a gift
                     if (!isNew && it && it.super_data && !row.super_data) row.super_data = null;   // the item stopped being a super emote
                     var r = await (isNew ? sb.from('store_items').insert(row).select('id').single() : sb.from('store_items').update(row).eq('id', it.id).select('id').single());
                     if (r.error) throw itemErr(r.error);
@@ -457,7 +468,7 @@
                     thumb,
                     el('div', { class: 'sm-main' }, el('strong', { text: it.name }),
                         el('div', { class: 'sm-meta' },
-                            el('span', { text: fmt(it.price) + ' credits' }), el('span', { text: it.category }), it.emote_name ? el('span', { text: ':' + it.emote_name + ':' }) : null, it.super_data ? el('span', { class: 'sm-badge sm-badge--live', text: '\u26A1 Super' }) : null, it.category === 'bundle' ? el('span', { text: ((S.bundleItems || {})[it.id] || []).length + ' items inside' }) : null, el('span', { text: it.rarity }),
+                            el('span', { text: fmt(it.price) + ' credits' }), el('span', { text: it.category }), it.bond_xp != null ? el('span', { text: '+' + it.bond_xp + ' bond XP' + (it.bond_favorite ? ' \u2605' : '') }) : null, it.emote_name ? el('span', { text: ':' + it.emote_name + ':' }) : null, it.super_data ? el('span', { class: 'sm-badge sm-badge--live', text: '\u26A1 Super' }) : null, it.category === 'bundle' ? el('span', { text: ((S.bundleItems || {})[it.id] || []).length + ' items inside' }) : null, el('span', { text: it.rarity }),
                             el('span', { text: it.stock == null ? 'unlimited' : it.stock + ' left' }),
                             it.active ? null : el('span', { class: 'sm-badge', text: 'Hidden' }),
                             it.in_rotation ? el('span', { class: 'sm-badge', text: 'In rotation pool' }) : null,
@@ -582,7 +593,7 @@
 
         /* ---------- GIFT ITEMS (give a title, frame or anything else to one member) ---------- */
         function renderGifts(root) {
-            var CATS = { title: 'Titles', frame: 'Frames', bundle: 'Bundles', emote: 'Emotes', theme: 'Themes', boost: 'Boosts', cosmetic: 'Cosmetics', badge: 'Badges', misc: 'Other' };
+            var CATS = { title: 'Titles', frame: 'Frames', bundle: 'Bundles', emote: 'Emotes', theme: 'Themes', boost: 'Boosts', cosmetic: 'Cosmetics', badge: 'Badges', misc: 'Other', gift: 'Gifts' };
             var user = el('input', { type: 'text', placeholder: 'username', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', id: 'giUser', list: 'giUsers' });
             var dl = el('datalist', { id: 'giUsers' });
             var cat = el('select', { id: 'giCat' }, el('option', { value: '', text: 'All categories' }),

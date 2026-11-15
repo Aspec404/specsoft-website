@@ -317,6 +317,59 @@ function withOffer(src: ReadableStream<Uint8Array>, offer: GiftOffer | null): Re
     },
   });
 }
+/* ---------- Spectra bond: tone of each message -> bond XP, plus a hidden hint so Spectra acts a bit closer or cooler ---------- */
+const BOND_ON = (Deno.env.get('SPECTRA_BOND') ?? 'on').toLowerCase() !== 'off';   // SPECTRA_BOND=off turns the whole feature off
+const TONE_SYSTEM = `You label the tone of ONE message that a person sent to Spectra, a friendly mascot. Answer with exactly one word:
+friendly = kind, curious, grateful, or just normal and neutral.
+banter = playful teasing, roasting, jokes, dramatic complaining, trash talk between friends. Slang, mild swearing and jokes like "bro you are so dumb lol" are banter.
+hostile = genuinely abusive: slurs, threats, harassment, sexual harassment, wishing harm on someone, or sustained insults clearly meant to hurt.
+Rules: when unsure between banter and hostile, choose banter. Frustration about a wrong answer is friendly. Output only the word.`;
+async function classifyTone(key: string, text: string): Promise<'friendly' | 'banter' | 'hostile'> {
+  const t = text.slice(0, 500).trim();
+  if (!t) return 'friendly';
+  for (const model of ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3500);
+    try {
+      const up = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        body: JSON.stringify({ model, stream: false, max_tokens: 16, temperature: 0, messages: [{ role: 'system', content: TONE_SYSTEM }, { role: 'user', content: t }] }),
+        signal: ctrl.signal,
+      });
+      if (!up.ok) { await up.text().catch(() => ''); continue; }
+      const out = String((await up.json())?.choices?.[0]?.message?.content ?? '').toLowerCase();
+      if (!out.trim()) continue;
+      return /hostile/.test(out) ? 'hostile' : /banter/.test(out) ? 'banter' : 'friendly';
+    } catch (_e) { /* try the next model */ } finally { clearTimeout(timer); }
+  }
+  return 'friendly';   // classifier down: count it as a normal chat message
+}
+const BOND_TIERS: [number, string][] = [[1, 'just met'], [10, 'buddies'], [25, 'besties'], [50, 'partners in crime'], [75, 'ride or die'], [100, 'legendary bond']];
+function bondHint(b: any, tone: string): string {
+  const lv = Number(b?.level) || 1;
+  let tier = BOND_TIERS[0][1];
+  for (const [n, t] of BOND_TIERS) if (lv >= n) tier = t;
+  let s = '\n\nHIDDEN NOTE (the person cannot see it): your friendship with this person is at level ' + lv + ' of 100 (' + tier + '). Let it color your warmth a little: lower levels = friendly but still getting to know them, higher levels = more inside jokes, teasing and bestie energy. Never say the number or "bond level" unless they ask, never guilt-trip them for being away, and keep it wholesome and platonic.';
+  if (tone === 'hostile') s += ' They were genuinely hostile to you just now. Stay calm, a little hurt but still sassy, hold your boundary in one or two short lines, no lecture, and leave the door open to start fresh. If they also asked something real, still answer it.';
+  else if (b?.leveled_up) s += ' Your friendship just went up a level. You may celebrate it in ONE short line.';
+  return s;
+}
+/** Prepends one {bond} event (the new level, XP and change) so the page can update its bond pill. */
+function withBond(src: ReadableStream<Uint8Array>, bond: unknown): ReadableStream<Uint8Array> {
+  if (!bond) return src;
+  const enc = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    async start(c) {
+      c.enqueue(enc.encode('data: ' + JSON.stringify({ bond }) + '\n\n'));
+      const rd = src.getReader();
+      try {
+        for (;;) { const { done, value } = await rd.read(); if (done) break; c.enqueue(value); }
+      } catch (_e) { /* the page keeps whatever arrived */ }
+      c.close();
+    },
+  });
+}
 const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
 /* ---------- Model picker: the page shows Spectrum 2.5 / 3 / 3.5, these are the real models behind them (never shown to users) ----------
@@ -438,7 +491,7 @@ async function callNative(key: string, model: string, payload: Record<string, un
   }
 }
 /** Re-streams a native Gemini SSE answer as OpenAI-style deltas + one final sources event. */
-function nativeStream(up: Response, left: number | null, limit?: number, giftHdr?: Record<string, string>, offer?: GiftOffer | null) {
+function nativeStream(up: Response, left: number | null, limit?: number, giftHdr?: Record<string, string>, offer?: GiftOffer | null, bond?: unknown) {
   const enc = new TextEncoder(), dec = new TextDecoder();
   const send = (c: ReadableStreamDefaultController<Uint8Array>, o: unknown) => c.enqueue(enc.encode('data: ' + JSON.stringify(o) + '\n\n'));
   const sources = new Map<string, { t: string; u: string }>();
@@ -447,6 +500,7 @@ function nativeStream(up: Response, left: number | null, limit?: number, giftHdr
     async start(c) {
       send(c, { status: 'searching' });
       if (offer) send(c, { offer });
+      if (bond) send(c, { bond });
       const rd = up.body!.getReader();
       let buf = '';
       const line = (l: string) => {
@@ -654,8 +708,17 @@ Deno.serve(async (req) => {
     }
   }
 
+  // 5a-2) Spectra bond: label the tone of this message, update the bond in the database (spectra-bond.sql), and hint Spectra how close you two are
+  let bondData: any = null, bondNote = '';
+  if (BOND_ON && lastUser) {
+    const tone = await classifyTone(key, typed);
+    const { data: bd, error: be } = await admin.rpc('spectra_bond_apply', { p_user: user.id, p_tone: tone });
+    if (be || !bd?.ok) console.log('SPECTRA bond failed (did you run spectra-bond.sql?):', be?.message ?? JSON.stringify(bd));
+    else { bondData = bd; bondNote = bondHint(bd, tone); }
+  }
+
   const recent = messages.filter((m) => m.role === 'user').slice(-3).map((m) => m.content.split('\n\n[Attached:')[0]).join('\n');
-  const system = SYSTEM + '\n\n' + KNOWLEDGE + '\n\n' + SLANG_RULES + slangContext(recent) + contextBlock(body.nick, body.hour) + memoryBlock(body.memory) + recentBlock(body.recent) + styleBlock(body.style) + giftNote + '\n\n' + (body.persona === 'custom' ? customBlock(body.custom) : (PERSONAS[body.persona] ?? '')) +
+  const system = SYSTEM + '\n\n' + KNOWLEDGE + '\n\n' + SLANG_RULES + slangContext(recent) + contextBlock(body.nick, body.hour) + memoryBlock(body.memory) + recentBlock(body.recent) + styleBlock(body.style) + giftNote + bondNote + '\n\n' + (body.persona === 'custom' ? customBlock(body.custom) : (PERSONAS[body.persona] ?? '')) +
     (think ? '\nThink through the problem step by step, double-check your work, then give a clear final answer.' : '');
   const gemMessages: any[] = messages.map((m) => ({ ...m }));
   if (images.length) {
@@ -683,7 +746,7 @@ Deno.serve(async (req) => {
     for (const model of wm) {
       try {
         const up = await callNative(key, model, nativePayload, research ? 30000 : 20000);
-        if (up.ok && up.body) return nativeStream(up, left, LIMIT, giftHdr, giftOffer);
+        if (up.ok && up.body) return nativeStream(up, left, LIMIT, giftHdr, giftOffer, bondData);
         const t = await up.text().catch(() => '');
         console.log('SPECTRA search failed', { status: up.status, model, response: t.slice(0, 800) });
       } catch (e) {
@@ -715,7 +778,7 @@ Deno.serve(async (req) => {
           if (webFailed) h['X-Spectra-Search'] = 'failed';
           h['X-Spectra-Limit'] = String(LIMIT);
           for (const [k, v] of Object.entries(giftHdr)) h[k] = v;
-          return new Response(withOffer(up.body, giftOffer), { headers: h });
+          return new Response(withBond(withOffer(up.body, giftOffer), bondData), { headers: h });
         }
         const t = await up.text().catch(() => '');
         lastErr = `${model} -> ${up.status}: ${t.slice(0, 500)}`;

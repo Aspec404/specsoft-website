@@ -1517,7 +1517,15 @@
                 else if (tok.t === 'link') {
                     const u = safeHttps(tok.v);
                     if (u && isCustomEmojiUrl(u)) frag.appendChild(makeCustomEmoji(u, tok.label || 'Custom emoji', jumboEmoji));
-                    else frag.appendChild(u ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: tok.label || tok.v }) : document.createTextNode(tok.v));
+                    else {
+                        const linkEl = u ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ch-link', text: tok.label || tok.v }) : null;
+                        if (linkEl && isImageLink(u)) {                  // picture links preview inside chats on click (nothing loads until then)
+                            linkEl.classList.add('ch-link--image');
+                            linkEl.title = 'Click to preview';
+                            linkEl.addEventListener('click', previewClick(u, tok.label && tok.label !== tok.v ? tok.label : '', false));
+                        }
+                        frag.appendChild(linkEl || document.createTextNode(tok.v));
+                    }
                     if (u && cards.length < 2) {
                         const sid = snippetIdFromUrl(u), gh = githubRepoFromUrl(u);
                         if (sid) cards.push(snippetCard(sid));
@@ -1577,6 +1585,115 @@
         return url;
     }
 
+    // ----- IMAGE VIEWER: pictures open right inside SPECSOFT chats, no new tab needed -----
+    const IMG_LINK_RE = /\.(?:png|jpe?g|gif|webp|avif|bmp)$/i;
+    function isImageLink(u) {
+        try { const p = new URL(u); return p.protocol === 'https:' && IMG_LINK_RE.test(p.pathname); } catch (e) { return false; }
+    }
+    function imageNameFromUrl(u) {
+        try { return decodeURIComponent(new URL(u).pathname.split('/').pop() || '') || 'image'; } catch (e) { return 'image'; }
+    }
+
+    const IV = { dlg: null, items: [], i: 0 };
+
+    function ivBuild() {
+        if (IV.dlg) return IV.dlg;
+        const dlg = el('dialog', { class: 'ch-viewer', 'aria-label': 'Image viewer' });
+        IV.name = el('span', { class: 'ch-viewer-title' });
+        IV.count = el('small', { class: 'ch-viewer-count' });
+        IV.open = el('a', { class: 'ch-viewer-btn', target: '_blank', rel: 'noopener noreferrer', text: 'Open original' });
+        IV.dl = el('button', { type: 'button', class: 'ch-viewer-btn', text: 'Download', onclick: ivDownload });
+        const close = el('button', { type: 'button', class: 'ch-viewer-btn ch-viewer-btn--icon', 'aria-label': 'Close', text: '\u2715', onclick: function () { dlg.close(); } });
+        IV.img = el('img', { class: 'ch-viewer-img', alt: '', draggable: 'false', referrerpolicy: 'no-referrer' });
+        IV.msg = el('p', { class: 'ch-viewer-msg' });
+        IV.prev = el('button', { type: 'button', class: 'ch-viewer-nav ch-viewer-nav--prev', 'aria-label': 'Previous image', text: '\u2039', onclick: function () { ivStep(-1); } });
+        IV.next = el('button', { type: 'button', class: 'ch-viewer-nav ch-viewer-nav--next', 'aria-label': 'Next image', text: '\u203A', onclick: function () { ivStep(1); } });
+        IV.stage = el('div', { class: 'ch-viewer-stage' }, IV.img, IV.msg);
+        dlg.append(el('div', { class: 'ch-viewer-bar' }, IV.name, IV.count, IV.open, IV.dl, close), IV.stage, IV.prev, IV.next);
+
+        IV.img.addEventListener('click', function (e) { e.stopPropagation(); dlg.classList.toggle('is-zoomed'); });
+        IV.img.addEventListener('load', function () { dlg.classList.remove('is-loading', 'is-error'); IV.msg.textContent = ''; });
+        IV.img.addEventListener('error', function () {
+            if (!IV.img.getAttribute('src')) return;
+            dlg.classList.remove('is-loading'); dlg.classList.add('is-error');
+            IV.msg.textContent = 'This image could not be loaded here. Its host may be blocking it.';
+        });
+        IV.stage.addEventListener('click', function (e) { if (e.target === IV.stage || e.target === IV.msg) dlg.close(); });   // tap the dark area to close
+        dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+        dlg.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowLeft') { e.preventDefault(); ivStep(-1); }
+            else if (e.key === 'ArrowRight') { e.preventDefault(); ivStep(1); }
+        });
+        dlg.addEventListener('close', function () { IV.img.removeAttribute('src'); dlg.classList.remove('is-zoomed', 'is-loading', 'is-error'); });
+        document.body.appendChild(dlg);
+        IV.dlg = dlg;
+        return dlg;
+    }
+
+    function ivShow() {
+        const it = IV.items[IV.i];
+        if (!it) return;
+        IV.dlg.classList.remove('is-zoomed', 'is-error');
+        IV.dlg.classList.add('is-loading');
+        IV.msg.textContent = 'Loading\u2026';
+        IV.img.alt = it.name || 'Shared image';
+        IV.img.src = it.url;
+        IV.name.textContent = it.name || 'Image';
+        IV.open.href = it.url;
+        IV.count.textContent = IV.items.length > 1 ? (IV.i + 1) + ' / ' + IV.items.length : '';
+        IV.prev.hidden = IV.next.hidden = IV.items.length < 2;
+    }
+
+    function ivStep(d) {
+        if (IV.items.length < 2) return;
+        IV.i = (IV.i + d + IV.items.length) % IV.items.length;
+        ivShow();
+    }
+
+    async function ivDownload() {
+        const it = IV.items[IV.i];
+        if (!it) return;
+        try {
+            const res = await fetch(it.url);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const href = URL.createObjectURL(await res.blob());
+            const a = el('a', { href: href, download: it.name || 'image' });
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(href); }, 4000);
+        } catch (e) { window.open(it.url, '_blank', 'noopener'); }          // host blocks direct downloads: fall back to the original
+    }
+
+    // every image already showing in the open chat (skips ones still blurred by the image filter)
+    function ivCollect() {
+        const out = [];
+        document.querySelectorAll('.ch-attachment-link--image').forEach(function (a) {
+            const box = a.closest('.ch-imgguard');
+            if (box && (box.classList.contains('is-blurred') || box.classList.contains('is-scanning'))) return;
+            const im = a.querySelector('img');
+            out.push({ url: a.href, name: im ? im.alt : '' });
+        });
+        return out;
+    }
+
+    function openImageViewer(url, name, gallery) {
+        const dlg = ivBuild();
+        IV.items = gallery ? ivCollect() : [];
+        let i = IV.items.findIndex(function (x) { return x.url === url; });
+        if (i < 0) { IV.items = [{ url: url, name: name || imageNameFromUrl(url) }]; i = 0; }
+        IV.i = i;
+        ivShow();
+        if (!dlg.open) dlg.showModal();
+    }
+
+    // plain click opens the viewer; ctrl/cmd/shift/middle click keeps the normal browser behaviour
+    function previewClick(url, name, gallery) {
+        return function (e) {
+            if (e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            openImageViewer(url, name, gallery);
+        };
+    }
+
     function renderAttachment(m, bubble) {
         if (!m.attachment_path || m.deleted_at) return;
         const card = el('div', { class: 'ch-attachment ch-attachment--loading', text: 'Loading attachment…' });
@@ -1588,6 +1705,7 @@
             const link = el('a', { class: 'ch-attachment-link', href: url, target: '_blank', rel: 'noopener noreferrer', download: m.attachment_name || 'attachment' });
             if (String(m.attachment_type || '').indexOf('image/') === 0) {
                 link.classList.add('ch-attachment-link--image');
+                link.addEventListener('click', previewClick(url, m.attachment_name, true));
                 link.appendChild(el('img', { class: 'ch-attachment-image', src: url, alt: m.attachment_name || 'Shared image', loading: 'lazy' }));
             } else {
                 link.appendChild(el('span', { class: 'ch-attachment-file-icon', text: '↧' }));
@@ -2931,6 +3049,7 @@
                 wrap.appendChild(tile);
                 signedFileUrl(x.attachment_path).then(function (url) {
                     a.href = url;
+                    a.addEventListener('click', previewClick(url, x.attachment_name, false));
                     a.appendChild(el('img', { src: url, alt: x.attachment_name || 'Shared image', loading: 'lazy' }));
                     guardImage(tile, x.attachment_path, url, !!(S.me && x.sender_id === S.me.id), true);
                 }).catch(function () { a.textContent = '?'; });

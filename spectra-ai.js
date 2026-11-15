@@ -459,7 +459,7 @@ async function ask(h, onTok, signal, onMeta) {
     buf += dec.decode(value, { stream: true }); const ls = buf.split('\n'); buf = ls.pop();
     for (const l of ls) {
       if (l.indexOf('data:') !== 0) continue; const x = l.slice(5).trim(); if (x === '[DONE]') return;
-      try { const j = JSON.parse(x); if (j.status || j.sources || j.queries || j.offer) { if (onMeta) onMeta(j); } else { const c = j.choices[0].delta.content; if (c) onTok(c); } } catch (e) { }
+      try { const j = JSON.parse(x); if (j.status || j.sources || j.queries || j.offer || j.bond) { if (onMeta) onMeta(j); } else { const c = j.choices[0].delta.content; if (c) onTok(c); } } catch (e) { }
     }
   }
 }
@@ -467,6 +467,37 @@ function setDev() {
   const u = prompt('9Router URL (ends in /v1):', 'http://localhost:20128/v1'); if (!u) return;
   const k = prompt('9Router API key:'); const m = prompt('Model / combo name:'); if (!k || !m) return;
   SS('sa.dev', { url: u, key: k, model: m, vision: /^y/i.test(prompt('Does this model support images? (y/n)') || '') }); toast('Dev mode saved in this browser only');
+}
+
+/* ---- Live status: what is Spectra doing right now? Auto labels rotate while she works, and she can set her own with a [status:...] tag ---- */
+const STATUS_POOLS = {
+  thinking: ['Thinking', 'Pondering', 'Musing', 'Reckoning', 'Weighing', 'Evaluating', 'Brainstorming', 'Daydreaming', 'Figuring', 'Speculating', 'Considering', 'Cooking up a plan'],
+  reasoning: ['Reasoning', 'Connecting the dots', 'Overthinking (on purpose)', 'Doing big brain stuff', 'Double-checking'],
+  searching: ['Searching', 'Digging through the web', 'Hunting for answers', 'Doomscrolling for you'],
+  research: ['Researching', 'Going down the rabbit hole', 'Reading way too many tabs', 'Cross-checking sources'],
+  writing: ['Writing', 'Typing furiously', 'Crafting your reply', 'Yeeting some words']
+};
+const pickStatus = k => { const p = STATUS_POOLS[k] || STATUS_POOLS.thinking; return p[Math.floor(Math.random() * p.length)]; };
+function makeStatus(el, bodyEl, stage) {
+  const chip = document.createElement('div'); chip.className = 'sa-status'; chip.setAttribute('role', 'status'); chip.setAttribute('aria-live', 'off');
+  chip.innerHTML = '<span class="sa-sdots"><i></i><i></i><i></i></span><span class="sa-slabel"></span><small class="sa-stime"></small>';
+  bodyEl.parentNode.insertBefore(chip, bodyEl);
+  const lab = chip.querySelector('.sa-slabel'), tm = chip.querySelector('.sa-stime'), t0 = Date.now();
+  let st = { stage, custom: '', fixed: '' }, last = 0;
+  const paint = (force) => {
+    const sec = Math.floor((Date.now() - t0) / 1000);
+    if (!st.custom && !st.fixed && (force || Date.now() - last > 2400)) { st.cur = pickStatus(st.stage); last = Date.now(); }
+    const txt = st.fixed || st.custom || st.cur || pickStatus(st.stage);
+    lab.textContent = txt.replace(/[.\u2026]+$/, '') + '\u2026'; tm.textContent = sec >= 3 ? sec + 's' : '';
+  };
+  paint(true);
+  const iv = setInterval(() => paint(false), 600);
+  return {
+    stage(k) { if (k === 'writing') st.fixed = ''; if (st.stage !== k) { st.stage = k; if (!st.custom && !st.fixed) paint(true); } },
+    fixed(t) { st.fixed = String(t || '').slice(0, 44); paint(true); },
+    custom(t) { t = String(t || '').replace(/[<>\[\]]/g, '').trim().slice(0, 44); if (t && t !== st.custom) { st.custom = t; st.fixed = ''; paint(true); } },
+    stop() { clearInterval(iv); chip.remove(); }
+  };
 }
 
 /* ---- Sending ---- */
@@ -488,26 +519,33 @@ async function sendMsg(t) {
   cur.messages.push(um); const chat = cur; atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
   input.value = ''; input.style.height = 'auto'; renderList(); renderChat(); setBusy(true); setMood(toneMood(t) || 'thinking');
   const el = msgsEl.lastElementChild; el.classList.add('live'); const body = el.querySelector('.sa-b'); let raw = '', mm = null; const wm = modes(), web = backend() === 'supabase' && (wm.research || wm.search);
-  body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>' + (web ? '<span class="sa-stat">' + (wm.research ? 'Researching the web\u2026' : 'Searching the web\u2026') + '</span>' : '');
+  body.innerHTML = '<span class="sa-dots"><i></i><i></i><i></i></span>';
+  const stat = makeStatus(el, body, web ? (wm.research ? 'research' : 'searching') : (wm.think && !wm.research) ? 'reasoning' : 'thinking');
   const onMeta = j => {
+    if (j.bond && window.SpectraBond) window.SpectraBond.onMeta(j.bond);
     if (j.offer && !ai.gift) {
       ai.gift = { amount: +j.offer.amount || 0, note: String(j.offer.note || '').slice(0, 90), state: 'pending', ts: Date.now() };
       chats.forEach(c => c.messages.forEach(x => { if (x !== ai && x.gift && x.gift.state === 'pending') x.gift.state = 'expired'; })); // older cards are replaced by this one
       setMood('joy');
     }
     if (j.sources) { ai.sources = j.sources; ai.queries = j.queries || []; paintSrc(el, ai); down(); }
-    else if (j.queries && j.queries.length) { const st = body.querySelector('.sa-stat'); if (st) st.textContent = 'Reading: ' + j.queries[0].slice(0, 40); }
+    else if (j.queries && j.queries.length && !ai.content) { stat.fixed('Reading: ' + j.queries[0].slice(0, 36)); }
     if (j.nosearch) toast('Search was unavailable, so I answered without it');
   };
   const onTok = x => {
     raw += x;
     raw = sanitizeSpecsoftLinks(raw);
-    let s = raw; const m = s.match(/^\s*\[mood:(\w+)\]\s*/i);
-    if (m) { const nm = m[1].toLowerCase(); if (nm !== mm) { mm = nm; setMood(mm); } s = s.slice(m[0].length); } else if (/^\s*\[[^\]]*$/.test(s)) s = '';
-    s = cleanFake(s); ai.content = s; if (s) body.innerHTML = md(s); down();
+    let s = raw, m;
+    while ((m = s.match(/^\s*\[(mood|status):([^\]]*)\]\s*/i))) {
+      if (m[1].toLowerCase() === 'mood') { const nm = m[2].trim().toLowerCase(); if (/^\w+$/.test(nm) && nm !== mm) { mm = nm; setMood(mm); } }
+      else stat.custom(m[2]);
+      s = s.slice(m[0].length);
+    }
+    if (/^\s*\[[^\]]*$/.test(s)) s = '';
+    s = cleanFake(s); ai.content = s; if (s) { stat.stage('writing'); body.innerHTML = md(s); } down();
   };
   const end = err => {
-    const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null;
+    const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null; stat.stop();
     if (!err && !ai.content && !gone && backend() !== 'demo') err = ERR.FAIL;
     if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else { setMood(mm || 'joy'); clearTimeout(settleT); settleT = setTimeout(() => { if (!busy && mood !== 'sleepy') setMood('joy'); }, 25000); }
     save(); renderChat(); if (!err && ai.content) { autoTitle(chat); notifyDone(ai.content); maybeNote(chat, ai, t); }
