@@ -1,0 +1,46 @@
+/* ==========================================================================
+   SPECSOFT® — Superior cosmetics (superior.css)
+   Load AFTER chats.css (and store.css / style.css). Classes are set by superior.js.
+   ========================================================================== */
+
+/* ---------------- golden chat bubble with a crown ---------------- */
+/* plain text bubbles only: GIFs, images, big emoji, cards and hidden messages keep their own look */
+.ch-msg[data-superior="1"] .ch-bubble:not(.ch-bubble--image-only):not(.ch-bubble--emoji-only):not(.ch-bubble--card):not(.ch-bubble--sensitive) {
+    position: relative;
+    background: linear-gradient(145deg, #fff1b8 0%, #f5c542 48%, #d9a528 100%);
+    border-color: #b8860b;
+    color: #2a1d03;
+    box-shadow: 0 6px 22px -10px rgba(245, 197, 66, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+.ch-msg[data-superior="1"] .ch-bubble:not(.ch-bubble--image-only):not(.ch-bubble--emoji-only):not(.ch-bubble--card):not(.ch-bubble--sensitive) a,
+.ch-msg[data-superior="1"] .ch-bubble:not(.ch-bubble--image-only):not(.ch-bubble--emoji-only):not(.ch-bubble--card):not(.ch-bubble--sensitive) .ch-deleted {
+    color: #4a3205;
+}
+
+/* the crown sits on the corner of the first bubble in a run, so a long burst is not a row of crowns */
+.ch-msg[data-superior="1"]:not(.is-grouped) .ch-bubble:not(.ch-bubble--image-only):not(.ch-bubble--emoji-only):not(.ch-bubble--card):not(.ch-bubble--sensitive)::before {
+    content: '';
+    position: absolute;
+    top: -13px;
+    left: 10px;
+    width: 20px;
+    height: 20px;
+    transform: rotate(-14deg);
+    pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff6d2'/%3E%3Cstop offset='.55' stop-color='%23f5c542'/%3E%3Cstop offset='1' stop-color='%23b8860b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' stroke='%236e4f0a' stroke-width='.8' stroke-linejoin='round' d='M3 7l4.5 4L12 4l4.5 7L21 7l-2 11H5L3 7zM5.6 20h12.8v1.6H5.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+    filter: drop-shadow(0 1px 3px rgba(110, 79, 10, 0.55));
+}
+.ch-msg--own[data-superior="1"]:not(.is-grouped) .ch-bubble::before { left: auto; right: 10px; transform: rotate(14deg); }
+
+/* ---------------- gold interface accents (signed-in Superior member only) ---------------- */
+html body.sp-superior,
+html body.sp-superior.light-mode {
+    --accent: #f5c542;
+    --accent-dim: rgba(245, 197, 66, 0.14);
+}
+html body.sp-superior.light-mode { --accent: #b8860b; --accent-dim: rgba(184, 134, 11, 0.14); }
+
+/* ---------------- low-power modes: keep the look, drop the glow ---------------- */
+.ss-urm .ch-msg[data-superior="1"] .ch-bubble,
+.ss-reduce-motion .ch-msg[data-superior="1"] .ch-bubble { box-shadow: none; }
+.ss-urm .ch-msg[data-superior="1"] .ch-bubble::before { filter: none; }

@@ -10,7 +10,7 @@ const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&
 const LS = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
 const SS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
 const N = { joy: 1, thinking: 2, sparkle: 3, love: 4, annoyed: 5, sad: 6, surprised: 7, confused: 8, shy: 9, deadpan: 10, smug: 11, pout: 12, shocked: 13, sleepy: 14, grumpy: 15, speechless: 16 };
-const PFP = 'assets/spectra/spectra-pfp.png';
+const PFP = 'assets/spectra/spectra-pfp.jpg';
 const ico = n => '<i class="sa-fi" data-i="' + n + '"><svg><use href="#i-' + n + '"/></svg></i>';
 const faceSrc = m => 'assets/spectra/expressions/spectra-exp-' + String(N[m]).padStart(2, '0') + '-' + m + '.png';
 const CANONICAL_SPECSOFT_SITE = 'https://specsoftdev.netlify.app';
@@ -295,6 +295,11 @@ function msgEl(m, last) {
   d.className = 'sa-msg ' + (m.role === 'user' ? 'user' : 'ai') + (m.err ? ' err' : '') + (last ? ' last' : '');
   if (m.role === 'user') {
     d.innerHTML = '<div class="sa-b"></div>'; const b = d.firstChild; let tx = m.show || m.content;
+    if (m.giftSent) {   // a real gift (bond system): an icon chip, never plain text
+      const gt = document.createElement('div'); gt.className = 'sa-ut';
+      gt.innerHTML = '<div class="sb-giftmsg"><svg class="sb-giftic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg><span>You sent Spectra a gift</span><b>' + esc(String(m.giftSent.name || 'a gift')) + '</b></div>';
+      b.appendChild(gt); return d;
+    }
     if (m._imgs && m._imgs.length) {
       const g = document.createElement('div'); g.className = 'sa-imgs';
       m._imgs.forEach(u => { const im = document.createElement('img'); im.src = u; im.alt = 'attached image'; g.appendChild(im); });
@@ -446,6 +451,7 @@ async function ask(h, onTok, signal, onMeta) {
     const nm = (CFG().nick || (($('[data-user-name]') || {}).textContent || '')).trim().slice(0, 20);
     const md3 = modes(); body = { messages: h, persona: persona().id, custom: persona().id === 'custom' ? (CFG().persona || '').slice(0, 400) : '', model: model().id, think: !!md3.think && !md3.research, search: !!md3.search, research: !!md3.research, nick: nm, hour: new Date().getHours(), memory: CFG().memOn ? mem().map(m => m.t) : [], recent: recentCtx(), style: { len: CFG().len, emo: CFG().emo } }; if (imgs.length) body.images = imgs;
   }
+  if (window.SpectraBond && window.SpectraBond.takeThanks && window.SpectraBond.takeThanks()) body.thanks = true;   // reply to a gift just sent to Spectra
   const r = await fetch(url, { method: 'POST', headers: hd, signal, body: JSON.stringify(body) });
   const lf = r.headers.get('X-Spectra-Left'), lm = r.headers.get('X-Spectra-Limit');
   if (lf !== null && lm !== null && !isNaN(+lf) && +lm > 0) SS('sa.left', { left: +lf, limit: +lm, day: new Date().toISOString().slice(0, 10) });
@@ -502,7 +508,7 @@ function makeStatus(el, bodyEl, stage) {
 
 /* ---- Sending ---- */
 const setBusy = b => { busy = b; sendBtn.classList.toggle('stop', b); sendBtn.setAttribute('aria-label', b ? 'Stop' : 'Send'); };
-async function sendMsg(t) {
+async function sendMsg(t, gift) {   // gift = { name } only when spectra-bond.js sends a REAL gift message (shown as an icon chip)
   t = (t || '').trim(); if (!t && atts.some(a => a.kind === 'image')) t = 'What do you think of this?'; if (!t && atts.length) return toast('Add a message with your attachment'); if (!t || busy) return;
   if (t === '/dev') { input.value = ''; setDev(); return; }
   if (/^\/remember\s+\S/i.test(t)) { addMem(t.replace(/^\/remember\s+/i, '')); input.value = ''; input.style.height = 'auto'; return; }
@@ -515,6 +521,7 @@ async function sendMsg(t) {
   const imN = im.map(a => a.name).join('  '), fN = tx.map(a => a.name).join('  ');
   const show = cleanT + (imN ? '\n🖼 ' + imN : '') + (fN ? '\n📎 ' + fN : '');
   const um = { role: 'user', content: sanitizeSpecsoftLinks(full), show: sanitizeSpecsoftLinks(show) };
+  if (gift) um.giftSent = { name: String(gift.name || 'a gift').slice(0, 60) };
   if (im.length) Object.defineProperty(um, '_imgs', { value: im.map(a => a.data), enumerable: false, writable: true });
   cur.messages.push(um); const chat = cur; atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
   input.value = ''; input.style.height = 'auto'; renderList(); renderChat(); setBusy(true); setMood(toneMood(t) || 'thinking');
@@ -588,7 +595,7 @@ msgsEl.addEventListener('click', e => {
   else if (a === 'memyes' || a === 'memno') { if (a === 'memyes') addMem(m.memq); delete m.memq; save(); const q = b.closest('.sa-mq'); if (q) q.remove(); }
   else if (a === 'copy') copy(m.content);
   else if (a === 'up' || a === 'down') { m.fb = m.fb === a ? null : a; save(); $$('.sa-pop.open').forEach(p => p.classList.remove('open')); const bs = w.querySelectorAll('[data-a=up],[data-a=down]'); bs[0].classList.toggle('on', m.fb === 'up'); bs[1].classList.toggle('on', m.fb === 'down'); if (m.fb) setMood(m.fb === 'up' ? 'love' : 'sad'); }
-  else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; cur.messages.pop(); const u = cur.messages.pop(); if (u._imgs && u._imgs.length) atts = u._imgs.map((d, k) => ({ kind: 'image', name: 'image ' + (k + 1), data: d })); sendMsg(u.content); }
+  else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; const pu = cur.messages[cur.messages.length - 2]; if (pu && pu.giftSent) return toast('A gift thank-you cannot be regenerated'); cur.messages.pop(); const u = cur.messages.pop(); if (u._imgs && u._imgs.length) atts = u._imgs.map((d, k) => ({ kind: 'image', name: 'image ' + (k + 1), data: d })); sendMsg(u.content); }
   else if (a === 'more') b.parentNode.querySelector('.sa-pop').classList.toggle('open');
   else if (a === 'branch') { const c = { title: 'Branch: ' + cur.title, t: Date.now(), titled: true, messages: cur.messages.slice(0, i + 1).map(x => ({ ...x })) }; chats.unshift(c); save(); openChat(c); toast('Branched into a new chat'); }
   else toast(a === 'share' ? 'Share links come with the Supabase table (next phase)' : 'Legal reports come with the reports update (next phase)');
@@ -1146,5 +1153,6 @@ addEventListener('touchend', e => {
   else if (dx < 0 && app.classList.contains('drawer')) closeDrawer();
 }, { passive: true });
 
+window.SpectraChat = { send: (t, gift) => sendMsg(t, gift), busy: () => busy };   // lets spectra-bond.js send the gift message (this file is wrapped, so sendMsg is private)
 renderList(); renderChat(); setTimeout(showGreeting, 700);
 })();

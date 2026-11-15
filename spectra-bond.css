@@ -86,3 +86,9 @@ a.sb-cta{display:flex;align-items:center;justify-content:center;text-decoration:
   .sb-gift button{height:40px}
 }
 @media (prefers-reduced-motion:reduce){.sb-card,.sb-pill.up,.sb-float{animation:none}.sb-bar i,.sb-rp,.sb-xbar i{transition:none}}
+
+/* ---- gift message chip in the chat (a real gift, shown as an icon) ---- */
+.sb-giftmsg{display:inline-flex;align-items:center;gap:10px;max-width:100%;padding:8px 14px 8px 10px;border:1px solid var(--sa-line2,rgba(255,255,255,.17));border-radius:14px;background:linear-gradient(145deg,var(--sa-acc-dim,rgba(255,255,255,.07)),transparent);color:var(--sa-ink,#fff);font:13px/1.3 var(--font-sans,'Space Grotesk',sans-serif)}
+.sb-giftic{width:20px;height:20px;flex:0 0 auto}
+.sb-giftmsg span{color:var(--sa-ink2,#c4c4c4)}
+.sb-giftmsg b{font-weight:600;overflow-wrap:anywhere}

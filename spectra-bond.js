@@ -23,6 +23,7 @@
     const c = sbc(); if (!c) throw new Error('nosb');
     const r = await c.rpc(name, args || {}); if (r.error) throw r.error; return r.data;
   }
+  let thanksFlag = false;
   let st = null, inv = [], view = '', gl = false, gerr = false, busyG = false, lastLoad = 0;
   const TIERS = [[1, 'Just met'], [10, 'Buddies'], [25, 'Besties'], [50, 'Partners in crime'], [75, 'Ride or die'], [100, 'Legendary bond']];
   const tier = l => { let t = TIERS[0][1]; TIERS.forEach(x => { if (l >= x[0]) t = x[1]; }); return t; };
@@ -129,7 +130,17 @@
   }
   /* Spectra reacts through the normal chat flow, so she answers in her own voice */
   function react(j) {
-    try { if (typeof sendMsg === 'function' && typeof busy !== 'undefined' && !busy) sendMsg('\ud83c\udf81 I just gave you a ' + j.name + ' ' + j.emoji + '!'); } catch (e) { }
+    const text = '*sends you a gift:* ' + j.name;                    // what Spectra reads; the chat shows an icon chip instead
+    const go = n => {
+      const C = window.SpectraChat;      // exposed by spectra-ai.js (the page code is wrapped, so we cannot call sendMsg directly)
+      if (!C || typeof C.send !== 'function') { console.warn('Spectra bond: window.SpectraChat is missing, upload the newest spectra-ai.js'); say('Gift sent! Refresh the page so Spectra can thank you next time'); return; }
+      try {
+        if (C.busy() && n < 40) return setTimeout(() => go(n + 1), 500);   // wait for a running answer to finish
+        thanksFlag = true; C.send(text, { name: j.name });
+        setTimeout(() => { thanksFlag = false; }, 3000);                    // only this one message is the real gift
+      } catch (e) { console.warn('Spectra bond: could not send the gift message', e); }
+    };
+    go(0);
   }
 
   body.addEventListener('click', e => {
@@ -159,6 +170,7 @@
   /* hooks for the chat page */
   window.SpectraBond = {
     refresh: loadStatus, open,
+    takeThanks() { const v = thanksFlag; thanksFlag = false; return v; },
     onMeta(j) { if (!j) return; setStatus(j); if (j.delta) float(j.delta); if (j.leveled_up) { pulse(); say('Bond level up! Lv ' + j.level); } }
   };
   loadStatus();

@@ -1,0 +1,146 @@
+/* ==========================================================================
+   SPECSOFT® — Membership (membership.css)
+   Load AFTER store.css. Every class is prefixed "ms-".
+   ========================================================================== */
+
+@property --ms-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+.ms-wrap {
+    --ms-gold-1: #ffe9a3;
+    --ms-gold-2: #f5c542;
+    --ms-gold-3: #b8860b;
+    --ms-gold-4: #6e4f0a;
+    --ms-ink: #130e03;
+    --ms-text: #f6ecd0;
+    --ms-text-dim: #cbbd93;
+}
+
+.ms-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--st-gap, 18px); align-items: stretch; }
+
+/* ---------------- shared card bits ---------------- */
+.ms-card { position: relative; display: flex; flex-direction: column; gap: 18px; padding: clamp(20px, 3vw, 30px); border-radius: var(--st-radius, 14px); }
+.ms-card h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.2px; }
+.ms-tag { font-size: 13px; line-height: 1.5; }
+.ms-price { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ms-price strong { font-family: var(--font-mono); font-size: clamp(34px, 5vw, 46px); font-weight: 700; letter-spacing: -1.5px; line-height: 1; }
+.ms-price span { font-size: 13px; }
+.ms-group + .ms-group { margin-top: 4px; }
+.ms-group h4 { margin-bottom: 8px; font-size: 13.5px; font-weight: 600; }
+.ms-list { list-style: none; display: grid; gap: 7px; padding: 0; margin: 0; }
+.ms-list li { position: relative; padding-left: 20px; font-size: 13.5px; line-height: 1.45; }
+.ms-list li::before { content: ''; position: absolute; left: 2px; top: 0.5em; width: 9px; height: 5px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg) translateY(-2px); opacity: 0.85; }
+.ms-foot { margin-top: auto; display: grid; gap: 10px; }
+.ms-small { font-size: 12px; line-height: 1.5; }
+
+/* ---------------- Free ---------------- */
+.ms-free { background: var(--bg-card); border: 1px solid var(--border-subtle); }
+.ms-free .ms-tag, .ms-free .ms-small, .ms-free .ms-price span { color: var(--text-secondary); }
+.ms-free .ms-list li::before { color: var(--st-ok, #23a55a); }
+.ms-current { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px; border: 1px dashed var(--border-hover); border-radius: 10px; color: var(--text-secondary); font-size: 13px; }
+
+/* ---------------- Superior (gold) ---------------- */
+.ms-gold {
+    isolation: isolate;
+    overflow: hidden;
+    color: var(--ms-text);
+    background:
+        radial-gradient(120% 70% at 85% -10%, rgba(245, 197, 66, 0.22), transparent 60%),
+        linear-gradient(165deg, #20170a 0%, var(--ms-ink) 65%);
+    box-shadow: 0 24px 70px -28px rgba(245, 197, 66, 0.45), 0 0 0 1px rgba(245, 197, 66, 0.12);
+}
+/* slow-turning gold rim */
+.ms-gold::before {
+    content: '';
+    position: absolute; inset: 0; z-index: -1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--ms-a), var(--ms-gold-4), var(--ms-gold-1), var(--ms-gold-3), #fff6d2, var(--ms-gold-2), var(--ms-gold-4));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    animation: msSpin 9s linear infinite;
+}
+/* one soft light sweep every few seconds */
+.ms-gold::after {
+    content: '';
+    position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: linear-gradient(105deg, transparent 38%, rgba(255, 233, 163, 0.16) 50%, transparent 62%);
+    background-size: 280% 100%;
+    background-position: 130% 0;
+    animation: msSheen 6.5s ease-in-out infinite;
+}
+.ms-gold .ms-tag, .ms-gold .ms-small, .ms-gold .ms-price span, .ms-gold .ms-group h4 { color: var(--ms-text-dim); }
+.ms-gold .ms-group h4 { color: var(--ms-gold-1); }
+.ms-gold .ms-list li::before { color: var(--ms-gold-2); }
+.ms-gold h3 { display: flex; align-items: center; gap: 10px; color: var(--ms-gold-1); }
+.ms-crown { width: 24px; height: 24px; flex: none; color: var(--ms-gold-2); filter: drop-shadow(0 0 8px rgba(245, 197, 66, 0.55)); }
+.ms-gold .ms-price strong {
+    background: linear-gradient(180deg, #fff6d2 0%, var(--ms-gold-2) 55%, var(--ms-gold-3) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+}
+.ms-badge { margin-left: auto; padding: 3px 10px; border-radius: 999px; background: linear-gradient(180deg, var(--ms-gold-1), var(--ms-gold-2)); color: var(--ms-ink); font-family: var(--font-body, inherit); font-size: 11px; font-weight: 700; }
+.ms-cur { padding: 0; border: 0; background: none; color: var(--ms-gold-2); font: inherit; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.ms-cur:focus-visible { outline: 2px solid var(--ms-gold-2); outline-offset: 3px; border-radius: 3px; }
+
+.ms-cta {
+    min-height: 46px; padding: 0 22px; border: 0; border-radius: 12px; cursor: pointer;
+    background: linear-gradient(180deg, var(--ms-gold-1) 0%, var(--ms-gold-2) 55%, #d9a528 100%);
+    color: var(--ms-ink); font: inherit; font-size: 15px; font-weight: 700;
+    box-shadow: 0 10px 30px -10px rgba(245, 197, 66, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.ms-cta:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.05); box-shadow: 0 16px 36px -10px rgba(245, 197, 66, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+.ms-cta:active:not(:disabled) { transform: scale(0.98); }
+.ms-cta:disabled { opacity: 0.55; cursor: default; }
+.ms-cta:focus-visible { outline: 2px solid #fff6d2; outline-offset: 3px; }
+
+.ms-active { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: rgba(245, 197, 66, 0.12); border: 1px solid rgba(245, 197, 66, 0.35); color: var(--ms-gold-1); font-size: 13px; font-weight: 600; }
+
+/* a few slow-twinkling sparks, created by membership.js */
+.ms-spark { position: absolute; z-index: -1; width: 5px; height: 5px; border-radius: 50%; background: #fff3c4; box-shadow: 0 0 10px 2px rgba(255, 223, 128, 0.8); opacity: 0; animation: msTwinkle var(--d, 4s) ease-in-out var(--delay, 0s) infinite; pointer-events: none; }
+
+/* ---------------- Youth Safety Commitment ---------------- */
+.ms-youth { margin-top: var(--st-gap, 18px); background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--st-radius, 14px); }
+.ms-youth summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; cursor: pointer; font-weight: 600; font-size: 15px; list-style: none; }
+.ms-youth summary::-webkit-details-marker { display: none; }
+.ms-youth summary::after { content: '+'; font-family: var(--font-mono); font-size: 18px; color: var(--text-secondary); }
+.ms-youth[open] summary::after { content: '–'; }
+.ms-youth summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--st-radius, 14px); }
+.ms-youth-body { padding: 0 20px 20px; color: var(--text-secondary); font-size: 13.5px; line-height: 1.6; }
+.ms-youth-body p + p, .ms-youth-body ul { margin-top: 10px; }
+.ms-youth-body ul { display: grid; gap: 6px; padding-left: 18px; }
+.ms-youth-body strong { color: var(--text-primary); }
+
+/* ---------------- staff tools ---------------- */
+.ms-admin { margin-top: var(--st-gap, 18px); padding: 16px 20px; background: var(--bg-card); border: 1px dashed var(--border-hover); border-radius: var(--st-radius, 14px); }
+.ms-admin h4 { margin-bottom: 10px; font-size: 14px; font-weight: 600; }
+.ms-admin-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.ms-admin-row .st-field { flex: 1 1 140px; min-width: 0; }
+
+@keyframes msSpin { to { --ms-a: 360deg; } }
+@keyframes msSheen { 0%, 55% { background-position: 130% 0; } 85%, 100% { background-position: -30% 0; } }
+@keyframes msTwinkle { 0%, 100% { opacity: 0; transform: scale(0.4); } 50% { opacity: 0.95; transform: scale(1); } }
+
+@media (max-width: 800px) { .ms-grid { grid-template-columns: 1fr; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .ms-gold::before, .ms-gold::after, .ms-spark, .ms-cta { animation: none; transition: none; }
+    .ms-spark { opacity: 0.6; }
+}
+
+/* ---------------- Superior rewards (weekly / monthly claims) ---------------- */
+.ms-rewards { margin-top: var(--st-gap, 18px); display: grid; gap: 10px; padding: 18px 20px; border-radius: var(--st-radius, 14px); color: var(--ms-text); background: linear-gradient(165deg, #20170a, var(--ms-ink)); border: 1px solid rgba(245, 197, 66, 0.35); }
+.ms-rewards h4 { font-size: 14px; font-weight: 600; color: var(--ms-gold-1); }
+.ms-rewards .ms-small { color: var(--ms-text-dim); }
+.ms-reward { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid rgba(245, 197, 66, 0.18); }
+.ms-reward div { display: grid; gap: 2px; }
+.ms-reward strong { font-size: 14px; font-weight: 600; }
+.ms-reward span { color: var(--ms-text-dim); font-size: 12.5px; }
+.ms-claim { min-height: 38px; padding: 0 18px; border: 0; border-radius: 10px; cursor: pointer; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--ms-ink); background: linear-gradient(180deg, var(--ms-gold-1), var(--ms-gold-2) 60%, #d9a528); transition: transform 0.2s ease, filter 0.2s ease; }
+.ms-claim:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.06); }
+.ms-claim:disabled { cursor: default; color: var(--ms-text-dim); background: rgba(245, 197, 66, 0.12); }
+.ms-claim:focus-visible { outline: 2px solid #fff6d2; outline-offset: 3px; }
+.ms-admin-sub { margin-top: 16px; }
+.ms-admin-frame { margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) { .ms-claim { transition: none; } }
