@@ -182,6 +182,7 @@ function hl(code, lang) {
   return out;
 }
 function codeBlock(p) {
+  if (window.SpectraWidgets && /^widget(\s|$)/i.test(p)) return window.SpectraWidgets.html(p.replace(/^widget\s*/i, ''));   // ready-made interactive widgets (spectra-widgets.js)
   const nl = p.indexOf('\n'), lang = (nl > -1 ? p.slice(0, nl) : '').trim(), code = (nl > -1 ? p.slice(nl + 1) : p).replace(/\n$/, '');
   const key = lang.toLowerCase(), n = code.split('\n').length;
   const body = hl(code, HLA[key] || key).split('\n').map((l, k, a) => '<span class="l">' + l + (k < a.length - 1 ? '\n' : '') + '</span>').join('');
@@ -298,7 +299,7 @@ function msgEl(m, last) {
     if (m.giftSent) {   // a real gift (bond system): an icon chip, never plain text
       const gt = document.createElement('div'); gt.className = 'sa-ut';
       const gi = window.SpectraGiftIcons ? window.SpectraGiftIcons.html(m.giftSent.name, 'sb-giftic') : '';
-      gt.innerHTML = '<div class="sb-giftmsg">' + (gi || '<svg class="sb-giftic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>') + '<span>You sent Spectra a gift</span><b>' + esc(String(m.giftSent.name || 'a gift')) + '</b></div>';
+      gt.innerHTML = '<div class="sb-giftmsg">' + (gi || '<svg class="sb-giftic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>') + '<span>You sent Spectra a gift</span><b>' + esc(String(m.giftSent.name || 'a gift')) + '</b></div>' + (m.giftSent.note ? '<div class="sb-giftnote">' + esc(String(m.giftSent.note)) + '</div>' : '');
       b.appendChild(gt); return d;
     }
     if (m._imgs && m._imgs.length) {
@@ -311,6 +312,7 @@ function msgEl(m, last) {
   d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div>' + srcHtml(m) + memqHtml(m) + giftHtml(m) + '<div class="sa-act">' +
     '<button data-a="copy" title="Copy">' + ico('copy') + '</button><button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
     '<div class="sa-pop"><button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
+  if (window.SpectraWidgets) window.SpectraWidgets.mount(d, m, save);   // builds the interactive widgets and remembers their state on the message
   return d;
 }
 function renderChat() {
@@ -522,7 +524,7 @@ async function sendMsg(t, gift) {   // gift = { name } only when spectra-bond.js
   const imN = im.map(a => a.name).join('  '), fN = tx.map(a => a.name).join('  ');
   const show = cleanT + (imN ? '\n🖼 ' + imN : '') + (fN ? '\n📎 ' + fN : '');
   const um = { role: 'user', content: sanitizeSpecsoftLinks(full), show: sanitizeSpecsoftLinks(show) };
-  if (gift) um.giftSent = { name: String(gift.name || 'a gift').slice(0, 60) };
+  if (gift) um.giftSent = { name: String(gift.name || 'a gift').slice(0, 60), note: String(gift.note || '').replace(/\s+/g, ' ').trim().slice(0, 140) };   // note = the optional message sent with the gift
   if (im.length) Object.defineProperty(um, '_imgs', { value: im.map(a => a.data), enumerable: false, writable: true });
   cur.messages.push(um); const chat = cur; atts = []; drawAtt(); const ai = { role: 'assistant', content: '' }; cur.messages.push(ai);
   input.value = ''; input.style.height = 'auto'; renderList(); renderChat(); setBusy(true); setMood(toneMood(t) || 'thinking');
@@ -550,7 +552,7 @@ async function sendMsg(t, gift) {   // gift = { name } only when spectra-bond.js
       s = s.slice(m[0].length);
     }
     if (/^\s*\[[^\]]*$/.test(s)) s = '';
-    s = cleanFake(s); ai.content = s; if (s) { stat.stage('writing'); body.innerHTML = md(s); } down();
+    s = cleanFake(s); ai.content = s; if (s) { stat.stage('writing'); if (window.SpectraWidgets) window.SpectraWidgets.stream(1); body.innerHTML = md(s); if (window.SpectraWidgets) window.SpectraWidgets.stream(0); } down();
   };
   const end = err => {
     const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null; stat.stop();
@@ -594,7 +596,7 @@ msgsEl.addEventListener('click', e => {
   const a = b.dataset.a; if (!a || !m) return;
   if (a === 'gacc' || a === 'grej') giftAct(m, a === 'gacc' ? 'accept' : 'reject', b);
   else if (a === 'memyes' || a === 'memno') { if (a === 'memyes') addMem(m.memq); delete m.memq; save(); const q = b.closest('.sa-mq'); if (q) q.remove(); }
-  else if (a === 'copy') copy(m.content);
+  else if (a === 'copy') copy(m.content.replace(/```widget[\s\S]*?```/gi, '').trim());
   else if (a === 'up' || a === 'down') { m.fb = m.fb === a ? null : a; save(); $$('.sa-pop.open').forEach(p => p.classList.remove('open')); const bs = w.querySelectorAll('[data-a=up],[data-a=down]'); bs[0].classList.toggle('on', m.fb === 'up'); bs[1].classList.toggle('on', m.fb === 'down'); if (m.fb) setMood(m.fb === 'up' ? 'love' : 'sad'); }
   else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; const pu = cur.messages[cur.messages.length - 2]; if (pu && pu.giftSent) return toast('A gift thank-you cannot be regenerated'); cur.messages.pop(); const u = cur.messages.pop(); if (u._imgs && u._imgs.length) atts = u._imgs.map((d, k) => ({ kind: 'image', name: 'image ' + (k + 1), data: d })); sendMsg(u.content); }
   else if (a === 'more') b.parentNode.querySelector('.sa-pop').classList.toggle('open');

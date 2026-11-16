@@ -72,7 +72,7 @@
         if (up.error) { st.msg = friendly(up.error); return; }
         var ins = await c.sb.from('studio_assets').insert({ project_id: c.pid, name: name, path: path, mime: mime, size: u8.length }).select('id,name,path,mime,size,created_at').single();
         if (ins.error) { await c.sb.storage.from(BUCKET).remove([path]); st.msg = friendly(ins.error); return; }
-        list.push(ins.data); log('ok', 'Uploaded "' + name + '" (' + fmt(u8.length) + ')');
+        list.push(ins.data); log('ok', 'Uploaded "' + name + '" (' + fmt(u8.length) + ')'); return ins.data;
     }
 
     /* ---- what the Preview needs ---- */
@@ -99,6 +99,10 @@
         for (var i = 0; i < refs.images.length; i++) await get(refs.images[i], 'image');
         for (var j = 0; j < refs.texts.length; j++) await get(refs.texts[j], 'text');
         return out;
+    };
+    A.add = async function (file) {                       // used by studio-import.js: same checks as an upload from the Assets page. Returns { row, msg }
+        st.msg = '';
+        try { var row = await upload(file); return { row: row || null, msg: st.msg }; } catch (e) { return { row: null, msg: friendly(e) }; }
     };
     A.known = function () {                              // names of this project's assets, or null while the list is not loaded (used by Validate)
         var c = ctx(); if (!c || st.pid !== c.pid || !st.list) return null;

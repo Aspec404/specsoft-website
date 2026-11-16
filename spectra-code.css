@@ -122,3 +122,18 @@
 .sc-sec{padding:14px;border-bottom:1px solid var(--sa-line,#222)}.sc-sec p{margin:6px 0 0;color:var(--sa-ink2,#ccc);line-height:1.55;font-size:12.5px}.sc-sec .sc-btn{margin:6px 6px 0 0}
 .kv{display:flex;justify-content:space-between;gap:12px;padding:3px 0;font:12px var(--font-mono,monospace);color:var(--sa-ink3,#888)}.kv b{color:var(--sa-ink,#fff);font-weight:500;text-align:right;overflow-wrap:anywhere}
 .sc-app *,.pal *{scrollbar-width:none!important}.sc-app *::-webkit-scrollbar,.pal *::-webkit-scrollbar{display:none!important}
+
+/* swarm: sits in the chat flow (never over the messages), centered, capped in height */
+.chat .sc-swarm{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important;width:min(760px,calc(100% - 32px))!important;max-width:none!important;max-height:34vh;overflow:auto;margin:8px auto!important;flex:0 0 auto;z-index:auto}
+/* imported assets in the explorer */
+.ide-as{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;font:12px var(--font-mono,monospace);color:var(--sa-ink2,#ccc);cursor:pointer}
+.ide-as span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ide-as small{color:var(--sa-ink3,#888);font-size:10.5px}
+.ide-as:hover,.ide-as.on{background:var(--sa-acc-dim,#222);color:var(--sa-ink,#fff)}
+.ide-as u{text-decoration:none;opacity:.5}.ide-as u:hover{opacity:1}
+.ide-ak{font-style:normal;font-size:9px;letter-spacing:.06em;padding:2px 5px;border-radius:5px;border:1px solid var(--sa-line2,#444);color:var(--sa-ink3,#888)}
+.ide-ap{padding:4px 10px 10px;display:flex;flex-direction:column;gap:6px}
+.ide-ap img{max-width:100%;max-height:160px;object-fit:contain;border-radius:8px;border:1px solid var(--sa-line,#333);background:repeating-conic-gradient(#1a1a1a 0 25%,#111 0 50%) 0 0/14px 14px}
+.ide-ap audio{width:100%;height:34px}
+.ide-ap code{font:11px var(--font-mono,monospace);color:var(--sa-ink2,#ccc);overflow-wrap:anywhere}
+.ide-ap small{color:var(--sa-ink3,#888);font:11px var(--font-mono,monospace)}

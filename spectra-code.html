@@ -48,12 +48,19 @@
         <span class="sc-left" id="scLeft"></span><button class="sc-send" id="scSend" aria-label="Build" title="Build (Enter)">↑</button>
       </div>
       <input type="file" id="scFile" multiple hidden accept=".html,.css,.js,.ts,.json,.txt,.md,.py,.lua,.luau,.xml,.svg,.csv">
+      <input type="file" id="scMp3" multiple hidden accept=".mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a">
+      <input type="file" id="scSfx" multiple hidden accept=".mp3,.wav,.ogg,.m4a,audio/*">
+      <input type="file" id="scImg" multiple hidden accept=".png,.jpg,.jpeg,.webp,.gif,.svg,image/*">
       <div class="sc-menu" id="scMenu" hidden>
-        <button type="button" data-m="files"><b>Add files</b><small>Import html, css, js and more so Spectres can read them</small></button>
+        <button type="button" data-m="files"><b>Import files</b><small>Import html, css, js and more so Spectres can read them</small></button>
+        <button type="button" data-m="mp3"><b>Import MP3/M4A</b><small>Music or voice, up to 30 MB. Spectra can use it in your project</small></button>
+        <button type="button" data-m="sfx"><b>Import SFX</b><small>Short sound effects (click, hit, win), up to 5 MB</small></button>
+        <button type="button" data-m="img"><b>Import Image</b><small>PNG, JPG, WEBP, GIF or SVG, up to 10 MB</small></button>
+        <button type="button" data-m="studio"><b>Import to SPECSOFT Studio</b><small>Creates a project called "Spectra Code Import" in Studio with your files as nodes</small></button>
         <button type="button" data-m="plan"><b>Plan Mode</b><small>Review the plan before anything is built</small></button>
         <button type="button" data-m="ask"><b>Ask Spectra</b><small>Ask about your code, no files written</small></button>
         <button type="button" data-m="tools"><b>Tools</b><small>Copy, download, clear</small></button>
-        <div class="sc-tools" id="scTools" hidden><button type="button" data-t="copy">Copy all files</button><button type="button" data-t="dl">Download all files</button><button type="button" data-t="clear">Clear terminal</button></div>
+        <div class="sc-tools" id="scTools" hidden><button type="button" data-t="copy">Copy all files</button><button type="button" data-t="dl">Download all files</button><button type="button" data-t="zip">Download project (.zip)</button><button type="button" data-t="clear">Clear terminal</button></div>
         <button type="button" data-m="ver"><b>History</b><small>Browse and restore older versions of this file</small></button>
       </div>
     </div>

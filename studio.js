@@ -145,7 +145,10 @@
         document.addEventListener('keydown', function (e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 's' && S.cur) { e.preventDefault(); save(); }
         });
-        load();
+        load().then(function () {                    // Spectra Code sends you here with ?open=<project id> after "Import to SPECSOFT Studio"
+            var m = /[?&]open=([0-9a-fA-F-]{36})(&|$)/.exec(location.search);
+            if (m) { try { history.replaceState(null, '', location.pathname); } catch (e) {} openProject(m[1]); }
+        });
     }
     init();
 })();
