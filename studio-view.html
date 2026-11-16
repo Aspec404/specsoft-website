@@ -33,10 +33,18 @@
 <body>
     <header id="hd" hidden>
         <h1 id="ttl"></h1><span class="meta mono" id="meta"></span><span class="sp"></span>
+        <button type="button" id="net" hidden aria-pressed="false">Internet: off</button>
         <button type="button" id="fs" hidden>Fullscreen</button>
     </header>
+    <div id="netAsk" class="mono" hidden style="padding:10px 16px;border-bottom:1px solid var(--line);font-size:.78rem">
+        Let this project use the internet? It can load scripts from cdnjs / jsDelivr / jQuery, Google Fonts, https images, and call any https site.
+        It still can't touch your account. Only allow it for projects you trust.
+        <button type="button" id="netYes">Allow</button> <button type="button" id="netNo">Cancel</button>
+    </div>
+    <div id="diag" class="mono" hidden style="padding:8px 16px;border-bottom:1px solid var(--line);font-size:.72rem;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere;max-height:25vh;overflow:auto"></div>
+    <button type="button" id="fsx" hidden style="position:fixed;top:10px;right:10px;z-index:10000;background:var(--bg)">Exit fullscreen</button>
     <main id="main" aria-live="polite"><div class="center"><p>Loading...</p></div></main>
-    <footer>Published with <a href="index.html">SPECSOFT® Studio</a>. Projects run in a locked-down sandbox: no network, no access to your account.</footer>
+    <footer>Published with <a href="index.html">SPECSOFT® Studio</a>. Projects run in a locked-down sandbox: internet is off unless you allow it, and they never get access to your account.</footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
     <script src="supabase-config.js"></script>
     <script src="studio-view.js"></script>

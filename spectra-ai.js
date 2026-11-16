@@ -310,8 +310,9 @@ function msgEl(m, last) {
     const ut = document.createElement('div'); ut.className = 'sa-ut'; ut.innerHTML = md(tx); b.appendChild(ut); return d;
   }
   d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div>' + srcHtml(m) + memqHtml(m) + giftHtml(m) + '<div class="sa-act">' +
-    '<button data-a="copy" title="Copy">' + ico('copy') + '</button><button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
-    '<div class="sa-pop"><button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
+    '<button data-a="copy" title="Copy">' + ico('copy') + '</button>' + (!m.err && window.SpectraVoice && window.SpectraVoice.ok ? window.SpectraVoice.btn : '') + '<button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
+    '<div class="sa-pop">' + (window.SpectraVoice && window.SpectraVoice.ok ? window.SpectraVoice.menu : '') + '<button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
+  if (window.SpectraVoice) window.SpectraVoice.sync(d, m);
   if (window.SpectraWidgets) window.SpectraWidgets.mount(d, m, save);   // builds the interactive widgets and remembers their state on the message
   return d;
 }
@@ -511,7 +512,7 @@ function makeStatus(el, bodyEl, stage) {
 
 /* ---- Sending ---- */
 const setBusy = b => { busy = b; sendBtn.classList.toggle('stop', b); sendBtn.setAttribute('aria-label', b ? 'Stop' : 'Send'); };
-async function sendMsg(t, gift) {   // gift = { name } only when spectra-bond.js sends a REAL gift message (shown as an icon chip)
+async function sendMsg(t, gift) { if (window.SpectraVoice) window.SpectraVoice.unlock();   // gift = { name } only when spectra-bond.js sends a REAL gift message (shown as an icon chip)
   t = (t || '').trim(); if (!t && atts.some(a => a.kind === 'image')) t = 'What do you think of this?'; if (!t && atts.length) return toast('Add a message with your attachment'); if (!t || busy) return;
   if (t === '/dev') { input.value = ''; setDev(); return; }
   if (/^\/remember\s+\S/i.test(t)) { addMem(t.replace(/^\/remember\s+/i, '')); input.value = ''; input.style.height = 'auto'; return; }
@@ -558,7 +559,7 @@ async function sendMsg(t, gift) {   // gift = { name } only when spectra-bond.js
     const gone = ctrl && ctrl.signal.aborted; setBusy(false); ctrl = null; stat.stop();
     if (!err && !ai.content && !gone && backend() !== 'demo') err = ERR.FAIL;
     if (err) { ai.err = 1; ai.content = err; setMood('pout'); } else { setMood(mm || 'joy'); clearTimeout(settleT); settleT = setTimeout(() => { if (!busy && mood !== 'sleepy') setMood('joy'); }, 25000); }
-    save(); renderChat(); if (!err && ai.content) { autoTitle(chat); notifyDone(ai.content); maybeNote(chat, ai, t); }
+    save(); renderChat(); if (!err && ai.content) { autoTitle(chat); notifyDone(ai.content); maybeNote(chat, ai, t); if (window.SpectraVoice) window.SpectraVoice.auto(ai.content, ai); }
   };
   const h = cur.messages.slice(0, -1).map(m => ({ role: m.role, content: sanitizeSpecsoftLinks(m.content) }));
   if (backend() === 'demo') { const txt = demo(t); let i = 0; timer = setInterval(() => { onTok(txt.slice(i, i += 3)); if (i >= txt.length) { clearInterval(timer); timer = null; end(); } }, 16); return; }
@@ -596,6 +597,8 @@ msgsEl.addEventListener('click', e => {
   const a = b.dataset.a; if (!a || !m) return;
   if (a === 'gacc' || a === 'grej') giftAct(m, a === 'gacc' ? 'accept' : 'reject', b);
   else if (a === 'memyes' || a === 'memno') { if (a === 'memyes') addMem(m.memq); delete m.memq; save(); const q = b.closest('.sa-mq'); if (q) q.remove(); }
+  else if (a === 'speak') { if (window.SpectraVoice) window.SpectraVoice.toggle(m, b); }
+  else if (a === 'voice') { if (window.SpectraVoice) window.SpectraVoice.panel(); }
   else if (a === 'copy') copy(m.content.replace(/```widget[\s\S]*?```/gi, '').trim());
   else if (a === 'up' || a === 'down') { m.fb = m.fb === a ? null : a; save(); $$('.sa-pop.open').forEach(p => p.classList.remove('open')); const bs = w.querySelectorAll('[data-a=up],[data-a=down]'); bs[0].classList.toggle('on', m.fb === 'up'); bs[1].classList.toggle('on', m.fb === 'down'); if (m.fb) setMood(m.fb === 'up' ? 'love' : 'sad'); }
   else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; const pu = cur.messages[cur.messages.length - 2]; if (pu && pu.giftSent) return toast('A gift thank-you cannot be regenerated'); cur.messages.pop(); const u = cur.messages.pop(); if (u._imgs && u._imgs.length) atts = u._imgs.map((d, k) => ({ kind: 'image', name: 'image ' + (k + 1), data: d })); sendMsg(u.content); }

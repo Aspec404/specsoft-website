@@ -1,0 +1,38 @@
+/* SPECSOFT® Spectra voice: speaker button states + settings panel. */
+.sa-fi.sv{display:inline-grid;place-items:center}
+.sa-fi.sv svg{width:100%;height:100%}
+.sa-pop .sa-fi.sv{width:17px;height:17px}
+[data-a=speak] .sv-stop{display:none}
+[data-a=speak].on .sv-stop{display:inline-grid}
+[data-a=speak].on .sa-fi:not(.sv-stop){display:none}
+[data-a=speak].on{color:var(--sa-ink,#fff)}
+[data-a=speak].on .sv-stop svg{animation:svPulse 1s ease-in-out infinite}
+@keyframes svPulse{50%{opacity:.45;transform:scale(.88)}}
+.sv-ov{position:fixed;inset:0;z-index:9000;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:svIn .2s both}
+.sv-box{width:min(380px,100%);padding:20px;border:1px solid var(--sa-line2,rgba(255,255,255,.2));border-radius:18px;background:var(--sa-bg,#0b0b0b);box-shadow:0 24px 80px rgba(0,0,0,.6);color:var(--sa-ink,#fff);font:14px var(--font-sans,'Space Grotesk',sans-serif);display:flex;flex-direction:column;gap:14px}
+.sv-t{font-weight:600;font-size:17px}
+.sv-r{display:flex;flex-direction:column;gap:6px;color:var(--sa-ink2,#c4c4c4);font-size:12.5px}
+.sv-r b{font:500 12px var(--font-mono,monospace);color:var(--sa-ink,#fff);margin-left:6px}
+.sv-r select{padding:9px 10px;border:1px solid var(--sa-line,rgba(255,255,255,.14));border-radius:10px;background:rgba(255,255,255,.05);color:inherit;font:inherit;max-width:100%}
+.sv-r select option{background:#111;color:#fff}
+.sv-r input[type=range]{width:100%;accent-color:var(--sa-acc,#ececec)}
+.sv-c{display:flex;align-items:center;gap:10px;cursor:pointer}
+.sv-c input{width:18px;height:18px;accent-color:var(--sa-acc,#ececec)}
+.sv-n{margin:0;font-size:12px;line-height:1.45;color:var(--sa-ink3,#7d7d7d)}
+.sv-b{display:flex;gap:8px;justify-content:flex-end}
+.sv-b button{padding:9px 16px;border:1px solid var(--sa-line2,rgba(255,255,255,.2));border-radius:10px;background:var(--sa-acc-dim,rgba(255,255,255,.07));color:inherit;font:inherit;cursor:pointer}
+.sv-b button:hover{background:var(--sa-acc-glow,rgba(255,255,255,.16))}
+.sv-b button.main{background:var(--sa-acc,#ececec);color:var(--sa-bg,#0a0a0a);border-color:transparent;font-weight:600}
+@keyframes svIn{from{opacity:0}}
+@media (max-width:850px){.sv-r select{font-size:16px}}
+@media (prefers-reduced-motion:reduce){.sv-ov,[data-a=speak].on .sv-stop svg{animation:none}}
+
+/* v3: Gemini loading spinner, engine sections, notices */
+[data-a=speak] .sv-spin{display:none}
+[data-a=speak].ld .sa-fi:not(.sv-spin){display:none}
+[data-a=speak].ld .sv-spin{display:inline-grid}
+[data-a=speak].ld .sv-spin svg{animation:svSpin .8s linear infinite}
+@keyframes svSpin{to{transform:rotate(360deg)}}
+.sv-box [hidden]{display:none!important}
+.sv-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:9100;max-width:min(92vw,420px);padding:10px 16px;border:1px solid var(--sa-line2,rgba(255,255,255,.2));border-radius:12px;background:var(--sa-bg,#0b0b0b);color:var(--sa-ink,#fff);font:13px var(--font-sans,sans-serif);box-shadow:0 12px 40px rgba(0,0,0,.5);animation:svIn .2s both}
+@media (prefers-reduced-motion:reduce){[data-a=speak].ld .sv-spin svg{animation:none}}

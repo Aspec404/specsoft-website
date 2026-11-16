@@ -15,7 +15,7 @@
     var G = window.StudioGraph, MAX_DOC = 5 * 1024 * 1024, MAX_LOGS = 1000, RATE = 100, BEAT_LIMIT = 5000;
     var LEVELS = { log: 'info', info: 'info', debug: 'info', warn: 'warn', error: 'error' };
     var CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; worker-src blob:";
-    var NET_CSP = "default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com; style-src 'unsafe-inline' https://fonts.googleapis.com; img-src data: blob: https:; font-src data: https://fonts.gstatic.com; media-src data: blob: https:; connect-src https:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; worker-src blob:";
+    var NET_CSP = "default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://code.jquery.com; style-src 'unsafe-inline' https://fonts.googleapis.com; img-src data: blob: https:; font-src data: https://fonts.gstatic.com; media-src data: blob: https:; connect-src https:; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; worker-src blob:";
     var P = window.StudioPreview = {}, ui = {}, st = { seq: 0, hostOrigin: '', doc: '', sent: false, running: false, token: '', frame: null, logs: 0, errors: 0, win: [], warned: 0, beat: 0, wd: 0, map: [], timer: 0 };
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
@@ -149,7 +149,7 @@
         else { f.setAttribute('sandbox', 'allow-scripts allow-pointer-lock'); f.srcdoc = a.doc(st.token); }
         st.frame = f; st.running = true; window.addEventListener('message', onMsg);
         ui.host.appendChild(f); ui.empty.hidden = true; buttons(); status();
-        if (net) G.log('warn', 'preview', 'Network access is ON: this page can load scripts from cdnjs / jsDelivr / jQuery, Google Fonts, and call https sites');
+        if (net) G.log('warn', 'preview', 'Network access is ON: this page can load scripts from cdnjs / jsDelivr / unpkg / esm.sh / jQuery, Google Fonts, and call https sites');
         G.log('info', 'preview', 'Preview started (' + a.files.length + ' file(s), ' + (a.size / (1024 * 1024)).toFixed(2) + ' MB, ' + (ui.source.value === 'saved' ? 'last saved version' : 'current draft') + ')');
         st.wd = setInterval(function () {                  // watchdog: a page that stops answering is removed
             if (Date.now() - st.beat > BEAT_LIMIT) { G.log('error', 'preview', 'The page stopped responding and was removed'); P.stop(true); status('Not responding, stopped'); }
@@ -174,7 +174,7 @@
         ui.net.addEventListener('change', function () {
             var k = netKey();
             if (!k) { ui.net.checked = false; G.log('warn', 'preview', 'Open a project first'); return; }
-            if (ui.net.checked && !window.confirm('Turn on network access for this project?\n\nThe page will be able to load scripts from cdnjs, jsDelivr and jQuery, Google Fonts, and https images, and call any https website.\nIt still cannot touch Studio or your account. Only turn this on for code you trust.')) { ui.net.checked = false; return; }
+            if (ui.net.checked && !window.confirm('Turn on network access for this project?\n\nThe page will be able to load scripts from cdnjs, jsDelivr, unpkg, esm.sh and jQuery, Google Fonts, and https images, and call any https website.\nIt still cannot touch Studio or your account. Only turn this on for code you trust.')) { ui.net.checked = false; return; }
             try { localStorage.setItem(k, ui.net.checked ? '1' : '0'); } catch (e) {}
             ui.netLabel.classList.toggle('on', ui.net.checked);
             G.log(ui.net.checked ? 'warn' : 'ok', 'preview', ui.net.checked ? 'Network access ON for this project (press Run preview)' : 'Network access OFF for this project');
