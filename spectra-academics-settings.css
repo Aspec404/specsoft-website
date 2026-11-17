@@ -1,0 +1,65 @@
+/* SPECSOFT® Spectra Academics Settings (v1). Uses the page's theme variables, so light and dark just work. */
+.ac-shell.min .ac-st{display:grid;width:100%}
+.as-modal{display:none;position:fixed;inset:0;z-index:95;align-items:center;justify-content:center;padding:14px;background:rgba(5,5,6,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.as-modal.on{display:flex;animation:asin .18s ease-out}
+@keyframes asin{from{opacity:0}to{opacity:1}}
+.as-card{display:flex;flex-direction:column;width:min(900px,100%);height:min(680px,86vh);height:min(680px,86dvh);overflow:hidden;border:1px solid var(--line,#e5e6e9);border-radius:20px;background:var(--card,#fff);color:var(--ink,#0b0b0c);font-family:Inter,system-ui,sans-serif;box-shadow:0 30px 90px -20px rgba(0,0,0,.6)}
+.as-h{display:flex;align-items:center;justify-content:space-between;flex:none;padding:12px 12px 12px 22px;border-bottom:1px solid var(--line,#e5e6e9)}
+.as-h b{font:600 16px Inter,sans-serif}
+.as-x{display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--line,#e5e6e9);border-radius:10px;background:none;color:var(--ink2,#5d6065);font-size:20px;line-height:1;cursor:pointer}
+.as-x:hover{background:var(--soft,#f2f3f4);color:var(--ink,#0b0b0c)}
+.as-b{display:flex;flex:1;min-height:0}
+.as-nav{display:flex;flex:0 0 212px;flex-direction:column;gap:2px;padding:12px;border-right:1px solid var(--line,#e5e6e9);overflow-y:auto}
+.as-nav::-webkit-scrollbar{display:none}
+.as-nav button{display:flex;align-items:center;gap:12px;flex:none;width:100%;height:42px;padding:0 12px;border:1px solid transparent;border-radius:11px;background:none;color:var(--ink2,#5d6065);font:500 13.5px Inter,sans-serif;text-align:left;cursor:pointer;transition:background .15s,color .15s}
+.as-nav button svg{width:18px;height:18px;flex:none}
+.as-nav button:hover{background:var(--soft,#f2f3f4);color:var(--ink,#0b0b0c)}
+.as-nav button.on{border-color:var(--line,#e5e6e9);background:var(--soft,#f2f3f4);color:var(--ink,#0b0b0c)}
+.as-pane{flex:1;min-width:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 24px 26px}
+.as-sec{margin:22px 0 2px;color:var(--ink2,#5d6065);font:600 10.5px Inter,sans-serif;letter-spacing:1.4px;text-transform:uppercase}
+.as-r{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 0;border-bottom:1px solid var(--line,#e5e6e9)}
+.as-r.col{flex-direction:column;align-items:stretch;gap:10px}
+.as-t{display:flex;flex-direction:column;gap:3px;min-width:0}
+.as-t b{font:500 14px Inter,sans-serif}
+.as-t span{color:var(--ink2,#5d6065);font:12.5px/1.45 Inter,sans-serif}
+.as-c{flex:0 0 auto;max-width:62%}
+.as-n{color:var(--ink2,#5d6065);font:500 13px Inter,sans-serif}
+.as-in,.as-ta,.as-sel{box-sizing:border-box;padding:10px 13px;border:1px solid var(--line,#e5e6e9);border-radius:11px;background:var(--soft,#f2f3f4);color:var(--ink,#0b0b0c);font:14px Inter,sans-serif;outline:0}
+.as-in{width:240px;max-width:100%}.as-ta,.as-sel{width:100%}.as-ta{resize:vertical;min-height:92px;line-height:1.5}
+.as-in:focus,.as-ta:focus,.as-sel:focus{border-color:var(--ink2,#5d6065)}
+.as-in::placeholder,.as-ta::placeholder{color:var(--ink2,#5d6065);opacity:.7}
+.as-cnt{display:flex;justify-content:flex-end;color:var(--ink2,#5d6065);font:500 11.5px Inter,sans-serif}
+.as-sw{display:block;cursor:pointer}
+.as-sw input{position:absolute;width:0;height:0;opacity:0}
+.as-sw i{position:relative;display:block;width:44px;height:26px;border:1px solid var(--line,#e5e6e9);border-radius:99px;background:var(--soft,#f2f3f4);transition:background .2s}
+.as-sw i::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--ink2,#5d6065);transition:transform .2s,background .2s}
+.as-sw input:checked+i{background:var(--acc,#0b0b0c)}.as-sw input:checked+i::after{transform:translateX(18px);background:var(--onacc,#fff)}
+.as-sw input:focus-visible+i{outline:2px solid var(--ink2,#5d6065);outline-offset:2px}
+.as-seg{display:flex;flex-wrap:wrap;gap:4px;padding:3px;border:1px solid var(--line,#e5e6e9);border-radius:13px;background:var(--soft,#f2f3f4)}
+.as-seg button{padding:8px 13px;border:0;border-radius:10px;background:none;color:var(--ink2,#5d6065);font:500 13px Inter,sans-serif;cursor:pointer;transition:background .15s,color .15s}
+.as-seg button:hover{color:var(--ink,#0b0b0c)}
+.as-seg button.on{background:var(--acc,#0b0b0c);color:var(--onacc,#fff)}
+.as-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:0 16px;border:1px solid var(--line,#e5e6e9);border-radius:11px;background:none;color:var(--ink,#0b0b0c);font:500 13px Inter,sans-serif;text-decoration:none;cursor:pointer;transition:background .15s}
+.as-btn:hover{background:var(--soft,#f2f3f4)}
+.as-btn.main{border-color:transparent;background:var(--acc,#0b0b0c);color:var(--onacc,#fff)}.as-btn.main:hover{opacity:.9;background:var(--acc,#0b0b0c)}
+.as-btn.danger{color:#e5484d}.as-btn.danger:hover{background:rgba(229,72,77,.12);border-color:#e5484d}
+.as-btn:disabled{opacity:.5;pointer-events:none}
+.as-bar{height:8px;overflow:hidden;border-radius:99px;background:var(--soft,#f2f3f4)}
+.as-bar i{display:block;height:100%;border-radius:inherit;background:var(--acc,#0b0b0c);transition:width .4s}
+.as-empty{padding:16px 0;color:var(--ink2,#5d6065);font:13px/1.5 Inter,sans-serif}
+.as-nav button:focus-visible,.as-seg button:focus-visible,.as-btn:focus-visible,.as-x:focus-visible{outline:2px solid var(--ink2,#5d6065);outline-offset:2px}
+
+@media (max-width:700px){
+  .as-modal{padding:0;align-items:flex-end}
+  .as-card{width:100%;height:92vh;height:92dvh;border-radius:20px 20px 0 0}
+  .as-b{flex-direction:column}
+  .as-nav{flex:none;flex-direction:row;gap:6px;padding:8px 10px;border-right:0;border-bottom:1px solid var(--line,#e5e6e9);overflow-x:auto;overflow-y:hidden}
+  .as-nav button{width:auto;height:38px;padding:0 14px;white-space:nowrap}
+  .as-pane{padding:2px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+  .as-c{max-width:100%}
+  .as-r.stack{flex-direction:column;align-items:stretch;gap:10px}
+  .as-r.stack .as-in{width:100%}
+  .as-seg button{flex:1 1 auto;padding:10px 12px}
+  .as-btn{min-height:44px}
+}
+@media (prefers-reduced-motion:reduce){.as-modal.on{animation:none}.as-sw i,.as-sw i::after,.as-bar i{transition:none}}

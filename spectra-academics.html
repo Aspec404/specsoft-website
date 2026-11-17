@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Spectra Academics | SPECSOFT®</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="spectra-academics.css?v=8">
+<link rel="stylesheet" href="spectra-lesson.css?v=2">
+<link rel="stylesheet" href="spectra-academics-settings.css?v=1">
+<link rel="stylesheet" href="spectra-flash.css?v=1">
+<script>try{var t=JSON.parse(localStorage.getItem('sa.acad.theme'))||'light';document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='light'}</script>
+</head>
+<body class="ac-page" data-no-footer>
+<div class="ac-shell" id="app">
+  <div class="ac-back" id="bk"></div>
+  <aside class="ac-side" id="side">
+    <div class="ac-aur"></div>
+    <div class="ac-brand"><b><img class="ac-logo ac-lg-d" src="logo.png" alt="" width="26" height="26" onerror="this.style.display='none'"><img class="ac-logo ac-lg-l" src="logo-dark.png" alt="" width="26" height="26" onerror="this.style.display='none'"><u class="ac-bn">Spectra <span>Academics</span></u></b><button class="ac-ib" id="col" type="button" aria-label="Collapse sidebar" data-ic="panel"></button></div>
+    <button class="ac-new" id="nw" type="button"><i data-ic="plus"></i><span>New chat</span></button>
+    <label class="ac-s"><i data-ic="search"></i><input id="q" placeholder="Search chats" autocomplete="off"></label>
+    <div class="ac-sbs" id="sb">
+      <section class="ac-sec" id="psec">
+        <div class="ac-sh"><span>Projects</span><button class="ac-ib" id="np" type="button" aria-label="New project" title="New project" data-ic="plus"></button></div>
+        <div id="pl"></div>
+      </section>
+      <section class="ac-sec ac-chs"><div id="cl"></div></section>
+    </div>
+    <a class="ac-bkl" href="spectra-ai.html"><i data-ic="back"></i><span>Spectra Chat</span></a>
+    <div class="ac-foot"><a class="ac-me" href="profile.html" aria-label="Your profile"><span class="ac-ava" data-user-avatar style="--sp-size:34px"></span><span class="ac-mn"><b data-user-name></b><small id="cr">Credits</small></span></a><button class="ac-ib ac-th ac-st" id="st" type="button" aria-label="Settings" title="Settings" data-ic="gear"></button><button class="ac-ib ac-th" id="theme" type="button" aria-label="Toggle dark mode" data-ic="moon"></button></div>
+  </aside>
+
+  <main class="ac-main" id="main">
+    <header class="ac-top"><button class="ac-ib" id="bg" type="button" aria-label="Menu" data-ic="menu"></button><b>Spectra Academics</b></header>
+    <div class="ac-scroll" id="sc">
+      <section class="ac-hero" id="hero">
+        <h1 id="gr"></h1>
+        <p>Pick a subject or just ask. I'll explain it step by step.</p>
+        <div id="slot"></div>
+        <div class="ac-pills" id="pills"></div>
+        <div class="ac-trk" id="trk" hidden></div>
+      </section>
+      <div class="ac-msgs" id="ms"></div>
+    </div>
+    <div class="ac-dock" id="dock">
+      <div class="ac-comp" id="comp">
+        <div class="ac-att" id="att" hidden></div>
+        <textarea id="in" rows="1" maxlength="4000" placeholder="Ask me anything..." aria-label="Message Spectra"></textarea>
+        <button class="ac-model" id="md" type="button" aria-label="Choose model"><span id="mn"></span><i data-ic="chev"></i></button>
+        <div class="ac-row">
+          <button class="ac-ib ac-plus" id="ap" type="button" aria-label="Add" data-ic="plus"></button>
+          <button class="ac-tool" id="tl" type="button"><i data-ic="tools"></i>Tools</button>
+          <span class="ac-tag" id="tg"></span>
+          <button class="ac-send" id="sd" type="button" aria-label="Send" data-ic="send"></button>
+        </div>
+        <input type="file" id="fi" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.java,.cpp,.cs,.lua,.sql,.xml,.yml,.yaml,.log">
+        <div class="ac-pop ac-mpop" id="mpop"></div>
+        <div class="ac-pop ac-pp" id="pp">
+          <button class="ac-mi" data-a="file" type="button"><i data-ic="clip"></i><span>Add images or files</span></button>
+          <button class="ac-mi sb" data-a="proj" type="button"><i data-ic="folder"></i><span>Add to project</span><i class="ac-chv" data-ic="chevr"></i></button>
+          <div class="ac-sub" id="ppj"></div>
+          <button class="ac-mi sb" data-a="pers" type="button"><i data-ic="user"></i><span>Persona selector</span><em id="pcur"></em><i class="ac-chv" data-ic="chevr"></i></button>
+          <div class="ac-sub" id="pps"></div>
+        </div>
+        <div class="ac-pop ac-tp" id="pop">
+          <b>Level</b>
+          <div class="ac-lv" id="lv"></div>
+          <label class="ac-tr"><i data-ic="globe"></i><span>Web Search<small>+1 credit</small></span><input type="checkbox" id="tw"></label>
+          <label class="ac-tr"><i data-ic="spark"></i><span>Deep Reasoning<small>3 credits, thinks harder</small></span><input type="checkbox" id="tt"></label>
+          <label class="ac-tr"><i data-ic="layers"></i><span>Deep Research<small>5 credits, full report with sources</small></span><input type="checkbox" id="tr"></label>
+        </div>
+      </div>
+      <div class="ac-hint">Spectra can make mistakes. Double-check important answers.</div>
+    </div>
+  </main>
+</div>
+<div class="ac-toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+<script src="supabase-config.js"></script>
+<script src="ban.js"></script>
+<script src="main.js?v=3"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="spectra-viz.js?v=3"></script>
+<script src="spectra-voice.js?v=2"></script>
+<script src="spectra-lesson.js?v=3"></script>
+<script src="spectra-flash.js?v=1"></script>
+<script src="spectra-academics.js?v=10"></script>
+<script src="spectra-academics-settings.js?v=1"></script>
+<script src="gate.js"></script>
+</body>
+</html>

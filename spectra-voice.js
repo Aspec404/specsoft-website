@@ -1,7 +1,7 @@
 /* SPECSOFT® Spectra voice (v3): she reads her replies out loud.
    Engine 1 = Gemini voice (expressive, via the spectra-voice edge function, costs credits).
    Engine 2 = the browser's built-in voices (free). If Gemini fails or you are out of credits, she falls back to the browser voice.
-   Adds a speaker button to each reply, a "Voice settings" panel and optional auto-read. Load BEFORE spectra-ai.js. */
+   Adds a speaker button to each reply and optional auto-read. Load BEFORE spectra-ai.js. */
 (function () {
 'use strict';
 const SYN = window.speechSynthesis, OK = !!(SYN && window.SpeechSynthesisUtterance);
@@ -18,7 +18,6 @@ const ICON = I('<path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5H4z"/><path d="M15.5 9.
 const STOP = '<i class="sa-fi sv sv-stop"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></svg></i>';
 const SPIN = I('<path d="M12 3a9 9 0 019 9" stroke-width="2.4"/>', 'sv-spin');
 const BTN = '<button data-a="speak" title="Read aloud" aria-label="Read aloud">' + ICON + STOP + SPIN + '</button>';
-const MENU = '<button data-a="voice">' + ICON + '<span>Voice settings</span></button>';
 
 /* ---------- turn markdown into something that sounds right out loud ---------- */
 // [pattern, browser-voice text, Gemini text (null = leave as typed, Gemini laughs by itself)]
@@ -93,12 +92,13 @@ function paint(btn, st) {
   btn.classList.toggle('on', st === 'on'); btn.classList.toggle('ld', st === 'ld');
   btn.title = st ? 'Stop reading' : 'Read aloud'; btn.setAttribute('aria-label', btn.title);
 }
-function setSt(st) { if (cur) { cur.st = st; paint(cur.btn, st); } }
-let noteT = 0;
+function setSt(st) { if (cur) { cur.st = st; paint(cur.btn, st); if (st === 'on' && cur.onStart) { try { cur.onStart(); } catch (e) { } } } }
+let noteT = 0, noteAt = 0, why = '';   // why = the reason Gemini could not speak: 'busy' | 'rate' | 'daily' | '' (silent)
 function notice(msg) {
+  const t = Date.now(); if (t - noteAt < 12000) return; noteAt = t;   // never spam the popup if several replies fail in a row
   const old = document.querySelector('.sv-toast'); if (old) old.remove(); clearTimeout(noteT);
   const d = document.createElement('div'); d.className = 'sv-toast'; d.setAttribute('role', 'status'); d.textContent = msg; document.body.appendChild(d);
-  noteT = setTimeout(() => d.remove(), 3400);
+  noteT = setTimeout(() => d.remove(), 4800);
 }
 
 /* ---------- Gemini voice ---------- */
@@ -123,29 +123,31 @@ async function authInfo() {
 }
 const saveLeft = r => { const lf = r.headers.get('X-Spectra-Left'), lm = r.headers.get('X-Spectra-Limit'); if (lf !== null && lm !== null && !isNaN(+lf) && +lm > 0) { try { localStorage.setItem('sa.left', JSON.stringify({ left: +lf, limit: +lm, day: new Date().toISOString().slice(0, 10) })); } catch (e) { } } };
 /* returns true when Gemini handled it (played, or was cancelled), false when the caller should use the browser voice */
-async function gemSay(raw, id) {
+const inflight = new Map(); let pfc = null;
+/* gets (or fetches) the audio clip for a reply: { url } | { fail: 'busy'|'rate'|'daily'|'' } | { empty: true }. Shared by playing and prefetching. */
+async function clipFor(raw, sig) {
   const tag = /^\s*\[mood:(\w+)\]/i.exec(String(raw || '')), mood = tag ? tag[1].toLowerCase() : 'joy';
-  const text = trimTo(clean(raw, true), GMAX); if (!text) return true;
-  const key = cfg.gv + '|' + mood + '|' + text; let url = cache.get(key);
-  if (!url) {
-    const a = await authInfo(); if (!a) return false;
-    ctrl = new AbortController(); let r;
-    try { r = await fetch(a.url, { method: 'POST', headers: a.headers, body: JSON.stringify({ text, mood, voice: cfg.gv }), signal: ctrl.signal }); }
-    catch (e) { return id !== run; }
-    if (id !== run) return true;
+  const text = trimTo(clean(raw, true), GMAX); if (!text) return { empty: true };
+  const key = cfg.gv + '|' + mood + '|' + text, hit = cache.get(key); if (hit) return { url: hit };
+  if (inflight.has(key)) return inflight.get(key);
+  const p = (async () => {
+    const a = await authInfo(); if (!a) return { fail: '' };
+    let r; try { r = await fetch(a.url, { method: 'POST', headers: a.headers, body: JSON.stringify({ text, mood, voice: cfg.gv }), signal: sig }); } catch (e) { return { fail: 'busy' }; }
     saveLeft(r);
-    if (!r.ok) {
-      const msg = await r.text().catch(() => '');
-      if (/^daily/.test(msg)) notice("You're out of credits for today, so Spectra is using the free voice.");
-      else if (r.status !== 503) notice('Gemini voice is busy, using the free voice for now.');
-      return false;
-    }
-    try { console.info('Spectra voice: Gemini model =', r.headers.get('X-Spectra-Model') || 'unknown'); } catch (e) { }
-    const blob = await r.blob(); if (id !== run) return true; if (blob.size < 1000) return false;
-    url = URL.createObjectURL(blob); cache.set(key, url);
-    if (cache.size > 12) { const k = cache.keys().next().value; URL.revokeObjectURL(cache.get(k)); cache.delete(k); }
-  }
-  if (id !== run) return true;
+    if (!r.ok) { const msg = await r.text().catch(() => ''); return { fail: /^daily/.test(msg) ? 'daily' : /^rate/.test(msg) ? 'rate' : (/^(off|login)/.test(msg) ? '' : 'busy') }; }
+    const blob = await r.blob(); if (blob.size < 1000) return { fail: 'busy' };
+    const url = URL.createObjectURL(blob); cache.set(key, url);
+    if (cache.size > 24) { const k = cache.keys().next().value; URL.revokeObjectURL(cache.get(k)); cache.delete(k); }
+    return { url };
+  })().finally(() => inflight.delete(key));
+  inflight.set(key, p); return p;
+}
+async function gemSay(raw, id) {
+  ctrl = new AbortController();
+  const c = await clipFor(raw, ctrl.signal);
+  if (id !== run) return true; if (c.empty) return true;
+  if (!c.url) { why = c.fail || ''; return false; }
+  const url = c.url;
   return new Promise(res => {
     let fin = false; const end = ok => { if (fin) return; fin = true; AUD.onended = AUD.onerror = null; if (ok && id === run && cur) { paint(cur.btn, ''); cur = null; } res(ok); };
     AUD.onended = () => end(true); AUD.onerror = () => end(false);
@@ -155,14 +157,14 @@ async function gemSay(raw, id) {
 }
 
 /* ---------- browser voice playback ---------- */
-function browserSay(text, id) {
-  if (!OK) { if (id === run && cur) { paint(cur.btn, ''); cur = null; } return; }
+function browserSay(text, id, onEnd) {
+  if (!OK) { if (id === run && cur) { paint(cur.btn, ''); cur = null; } if (id === run && onEnd) onEnd(); return; }
   const tag = /^\s*\[mood:(\w+)\]/i.exec(String(text || '')), mood = MOOD[tag && tag[1].toLowerCase()] || [.04, .06];
-  const parts = sentences(clean(text)); if (!parts.length) { if (id === run && cur) { paint(cur.btn, ''); cur = null; } return; }
+  const parts = sentences(clean(text)); if (!parts.length) { if (id === run && cur) { paint(cur.btn, ''); cur = null; } if (id === run && onEnd) onEnd(); return; }
   const v = pick(); setSt('on'); let i = 0;
   const next = () => {
     if (id !== run) return;
-    if (i >= parts.length) { if (cur) paint(cur.btn, ''); cur = null; return; }
+    if (i >= parts.length) { if (cur) paint(cur.btn, ''); cur = null; if (onEnd) onEnd(); return; }
     const s = parts[i++], pr = prosody(s.t, mood), u = new SpeechSynthesisUtterance(s.t);
     if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
     u.rate = pr.r; u.pitch = pr.p; u.volume = 1;
@@ -179,13 +181,19 @@ function stop() {
   try { AUD.onended = AUD.onerror = null; AUD.pause(); } catch (e) { }
   if (OK) { try { SYN.cancel(); } catch (e) { } }
   if (cur) paint(cur.btn, ''); cur = null;
+  if (pend) { const p = pend; pend = null; p('stopped'); }
 }
 async function say(text, m, btn) {
-  stop(); const id = run; cur = { m, btn, st: 'ld' };
+  stop(); const id = run; cur = { m, btn, st: 'ld' }; why = '';
   if (cfg.engine === 'gemini') {
     paint(btn, 'ld'); let ok = false;
     try { ok = await gemSay(text, id); } catch (e) { ok = false; }
     if (id !== run) return; if (ok) return;
+    // Gemini (all 3 models) could not speak, so tell the person which voice they are about to hear
+    if (why) {
+      if (!OK) notice(why === 'daily' ? "You're out of credits for today." : 'Server busy. The voice is unavailable right now, try again in a bit.');
+      else notice(why === 'daily' ? "You're out of credits for today. Using the browser voice." : why === 'rate' ? 'Too many voice requests. Using the browser voice this time.' : 'Server busy. Using the browser voice as a backup.');
+    }
   }
   browserSay(text, id);
 }
@@ -196,53 +204,50 @@ function auto(text, m) {
 }
 function sync(d, m) { if (cur && cur.m === m) { const b = d.querySelector('[data-a=speak]'); if (b) { cur.btn = b; paint(b, cur.st); } } }
 
-/* ---------- settings panel ---------- */
-let ov = null;
-function fillVoices(sel) {
-  const v = voices().slice().sort((a, b) => (/^en/i.test(b.lang) - /^en/i.test(a.lang)) || a.name.localeCompare(b.name));
-  sel.textContent = ''; const o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Auto (best girly match)'; sel.appendChild(o0);
-  v.forEach(x => { const o = document.createElement('option'); o.value = x.name; o.textContent = x.name + ' (' + x.lang + ')'; sel.appendChild(o); });
-  sel.value = voices().some(x => x.name === cfg.voice) ? cfg.voice : '';
+/* ---------- lesson / video mode helpers (used by spectra-lesson.js) ---------- */
+let pend = null, AC = null, AN = null, LB = null;
+function tap() {   // routes the audio through an analyser so her profile can pulse with the real volume
+  try {
+    if (!AN) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return; AC = new C(); const src = AC.createMediaElementSource(AUD); AN = AC.createAnalyser(); AN.fftSize = 256; LB = new Uint8Array(AN.fftSize); src.connect(AN); AN.connect(AC.destination); }
+    if (AC && AC.state === 'suspended') AC.resume();
+  } catch (e) { }
 }
-function panel() {
-  if (ov) { ov.remove(); ov = null; return; }
-  ov = document.createElement('div'); ov.className = 'sv-ov';
-  ov.innerHTML = '<div class="sv-box" role="dialog" aria-label="Spectra voice settings"><div class="sv-t">Spectra\'s voice</div>' +
-    '<label class="sv-r"><span>Voice engine</span><select id="svEng"><option value="gemini">Gemini (expressive, 1 credit per reply)</option><option value="browser">Browser (free, more robotic)</option></select></label>' +
-    '<label class="sv-r sv-gem"><span>Gemini voice</span><select id="svGv"></select></label>' +
-    '<label class="sv-r sv-brw"><span>Browser voice</span><select id="svVoice"></select></label>' +
-    '<label class="sv-r sv-brw"><span>Speed <b id="svRv"></b></span><input id="svRate" type="range" min="0.7" max="1.5" step="0.05"></label>' +
-    '<label class="sv-r sv-brw"><span>Pitch <b id="svPv"></b></span><input id="svPitch" type="range" min="0.8" max="1.6" step="0.05"></label>' +
-    '<label class="sv-r sv-brw"><span>Bubbly level <b id="svEv"></b></span><input id="svExp" type="range" min="0" max="2" step="0.1"></label>' +
-    '<label class="sv-c"><input id="svAuto" type="checkbox"><span>Read her replies out loud automatically</span></label>' +
-    '<p class="sv-n" id="svNote"></p>' +
-    '<div class="sv-b"><button type="button" id="svTest">Test voice</button><button type="button" id="svDone" class="main">Done</button></div></div>';
-  document.body.appendChild(ov);
-  const $ = id => ov.querySelector('#' + id), eng = $('svEng'), gv = $('svGv'), sel = $('svVoice'), rate = $('svRate'), pit = $('svPitch'), au = $('svAuto'), ex = $('svExp');
-  GV.forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; gv.appendChild(o); });
-  fillVoices(sel); eng.value = cfg.engine; gv.value = cfg.gv; rate.value = cfg.rate; pit.value = cfg.pitch; au.checked = cfg.auto; ex.value = cfg.exp;
-  $('svRv').textContent = (+cfg.rate).toFixed(2) + 'x'; $('svPv').textContent = (+cfg.pitch).toFixed(2); $('svEv').textContent = (+cfg.exp).toFixed(1);
-  const show = () => {
-    const g = cfg.engine === 'gemini'; ov.querySelectorAll('.sv-gem').forEach(e => { e.hidden = !g; }); ov.querySelectorAll('.sv-brw').forEach(e => { e.hidden = g; });
-    $('svNote').textContent = g ? 'Gemini voice sounds like a real person but uses 1 credit per reply (and only reads about the first 650 characters). Replaying the same reply is free. If it fails, she uses the free voice.' : 'Free browser voices. How she sounds depends on your device, and Edge has the nicest ones (look for "Natural").';
-  };
-  show();
-  eng.onchange = () => { cfg.engine = eng.value; store(cfg); show(); };
-  gv.onchange = () => { cfg.gv = gv.value; store(cfg); };
-  sel.onchange = () => { cfg.voice = sel.value; store(cfg); };
-  rate.oninput = () => { cfg.rate = +rate.value; $('svRv').textContent = cfg.rate.toFixed(2) + 'x'; store(cfg); };
-  pit.oninput = () => { cfg.pitch = +pit.value; $('svPv').textContent = cfg.pitch.toFixed(2); store(cfg); };
-  ex.oninput = () => { cfg.exp = +ex.value; $('svEv').textContent = cfg.exp.toFixed(1); store(cfg); };
-  au.onchange = () => { cfg.auto = au.checked; store(cfg); };
-  $('svTest').onclick = () => { unlock(); say("[mood:joy]Hey bro!! It's Spectra! Wait... did you really just ask me to talk? Okay okay, haha, let's gooo! How do I sound?", {}, null); };
-  const close = () => { if (ov) { ov.remove(); ov = null; } document.removeEventListener('keydown', esc); };
-  const esc = e => { if (e.key === 'Escape') close(); };
-  $('svDone').onclick = close; ov.addEventListener('click', e => { if (e.target === ov) close(); }); document.addEventListener('keydown', esc);
-  if (OK && SYN.onvoiceschanged !== undefined) SYN.onvoiceschanged = () => { if (ov) fillVoices(sel); };
-  eng.focus();
+function level() {
+  if (!AN || AUD.paused || AUD.ended) return null;
+  AN.getByteTimeDomainData(LB); let s = 0; for (let i = 0; i < LB.length; i++) { const v = (LB[i] - 128) / 128; s += v * v; }
+  return Math.min(1, Math.sqrt(s / LB.length) * 4.5);
 }
+const prime = () => { unlock(); tap(); };
+function prefetch(raw, engine) {   // load the next clip while the current one plays (Gemini voice only)
+  if ((engine || cfg.engine) !== 'gemini') return;
+  if (!pfc || pfc.signal.aborted) pfc = new AbortController();
+  clipFor(raw, pfc.signal).catch(() => { });
+}
+function cancelPrefetch() { if (pfc) { try { pfc.abort(); } catch (e) { } pfc = null; } }
+/* speaks one line and resolves 'done' when she finishes (or 'stopped' if something stopped her). opts: { engine: 'gemini'|'browser', onStart } */
+function play(raw, opts) {
+  opts = opts || {}; tap(); stop(); const id = run;
+  return new Promise(res => {
+    const finish = r => { if (pend === finish) pend = null; res(r); }; pend = finish;
+    cur = { m: {}, btn: null, st: 'ld', onStart: opts.onStart }; why = '';
+    (async () => {
+      const eng = opts.engine || cfg.engine;
+      if (eng === 'gemini') {
+        let ok = false; try { ok = await gemSay(raw, id); } catch (e) { ok = false; }
+        if (id !== run) return;
+        if (ok) { cur = null; return finish('done'); }
+        if (why) {
+          if (!OK) notice(why === 'daily' ? "You're out of credits for today." : 'Server busy. The voice is unavailable right now, try again in a bit.');
+          else notice(why === 'daily' ? "You're out of credits for today. Using the browser voice." : why === 'rate' ? 'Too many voice requests. Using the browser voice this time.' : 'Server busy. Using the browser voice as a backup.');
+        }
+      }
+      browserSay(raw, id, () => { if (id === run) { cur = null; finish('done'); } });
+    })();
+  });
+}
+
 if (OK) { try { SYN.getVoices(); } catch (e) { } }
 window.addEventListener('pagehide', stop);
 
-window.SpectraVoice = { ok: true, btn: BTN, menu: MENU, toggle, panel, auto, sync, unlock, stop, _clean: clean, _sentences: sentences, _prosody: prosody, _trim: trimTo };
+window.SpectraVoice = { ok: true, play, prime, prefetch, cancelPrefetch, level, btn: BTN, menu: '', toggle, auto, sync, unlock, stop, _clean: clean, _sentences: sentences, _prosody: prosody, _trim: trimTo };
 })();

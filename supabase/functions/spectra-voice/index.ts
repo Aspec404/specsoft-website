@@ -9,7 +9,8 @@
 //   SPECTRA_VOICE_COST=1         credits per spoken reply (0 = free, max 5)
 //   SPECTRA_VOICE_NAME=Leda      default Gemini voice
 //   SPECTRA_VOICE_MAX=800        max characters spoken per request
-//   SPECTRA_TTS_MODEL=model1,model2   first = preferred, rest = fallbacks (default gemini-3.8-flash-tts, then gemini-2.5-flash-preview-tts as backup)
+//   SPECTRA_TRIM=off             turn off the end-of-clip cleanup that removes the buzz/static Gemini sometimes adds after her last word
+//   SPECTRA_TTS_MODEL=model1,model2   first = preferred, rest = fallbacks (default order: gemini-3.8-flash-tts, gemini-3.8-flash-lite-tts, then Gemini 3.1 Flash TTS as the emergency backup; the two 3.1 names are because I'm not sure which one your account uses, a wrong one is just skipped)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
@@ -42,6 +43,7 @@ const MOOD_STYLE: Record<string, string> = {
   thinking: 'thoughtful and curious',
 };
 
+const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 const hits = new Map<string, number[]>();   // best-effort burst limiter: 10 voice clips per minute per user
 
 function fromBase64(b64: string): Uint8Array {
@@ -58,6 +60,32 @@ function toWav(pcm: Uint8Array, rate: number): Uint8Array {
   v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
   tag(36, 'data'); v.setUint32(40, pcm.length, true); out.set(pcm, 44);
   return out;
+}
+// Gemini TTS sometimes adds a buzzy / static tail after the last word. Walk back from the end, keep only up to the last stretch of real
+// voiced speech (plus a short soft ending), fade it out and add a tiny bit of true silence so the clip never ends on a pop.
+function trimTail(pcm: Uint8Array, rate: number): { pcm: Uint8Array; cut: number } {
+  const n = pcm.length >> 1, v = new DataView(pcm.buffer, pcm.byteOffset, n * 2);
+  const F = Math.round(rate * 0.02), nf = Math.floor(n / F);
+  if (nf < 25) return { pcm: pcm.subarray(0, n * 2), cut: 0 };
+  const rms = new Float32Array(nf), zcr = new Float32Array(nf);
+  for (let f = 0; f < nf; f++) {
+    let s = 0, z = 0, prev = 0;
+    for (let i = 0; i < F; i++) { const x = v.getInt16((f * F + i) * 2, true); s += x * x; if (i && (x >= 0) !== (prev >= 0)) z++; prev = x; }
+    rms[f] = Math.sqrt(s / F); zcr[f] = z / F;
+  }
+  const ref = Array.from(rms).sort((a, b) => a - b)[Math.floor(nf * 0.9)], thr = Math.max(ref * 0.15, 120);
+  const voiced = (f: number) => rms[f] > thr && zcr[f] > 0.015 && zcr[f] < 0.22;   // speech vowels: loud enough, not hiss-like, not a low hum
+  let last = -1;
+  for (let f = nf - 1; f >= 3; f--) { if (voiced(f) && voiced(f - 1) && voiced(f - 2) && voiced(f - 3)) { last = f; break; } }
+  if (last < 0) return { pcm: pcm.subarray(0, n * 2), cut: 0 };   // nothing speech-like found: leave the clip alone
+  let keep = Math.min(n, (last + 1 + 11) * F);   // +220 ms so soft endings and breaths survive
+  const cut = n - keep;
+  if (cut < rate * 0.15 || keep < rate * 0.4) return { pcm: pcm.subarray(0, n * 2), cut: 0 };
+  const pad = Math.round(rate * 0.12), fade = Math.min(keep, Math.round(rate * 0.06));
+  const out = new Uint8Array((keep + pad) * 2), o = new DataView(out.buffer);
+  out.set(pcm.subarray(0, keep * 2), 0);
+  for (let i = 0; i < fade; i++) { const idx = keep - fade + i; o.setInt16(idx * 2, Math.round(v.getInt16(idx * 2, true) * (1 - (i + 1) / fade)), true); }
+  return { pcm: out, cut };
 }
 const reply = (msg: string, status: number, extra: Record<string, string> = {}) => new Response(msg, { status, headers: { ...cors, ...extra } });
 
@@ -78,7 +106,7 @@ Deno.serve(async (req) => {
   const MAX = Math.min(Math.max(parseInt(Deno.env.get('SPECTRA_VOICE_MAX') ?? '800') || 800, 100), 1500);
   const text = String(body.text ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/^\s*#+/gm, '').replace(/[ \t]+/g, ' ').trim().slice(0, MAX);
   if (!/[\p{L}\p{N}]/u.test(text)) return reply('bad', 400);
-  const mood = typeof body.mood === 'string' && MOOD_STYLE[body.mood.toLowerCase()] ? body.mood.toLowerCase() : 'joy';
+  const mood = typeof body.mood === 'string' && has(MOOD_STYLE, body.mood.toLowerCase()) ? body.mood.toLowerCase() : 'joy';
   const wanted = String(body.voice ?? '');
   const fallbackVoice = Deno.env.get('SPECTRA_VOICE_NAME') ?? 'Leda';
   const voice = VOICES.has(wanted) ? wanted : (VOICES.has(fallbackVoice) ? fallbackVoice : 'Leda');
@@ -104,12 +132,14 @@ Deno.serve(async (req) => {
   }
 
   // 5) ask Gemini to speak it, with director's notes so she acts the line instead of reading it
+  const spoken = /[.!?\u2026~)"'\u201d]$/.test(text) ? text : text + '.';   // a missing full stop makes Gemini TTS ramble or glitch at the end
   const prompt =
     '# AUDIO PROFILE: Spectra\n## A playful, bubbly Gen Z girl chatting with her best friend.\n\n' +
     "### DIRECTOR'S NOTES\n" +
     'Style: ' + MOOD_STYLE[mood] + '. Very expressive, with big pitch swings, lively pacing, natural pauses and little giggles or gasps where they fit. Never flat, never like a narrator or an assistant.\n' +
-    'Accent: neutral American.\n\n#### TRANSCRIPT\n' + text;
-  const models = (Deno.env.get('SPECTRA_TTS_MODEL') ?? 'gemini-3.8-flash-tts,gemini-2.5-flash-preview-tts').split(',').map((s) => s.trim()).filter(Boolean);
+    'Accent: neutral American.\nEnding: stop right after the last word of the transcript. No extra breaths, hum, noise, beeps or sound effects after it.\n\n#### TRANSCRIPT\n' + spoken;
+  const models = (Deno.env.get('SPECTRA_TTS_MODEL') ?? 'gemini-3.8-flash-tts,gemini-3.8-flash-lite-tts,gemini-3.1-flash-tts-preview,gemini-3.1-flash-tts').split(',').map((s) => s.trim()).filter(Boolean);
+  const tidy = (Deno.env.get('SPECTRA_TRIM') ?? 'on').toLowerCase() !== 'off';
   let audio: Uint8Array | null = null, usedModel = '';
   for (const model of models) {
     try {
@@ -127,7 +157,9 @@ Deno.serve(async (req) => {
       const part = (j?.candidates?.[0]?.content?.parts ?? []).find((p: any) => p?.inlineData?.data);
       if (!part) { console.log('SPECTRA VOICE', model, 'returned no audio'); continue; }
       const rate = parseInt(/rate=(\d+)/.exec(String(part.inlineData.mimeType ?? ''))?.[1] ?? '24000') || 24000;
-      audio = toWav(fromBase64(part.inlineData.data), rate); usedModel = model;
+      const raw = fromBase64(part.inlineData.data), t = tidy ? trimTail(raw, rate) : { pcm: raw, cut: 0 };
+      if (t.cut) console.log('SPECTRA VOICE', model, 'trimmed', Math.round(t.cut / rate * 1000), 'ms of tail from a', Math.round(raw.length / 2 / rate * 1000), 'ms clip');
+      audio = toWav(t.pcm, rate); usedModel = model;
       break;
     } catch (e) { console.log('SPECTRA VOICE', model, 'failed:', String(e)); }
   }

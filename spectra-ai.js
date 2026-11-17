@@ -29,7 +29,7 @@ let atts = [], pendingImgs = [];
 const modes = () => ({ think: false, search: false, research: false, ...LS('sa.modes', {}) });
 const THINK = 'Think through the problem step by step, double-check your work, then give a clear final answer.';
 const backend = () => LS('sa.dev', null) ? 'direct' : LAUNCH;
-const CFG = () => ({ nick: '', expr: true, typing: true, persona: '', enter: true, autotitle: true, memOn: true, recall: true, automem: true, notif: false, sound: false, shortcuts: true, len: 'normal', emo: 'normal', fs: 1, art: true, grid: true, calm: false, ...LS('sa.cfg', {}) });
+const CFG = () => ({ nick: '', expr: true, typing: true, persona: '', enter: true, enterM: false, autotitle: true, memOn: true, recall: true, automem: true, notif: false, sound: false, shortcuts: true, len: 'normal', emo: 'normal', fs: 1, art: true, grid: true, calm: false, ...LS('sa.cfg', {}) });
 const PERSONAS = [
   { id: 'custom', n: 'Use my custom one', i: 'pen', p: '' },
   { id: 'spectra', n: 'Spectra (Default)', i: 'spark', p: '' },
@@ -311,7 +311,7 @@ function msgEl(m, last) {
   }
   d.innerHTML = '<img class="sa-av" src="' + PFP + '" alt=""><div class="sa-col"><div class="sa-b">' + md(m.content) + '</div>' + srcHtml(m) + memqHtml(m) + giftHtml(m) + '<div class="sa-act">' +
     '<button data-a="copy" title="Copy">' + ico('copy') + '</button>' + (!m.err && window.SpectraVoice && window.SpectraVoice.ok ? window.SpectraVoice.btn : '') + '<button data-a="up" title="Like" class="' + (m.fb === 'up' ? 'on' : '') + '">' + ico('like') + '</button><button data-a="down" title="Dislike" class="' + (m.fb === 'down' ? 'on' : '') + '">' + ico('dislike') + '</button><button data-a="regen" title="Regenerate">' + ico('refresh') + '</button><button data-a="more" title="More">' + ico('more') + '</button>' +
-    '<div class="sa-pop">' + (window.SpectraVoice && window.SpectraVoice.ok ? window.SpectraVoice.menu : '') + '<button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
+    '<div class="sa-pop"><button data-a="branch">' + ico('branch') + '<span>Branch in new chat</span></button><button data-a="share">' + ico('link') + '<span>Share message link</span></button><button data-a="report">' + ico('flag') + '<span>Report legal issue</span></button></div></div></div>';
   if (window.SpectraVoice) window.SpectraVoice.sync(d, m);
   if (window.SpectraWidgets) window.SpectraWidgets.mount(d, m, save);   // builds the interactive widgets and remembers their state on the message
   return d;
@@ -598,7 +598,6 @@ msgsEl.addEventListener('click', e => {
   if (a === 'gacc' || a === 'grej') giftAct(m, a === 'gacc' ? 'accept' : 'reject', b);
   else if (a === 'memyes' || a === 'memno') { if (a === 'memyes') addMem(m.memq); delete m.memq; save(); const q = b.closest('.sa-mq'); if (q) q.remove(); }
   else if (a === 'speak') { if (window.SpectraVoice) window.SpectraVoice.toggle(m, b); }
-  else if (a === 'voice') { if (window.SpectraVoice) window.SpectraVoice.panel(); }
   else if (a === 'copy') copy(m.content.replace(/```widget[\s\S]*?```/gi, '').trim());
   else if (a === 'up' || a === 'down') { m.fb = m.fb === a ? null : a; save(); $$('.sa-pop.open').forEach(p => p.classList.remove('open')); const bs = w.querySelectorAll('[data-a=up],[data-a=down]'); bs[0].classList.toggle('on', m.fb === 'up'); bs[1].classList.toggle('on', m.fb === 'down'); if (m.fb) setMood(m.fb === 'up' ? 'love' : 'sad'); }
   else if (a === 'regen') { if (busy || i !== cur.messages.length - 1) return; const pu = cur.messages[cur.messages.length - 2]; if (pu && pu.giftSent) return toast('A gift thank-you cannot be regenerated'); cur.messages.pop(); const u = cur.messages.pop(); if (u._imgs && u._imgs.length) atts = u._imgs.map((d, k) => ({ kind: 'image', name: 'image ' + (k + 1), data: d })); sendMsg(u.content); }
@@ -644,7 +643,13 @@ modal.addEventListener('click', e => { if (e.target === modal) modal.classList.r
 
 /* ---- Wiring ---- */
 sendBtn.onclick = () => busy ? stop() : sendMsg(input.value);
-input.addEventListener('keydown', e => { if (e.key !== 'Enter' || e.isComposing) return; if (CFG().enter ? !e.shiftKey : (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendMsg(input.value); } });
+/* phones and tablets (touch keyboards): Enter adds a new line and the send button sends, so a line break never sends by accident. Settings has a switch if you really want Enter to send there. */
+const touchy = () => matchMedia('(hover:none) and (pointer:coarse)').matches;
+input.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.isComposing) return;
+  if (touchy()) { if (CFG().enterM && !e.shiftKey) { e.preventDefault(); sendMsg(input.value); } return; }
+  if (CFG().enter ? !e.shiftKey : (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendMsg(input.value); }
+});
 input.addEventListener('input', () => {
   input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px';
   if (!busy) { setMood('confused'); clearTimeout(typing); typing = setTimeout(() => setMood('sparkle'), 2500); }
@@ -925,7 +930,7 @@ const PANES = {
     const c = CFG();
     return sec('Chat') +
       r('Nickname', 'What Spectra calls you. Leave it empty to use your profile name.', '<input class="sx-in" data-txt="nick" maxlength="20" placeholder="Bro" value="' + esc(c.nick) + '">', 1) +
-      r('Send with Enter', 'Off means ' + MOD + '+Enter sends and Enter adds a new line.', sw('enter', c.enter)) +
+      (touchy() ? r('Enter key sends', 'Off (recommended on phones): Enter adds a new line and the send button sends.', sw('enterM', c.enterM)) : r('Send with Enter', 'Off means ' + MOD + '+Enter sends and Enter adds a new line.', sw('enter', c.enter))) +
       r('Auto-name chats', 'Spectra titles new chats from your first message.', sw('autotitle', c.autotitle)) +
       sec('Spectra') +
       r('Typing animation', 'Her greeting types itself out.', sw('typing', c.typing)) +

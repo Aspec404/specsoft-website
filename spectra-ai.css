@@ -614,3 +614,31 @@ kbd.sx-k{display:inline-block;min-width:26px;padding:4px 8px;margin-left:4px;bor
 
 /* Spectra Code is PC only: hide its sidebar link on phones and tablets */
 @media (max-width:899px){#saCode{display:none}}
+
+/* ===== Compact sidebar (Academics update) ===== */
+@media (min-width:851px){
+  .sa-side{width:212px;padding:22px 12px 12px}
+  .sa-logo{padding:0 0 14px}.sa-logo img{width:92px}
+  .sa-navs{gap:3px;padding:12px 0 8px}
+  .sa-nav{height:38px;gap:12px;padding:0 12px;font-size:13.5px}
+  .sa-nav-s{height:36px;margin-top:6px}
+  .sa-acct{margin-top:6px;padding:6px 8px}
+}
+@media (max-width:850px){.sa-navs{gap:4px}.sa-nav{height:44px}}
+
+/* ---- Mobile polish (phones and small tablets) ---- */
+@media (max-width:850px){
+  /* tables scroll sideways instead of breaking words letter by letter */
+  .sa-tbl{max-width:100%;overscroll-behavior-x:contain}
+  .sa-tbl table{width:max-content;min-width:100%}
+  .sa-b .sa-tbl th,.sa-b .sa-tbl td{min-width:84px;max-width:280px;overflow-wrap:break-word;word-break:normal;vertical-align:top}
+  /* code header: language on the left, WRAP / COPY / SAVE stay on one line with real tap targets */
+  .sa-code-h{flex-wrap:nowrap;gap:10px;padding:6px 8px 6px 12px}
+  .sa-code-h>span:first-child{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .sa-code-h>span:last-child{display:flex;flex:none;gap:6px}
+  .sa-code-h button{margin-left:0;min-height:32px;padding:0 11px;font-size:10.5px}
+  /* no 300ms tap delay or accidental double-tap zoom on controls */
+  .sa-app button,.sa-app [role=button],.sa-app .sa-item,.sa-app select{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  /* the message box grows with long text but never eats the whole screen */
+  .sa-box textarea{max-height:34vh;max-height:34dvh}
+}

@@ -382,7 +382,7 @@ let mode = 'build';
 let swT = 0;
 const done = () => { if (window.SCSwarm) SCSwarm.end(); clearTimeout(swT); swT = setTimeout(() => { const sw = $('#scSwarm'); if (sw && !busy) sw.hidden = true; }, 2500); save(); status(false); busy = false; ctl = null; $('#scSend').disabled = false; renderAll(); };
 const fail = (e, m) => {
-  const msg = e.name === 'AbortError' ? 'Stopped.' : { LOGIN: 'Log in to use Spectra Code.', DAILY: 'You used all your Spectra credits for today. They reset at midnight UTC.', RATE: 'Too many requests. Wait a minute and try again.', UPSTREAM: 'Spectra got no answer from her brain. Check the spectra-code function logs in Supabase (GEMINI_API_KEY and model names), then try again.' }[e.message] || 'Spectra could not plan that. Try again or make the request simpler.';
+  const msg = e.name === 'AbortError' ? 'Stopped.' : { LOGIN: 'Log in to use Spectra Code.', DAILY: 'You used all your Spectra credits for today. They reset at midnight UTC.', RATE: 'Too many requests. Wait a minute and try again.', UPSTREAM: 'Spectra got no answer from her brain. Check the spectra-code function logs in Supabase (SPECTRA_API_KEY and model names), then try again.' }[e.message] || 'Spectra could not plan that. Try again or make the request simpler.';
   if (m && m.sp) m.sp.forEach(s => { if (s.st === 'Running' || s.st === 'Queued') s.st = 'Cancelled'; });
   say(msg, { err: 1 }); log('error: ' + e.message);
 };

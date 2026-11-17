@@ -46,8 +46,8 @@
     '<div class="sh-stage" id="shStage"><div class="sh-glow"></div><img class="sh-face" id="shFace" alt="Spectra" draggable="false"><div class="sh-zone" id="shZone"></div>' +
     '<div class="sh-hand" id="shHand"><svg viewBox="0 0 24 24"><use href="#i-hand"/></svg></div></div>' +
     '<div class="sh-say" id="shSay"></div><div class="sh-stats" id="shStats"></div>' +
-    '<button type="button" class="sh-btn" id="shBtn">Pat her</button>' +
-    '<p class="sh-tip" id="shTip">Hold and stroke over her head, or tap the button. Friendly pats only.</p></div>';
+    '<button type="button" class="sh-btn" id="shBtn">Pat Me</button>' +
+    '<p class="sh-tip" id="shTip">Hold and stroke over my head, or tap the button. Friendly pats only.</p></div>';
   document.body.appendChild(ov);
   const stage = $('#shStage', ov), face = $('#shFace', ov), zone = $('#shZone', ov), hand = $('#shHand', ov), say = $('#shSay', ov), stats = $('#shStats', ov), btn = $('#shBtn', ov), tip = $('#shTip', ov);
 
@@ -63,7 +63,7 @@
   function drawStats() {
     const used = 5 - xpLeft;
     stats.innerHTML = '<span>Pats today <b>' + today + '</b></span><span>All time <b>' + total + '</b></span><span>' + (xpLeft > 0 ? 'Bond XP today <b>' + used + '/5</b>' : 'Bond XP today <b>max \u2713</b>') + '</span>';
-    btn.disabled = Date.now() < cool; btn.textContent = Date.now() < cool ? 'Resting...' : 'Pat her';
+    btn.disabled = Date.now() < cool; btn.textContent = Date.now() < cool ? 'Resting...' : 'Pat me';
   }
 
   /* ---- patting ---- */
