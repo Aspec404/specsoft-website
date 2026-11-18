@@ -160,11 +160,11 @@ function onPane(e) {
   const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
   if (a === 'export') exportData();
   else if (a === 'clrchats') sure(b, () => { SS('sa.acad.chats', []); toast('All chats deleted'); setTimeout(() => location.reload(), 500); });
-  else if (a === 'reset') sure(b, () => { ['sa.acad.cfg', 'sa.acad.level'].forEach(k => { try { localStorage.removeItem(k); } catch (er) { } }); sync(); draw(); toast('Settings reset'); });
+  else if (a === 'reset') sure(b, () => { ['sa.acad.cfg', 'sa.acad.level', 'sa.acad.eq'].forEach(k => { try { localStorage.removeItem(k); } catch (er) { } }); if (window.SpectraEquip) SpectraEquip.refresh(); if (A().redraw) A().redraw(); sync(); draw(); toast('Settings reset'); });
   else if (a === 'bug') sendBug(b);
 }
 function exportData() {
-  const d = { app: 'spectra-academics', v: 1, t: Date.now(), settings: { acad: ACFG(), level: LS('sa.acad.level', 'Senior High') }, chats: LS('sa.acad.chats', []), projects: LS('sa.acad.proj', []) };
+  const d = { app: 'spectra-academics', v: 1, t: Date.now(), settings: { acad: ACFG(), level: LS('sa.acad.level', 'Senior High'), equip: LS('sa.acad.eq', null) }, chats: LS('sa.acad.chats', []), projects: LS('sa.acad.proj', []) };
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' }));
   a.download = 'spectra-academics-export-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Export downloaded');
 }

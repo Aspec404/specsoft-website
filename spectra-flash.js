@@ -1,4 +1,4 @@
-/* SPECSOFT® Spectra Flashcards (v1). Spectra writes a small deck (JSON), this player lets you study it:
+/* SPECSOFT® Spectra Flashcards (v2). Spectra writes a small deck (JSON), this player lets you study it:
    tap to flip, "Got it" / "Still learning" (or swipe), review only the cards you missed, shuffle, keyboard shortcuts.
    KaTeX is used for math when present. API: SpectraFlash.parse(rawText) -> deck | null, SpectraFlash.open(deck), SpectraFlash.close() */
 (function () {
@@ -31,7 +31,9 @@ function parse(raw) {
 let el, deck, card, inner, qEl, aEl, hintBtn, hintEl, cntEl, prog, done, ctl, btnYes, btnNo, btnFlip;
 let queue = [], pos = 0, res = {}, flipped = false, busy = false, drag = null;
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const math = n => { if (window.renderMathInElement) { try { window.renderMathInElement(n, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '\\(', right: '\\)', display: false }], throwOnError: false }); } catch (e) { } } };
+/* single-dollar math ($x$, $5$) -> \(..\); strict so money like "$5 and $8" stays text */
+const dl = t => String(t).replace(/(?<![\w$\\])\$(?!\s)([^$\n]{1,80}?)(?<!\s)\$(?![\w$])/g, (m, a) => '\\(' + a + '\\)');
+const math = n => { if (window.renderMathInElement) { try { window.renderMathInElement(n, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '\\[', right: '\\]', display: true }, { left: '\\(', right: '\\)', display: false }], throwOnError: false }); } catch (e) { } } };
 
 function close() { document.removeEventListener('keydown', key, true); if (el) el.remove(); el = null; }
 function open(d) {
@@ -86,9 +88,9 @@ function show() {
   if (pos >= queue.length) return finish();
   const c = deck.cards[queue[pos]]; flipped = false; busy = false;
   card.classList.remove('flip', 'out-k', 'out-l'); card.classList.remove('in'); void card.offsetWidth; card.classList.add('in');
-  qEl.textContent = c.q; aEl.textContent = c.a; math(qEl); math(aEl);
+  qEl.textContent = dl(c.q); aEl.textContent = dl(c.a); math(qEl); math(aEl);
   inner.dataset.sz = (c.q.length > 110 || c.a.length > 160) ? 's' : (c.q.length > 60 || c.a.length > 90) ? 'm' : 'l';
-  hintEl.hidden = true; hintEl.textContent = c.h || ''; hintBtn.hidden = !c.h;
+  hintEl.hidden = true; hintEl.textContent = dl(c.h || ''); math(hintEl); hintBtn.hidden = !c.h;
   cntEl.textContent = (pos + 1) + ' / ' + queue.length; prog.style.width = (pos / queue.length * 100) + '%';
   sync();
 }

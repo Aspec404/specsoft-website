@@ -1,0 +1,57 @@
+/* SPECSOFT® Spectra Skills & Capabilities (v1). Uses the page's theme variables, so light and dark just work. */
+.eq{position:fixed;inset:0;z-index:96;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(5,5,6,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:eqin .18s ease-out}
+@keyframes eqin{from{opacity:0}to{opacity:1}}
+.eq-card{display:flex;flex-direction:column;width:min(640px,100%);max-height:min(780px,92vh);max-height:min(780px,92dvh);overflow:hidden;border:1px solid var(--line,#e5e6e9);border-radius:22px;background:var(--card,#fff);color:var(--ink,#0b0b0c);font-family:Inter,system-ui,sans-serif;box-shadow:0 30px 90px -20px rgba(0,0,0,.6);animation:eqcard .3s cubic-bezier(.2,.9,.3,1.1)}
+@keyframes eqcard{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.eq-h{display:flex;align-items:center;justify-content:space-between;flex:none;padding:12px 12px 12px 20px;border-bottom:1px solid var(--line,#e5e6e9)}
+.eq-h b{font:600 16px Inter,sans-serif}
+.eq-x{display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--line,#e5e6e9);border-radius:10px;background:none;color:var(--ink2,#5d6065);font-size:20px;line-height:1;cursor:pointer}
+.eq-x:hover{background:var(--soft,#f2f3f4);color:var(--ink,#0b0b0c)}
+.eq-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 18px 22px}
+.eq-sh{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:18px 0 10px}
+.eq-sh b{display:block;font:700 14px Inter,sans-serif}.eq-sh small{display:block;margin-top:2px;color:var(--ink2,#5d6065);font:500 12px/1.4 Inter,sans-serif}
+.eq-slots{display:inline-flex;align-items:center;gap:5px;flex:none}
+.eq-slots i{width:10px;height:10px;border:1.5px solid var(--ink2,#5d6065);border-radius:50%;transition:background .2s,border-color .2s,box-shadow .2s}
+.eq-slots i.on{border-color:transparent;background:linear-gradient(135deg,#7c5cff,#22d3ee);box-shadow:0 0 10px rgba(124,92,255,.55)}
+.eq-slots em{margin-left:4px;color:var(--ink2,#5d6065);font:600 12px Inter,sans-serif;font-style:normal}
+.eq-slots.shake{animation:eqshake .4s}
+@keyframes eqshake{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+.eq-list{display:flex;flex-direction:column;gap:8px}
+.eq-it{position:relative;display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border:1px solid var(--line,#e5e6e9);border-radius:15px;background:none;color:var(--ink,#0b0b0c);font-family:inherit;text-align:left;cursor:pointer;transition:background .15s,border-color .15s,transform .1s,opacity .15s}
+.eq-it:hover:not(:disabled){background:var(--soft,#f2f3f4)}.eq-it:active:not(:disabled){transform:scale(.985)}
+.eq-it.on{border-color:var(--ink2,#5d6065);background:var(--soft,#f2f3f4)}
+.eq-it.full:not(.on){opacity:.55}
+.eq-it.soon{opacity:.5;cursor:default}
+.eq-it:focus-visible,.eq-x:focus-visible{outline:2px solid var(--ink2,#5d6065);outline-offset:2px}
+.eq-ic{display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:12px;background:var(--soft,#f2f3f4);color:var(--ink,#0b0b0c)}
+.eq-it.on .eq-ic{background:var(--acc,#0b0b0c);color:var(--onacc,#fff)}
+.eq-ic svg{width:19px;height:19px}
+.eq-tx{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.eq-tx b{font:600 13.5px Inter,sans-serif}.eq-tx em{margin-left:8px;padding:2px 8px;border:1px solid var(--line,#e5e6e9);border-radius:99px;color:var(--ink2,#5d6065);font:600 10px Inter,sans-serif;font-style:normal;letter-spacing:.06em;text-transform:uppercase;vertical-align:1px}
+.eq-tx small{color:var(--ink2,#5d6065);font:12px/1.45 Inter,sans-serif}
+.eq-sw{position:relative;flex:none;width:38px;height:22px;border-radius:99px;background:rgba(128,130,136,.38);transition:background .2s}
+.eq-sw i{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .2s}
+.eq-it.on .eq-sw{background:linear-gradient(120deg,#7c5cff,#22d3ee)}.eq-it.on .eq-sw i{transform:translateX(16px)}
+.eq-rd{position:relative;flex:none;width:20px;height:20px;border:1.5px solid var(--ink2,#5d6065);border-radius:50%;transition:border-color .2s}
+.eq-rd i{position:absolute;inset:3px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#22d3ee);transform:scale(0);transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.eq-it.on .eq-rd{border-color:#7c5cff}.eq-it.on .eq-rd i{transform:scale(1)}
+.eq-note{margin:-2px 4px 2px;padding:9px 12px;border-radius:11px;background:var(--soft,#f2f3f4);color:var(--ink2,#5d6065);font:500 12px/1.45 Inter,sans-serif}
+
+/* composer badge + Tools row */
+.ac-eqb{display:inline-flex;align-items:center;gap:7px;flex:0 1 auto;min-width:0;max-width:150px;height:30px;padding:0 12px 0 10px;border:1px solid var(--line,#e5e6e9);border-radius:99px;background:none;color:var(--ink,#0b0b0c);font:600 12px Inter,sans-serif;cursor:pointer;transition:background .15s,transform .1s}
+.ac-eqb[hidden]{display:none}
+.ac-eqb:hover{background:var(--soft,#f2f3f4)}.ac-eqb:active{transform:scale(.96)}
+.ac-eqb i{flex:none;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#22d3ee);box-shadow:0 0 8px rgba(124,92,255,.6)}
+.ac-eqb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-eqo{width:100%;margin-top:6px;padding-top:12px;border:0;border-top:1px solid var(--line,#e5e6e9);border-radius:0;background:none;color:var(--ink,#0b0b0c);font-family:inherit;text-align:left}
+.ac-eqo:hover{background:var(--soft,#f2f3f4);border-radius:10px}
+.ac-eqo .eqo-i,.ac-eqo .eqo-c{display:grid;flex:none;color:var(--ink2,#5d6065)}
+.ac-eqo svg{width:16px;height:16px}.ac-eqo .eqo-c svg{width:14px;height:14px}
+
+@media (max-width:640px){
+  .eq{padding:0;align-items:flex-end}
+  .eq-card{width:100%;max-height:92vh;max-height:92dvh;border-radius:22px 22px 0 0}
+  .eq-body{padding:4px 14px calc(22px + env(safe-area-inset-bottom,0px))}
+  .eq-it{padding:12px}
+}
+@media (prefers-reduced-motion:reduce){.eq,.eq-card,.eq-slots.shake{animation:none}.eq-sw,.eq-sw i,.eq-rd i{transition:none}}

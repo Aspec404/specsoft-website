@@ -1,4 +1,4 @@
-/* SPECSOFT® Spectra voice (v3): she reads her replies out loud.
+/* SPECSOFT® Spectra voice (v4): she reads her replies out loud. v4 adds the Spectre fallback for video lessons (see play()).
    Engine 1 = Gemini voice (expressive, via the spectra-voice edge function, costs credits).
    Engine 2 = the browser's built-in voices (free). If Gemini fails or you are out of credits, she falls back to the browser voice.
    Adds a speaker button to each reply and optional auto-read. Load BEFORE spectra-ai.js. */
@@ -7,6 +7,7 @@
 const SYN = window.speechSynthesis, OK = !!(SYN && window.SpeechSynthesisUtterance);
 const KEY = 'sa.voice', DEF = { engine: 'gemini', gv: 'Leda', voice: '', rate: 1.05, pitch: 1.12, auto: false, exp: 1 };
 const GV = [['Leda', 'Leda (youthful)'], ['Zephyr', 'Zephyr (bright)'], ['Aoede', 'Aoede (breezy)'], ['Autonoe', 'Autonoe (bright)'], ['Laomedeia', 'Laomedeia (upbeat)'], ['Kore', 'Kore (firm)']];
+const SPECTRE_FX = { hz: 55, dry: .7, wet: .5 };   // robot effect on the Spectre's Gemini clips (ring modulator): hz = buzz pitch, dry/wet = how much of the normal vs buzzy voice. Tweak by ear.
 const GMAX = 650;   // Gemini voice reads about this many characters of a reply (her opening and reactions), so one reply stays one credit
 const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { return Object.assign({}, DEF); } };
 const store = c => { try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (e) { } };
@@ -86,6 +87,14 @@ function pick() {
   return pool.find(x => LADY.test(x.name) && /^en[-_]US/i.test(x.lang)) || pool.find(x => LADY.test(x.name)) || pool.find(x => /^en[-_]US/i.test(x.lang)) || pool[0];
 }
 
+// the Spectre never uses Spectra's browser voice: a different (robotic or male) voice, low and flat
+const ROBO = /zarvox|fred|ralph|trinoids|junior/i, MALE = /david|mark|george|james|richard|guy|alex|daniel|aaron|arthur|gordon|oliver|thomas|rishi|male/i;
+function pickBot() {
+  const v = voices(); if (!v.length) return null;
+  const en = v.filter(x => /^en[-_]/i.test(x.lang)), pool = en.length ? en : v, her = pick(), diff = pool.filter(x => !her || x.name !== her.name);
+  return diff.find(x => ROBO.test(x.name)) || diff.find(x => MALE.test(x.name) && !/female/i.test(x.name)) || diff.find(x => !LADY.test(x.name)) || her;
+}
+
 /* ---------- button state + notices ---------- */
 function paint(btn, st) {
   if (!btn || !btn.isConnected) return;
@@ -103,7 +112,7 @@ function notice(msg) {
 
 /* ---------- Gemini voice ---------- */
 const AUD = new Audio(); AUD.preload = 'auto';
-const cache = new Map();   // "voice|mood|text" -> blob url, so replaying the same reply is instant and free
+const cache = new Map();   // "voice|mood|text" -> { url, who }, so replaying the same reply is instant and free (who = 'spectra' | 'spectre')
 let ctrl = null, unlocked = false;
 function silentWav() {   // tiny silent clip, played once on a tap so iOS/Safari let later audio start on their own
   const n = 400, b = new Uint8Array(44 + n * 2), v = new DataView(b.buffer), t = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
@@ -124,30 +133,34 @@ async function authInfo() {
 const saveLeft = r => { const lf = r.headers.get('X-Spectra-Left'), lm = r.headers.get('X-Spectra-Limit'); if (lf !== null && lm !== null && !isNaN(+lf) && +lm > 0) { try { localStorage.setItem('sa.left', JSON.stringify({ left: +lf, limit: +lm, day: new Date().toISOString().slice(0, 10) })); } catch (e) { } } };
 /* returns true when Gemini handled it (played, or was cancelled), false when the caller should use the browser voice */
 const inflight = new Map(); let pfc = null;
-/* gets (or fetches) the audio clip for a reply: { url } | { fail: 'busy'|'rate'|'daily'|'' } | { empty: true }. Shared by playing and prefetching. */
-async function clipFor(raw, sig) {
+/* gets (or fetches) the audio clip for a reply: { url, who } | { fail: 'busy'|'rate'|'daily'|'' } | { empty: true }. Shared by playing and prefetching. */
+async function clipFor(raw, sig, spk) {   // spk: '' (chat) | 'auto' | 'spectre' (video lessons: the server may answer with her Spectre's voice)
   const tag = /^\s*\[mood:(\w+)\]/i.exec(String(raw || '')), mood = tag ? tag[1].toLowerCase() : 'joy';
   const text = trimTo(clean(raw, true), GMAX); if (!text) return { empty: true };
-  const key = cfg.gv + '|' + mood + '|' + text, hit = cache.get(key); if (hit) return { url: hit };
+  const key = cfg.gv + '|' + mood + '|' + text, hit = cache.get(key); if (hit) return { url: hit.url, who: hit.who };
   if (inflight.has(key)) return inflight.get(key);
   const p = (async () => {
     const a = await authInfo(); if (!a) return { fail: '' };
-    let r; try { r = await fetch(a.url, { method: 'POST', headers: a.headers, body: JSON.stringify({ text, mood, voice: cfg.gv }), signal: sig }); } catch (e) { return { fail: 'busy' }; }
+    let r; try { r = await fetch(a.url, { method: 'POST', headers: a.headers, body: JSON.stringify({ text, mood, voice: cfg.gv, speaker: spk || undefined }), signal: sig }); } catch (e) { return { fail: 'busy' }; }
     saveLeft(r);
     if (!r.ok) { const msg = await r.text().catch(() => ''); return { fail: /^daily/.test(msg) ? 'daily' : /^rate/.test(msg) ? 'rate' : (/^(off|login)/.test(msg) ? '' : 'busy') }; }
     const blob = await r.blob(); if (blob.size < 1000) return { fail: 'busy' };
-    const url = URL.createObjectURL(blob); cache.set(key, url);
-    if (cache.size > 24) { const k = cache.keys().next().value; URL.revokeObjectURL(cache.get(k)); cache.delete(k); }
-    return { url };
+    const url = URL.createObjectURL(blob), who = r.headers.get('X-Spectra-Voice') === 'spectre' ? 'spectre' : 'spectra'; cache.set(key, { url, who });
+    try { console.log('[Spectra voice]', who, 'via', r.headers.get('X-Spectra-Model') || '?'); } catch (e) { }
+    if (cache.size > 24) { const k = cache.keys().next().value; URL.revokeObjectURL(cache.get(k).url); cache.delete(k); }
+    return { url, who };
   })().finally(() => inflight.delete(key));
   inflight.set(key, p); return p;
 }
-async function gemSay(raw, id) {
+async function gemSay(raw, id, spk) {
   ctrl = new AbortController();
-  const c = await clipFor(raw, ctrl.signal);
+  const c = await clipFor(raw, ctrl.signal, spk);
   if (id !== run) return true; if (c.empty) return true;
   if (!c.url) { why = c.fail || ''; return false; }
   const url = c.url;
+  // lesson player: tell it who is about to speak (Spectra or her Spectre) and let it finish its swap animation first
+  if (cur && cur.onWho) { try { await cur.onWho(c.who, 'busy'); } catch (e) { } if (id !== run) return true; }
+  spectreFx(c.who === 'spectre');
   return new Promise(res => {
     let fin = false; const end = ok => { if (fin) return; fin = true; AUD.onended = AUD.onerror = null; if (ok && id === run && cur) { paint(cur.btn, ''); cur = null; } res(ok); };
     AUD.onended = () => end(true); AUD.onerror = () => end(false);
@@ -157,15 +170,15 @@ async function gemSay(raw, id) {
 }
 
 /* ---------- browser voice playback ---------- */
-function browserSay(text, id, onEnd) {
+function browserSay(text, id, onEnd, bot) {   // bot = the Spectre is speaking: other voice, low pitch, flat delivery
   if (!OK) { if (id === run && cur) { paint(cur.btn, ''); cur = null; } if (id === run && onEnd) onEnd(); return; }
   const tag = /^\s*\[mood:(\w+)\]/i.exec(String(text || '')), mood = MOOD[tag && tag[1].toLowerCase()] || [.04, .06];
   const parts = sentences(clean(text)); if (!parts.length) { if (id === run && cur) { paint(cur.btn, ''); cur = null; } if (id === run && onEnd) onEnd(); return; }
-  const v = pick(); setSt('on'); let i = 0;
+  const v = bot ? pickBot() : pick(); setSt('on'); let i = 0;
   const next = () => {
     if (id !== run) return;
     if (i >= parts.length) { if (cur) paint(cur.btn, ''); cur = null; if (onEnd) onEnd(); return; }
-    const s = parts[i++], pr = prosody(s.t, mood), u = new SpeechSynthesisUtterance(s.t);
+    const s = parts[i++], pr = bot ? { r: .96, p: .55 } : prosody(s.t, mood), u = new SpeechSynthesisUtterance(s.t);
     if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
     u.rate = pr.r; u.pitch = pr.p; u.volume = 1;
     let fired = false; const done = () => { if (fired || id !== run) return; fired = true; setTimeout(next, gap(s.t, s.brk)); };
@@ -205,12 +218,21 @@ function auto(text, m) {
 function sync(d, m) { if (cur && cur.m === m) { const b = d.querySelector('[data-a=speak]'); if (b) { cur.btn = b; paint(b, cur.st); } } }
 
 /* ---------- lesson / video mode helpers (used by spectra-lesson.js) ---------- */
-let pend = null, AC = null, AN = null, LB = null;
+let pend = null, AC = null, AN = null, LB = null, DRY = null, WET = null;
 function tap() {   // routes the audio through an analyser so her profile can pulse with the real volume
   try {
-    if (!AN) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return; AC = new C(); const src = AC.createMediaElementSource(AUD); AN = AC.createAnalyser(); AN.fftSize = 256; LB = new Uint8Array(AN.fftSize); src.connect(AN); AN.connect(AC.destination); }
+    if (!AN) {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return; AC = new C(); const src = AC.createMediaElementSource(AUD);
+      AN = AC.createAnalyser(); AN.fftSize = 256; LB = new Uint8Array(AN.fftSize);
+      DRY = AC.createGain(); WET = AC.createGain(); WET.gain.value = 0;   // Spectra's voice: all dry, nothing changes
+      const rm = AC.createGain(); rm.gain.value = 0; const osc = AC.createOscillator(); osc.type = 'sine'; osc.frequency.value = SPECTRE_FX.hz; osc.connect(rm.gain); osc.start();   // ring modulator = robot voice
+      src.connect(DRY); DRY.connect(AN); src.connect(rm); rm.connect(WET); WET.connect(AN); AN.connect(AC.destination);
+    }
     if (AC && AC.state === 'suspended') AC.resume();
   } catch (e) { }
+}
+function spectreFx(on) {   // only her Spectre's clips get the robot effect, so Spectra's voice stays exactly hers
+  if (DRY && WET) { DRY.gain.value = on ? SPECTRE_FX.dry : 1; WET.gain.value = on ? SPECTRE_FX.wet : 0; }
 }
 function level() {
   if (!AN || AUD.paused || AUD.ended) return null;
@@ -218,30 +240,37 @@ function level() {
   return Math.min(1, Math.sqrt(s / LB.length) * 4.5);
 }
 const prime = () => { unlock(); tap(); };
-function prefetch(raw, engine) {   // load the next clip while the current one plays (Gemini voice only)
+function prefetch(raw, engine, speaker) {   // load the next clip while the current one plays (Gemini voice only)
   if ((engine || cfg.engine) !== 'gemini') return;
   if (!pfc || pfc.signal.aborted) pfc = new AbortController();
-  clipFor(raw, pfc.signal).catch(() => { });
+  clipFor(raw, pfc.signal, speaker || '').catch(() => { });
 }
 function cancelPrefetch() { if (pfc) { try { pfc.abort(); } catch (e) { } pfc = null; } }
-/* speaks one line and resolves 'done' when she finishes (or 'stopped' if something stopped her). opts: { engine: 'gemini'|'browser', onStart } */
+/* speaks one line and resolves 'done' when she finishes (or 'stopped' if something stopped her).
+   opts: { engine: 'gemini'|'browser', onStart,
+           onWho(who, why): optional. who = 'spectra' | 'spectre'; why = 'busy' | 'rate' | 'daily' | 'off' | 'chosen'. Called right before each line is spoken, may return a promise (the voice waits for it, e.g. for the Spectre boot-up).
+                            Giving it also means "the page can show her Spectre": the server then uses the Spectre voice for the 3.1 backup model, and the browser voice counts as the Spectre too (no popup notice, the page explains the swap itself).
+           speaker: 'spectre' = the page already switched to the Spectre, so skip Spectra's models } */
 function play(raw, opts) {
   opts = opts || {}; tap(); stop(); const id = run;
+  const spk = opts.onWho ? (opts.speaker === 'spectre' ? 'spectre' : 'auto') : '';
   return new Promise(res => {
     const finish = r => { if (pend === finish) pend = null; res(r); }; pend = finish;
-    cur = { m: {}, btn: null, st: 'ld', onStart: opts.onStart }; why = '';
+    cur = { m: {}, btn: null, st: 'ld', onStart: opts.onStart, onWho: opts.onWho }; why = '';
     (async () => {
       const eng = opts.engine || cfg.engine;
       if (eng === 'gemini') {
-        let ok = false; try { ok = await gemSay(raw, id); } catch (e) { ok = false; }
+        let ok = false; try { ok = await gemSay(raw, id, spk); } catch (e) { ok = false; }
         if (id !== run) return;
         if (ok) { cur = null; return finish('done'); }
-        if (why) {
+        if (why && !opts.onWho) {
           if (!OK) notice(why === 'daily' ? "You're out of credits for today." : 'Server busy. The voice is unavailable right now, try again in a bit.');
           else notice(why === 'daily' ? "You're out of credits for today. Using the browser voice." : why === 'rate' ? 'Too many voice requests. Using the browser voice this time.' : 'Server busy. Using the browser voice as a backup.');
         }
       }
-      browserSay(raw, id, () => { if (id === run) { cur = null; finish('done'); } });
+      // the browser voice is never Spectra's voice, so a page that can show her Spectre lets it read the line (free, no credits)
+      if (opts.onWho) { try { await opts.onWho('spectre', eng === 'gemini' ? (why || 'off') : 'chosen'); } catch (e) { } if (id !== run) return; }
+      browserSay(raw, id, () => { if (id === run) { cur = null; finish('done'); } }, !!opts.onWho);
     })();
   });
 }

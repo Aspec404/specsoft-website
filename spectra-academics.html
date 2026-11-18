@@ -7,10 +7,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="spectra-academics.css?v=8">
+<link rel="stylesheet" href="spectra-academics.css?v=11">
 <link rel="stylesheet" href="spectra-lesson.css?v=2">
 <link rel="stylesheet" href="spectra-academics-settings.css?v=1">
-<link rel="stylesheet" href="spectra-flash.css?v=1">
+<link rel="stylesheet" href="spectra-flash.css?v=2">
+<link rel="stylesheet" href="spectra-skills.css?v=1">
 <script>try{var t=JSON.parse(localStorage.getItem('sa.acad.theme'))||'light';document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='light'}</script>
 </head>
 <body class="ac-page" data-no-footer>
@@ -52,6 +53,7 @@
         <div class="ac-row">
           <button class="ac-ib ac-plus" id="ap" type="button" aria-label="Add" data-ic="plus"></button>
           <button class="ac-tool" id="tl" type="button"><i data-ic="tools"></i>Tools</button>
+          <button class="ac-eqb" id="eqb" type="button" aria-label="Skill equipped" hidden><i></i><span></span></button>
           <span class="ac-tag" id="tg"></span>
           <button class="ac-send" id="sd" type="button" aria-label="Send" data-ic="send"></button>
         </div>
@@ -70,6 +72,7 @@
           <label class="ac-tr"><i data-ic="globe"></i><span>Web Search<small>+1 credit</small></span><input type="checkbox" id="tw"></label>
           <label class="ac-tr"><i data-ic="spark"></i><span>Deep Reasoning<small>3 credits, thinks harder</small></span><input type="checkbox" id="tt"></label>
           <label class="ac-tr"><i data-ic="layers"></i><span>Deep Research<small>5 credits, full report with sources</small></span><input type="checkbox" id="tr"></label>
+          <button class="ac-tr ac-eqo" id="eqo" type="button"><i class="eqo-i"></i><span>Skills &amp; Capabilities<small id="eqs"></small></span><i class="eqo-c"></i></button>
         </div>
       </div>
       <div class="ac-hint">Spectra can make mistakes. Double-check important answers.</div>
@@ -85,10 +88,11 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <script src="spectra-viz.js?v=3"></script>
 <script src="spectra-voice.js?v=2"></script>
-<script src="spectra-lesson.js?v=3"></script>
-<script src="spectra-flash.js?v=1"></script>
-<script src="spectra-academics.js?v=10"></script>
-<script src="spectra-academics-settings.js?v=1"></script>
+<script src="spectra-lesson.js?v=4"></script>
+<script src="spectra-flash.js?v=3"></script>
+<script src="spectra-academics.js?v=13"></script>
+<script src="spectra-skills.js?v=2"></script>
+<script src="spectra-academics-settings.js?v=2"></script>
 <script src="gate.js"></script>
 </body>
 </html>

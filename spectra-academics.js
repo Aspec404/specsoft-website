@@ -53,6 +53,8 @@ th.onclick = () => setTh(root.dataset.theme === 'dark' ? 'light' : 'dark');
 /* markdown + math (math is protected first so KaTeX auto-render can find it) */
 function md(t, live) {
   const M = [];
+  /* single-dollar math ($5$, $x$) -> \(..\). Strict: money like "$5 and $8" stays plain text. Code fences are skipped. */
+  t = t.split('```').map((p, i) => i % 2 ? p : p.replace(/(?<![\w$\\])\$(?!\s)([^$\n]{1,80}?)(?<!\s)\$(?![\w$])/g, (m, a) => '\\(' + a + '\\)')).join('```');
   t = t.replace(/\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)/g, m => { M.push(m); return '\uE000' + (M.length - 1) + '\uE001'; });
   return t.split('```').map((p, i) => {
     if (i % 2) {
@@ -62,7 +64,8 @@ function md(t, live) {
       }
       return '<pre><code>' + esc(p.replace(/^[^\n]*\n/, '')) + '</code></pre>';
     }
-    let h = esc(p).replace(/^#{1,3} (.+)$/gm, '<h3>$1</h3>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    let h = esc(p).replace(/^#{1,3} (.+)$/gm, '<h3>$1</h3>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>')
+      .replace(/(<code>[^<]*<\/code>)|(^|[^*\w])\*([^*\s](?:[^*\n]*[^*\s])?)\*(?![*\w])/gm, (m, c, a, b) => c || a + '<i>' + b + '</i>');
     h = h.replace(/(^|\n)((?:[-*] .+(?:\n|$))+)/g, (m, a, b) => a + '<ul>' + b.trim().split('\n').map(x => '<li>' + x.slice(2) + '</li>').join('') + '</ul>')
       .replace(/(^|\n)((?:\d+\. .+(?:\n|$))+)/g, (m, a, b) => a + '<ol>' + b.trim().split('\n').map(x => '<li>' + x.replace(/^\d+\. /, '') + '</li>').join('') + '</ol>');
     return h.replace(/\n/g, '<br>').replace(/(<\/(?:ul|ol|h3)>)<br>/g, '$1').replace(/<br>(<(?:ul|ol|h3))/g, '$1');
@@ -227,8 +230,8 @@ $('#nw').onclick = () => { if (busy) stop(); if (window.SpectraVoice) SpectraVoi
 const mkId = m => m.id || (m.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
 const bt = (k, ic, lb, on) => '<button type="button" class="ac-ab' + (on ? ' on' : '') + '" data-k="' + k + '" aria-label="' + lb + '" title="' + lb + '" data-ic="' + ic + '"></button>';
 const ttsBtn = '<button type="button" class="ac-ab ac-tts" data-k="tts" data-a="speak" aria-label="Read aloud" title="Read aloud"><i class="v-i" data-ic="speaker"></i><i class="v-s" data-ic="stop"></i><i class="v-l" data-ic="spin"></i></button>';
-const vidBtn = m => '<button type="button" class="ac-ab ac-vid" data-k="video" title="Watch Spectra explain it as a video" aria-label="Video"><i data-ic="vid"></i><span>' + (m.lesson ? 'Watch' : 'Video') + '</span></button>';
-const fcBtn = m => '<button type="button" class="ac-ab ac-fc" data-k="flash" title="Turn this answer into flashcards" aria-label="Flashcards"><i data-ic="cards"></i><span>' + (m.cards ? 'Study' : 'Flashcards') + '</span></button>';
+const vidBtn = m => '<button type="button" class="ac-ab ac-vid' + (socOn() ? ' sk-off' : '') + '" data-k="video" title="' + (socOn() ? 'Off while Socratic Tutor is on' : 'Watch Spectra explain it as a video') + '" aria-label="Video"><i data-ic="vid"></i><span>' + (m.lesson ? 'Watch' : 'Video') + '</span></button>';
+const fcBtn = m => '<button type="button" class="ac-ab ac-fc' + (socOn() ? ' sk-off' : '') + '" data-k="flash" title="' + (socOn() ? 'Off while Socratic Tutor is on' : 'Turn this answer into flashcards') + '" aria-label="Flashcards"><i data-ic="cards"></i><span>' + (m.cards ? 'Study' : 'Flashcards') + '</span></button>';
 const VM = new WeakMap(), vm = m => { let s = VM.get(m); if (!s) { s = {}; VM.set(m, s); } s.content = plain(m); return s; };
 const bar = (m, last) => '<div class="ac-acts">' + bt('copy', 'copy', 'Copy') + ttsBtn + bt('up', 'up', 'Good answer', m.fb === 'up') + bt('down', 'down', 'Bad answer', m.fb === 'down') + (last ? bt('regen', 'refresh', 'Try again') : '') + bt('more', 'dots', 'More') + vidBtn(m) + fcBtn(m) + '</div>';
 const uBar = '<div class="ac-uacts">' + bt('ucopy', 'copy', 'Copy message') + bt('uedit', 'edit', 'Edit message') + '</div>';
@@ -351,6 +354,7 @@ $('#ms').addEventListener('click', e => {
   else if (k === 'up' || k === 'down') { m.fb = m.fb === k ? undefined : k; save(); b.parentNode.querySelectorAll('[data-k=up],[data-k=down]').forEach(x => x.classList.toggle('on', x.dataset.k === m.fb)); toast(m.fb ? 'Thanks for the feedback' : 'Feedback removed'); }
   else if (k === 'more') openMM(m, b);
   else if (k === 'regen') regen(m);
+  else if ((k === 'video' || k === 'flash') && socOn()) toast('Socratic Tutor is on, so no answer reveals. Switch the skill to use this.');
   else if (k === 'video') video(m, b);
   else if (k === 'flash') flash(m, b);
 });
@@ -381,6 +385,9 @@ const down = () => { sc.scrollTop = sc.scrollHeight; };
 const setBtn = () => { sd.dataset.ic = busy ? 'stop' : 'send'; paint(sd.parentNode); };
 const stop = () => { if (ctrl) ctrl.abort(); };
 
+/* Skills & Capabilities choice (ids only; the server owns the real instructions) */
+const EQ = () => { const v = LS('sa.acad.eq', null); return v && typeof v === 'object' ? v : null; };
+const socOn = () => { const e = EQ(); return !!e && e.skill === 'socratic'; };   // Socratic Tutor never reveals answers, so Video and Flashcards are off
 async function ask(msgs, onTok, sig, imgs, onEv, extra) {
   const sb = window.getSupabaseClient && window.getSupabaseClient(), s = sb && (await sb.auth.getSession()).data.session;
   if (!s) throw new Error('LOGIN');
@@ -390,7 +397,7 @@ async function ask(msgs, onTok, sig, imgs, onEv, extra) {
     body: JSON.stringify(Object.assign({
       messages: msgs, persona: persona, custom: persona === 'custom' ? custom : '', model: model().id, think: think && !research, search: web && !research, research: research,
       nick: (CFGS().nick || nm()).slice(0, 20), hour: new Date().getHours(), memory: [], recent: [], style: { len: ACFG().len, emo: ACFG().emo }, images: imgs && imgs.length ? imgs : undefined,
-      academics: { subject: subject || 'General Knowledge', level, track: noTrack() ? '' : track }
+      academics: { subject: subject || 'General Knowledge', level, track: noTrack() ? '' : track }, equip: EQ() || undefined
     }, extra || {}))
   });
   const lf = r.headers.get('X-Spectra-Left'), lm = r.headers.get('X-Spectra-Limit');
@@ -419,6 +426,20 @@ async function send() {
   inp.value = ''; grow();
   await run(imgs);
 }
+/* AI chat title: after the first answer Spectra names the chat (free, same 'title' mode Spectra Chat uses). Only renames chats still carrying the default title (the start of your first message). */
+async function autoTitle(chat) {
+  const u = chat.msgs.find(m => m.role === 'user'), a = chat.msgs.find(m => m.role === 'assistant'); if (!u || !a || !a.content || chat.tt) return;
+  const first = u.content.split('\n\n[Attached:')[0].trim(); if (chat.title !== first.slice(0, 32)) return;
+  try {
+    const sb = window.getSupabaseClient && window.getSupabaseClient(), s = sb && (await sb.auth.getSession()).data.session; if (!s) return;
+    const C = window.SPECSOFT_CONFIG;
+    const r = await fetch(C.SUPABASE_URL + '/functions/v1/spectra-chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token, apikey: C.SUPABASE_ANON_KEY },
+      body: JSON.stringify({ mode: 'title', user: first.slice(0, 400), assistant: clean(a.content).slice(0, 300) }) });
+    if (!r.ok) return; const d = await r.json(), tt = d && typeof d.title === 'string' ? d.title.trim() : '';
+    if (!tt || chat.title !== first.slice(0, 32)) return;   // empty answer, or you renamed it meanwhile
+    chat.title = tt.slice(0, 40); chat.tt = 1; save(); list(); plist();
+  } catch (e) { }
+}
 /* one Spectra reply for the chat as it stands (its last message is the user's).
    fallback = the old answer: put back if a "try again" fails or is stopped before anything arrives */
 async function run(imgs, fallback) {
@@ -439,10 +460,11 @@ async function run(imgs, fallback) {
   if (fallback && (failed || !a.content)) { chat.msgs.pop(); chat.msgs.push(fallback); toast(failed ? 'Could not try again, kept the old answer' : 'Kept the old answer'); }
   else if (!a.content) chat.msgs.pop();
   busy = false; ctrl = null; setBtn(); save(); draw(); plist(); list();
+  if (!failed && !fallback && a.content) autoTitle(chat);
 }
 
 /* composer */
-const grow = () => { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 180) + 'px'; };
+const grow = () => { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 180) + 'px'; comp.classList.toggle('typing', inp.value.length > 0); };
 inp.oninput = grow; sd.onclick = send;
 inp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } };
 
@@ -511,6 +533,7 @@ const tag = () => {
   const pj = curProj(); if (pj && pname(pj)) m.push(pname(pj));
   $('#tg').textContent = m.join(' \u00b7 '); inp.placeholder = subject ? 'Ask about ' + subject + '...' : 'Ask me anything...';
   $('#tl').classList.toggle('lit', web || think || research);
+  const gm = research ? 'res' : (think && web) ? 'tw' : think ? 't' : web ? 'w' : ''; if (gm) comp.dataset.gm = gm; else delete comp.dataset.gm;
 };
 const syncModes = () => { $('#tw').checked = web; $('#tt').checked = think; $('#tr').checked = research; tag(); };
 $('#tw').onchange = e => { web = e.target.checked; if (web) research = false; syncModes(); };
@@ -588,7 +611,7 @@ if (LS('sa.acad.min', false)) setMin(true);
 
 /* settings module hooks */
 function sync() { persona = LS('sa.persona', LS('sa.acad.persona', 'spectra')); custom = String(CFGS().persona || LS('sa.acad.custom', '') || '').slice(0, 400); if (!PERS.some(p => p.id === persona) || (persona === 'custom' && !custom.trim())) persona = 'spectra'; tag(); mdraw(); gr(); cred(); }
-window.SpectraAcad = { paint, toast, setTheme: setTh, sync, msgs: () => (cur ? cur.msgs : []) };
+window.SpectraAcad = { md, math, paint, toast, redraw: draw, setTheme: setTh, sync, msgs: () => (cur ? cur.msgs : []) };
 addEventListener('storage', e => { if (!e.key || e.key === 'sa.persona' || e.key === 'sa.cfg' || e.key === 'sa.model') sync(); });
 th.dataset.ic = root.dataset.theme === 'dark' ? 'sun' : 'moon';
 mdraw(); paint(); gr(); cred(); syncModes(); lvDraw(); plist(); list(); draw(); setBtn(); openHash();

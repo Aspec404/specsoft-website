@@ -10,18 +10,22 @@
 //   SPECTRA_VOICE_NAME=Leda      default Gemini voice
 //   SPECTRA_VOICE_MAX=800        max characters spoken per request
 //   SPECTRA_TRIM=off             turn off the end-of-clip cleanup that removes the buzz/static Gemini sometimes adds after her last word
+//   SPECTRA_SPECTRE_MODELS=3.1   models whose name contains one of these words are spoken by her SPECTRE (the little sphere drone) instead of Spectra: different robotic voice, and the reply header says X-Spectra-Voice: spectre. Use "off" to disable.
+//   SPECTRE_VOICE_NAME=Puck      Gemini voice the Spectre uses (Puck, Charon, Fenrir, Orus, Umbriel, Iapetus, Algenib, Achird, Zephyr, Kore)
 //   SPECTRA_TTS_MODEL=model1,model2   first = preferred, rest = fallbacks (default order: gemini-3.8-flash-tts, gemini-3.8-flash-lite-tts, then Gemini 3.1 Flash TTS as the emergency backup; the two 3.1 names are because I'm not sure which one your account uses, a wrong one is just skipped)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-  'Access-Control-Expose-Headers': 'X-Spectra-Left, X-Spectra-Limit, X-Spectra-Model',
+  'Access-Control-Expose-Headers': 'X-Spectra-Left, X-Spectra-Limit, X-Spectra-Model, X-Spectra-Voice',
 };
 const API = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 // girly, young-sounding Gemini voices only (the page's picker uses the same list)
 const VOICES = new Set(['Leda', 'Zephyr', 'Aoede', 'Autonoe', 'Laomedeia', 'Kore']);
+// the Spectre (her sphere drone) gets its own, deliberately un-Spectra voice
+const SPECTRE_VOICES = new Set(['Puck', 'Charon', 'Fenrir', 'Orus', 'Umbriel', 'Iapetus', 'Algenib', 'Achird', 'Zephyr', 'Kore']);
 
 // her hidden [mood:...] tag becomes a delivery note for the voice
 const MOOD_STYLE: Record<string, string> = {
@@ -44,6 +48,9 @@ const MOOD_STYLE: Record<string, string> = {
 };
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+// which models count as "the Spectre's models" (default: the Gemini 3.1 emergency backup)
+const SPECTRE_KEYS = (Deno.env.get('SPECTRA_SPECTRE_MODELS') ?? '3.1').split(',').map((s) => s.trim().toLowerCase()).filter((s) => s && s !== 'off');
+const isSpectreModel = (m: string) => SPECTRE_KEYS.some((k) => m.toLowerCase().includes(k));
 const hits = new Map<string, number[]>();   // best-effort burst limiter: 10 voice clips per minute per user
 
 function fromBase64(b64: string): Uint8Array {
@@ -110,6 +117,10 @@ Deno.serve(async (req) => {
   const wanted = String(body.voice ?? '');
   const fallbackVoice = Deno.env.get('SPECTRA_VOICE_NAME') ?? 'Leda';
   const voice = VOICES.has(wanted) ? wanted : (VOICES.has(fallbackVoice) ? fallbackVoice : 'Leda');
+  // speaker: '' = old behaviour (chat read-aloud, every model speaks as Spectra) | 'auto' = lesson player that can show the Spectre | 'spectre' = lesson already switched to the Spectre, only use its models
+  const speakerMode = body.speaker === 'spectre' ? 'spectre' : body.speaker === 'auto' ? 'auto' : '';
+  const spectreWanted = Deno.env.get('SPECTRE_VOICE_NAME') ?? 'Puck';
+  const spectreVoice = SPECTRE_VOICES.has(spectreWanted) ? spectreWanted : 'Puck';
 
   // 3) anti-spam burst limit
   const now = Date.now(), arr = (hits.get(user.id) ?? []).filter((t) => now - t < 60000);
@@ -133,22 +144,31 @@ Deno.serve(async (req) => {
 
   // 5) ask Gemini to speak it, with director's notes so she acts the line instead of reading it
   const spoken = /[.!?\u2026~)"'\u201d]$/.test(text) ? text : text + '.';   // a missing full stop makes Gemini TTS ramble or glitch at the end
-  const prompt =
+  const spectraPrompt =
     '# AUDIO PROFILE: Spectra\n## A playful, bubbly Gen Z girl chatting with her best friend.\n\n' +
     "### DIRECTOR'S NOTES\n" +
     'Style: ' + MOOD_STYLE[mood] + '. Very expressive, with big pitch swings, lively pacing, natural pauses and little giggles or gasps where they fit. Never flat, never like a narrator or an assistant.\n' +
     'Accent: neutral American.\nEnding: stop right after the last word of the transcript. No extra breaths, hum, noise, beeps or sound effects after it.\n\n#### TRANSCRIPT\n' + spoken;
+  // the Spectre: a tiny hovering drone, synthetic and a little staccato, friendly but clearly not Spectra
+  const spectrePrompt =
+    '# AUDIO PROFILE: Spectre\n## A tiny hovering robot drone, Spectra\'s little helper, reading the lesson for her.\n\n' +
+    "### DIRECTOR'S NOTES\n" +
+    'Style: synthetic and slightly robotic, neat and precise, a little staccato with short even pauses between phrases and small pitch steps. Friendly, curious and cute, like a small AI drone, never flat-out cold. Subtle mood, kept understated: ' + MOOD_STYLE[mood] + '.\n' +
+    'Accent: neutral American.\nEnding: stop right after the last word of the transcript. No extra breaths, hum, noise, beeps or sound effects after it.\n\n#### TRANSCRIPT\n' + spoken;
   const models = (Deno.env.get('SPECTRA_TTS_MODEL') ?? 'gemini-3.8-flash-tts,gemini-3.8-flash-lite-tts,gemini-3.1-flash-tts-preview,gemini-3.1-flash-tts').split(',').map((s) => s.trim()).filter(Boolean);
+  const modelList = speakerMode === 'spectre' ? models.filter(isSpectreModel) : models;   // the lesson is already on the Spectre: skip Spectra's models
+  if (!modelList.length) { if (counted) await admin.rpc('spectra_refund', { p_user: user.id, p_cost: COST }); return reply('tts', 502); }
   const tidy = (Deno.env.get('SPECTRA_TRIM') ?? 'on').toLowerCase() !== 'off';
-  let audio: Uint8Array | null = null, usedModel = '';
-  for (const model of models) {
+  let audio: Uint8Array | null = null, usedModel = '', who = 'spectra';
+  for (const model of modelList) {
+    const asSpectre = speakerMode !== '' && isSpectreModel(model);   // only lesson requests can show a Spectre, chat read-aloud keeps Spectra's voice
     try {
       const up = await fetch(API + encodeURIComponent(model) + ':generateContent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
+          contents: [{ parts: [{ text: asSpectre ? spectrePrompt : spectraPrompt }] }],
+          generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: asSpectre ? spectreVoice : voice } } } },
         }),
         signal: AbortSignal.timeout(25000),
       });
@@ -159,7 +179,7 @@ Deno.serve(async (req) => {
       const rate = parseInt(/rate=(\d+)/.exec(String(part.inlineData.mimeType ?? ''))?.[1] ?? '24000') || 24000;
       const raw = fromBase64(part.inlineData.data), t = tidy ? trimTail(raw, rate) : { pcm: raw, cut: 0 };
       if (t.cut) console.log('SPECTRA VOICE', model, 'trimmed', Math.round(t.cut / rate * 1000), 'ms of tail from a', Math.round(raw.length / 2 / rate * 1000), 'ms clip');
-      audio = toWav(t.pcm, rate); usedModel = model;
+      audio = toWav(t.pcm, rate); usedModel = model; who = asSpectre ? 'spectre' : 'spectra';
       break;
     } catch (e) { console.log('SPECTRA VOICE', model, 'failed:', String(e)); }
   }
@@ -168,7 +188,7 @@ Deno.serve(async (req) => {
     if (counted) await admin.rpc('spectra_refund', { p_user: user.id, p_cost: COST });   // no audio, so no charge
     return reply('tts', 502);
   }
-  const h: Record<string, string> = { ...cors, 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store', 'X-Spectra-Model': usedModel };   // the page logs this in the browser console so you can see which model really spoke
+  const h: Record<string, string> = { ...cors, 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store', 'X-Spectra-Model': usedModel, 'X-Spectra-Voice': who };   // the page logs this in the browser console so you can see which model really spoke
   if (left !== null) { h['X-Spectra-Left'] = String(left); h['X-Spectra-Limit'] = String(LIMIT); }
   return new Response(audio, { headers: h });
 });
