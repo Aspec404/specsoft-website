@@ -1,4 +1,4 @@
-/* SPECSOFT® Spectra Viz v2 (smooth pop-in, glowing curve tracer, auto demo sweep of the first slider). v1: Spectra writes a ```viz block (one line of JSON) and this draws it as an interactive
+/* SPECSOFT® Spectra Viz v3 (Batch C: SpectraViz.morph = same id glides one graph or shape into the next; v2: smooth pop-in, glowing curve tracer, auto demo sweep of the first slider). v1: Spectra writes a ```viz block (one line of JSON) and this draws it as an interactive
    illustration that assembles slowly, piece by piece. No eval anywhere: graph formulas go through a tiny safe parser,
    every number is clamped and every label is escaped. Types: triangle, pythagoras, unitcircle, circle, polygon, graph. */
 (function () {
@@ -100,11 +100,11 @@ function wPyth(s) {
       o += Pg([R, A, [A[0], A[1] + a * k], [R[0], R[1] + a * k]], 2, 'v-fc1') + Pg([R, B, [B[0] - b * k, B[1]], [R[0] - b * k, R[1]]], 3, 'v-fc2') + Pg([A, B, [B[0] + n[0], B[1] + n[1]], [A[0] + n[0], A[1] + n[1]]], 4, 'v-fc3');
       const m = Math.min(12, a * k * .4, b * k * .4);
       o += Pa('M' + r1(x0 + m) + ' ' + y0 + 'L' + r1(x0 + m) + ' ' + r1(y0 - m) + 'L' + r1(x0) + ' ' + r1(y0 - m), 4.5, 'v-m');
-      o += Tx(x0 + a * k / 2, y0 + a * k / 2 + 4, 'a\u00b2 = ' + a * a, 5, 'v-tc1', 'middle') + Tx(x0 - b * k / 2, y0 - b * k / 2 + 4, 'b\u00b2 = ' + b * b, 5, 'v-tc2', 'middle');
+      o += Tx(x0 + a * k / 2, y0 + a * k / 2 + 4, 'a\u00b2 = ' + fx(a * a, 1), 5, 'v-tc1', 'middle') + Tx(x0 - b * k / 2, y0 - b * k / 2 + 4, 'b\u00b2 = ' + fx(b * b, 1), 5, 'v-tc2', 'middle');
       o += Tx((A[0] + B[0]) / 2 + n[0] / 2, (A[1] + B[1]) / 2 + n[1] / 2 + 4, 'c\u00b2 = ' + fx(c2, 2), 5.5, 'v-tc3', 'middle');
       return { svg: o, info: [
-        '<span class="vz-k1">' + a + '\u00b2</span> + <span class="vz-k2">' + b + '\u00b2</span> = ' + a * a + ' + ' + b * b + ' = <b>' + c2 + '</b>',
-        '<span class="vz-k3">c</span> = \u221a' + c2 + ' = <b>' + fx(c, 3) + '</b>' + (Math.abs(c - Math.round(c)) < 1e-9 ? '  (a Pythagorean triple!)' : '')] };
+        '<span class="vz-k1">' + fx(a, 1) + '\u00b2</span> + <span class="vz-k2">' + fx(b, 1) + '\u00b2</span> = ' + fx(a * a, 1) + ' + ' + fx(b * b, 1) + ' = <b>' + fx(c2, 2) + '</b>',
+        '<span class="vz-k3">c</span> = \u221a' + fx(c2, 2) + ' = <b>' + fx(c, 3) + '</b>' + (Math.abs(c - Math.round(c)) < 1e-9 ? '  (a Pythagorean triple!)' : '')] };
     }
   };
 }
@@ -139,7 +139,7 @@ function wCircle(s) {
       o += Ln(cx - R * Math.cos(d30), cy - R * Math.sin(d30), cx + R * Math.cos(d30), cy - R * Math.sin(d30), 5, 'v-c3');
       o += Tx(cx + R * Math.cos(d35) / 2 + 8, cy + R * Math.sin(d35) / 2 + 12, 'r', 6, 'v-tc1') + Tx(cx - R + 4, cy - 6, 'diameter', 6, 'v-tc2') + Tx(cx, cy - R * Math.sin(d30) - 8, 'chord', 6, 'v-tc3', 'middle');
       return { svg: o, info: [
-        '<span class="vz-k1">radius</span> r = <b>' + r + '</b>   <span class="vz-k2">diameter</span> d = 2r = <b>' + 2 * r + '</b>',
+        '<span class="vz-k1">radius</span> r = <b>' + fx(r, 1) + '</b>   <span class="vz-k2">diameter</span> d = 2r = <b>' + fx(2 * r, 1) + '</b>',
         'circumference C = 2\u03c0r = <b>' + fx(2 * Math.PI * r, 2) + '</b>',
         'area A = \u03c0r\u00b2 = <b>' + fx(Math.PI * r * r, 2) + '</b>'] };
     }
@@ -167,7 +167,9 @@ function wPoly(s) {
     }
   };
 }
-function wGraph(s) {
+const gNice = (span, cnt) => { const raw = span / cnt, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; };
+const gTk = (a, b, st) => { const o = []; for (let v = Math.ceil(a / st - 1e-9) * st; v <= b + 1e-9 && o.length < 14; v += st) o.push(+v.toFixed(10)); return o; };
+function gInfo(s) {   // everything a graph needs to be drawn (also used to morph one graph into another)
   const fns = []; [s.fn, s.fn2].filter(v => typeof v === 'string' && v.trim()).slice(0, 2).forEach(src => { try { fns.push({ src: String(src).slice(0, 60), f: compile(src) }); } catch (e) { } });
   if (!fns.length) return null;
   let x0 = cv(s.xmin, -6.3), x1 = cv(s.xmax, 6.3); x0 = Math.max(x0, -1e4); x1 = Math.min(x1, 1e4); if (!(x1 - x0 > 1e-6)) { x0 = -6.3; x1 = 6.3; }
@@ -178,6 +180,11 @@ function wGraph(s) {
   let lo = cv(s.ymin, null), hi = cv(s.ymax, null);
   if (lo == null) lo = all[Math.floor(all.length * .02)]; if (hi == null) hi = all[Math.min(all.length - 1, Math.ceil(all.length * .98))];
   if (!(hi > lo)) { lo -= 1; hi += 1; } const pad = (hi - lo) * .08; lo -= pad; hi += pad;
+  return { fns, x0, x1, lo, hi, xs, ys, N };
+}
+function wGraph(s) {
+  const G = gInfo(s); if (!G) return null;
+  const { fns, x0, x1, lo, hi, xs, ys, N } = G;
   const PX0 = 44, PX1 = 346, PY0 = 14, PY1 = 230, id = 'vzc' + (++uid);
   const mx = x => PX0 + (x - x0) / (x1 - x0) * (PX1 - PX0), my = y => PY1 - (y - lo) / (hi - lo) * (PY1 - PY0);
   const ax = x0 < 0 && x1 > 0 ? mx(0) : PX0, ay = lo < 0 && hi > 0 ? my(0) : PY1;
@@ -199,12 +206,19 @@ function wGraph(s) {
     return d;
   };
   fns.forEach((g, k) => { base += Pa(pathFor(k), 2 + k, 'v-slow ' + (k ? 'v-c2' : 'v-c1'), id); });
+  const drop = s.x != null, xv = Math.min(x1, Math.max(x0, cv(s.x, x0 + (x1 - x0) * .6)));   // x given = a marked point with dashed drop lines
   return {
-    title: 'Graph', ctl: [{ id: 'x', label: 'x', min: x0, max: x1, step: (x1 - x0) / 300, val: x0 + (x1 - x0) * .6, fmt: v => fx(v, 2) }],
+    G, drop,
+    title: 'Graph', ctl: [{ id: 'x', label: 'x', min: x0, max: x1, step: (x1 - x0) / 300, val: xv, fmt: v => fx(v, 2) }],
     draw(p) {
-      const x = p.x; let o = base + Ln(mx(x), PY0, mx(x), PY1, 4, 'v-g'); const info = ['x = <b>' + fx(x, 3) + '</b>'];
-      fns.forEach((g, k) => { let y; try { y = g.f(x); } catch (e) { y = NaN; } if (isFinite(y) && my(y) >= PY0 - 2 && my(y) <= PY1 + 2) o += Dt(mx(x), my(y), 4.5, 4.4, k ? 'v-dc2' : 'v-dc1'); info.push('<span class="vz-sw s' + (k + 1) + '"></span>' + esc(g.src) + ' = <b>' + fx(y) + '</b>'); });
-      return { svg: o, info };
+      const x = p.x; let pre = '', dots = ''; const info = ['x = <b>' + fx(x, 3) + '</b>'];
+      fns.forEach((g, k) => {
+        let y; try { y = g.f(x); } catch (e) { y = NaN; }
+        if (isFinite(y) && my(y) >= PY0 - 2 && my(y) <= PY1 + 2) { dots += Dt(mx(x), my(y), 4.5, 4.4, k ? 'v-dc2' : 'v-dc1'); if (drop && k === 0) pre = Ln(mx(x), my(y), mx(x), ay, 4, 'v-g') + Ln(ax, my(y), mx(x), my(y), 4, 'v-g'); }
+        info.push('<span class="vz-sw s' + (k + 1) + '"></span>' + esc(g.src) + ' = <b>' + fx(y) + '</b>');
+      });
+      if (!drop) pre = Ln(mx(x), PY0, mx(x), PY1, 4, 'v-g');
+      return { svg: base + pre + dots, info };
     }
   };
 }
@@ -256,6 +270,64 @@ function trace(svg, e, delay, dur) {
   requestAnimationFrame(step);
 }
 
+/* ---------- Batch C: morph. Same id + same type in a lesson = the old picture turns into the new one ---------- */
+const sf = (f, x) => { try { const y = f(x); return isFinite(y) ? y : NaN; } catch (e) { return NaN; } };
+function gFrame(A, B, k, xv, drop, cid) {   // one in-between frame of graph A turning into graph B (k = 0..1, already eased)
+  const X0 = 44, X1 = 346, Y0 = 14, Y1 = 230, L = (a, b) => a + (b - a) * k;
+  const x0 = L(A.x0, B.x0), x1 = L(A.x1, B.x1), lo = L(A.lo, B.lo), hi = L(A.hi, B.hi);
+  const mx = x => X0 + (x - x0) / (x1 - x0) * (X1 - X0), my = y => Y1 - (y - lo) / (hi - lo) * (Y1 - Y0);
+  const ax = x0 < 0 && x1 > 0 ? mx(0) : X0, ay = lo < 0 && hi > 0 ? my(0) : Y1;
+  const op = a => ' style="opacity:' + a.toFixed(2) + '"';
+  let o = '<defs><clipPath id="' + cid + '"><rect x="' + X0 + '" y="' + Y0 + '" width="' + (X1 - X0) + '" height="' + (Y1 - Y0) + '"/></clipPath></defs>';
+  const tick = (a, b, vert) => {   // old and new tick marks crossfade while the axes glide
+    const ta = gTk(a[0], a[1], gNice(a[1] - a[0], vert ? 6 : 5)), tb = gTk(b[0], b[1], gNice(b[1] - b[0], vert ? 6 : 5)), key = v => v.toFixed(8), sa = new Set(ta.map(key)), sb = new Set(tb.map(key));
+    const all = new Map(); ta.concat(tb).forEach(v => all.set(key(v), v));
+    all.forEach((t, kk) => {
+      const al = sa.has(kk) && sb.has(kk) ? 1 : sb.has(kk) ? k : 1 - k; if (al < .03) return;
+      if (vert) { const px = mx(t); if (px < X0 - .5 || px > X1 + .5) return; o += '<line class="v-gl"' + op(al) + ' x1="' + r1(px) + '" y1="' + Y0 + '" x2="' + r1(px) + '" y2="' + Y1 + '"/>'; if (Math.abs(t) > 1e-9 || ax === X0) o += '<text class="v-t v-s"' + op(al) + ' x="' + r1(px) + '" y="' + r1(Math.min(ay + 13, 246)) + '" text-anchor="middle">' + esc(fx(t, 4)) + '</text>'; }
+      else { const py = my(t); if (py < Y0 - .5 || py > Y1 + .5) return; o += '<line class="v-gl"' + op(al) + ' x1="' + X0 + '" y1="' + r1(py) + '" x2="' + X1 + '" y2="' + r1(py) + '"/>'; if (Math.abs(t) > 1e-9 || ay === Y1) o += '<text class="v-t v-s"' + op(al) + ' x="' + r1(ax - 5) + '" y="' + r1(py + 3.5) + '" text-anchor="end">' + esc(fx(t, 4)) + '</text>'; }
+    });
+  };
+  tick([A.x0, A.x1], [B.x0, B.x1], true); tick([A.lo, A.hi], [B.lo, B.hi], false);
+  o += Ln(X0, ay, X1, ay, 1, 'v-ax') + Ln(ax, Y0, ax, Y1, 1, 'v-ax');
+  const yAt = (kf, x) => { const fa = A.fns[kf], fb = B.fns[kf]; if (fa && fb) return L(sf(fa.f, x), sf(fb.f, x)); return sf((fb || fa).f, x); };
+  const nf = Math.max(A.fns.length, B.fns.length), n = 240;
+  for (let kf = 0; kf < nf; kf++) {
+    const al = A.fns[kf] && B.fns[kf] ? 1 : B.fns[kf] ? k : 1 - k; let d = '', pen = false, prev = null;
+    for (let i = 0; i <= n; i++) {
+      const xx = x0 + (x1 - x0) * i / n, y = yAt(kf, xx); if (!isFinite(y)) { pen = false; prev = null; continue; }
+      const px = mx(xx), py = my(y); if (py < Y0 - 400 || py > Y1 + 400) { pen = false; prev = null; continue; }
+      if (prev !== null && Math.abs(py - prev) > (Y1 - Y0) * 1.5) pen = false;
+      d += (pen ? 'L' : 'M') + r1(px) + ' ' + r1(py); pen = true; prev = py;
+    }
+    o += '<path class="v-d ' + (kf ? 'v-c2' : 'v-c1') + '"' + op(al) + ' clip-path="url(#' + cid + ')" d="' + d + '"/>';
+  }
+  const y0 = yAt(0, xv);
+  if (!drop) o += Ln(mx(xv), Y0, mx(xv), Y1, 4, 'v-g');
+  if (isFinite(y0) && my(y0) >= Y0 - 2 && my(y0) <= Y1 + 2) { if (drop) o += Ln(mx(xv), my(y0), mx(xv), ay, 4, 'v-g') + Ln(ax, my(y0), mx(xv), my(y0), 4, 'v-g'); o += Dt(mx(xv), my(y0), 4.5, 4.4, 'v-dc1'); }
+  return o;
+}
+function morph(host, spec, o) {   // true = it is morphing; false = the caller should replace the picture instead
+  const S = host && host._vz; if (!S || !host.isConnected || !host.classList.contains('vz-static') || !spec || typeof spec !== 'object' || String(spec.type) !== S.type) return false;
+  const w2 = build(spec); if (!w2) return false;
+  S.stop(); const P2 = {}; w2.ctl.forEach(c => { P2[c.id] = c.val; });
+  host.dataset.v = JSON.stringify(spec);
+  const hb = host.querySelector('.vz-h b'); if (hb) hb.textContent = w2.title;
+  const w1 = S.w, P1 = Object.assign({}, S.P), my = ++S.mt, D = (((o && o.dur) || 1.3)) * 1000, cid = 'vzm' + (++uid);
+  const put = r => { S.svg.innerHTML = r.svg; S.ib.innerHTML = r.info.map(l => '<div>' + l + '</div>').join(''); };
+  const fin = () => { S.w = w2; S.P = P2; put(w2.draw(P2)); };
+  if (RM) { fin(); return true; }
+  const t0 = performance.now(), f = now => {
+    if (my !== S.mt || !host.isConnected) return;
+    const k = Math.min(1, (now - t0) / D), e = ease(k);
+    if (k >= 1) { fin(); return; }
+    if (S.type === 'graph' && w1.G && w2.G) S.svg.innerHTML = gFrame(w1.G, w2.G, e, P1.x + (P2.x - P1.x) * e, w2.drop, cid);
+    else { const Pk = {}; w2.ctl.forEach(c => { const a = P1[c.id], b = P2[c.id]; Pk[c.id] = a == null ? b : a + (b - a) * e; }); if (S.type === 'polygon') Pk.n = Math.round(Pk.n); put(w2.draw(Pk)); }
+    requestAnimationFrame(f);
+  };
+  requestAnimationFrame(f); return true;
+}
+
 function mount(host, o) {
   o = o || {};
   if (host.dataset.m) return; host.dataset.m = '1';
@@ -269,6 +341,7 @@ function mount(host, o) {
   cb.innerHTML = w.ctl.map(c => '<label class="vz-s"><span>' + esc(c.label) + '</span><input type="range" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + c.val + '" data-k="' + c.id + '"><output>' + esc(c.fmt(c.val)) + '</output></label>').join('');
   const draw = () => { const r = w.draw(P); svg.innerHTML = r.svg; ib.innerHTML = r.info.map(l => '<div>' + l + '</div>').join(''); };
   draw();
+  host._vz = { type: String(spec.type), w, P, svg, ib, mt: 0, stop: () => stopSweep() };   // lets morph() find this picture later
   /* after the pieces have drawn themselves, the first slider glides out and back once so you can see how the shape reacts */
   let sw = 0, tm = 0;
   const setUI = () => w.ctl.forEach(c => { const i = cb.querySelector('[data-k="' + c.id + '"]'); if (i) { i.value = P[c.id]; i.nextElementSibling.textContent = c.fmt(P[c.id]); } });
@@ -294,5 +367,5 @@ function mount(host, o) {
   if (o.now) { setTimeout(first, 380); return; }
   if ('IntersectionObserver' in window) { const io = new IntersectionObserver(es => { if (es.some(en => en.isIntersecting)) { io.disconnect(); first(); } }, { threshold: .4 }); io.observe(svg); } else first();
 }
-window.SpectraViz = { mount: (root, o) => (root || document).querySelectorAll('.ac-viz[data-v]').forEach(h => mount(h, o)) };
+window.SpectraViz = { mount: (root, o) => (root || document).querySelectorAll('.ac-viz[data-v]').forEach(h => mount(h, o)), morph };
 })();

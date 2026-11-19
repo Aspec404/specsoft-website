@@ -1,4 +1,4 @@
-/* SPECSOFT® Spectra Lesson (v2 + Spectre): video mode player. Uses the page's theme variables, so light and dark just work.
+/* SPECSOFT® Spectra Lesson (v3 fluid board + Spectre): video mode player. Uses the page's theme variables, so light and dark just work.
    v2: bigger Spectra with a glowing voice ring, animated stage, word-by-word captions, clickable progress, end card. */
 @property --slg{syntax:'<angle>';inherits:false;initial-value:0deg}
 @keyframes slg{to{--slg:360deg}}
@@ -141,3 +141,13 @@
   .sl-cnt{display:none}
 }
 @media (prefers-reduced-motion:reduce){.sl *,.sl,.sl *::before,.sl *::after{animation:none!important;transition:none!important}}
+
+/* Batch C: fluid board. Four theme-safe colors for \blue{} \pink{} \green{} \amber{}; morphing rows; ghosts of pieces that leave */
+.sl{--cb:#2563eb;--cp:#db2777;--cg:#059669;--ca:#d97706}
+html[data-theme="dark"] .sl{--cb:#60a5fa;--cp:#f472b6;--cg:#34d399;--ca:#fbbf24}
+.sl-cb{color:var(--cb)}.sl-cp{color:var(--cp)}.sl-cg{color:var(--cg)}.sl-ca{color:var(--ca)}
+.sl-eq .sl-m.mo,.sl-eq.hl .sl-m.mo{position:relative;animation:none;clip-path:none}
+.sl-eq .sl-m.gl{overflow:visible}
+.sl-eq.hl .sl-m.mo.fin{animation:slglow 2.2s ease-in-out 2}
+.sl-gh{position:absolute;z-index:1;pointer-events:none;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.sl-gh{display:none}}
