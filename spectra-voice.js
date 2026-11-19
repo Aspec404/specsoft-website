@@ -163,9 +163,9 @@ async function gemSay(raw, id, spk) {
   spectreFx(c.who === 'spectre');
   return new Promise(res => {
     let fin = false; const end = ok => { if (fin) return; fin = true; AUD.onended = AUD.onerror = null; if (ok && id === run && cur) { paint(cur.btn, ''); cur = null; } res(ok); };
-    AUD.onended = () => end(true); AUD.onerror = () => end(false);
+    AUD.onended = () => end(true); AUD.onerror = () => { try { console.warn('[Spectra voice] clip arrived but the audio element could not play it', AUD.error && AUD.error.code, AUD.error && AUD.error.message); } catch (e) { } end(false); };
     AUD.src = url; const p = AUD.play();
-    if (p && p.then) p.then(() => { if (id === run) setSt('on'); }, () => end(false)); else setSt('on');
+    if (p && p.then) p.then(() => { if (id === run) setSt('on'); }, (e) => { try { console.warn('[Spectra voice] play() was rejected:', e && e.name, e && e.message); } catch (x) { } end(false); }); else setSt('on');
   });
 }
 

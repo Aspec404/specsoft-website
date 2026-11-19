@@ -1,4 +1,4 @@
-/* SPECSOFT® Spectra Lesson (v3 fluid board + Spectre): video mode player. Uses the page's theme variables, so light and dark just work.
+/* SPECSOFT® Spectra Lesson (v3.2 centered stage + fluid board + Spectre): video mode player. Uses the page's theme variables, so light and dark just work.
    v2: bigger Spectra with a glowing voice ring, animated stage, word-by-word captions, clickable progress, end card. */
 @property --slg{syntax:'<angle>';inherits:false;initial-value:0deg}
 @keyframes slg{to{--slg:360deg}}
@@ -28,10 +28,11 @@
 @keyframes sldrift{to{transform:translate(5%,-4%) rotate(7deg) scale(1.1)}}
 
 /* board: rows write themselves in */
-.sl-board{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:18px;overflow:auto;padding:32px 32px 216px;scrollbar-width:thin}
+.sl-board{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;gap:22px;overflow:auto;padding:44px 32px 216px;text-align:center;scrollbar-width:thin}
+.sl-board>:first-child{margin-top:auto}.sl-board>:last-child{margin-bottom:auto}   /* centers the scene, and still scrolls when it is taller than the stage */
 .sl-r{max-width:100%;animation:slrow .5s cubic-bezier(.2,.8,.2,1) both}.sl-r.ni{animation:none}
 @keyframes slrow{from{opacity:0;transform:translateY(12px);filter:blur(5px)}to{opacity:1;transform:none;filter:none}}
-.sl-eq{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;max-width:100%;font-size:clamp(22px,3.6vw,34px)}
+.sl-eq{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 14px;max-width:100%;font-size:clamp(26px,4.6vw,46px)}
 .sl-eq .sl-m{display:inline-block;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:2px 4px;animation:slwipe .8s .08s cubic-bezier(.3,.7,.2,1) both}
 @keyframes slwipe{from{clip-path:inset(-8px 100% -8px -8px)}to{clip-path:inset(-8px -16px -8px -8px)}}
 .sl-r.ni .sl-m{animation:none}
@@ -40,8 +41,8 @@
 @keyframes slshine{to{background-position:250% 0}}
 @keyframes slglow{50%{box-shadow:inset 3px 0 0 var(--acc,#0b0b0c),0 0 0 6px rgba(124,92,255,.14),0 10px 32px -10px rgba(124,92,255,.55)}}
 .sl-r.ni .sl-m::after{display:none}
-.sl-n{font:500 12px Inter,sans-serif;color:var(--ink2,#5d6065)}
-.sl-t{font:500 17px/1.55 Inter,sans-serif;color:var(--ink2,#5d6065)}
+.sl-n{font:500 13px Inter,sans-serif;color:var(--ink2,#5d6065)}
+.sl-t{max-width:min(640px,100%);font:500 clamp(16px,2.1vw,20px)/1.55 Inter,sans-serif;color:var(--ink2,#5d6065)}
 .sl-v{width:min(520px,100%);animation-name:slpop}
 @keyframes slpop{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1;transform:none}}
 .sl-v .ac-viz{max-width:none;margin:0;background:var(--card,#fff);box-shadow:0 18px 50px -22px rgba(124,92,255,.5)}
@@ -130,7 +131,8 @@
   .sl{padding:0}
   .sl-box{height:100vh;height:100dvh;border:0;border-radius:0}
   .sl-top{padding-top:calc(10px + env(safe-area-inset-top,0px))}
-  .sl-board{padding:18px 16px 204px}
+  .sl-board{padding:28px 14px 204px}
+  .sl-eq{font-size:clamp(28px,9vw,40px)}
   .sl-pfp{right:14px;bottom:24px;width:112px;height:112px}
   .sl-glow{inset:-18px}
   .sl-face span{font-size:34px}

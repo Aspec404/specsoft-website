@@ -327,6 +327,7 @@ function toast(msg) {
   toastT = setTimeout(() => { if (toastEl) toastEl.classList.remove('on'); }, 5600);
 }
 function takeover(who, why) {
+  try { console.log('[Spectra lesson] takeover', who, why, '| now:', spk); } catch (e) { }
   if (!el) return;
   if (who !== 'spectre') {   // a clip that was already loaded in Spectra's voice: she is back
     if (spk === 'spectre') { spk = 'spectra'; spc = ''; pfp.classList.remove('sp', 'boot'); }

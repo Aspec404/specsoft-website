@@ -14,7 +14,7 @@
 //   SPECTRA_MODEL_25 / SPECTRA_MODEL_3 / SPECTRA_MODEL_35 = models behind the Spectrum 2.5 / 3 / 3.5 picker
 //   SPECTRA_MODEL_LUMEN4 = models behind the Lumen 4 picker (default gemini-4-hydrogen, the usual fallbacks stay behind it)
 //   SPECTRA_SEARCH_MODEL=model1,model2   (models for Web search / Deep research; must support Google Search grounding)
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.117.3';   // pinned: the unpinned esm.sh @2 resolved to a fresh release whose dependency was not built yet (deploy error 400)
 import { KNOWLEDGE } from './spectra-knowledge.ts';
 import { SLANG_RULES, slangContext } from './spectra-genz.ts';
 import { contextBlock } from './spectra-context.ts';

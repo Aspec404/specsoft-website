@@ -10,7 +10,8 @@
 //   SPECTRA_VOICE_NAME=Leda      default Gemini voice
 //   SPECTRA_VOICE_MAX=800        max characters spoken per request
 //   SPECTRA_TRIM=off             turn off the end-of-clip cleanup that removes the buzz/static Gemini sometimes adds after her last word
-//   SPECTRA_SPECTRE_MODELS=off   (default off: EVERY Gemini model speaks as Spectra, the Spectre only appears for the browser-voice fallback). Set e.g. 3.1 to bring back a Spectre voice: models whose name contains one of these words are spoken by her SPECTRE (the little sphere drone) instead of Spectra: different robotic voice, and the reply header says X-Spectra-Voice: spectre. Use "off" to disable.
+//   (old secret SPECTRA_SPECTRE_MODELS is now IGNORED on purpose: EVERY Gemini model, 3.8, 3.8 Lite and 3.1, speaks as Spectra. The Spectre only appears when the page falls back to the free browser voice.)
+//   SPECTRA_SPECTRE_ON_MODELS=   optional and EMPTY by default. Only if you ever want a Spectre voice on a Gemini model again: e.g. 3.1 = models whose name contains that word are spoken by her SPECTRE (robotic voice, header X-Spectra-Voice: spectre).
 //   SPECTRE_VOICE_NAME=Puck      Gemini voice the Spectre uses (Puck, Charon, Fenrir, Orus, Umbriel, Iapetus, Algenib, Achird, Zephyr, Kore)
 //   SPECTRA_TTS_MODEL=model1,model2   first = preferred, rest = fallbacks (default order: gemini-3.8-flash-tts, gemini-3.8-flash-lite-tts, then Gemini 3.1 Flash TTS as the emergency backup; the two 3.1 names are because I'm not sure which one your account uses, a wrong one is just skipped)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -48,8 +49,8 @@ const MOOD_STYLE: Record<string, string> = {
 };
 
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
-// which models count as "the Spectre's models" (default: none, the 3.1 backup now speaks as Spectra too)
-const SPECTRE_KEYS = (Deno.env.get('SPECTRA_SPECTRE_MODELS') ?? 'off').split(',').map((s) => s.trim().toLowerCase()).filter((s) => s && s !== 'off');
+// which models count as "the Spectre's models" (default: NONE, so 3.8, 3.8 Lite and the 3.1 backup all speak as Spectra; a leftover SPECTRA_SPECTRE_MODELS secret on Supabase can no longer turn 3.1 into the Spectre)
+const SPECTRE_KEYS = (Deno.env.get('SPECTRA_SPECTRE_ON_MODELS') ?? '').split(',').map((s) => s.trim().toLowerCase()).filter((s) => s && s !== 'off');
 const isSpectreModel = (m: string) => SPECTRE_KEYS.some((k) => m.toLowerCase().includes(k));
 const hits = new Map<string, number[]>();   // best-effort burst limiter: 10 voice clips per minute per user
 

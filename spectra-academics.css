@@ -394,11 +394,13 @@ body.ac-page::before{display:none}
 /* ===== v9: Batch A mobile fixes ===== */
 /* send button always hugs the right edge, even when the tag line is hidden on small screens */
 .ac-send{margin-left:auto}
-/* model selector fades out while typing, fades back when the box is empty */
+/* model selector: on a computer it always stays put. On phones and touch screens it fades out while typing (saves space) and comes back when the box is empty */
 .ac-comp .ac-model{transition:opacity .2s,transform .2s}
 .ac-comp textarea,.ac-att{transition:padding-right .25s}
-.ac-comp.typing .ac-model{opacity:0;transform:scale(.92);pointer-events:none}
-.ac-comp.typing textarea,.ac-comp.typing .ac-att{padding-right:4px}
+@media (max-width:600px),(hover:none) and (pointer:coarse){
+  .ac-comp.typing .ac-model{opacity:0;transform:scale(.92);pointer-events:none}
+  .ac-comp.typing textarea,.ac-comp.typing .ac-att{padding-right:4px}
+}
 /* rotating gradient outline on the chatbox when Web Search / Deep Reasoning / Deep Research is on */
 .ac-comp[data-gm]{isolation:isolate;border-color:transparent;transition:box-shadow .3s}
 .ac-comp[data-gm]::before{content:"";position:absolute;inset:-1px;z-index:-1;padding:1.5px;border-radius:inherit;pointer-events:none;background:conic-gradient(from var(--vg),var(--gs));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;animation:acvg 4s linear infinite}
@@ -413,10 +415,71 @@ body.ac-page::before{display:none}
 .ac-comp[data-gm=res]::after{opacity:.36}
 @media (prefers-reduced-motion:reduce){.ac-comp[data-gm]::after{animation:none}}
 
-/* ===== v11: soft circular gradients in the corners of the page (violet, blue, turquoise) + Socratic greyed buttons ===== */
-@keyframes acedge{to{transform:translate(2.5%,-2%) scale(1.08)}}
-.ac-main{isolation:isolate}
-.ac-main::before{content:"";position:absolute;inset:-6%;z-index:-1;pointer-events:none;background:radial-gradient(38% 36% at 6% 4%,rgba(124,92,255,.26),transparent 70%),radial-gradient(34% 34% at 96% 6%,rgba(59,130,246,.2),transparent 70%),radial-gradient(40% 38% at 98% 96%,rgba(52,245,197,.22),transparent 70%),radial-gradient(34% 34% at 2% 98%,rgba(34,211,238,.18),transparent 70%);animation:acedge 18s ease-in-out infinite alternate}
-[data-theme=dark] .ac-main::before{background:radial-gradient(38% 36% at 6% 4%,rgba(124,92,255,.36),transparent 70%),radial-gradient(34% 34% at 96% 6%,rgba(59,130,246,.3),transparent 70%),radial-gradient(40% 38% at 98% 96%,rgba(52,245,197,.28),transparent 70%),radial-gradient(34% 34% at 2% 98%,rgba(34,211,238,.26),transparent 70%)}
-@media (prefers-reduced-motion:reduce){.ac-main::before{animation:none}}
+/* ===== v12: one continuous gradient behind the WHOLE page. The sidebar floats on top of it, so there is no hard seam at the sidebar edge any more.
+   ::before = soft corner glows (violet, blue, turquoise, cyan) that start at the main panel's edge (--sw = sidebar width). ::after = two slow drifting lights.
+   --k = strength (dark mode is stronger), --z1..7 = glow sizes (wide ovals on a computer, round on a phone so they never stretch). ===== */
+@keyframes acedge{to{transform:translate(3%,-2.5%) scale(1.06)}}
+.ac-shell{--sw:0px;--k:1;--z1:46% 44%;--z2:42% 42%;--z3:48% 44%;--z4:42% 42%;--z5:30% 22%;--z6:26% 26%;--z7:28% 28%;isolation:isolate}
+[data-theme=dark] .ac-shell{--k:1.3}
+@media (min-width:851px){.ac-shell{--sw:248px}.ac-shell.min{--sw:84px}}
+@media (max-width:850px){.ac-shell{--z1:circle 84vw;--z2:circle 72vw;--z3:circle 88vw;--z4:circle 72vw;--z5:circle 52vw;--z6:circle 52vw;--z7:circle 56vw}}
+.ac-main{background:transparent}
+.ac-shell::before,.ac-shell::after{content:"";position:absolute;z-index:-1;pointer-events:none}
+.ac-shell::before{inset:0;background:radial-gradient(var(--z1) at var(--sw) 0%,rgba(124,92,255,calc(0.3*var(--k))),rgba(124,92,255,calc(0.1350*var(--k))) 34%,rgba(124,92,255,calc(0.0360*var(--k))) 56%,transparent 76%),radial-gradient(var(--z2) at 100% 2%,rgba(59,130,246,calc(0.22*var(--k))),rgba(59,130,246,calc(0.0990*var(--k))) 34%,rgba(59,130,246,calc(0.0264*var(--k))) 56%,transparent 76%),radial-gradient(var(--z3) at 100% 100%,rgba(52,245,197,calc(0.24*var(--k))),rgba(52,245,197,calc(0.1080*var(--k))) 34%,rgba(52,245,197,calc(0.0288*var(--k))) 56%,transparent 76%),radial-gradient(var(--z4) at var(--sw) 100%,rgba(34,211,238,calc(0.2*var(--k))),rgba(34,211,238,calc(0.0900*var(--k))) 34%,rgba(34,211,238,calc(0.0240*var(--k))) 56%,transparent 76%),radial-gradient(var(--z5) at 62% 0%,rgba(255,107,214,calc(0.09*var(--k))),rgba(255,107,214,calc(0.0405*var(--k))) 34%,rgba(255,107,214,calc(0.0108*var(--k))) 56%,transparent 76%)}
+.ac-shell::after{inset:-8%;background:radial-gradient(var(--z6) at 34% 24%,rgba(124,92,255,calc(.13*var(--k))),transparent 70%),radial-gradient(var(--z7) at 78% 78%,rgba(34,211,238,calc(.13*var(--k))),transparent 70%);animation:acedge 20s ease-in-out infinite alternate}
+@media (prefers-reduced-motion:reduce){.ac-shell::after{animation:none}}
 .ac-ab.sk-off{opacity:.42;cursor:not-allowed}.ac-ab.ac-vid.sk-off::before{animation:none;background:var(--line)}.ac-ab.sk-off:hover{box-shadow:none}
+
+/* ===== v13: projects. Description, Archived section, drag to reorder, and the Edit project popup (name, description, color, symbol) ===== */
+.ac-pj{position:relative}
+.ac-pr[draggable=true]{cursor:grab}.ac-pr[draggable=true]:active{cursor:grabbing}
+.ac-pj.pdrag{opacity:.45}
+.ac-pj.pdz-b::before,.ac-pj.pdz-a::after{content:"";position:absolute;left:6px;right:6px;height:2px;border-radius:2px;background:#7c5cff;box-shadow:0 0 8px rgba(124,92,255,.8);pointer-events:none;z-index:2}
+.ac-pj.pdz-b::before{top:-2px}.ac-pj.pdz-a::after{bottom:-2px}
+.ac-pj.flash>.ac-pr{animation:acpf 1.1s ease-out}
+@keyframes acpf{0%{background:rgba(124,92,255,.3)}100%{background:transparent}}
+.ac-pd{padding:4px 10px 6px;color:var(--ink2);font:500 11.5px/1.4 Inter,sans-serif;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ac-ah{display:flex;align-items:center;gap:7px;height:30px;margin-top:8px;padding:0 6px;border-radius:10px;color:var(--ink2);font:600 11px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;user-select:none}
+.ac-ah:hover{background:var(--hov)}
+.ac-ah .ac-cv{display:grid;flex:none;color:var(--ink2);transition:transform .2s}.ac-ah.open .ac-cv{transform:rotate(90deg)}
+.ac-ah .ac-ai{display:grid;flex:none}.ac-ah .ac-ai svg{width:15px;height:15px}
+.ac-ah span{flex:1}
+.ac-ah em{padding:1px 8px;border-radius:99px;background:var(--hov);font:600 11px Inter,sans-serif;font-style:normal}
+.ac-al{margin-bottom:4px}
+.ac-pj.arch{opacity:.74}.ac-pj.arch .ac-pc svg path{fill:none}
+.ac-mi.off{opacity:.38;pointer-events:none}
+.ac-pc[data-ic=code] svg path,.ac-pc[data-ic=chart] svg path,.ac-pc[data-ic=music] svg path,.ac-pc[data-ic=pin] svg path{fill:none}
+
+.ac-pdb{--pc:#7c5cff;position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:rgba(5,5,6,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+.ac-pdb.on{opacity:1;visibility:visible;transition:opacity .2s}
+.ac-pdx{width:min(460px,100%);max-height:calc(100dvh - 32px);overflow:auto;padding:18px;border:1px solid var(--line);border-radius:22px;background:var(--card);color:var(--ink);box-shadow:0 40px 100px -20px rgba(0,0,0,.6);transform:translateY(10px) scale(.98);transition:transform .25s cubic-bezier(.2,.9,.3,1.1)}
+.ac-pdb.on .ac-pdx{transform:none}
+.ac-pdh{display:flex;align-items:center;gap:10px;margin-bottom:16px}.ac-pdh b{flex:1;font:600 15px Inter,sans-serif}
+.ac-pdv{display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:12px;color:var(--pc);background:color-mix(in srgb,var(--pc) 16%,transparent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--pc) 45%,transparent);transition:color .2s,background .2s,box-shadow .2s}.ac-pdv svg{width:20px;height:20px}
+.ac-pdl{display:block;margin-bottom:14px}
+.ac-pdl>span{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;color:var(--ink2);font:600 11.5px Inter,sans-serif;letter-spacing:.04em;text-transform:uppercase}
+.ac-pdl small{font:500 11px Inter,sans-serif;letter-spacing:0;text-transform:none}
+.ac-pdl #pdn,.ac-pdl textarea{display:block;width:100%;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--ink);font:500 14px/1.45 Inter,sans-serif;padding:10px 12px;outline:0;resize:none;transition:border-color .15s,box-shadow .15s}
+.ac-pdl #pdn:focus,.ac-pdl textarea:focus{border-color:var(--pc);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 22%,transparent)}
+.ac-pcols{display:flex;flex-wrap:wrap;gap:9px}
+.ac-sw{position:relative;display:block;width:28px;height:28px;padding:0;border:0;border-radius:50%;background:var(--c);cursor:pointer;box-shadow:inset 0 0 0 2px var(--card);transition:transform .12s,box-shadow .15s}
+.ac-sw:hover{transform:scale(1.12)}
+.ac-sw.on{box-shadow:inset 0 0 0 2.5px var(--card),0 0 0 2px var(--c)}
+.ac-swu{background:conic-gradient(#f87171,#facc15,#a3e635,#34d399,#22d3ee,#60a5fa,#7c5cff,#f472b6,#f87171);overflow:hidden}
+.ac-swu input{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;opacity:0;cursor:pointer}
+.ac-pics{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.ac-pi{display:grid;place-items:center;height:40px;padding:0;border:0;border-radius:11px;background:var(--soft);color:var(--ink2);cursor:pointer;transition:background .15s,color .15s,transform .1s}
+.ac-pi svg{width:19px;height:19px}
+.ac-pi:hover{color:var(--ink);transform:translateY(-1px)}
+.ac-pi.on{color:var(--pc);background:color-mix(in srgb,var(--pc) 16%,transparent);box-shadow:inset 0 0 0 1.5px var(--pc)}
+.ac-pdf{display:flex;align-items:center;gap:8px;margin-top:4px}.ac-pdf>span{flex:1}
+.ac-pbt{height:38px;padding:0 16px;border:0;border-radius:11px;background:var(--soft);color:var(--ink);font:600 13px Inter,sans-serif;cursor:pointer;transition:background .15s,opacity .15s}
+.ac-pbt:hover{background:var(--act)}
+.ac-pbt.ghost{padding:0 10px;background:none;color:var(--ink2)}.ac-pbt.ghost:hover{background:var(--soft);color:var(--ink)}
+.ac-pbt.pri{background:var(--acc);color:var(--onacc)}.ac-pbt.pri:hover{background:var(--acc);opacity:.9}
+@media (max-width:600px){
+  .ac-pdb{place-items:end center;padding:0}
+  .ac-pdx{width:100%;max-height:92dvh;padding:18px 16px calc(16px + env(safe-area-inset-bottom,0px));border-radius:22px 22px 0 0;transform:translateY(40px)}
+}
+@media (max-width:420px){.ac-pics{grid-template-columns:repeat(6,1fr)}}
+@media (prefers-reduced-motion:reduce){.ac-pdb,.ac-pdx,.ac-pj.flash>.ac-pr{transition:none;animation:none}}

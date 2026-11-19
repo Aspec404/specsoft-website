@@ -1,4 +1,4 @@
-/* SPECSOFT® Spectra Academics v4 (projects as folders, inline project creation, drag and drop, project menu, cooler sidebar). v3 (try again, edit + copy your message, new Video button + video-making card). v2: Talks to the same "spectra-chat" Edge Function with an `academics` field.
+/* SPECSOFT® Spectra Academics v5 (projects: edit popup with name, description, color + symbol pickers, reorder by drag or Move up/down, archive). v4: projects as folders, inline project creation, drag and drop, project menu, cooler sidebar. v3 (try again, edit + copy your message, new Video button + video-making card). v2: Talks to the same "spectra-chat" Edge Function with an `academics` field.
    v2: "+" menu (files, project, persona), Tools menu (level, web search, deep reasoning, deep research),
    chat three-dot menu (pin, rename, add to project, delete), no tracks for Elementary. */
 (function () {
@@ -26,7 +26,15 @@ const P = {
   spin: 'M12 3a9 9 0 019 9', play: 'M8 5v14l11-7z', flag: 'M5 21V4M5 4h11l-2 4 2 4H5', link: 'M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1', check: 'M5 12l5 5 9-10', blank: 'M0 0',
   refresh: 'M4 12a8 8 0 0113.7-5.6L20 9M20 4v5h-5M20 12a8 8 0 01-13.7 5.6L4 15M4 20v-5h5',
   cards: 'M8 8h12v10H8zM4 15V6a2 2 0 012-2h9',
-  vid: 'M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2zM10 9.2v5.6l4.8-2.8z'
+  vid: 'M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2zM10 9.2v5.6l4.8-2.8z',
+  x: 'M6 6l12 12M18 6L6 18', arrup: 'M12 19V5M6 11l6-6 6 6', arrdn: 'M12 5v14M6 13l6 6 6-6', archive: 'M3 5h18v4H3zM5 9v10h14V9M10 13h4', palette2: 'M12 3a9 9 0 100 18c1.5 0 2-1 1.5-2.2-.5-1.2.3-2.3 1.6-2.3H17a4 4 0 004-4c0-5-4-9.5-9-9.5zM7.5 11h.01M10 7.5h.01M14 7.5h.01M16.5 11h.01',
+  /* project symbols */
+  book: 'M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 19a2 2 0 012-2h13', flask: 'M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3', calc: 'M7 3h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2zM8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01',
+  code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14', star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z', heart: 'M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z',
+  bolt: 'M13 3L5 13h6l-1 8 8-10h-6z', rocket: 'M12 2.5c3.6 2.6 5 6 5 9.5l-1.6 3.8H8.6L7 12c0-3.5 1.4-6.9 5-9.5zM9 15.5l-3.2 3.7 3.7-.7M15 15.5l3.2 3.7-3.7-.7M12 9h.01M10.6 19.2c.3 1.2.8 2 1.4 2.6.6-.6 1.1-1.4 1.4-2.6', bulb: 'M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.5.4.5 1 .5 1.6V16h6v-.5c0-.6 0-1.2.5-1.6A6 6 0 0012 3z',
+  music: 'M9 18V5l11-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zM20 16a3 3 0 11-6 0 3 3 0 016 0z', camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 11a3.5 3.5 0 100 7 3.5 3.5 0 000-7z', leaf: 'M5 19C5 10 10 5 20 4c0 10-5 15-14 15zM5 19l8-8',
+  target: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zM12 12h.01', trophy: 'M8 4h8v5a4 4 0 01-8 0zM8 6H4v2a3 3 0 003 3M16 6h4v2a3 3 0 01-3 3M12 13v4M8 21h8M10 17h4', cap: 'M2 9l10-5 10 5-10 5zM6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5',
+  chart: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-8', puzzle: 'M10 4a2 2 0 114 0v2h4v4h-2a2 2 0 100 4h2v4h-4v-2a2 2 0 10-4 0v2H6v-4H4a2 2 0 110-4h2V6h4z', compass: 'M12 3a9 9 0 100 18 9 9 0 000-18zM15.5 8.5l-2 5-5 2 2-5z', chat: 'M4 5h16v11H9l-5 4z'
 };
 const paint = r => (r || document).querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + (P[e.dataset.ic] || '') + '"/></svg>'; });
 const toast = t => { const e = $('#toast'); e.textContent = t; e.classList.add('on'); setTimeout(() => e.classList.remove('on'), 2400); };
@@ -78,6 +86,10 @@ const aHtml = (a, live) => a.content ? md(a.content, live) + srcHtml(a) : '<span
 
 /* projects: folders hold their chats. Create them inline, drag chats in, or use "Add to project" from the menus. */
 const PC = ['#7c5cff', '#22d3ee', '#34d399', '#f472b6', '#fb923c', '#60a5fa'];
+const PCOL = PC.concat(['#f87171', '#facc15', '#a3e635', '#94a3b8']);   // colors in the picker (any other color works through the rainbow swatch)
+const PIC = ['folder', 'book', 'flask', 'calc', 'globe', 'code', 'edit', 'star', 'heart', 'bolt', 'rocket', 'bulb', 'music', 'palette2', 'camera', 'leaf', 'target', 'trophy', 'cap', 'chart', 'puzzle', 'compass', 'chat', 'pin'];   // symbols in the picker
+const pico = p => (p && PIC.indexOf(p.i) >= 0) ? p.i : 'folder';
+const liveProjs = () => projs.filter(p => !p.a);   // archived projects are hidden from the pickers
 const pcol = id => { const i = projs.findIndex(p => p.id === id); return (projs[i] && projs[i].c) || PC[(i < 0 ? 0 : i) % PC.length]; };
 let pex = LS('sa.acad.pex', {}), creating = null, dragId = null, pmid = null, pmsure = false;
 const sPex = () => SS('sa.acad.pex', pex);
@@ -103,16 +115,19 @@ function delProj(id) {
   save(); list(); tag(); toast('Project deleted, its chats are kept');
 }
 const row = (c, nest) => '<div class="ac-it' + (nest ? ' nest' : '') + (cur && cur.id === c.id ? ' on' : '') + (mid === c.id ? ' mo' : '') + '" data-id="' + c.id + '" draggable="true"><span class="ac-t">' + esc(c.title) + '</span>' + (c.pin ? '<i class="ac-pn" data-ic="pin"></i>' : '') + '<button class="ac-dot" data-o="' + c.id + '" type="button" aria-label="Chat options" data-ic="dots"></button></div>';
+const prow = (p, arch) => {
+  const cs = chats.filter(c => c.proj === p.id), open = pex[p.id] !== false;
+  return '<div class="ac-pj' + (open ? ' open' : '') + (arch ? ' arch' : '') + (pmid === p.id ? ' mo' : '') + '" data-pid="' + p.id + '"><div class="ac-pr" data-pr="' + p.id + '"' + (arch ? '' : ' draggable="true"') + (p.d ? ' title="' + esc(p.d) + '"' : '') + '><i class="ac-cv" data-ic="chevr"></i><i class="ac-pc" style="--pc:' + pcol(p.id) + '" data-ic="' + pico(p) + '"></i><span class="ac-pt">' + esc(p.n) + '</span><em>' + cs.length + '</em>' +
+    (arch ? '' : '<button class="ac-pa" data-pn="' + p.id + '" type="button" aria-label="New chat in this project" title="New chat here" data-ic="plus"></button>') + '<button class="ac-pa ac-pm" data-pm="' + p.id + '" type="button" aria-label="Project options" data-ic="dots"></button></div>' +
+    '<div class="ac-pk">' + (p.d ? '<div class="ac-pd">' + esc(p.d) + '</div>' : '') + (cs.length ? cs.map(c => row(c, 1)).join('') : '<div class="ac-em">' + (arch ? 'No chats in it' : 'Drop chats here') + '</div>') + '</div></div>';
+};
 function plist() {
   const q = $('#q').value.trim(); $('#psec').hidden = !!q; if (q) return;
   const ni = $('#pni'), keep = ni ? ni.value : '', had = !!ni && document.activeElement === ni;
   let h = creating ? '<div class="ac-pj"><div class="ac-pr"><i class="ac-pc" style="--pc:' + PC[projs.length % PC.length] + '" data-ic="folder"></i><input class="ac-ri" id="pni" maxlength="28" placeholder="Project name" aria-label="Project name" autocomplete="off"></div></div>' : '';
-  h += projs.map(p => {
-    const cs = chats.filter(c => c.proj === p.id), open = pex[p.id] !== false;
-    return '<div class="ac-pj' + (open ? ' open' : '') + (pmid === p.id ? ' mo' : '') + '" data-pid="' + p.id + '"><div class="ac-pr" data-pr="' + p.id + '"><i class="ac-cv" data-ic="chevr"></i><i class="ac-pc" style="--pc:' + pcol(p.id) + '" data-ic="folder"></i><span class="ac-pt">' + esc(p.n) + '</span><em>' + cs.length + '</em>' +
-      '<button class="ac-pa" data-pn="' + p.id + '" type="button" aria-label="New chat in this project" title="New chat here" data-ic="plus"></button><button class="ac-pa ac-pm" data-pm="' + p.id + '" type="button" aria-label="Project options" data-ic="dots"></button></div>' +
-      '<div class="ac-pk">' + (cs.length ? cs.map(c => row(c, 1)).join('') : '<div class="ac-em">Drop chats here</div>') + '</div></div>';
-  }).join('');
+  h += liveProjs().map(p => prow(p, 0)).join('');
+  const ar = projs.filter(p => p.a), aop = pex.__arch === true;
+  if (ar.length) h += '<div class="ac-ah' + (aop ? ' open' : '') + '" data-arch="1" role="button" tabindex="0"><i class="ac-cv" data-ic="chevr"></i><i class="ac-ai" data-ic="archive"></i><span>Archived</span><em>' + ar.length + '</em></div>' + (aop ? '<div class="ac-al">' + ar.map(p => prow(p, 1)).join('') + '</div>' : '');
   $('#pl').innerHTML = h || '<div class="ac-em">Group your chats into projects</div>'; paint($('#pl'));
   const i = $('#pni'); if (i) { i.value = keep; if (had || !keep) i.focus(); }
 }
@@ -140,7 +155,7 @@ function menuDraw() {
   if (mv === 'main') cm.innerHTML = it('pin', 'pin', c.pin ? 'Unpin Chat' : 'Pin Chat') + it('ren', 'edit', 'Rename Chat') +
     '<button type="button" class="ac-mi" data-a="proj"><i data-ic="folder"></i><span>Add to project</span><i data-ic="chevr" class="ac-chv"></i></button><div class="ac-sep"></div>' + it('del', 'trash', 'Delete Chat', 'dg');
   else cm.innerHTML = '<button type="button" class="ac-mi" data-a="back"><i data-ic="back"></i><span>Add to project</span></button><div class="ac-sep"></div>' +
-    [{ id: '', n: 'No project' }].concat(projs).map(p => '<button type="button" class="ac-mi" data-pj="' + (p.id || '') + '"><i data-ic="' + ((c.proj || '') === (p.id || '') ? 'check' : 'blank') + '"></i><span>' + esc(p.n) + '</span></button>').join('') +
+    [{ id: '', n: 'No project' }].concat(liveProjs()).map(p => '<button type="button" class="ac-mi" data-pj="' + (p.id || '') + '"><i data-ic="' + ((c.proj || '') === (p.id || '') ? 'check' : 'blank') + '"></i><span>' + esc(p.n) + '</span></button>').join('') +
     '<button type="button" class="ac-mi" data-pj="__new"><i data-ic="plus"></i><span>New project</span></button>';
   paint(cm); place();
 }
@@ -178,6 +193,7 @@ $('#sb').onclick = e => {
   if (pm) { e._o = 1; const id = pm.dataset.pm; closeMenu(); if (pmid === id) closePm(); else openPm(id, pm); return; }
   const pn = e.target.closest('[data-pn]'); if (pn) { startIn(pn.dataset.pn); return; }
   if (e.target.closest('.ac-ri')) return;
+  const ah = e.target.closest('[data-arch]'); if (ah) { pex.__arch = pex.__arch !== true; sPex(); plist(); return; }
   const pr = e.target.closest('[data-pr]'); if (pr) { const id = pr.dataset.pr; pex[id] = pex[id] === false; sPex(); plist(); return; }
   const it = e.target.closest('[data-id]'); if (!it) return;
   if (busy) stop(); if (window.SpectraVoice) SpectraVoice.stop(); cur = chats.find(c => c.id === it.dataset.id) || null; draw(); list(); closeDrawer();
@@ -191,8 +207,11 @@ $('#np').onclick = () => newProj();
 /* project menu (three dots on a folder) */
 const pmn = document.createElement('div'); pmn.id = 'pmn'; pmn.className = 'ac-cm'; document.body.appendChild(pmn);
 function pmDraw() {
-  const it = (a, ic, tx, cls) => '<button type="button" class="ac-mi' + (cls ? ' ' + cls : '') + '" data-a="' + a + '"><i data-ic="' + ic + '"></i><span>' + tx + '</span></button>';
-  pmn.innerHTML = it('new', 'plus', 'New chat here') + it('ren', 'edit', 'Rename project') + '<div class="ac-sep"></div>' + it('del', 'trash', pmsure ? 'Tap again to delete' : 'Delete project', 'dg'); paint(pmn);
+  const p = projs.find(x => x.id === pmid) || {}, act = liveProjs(), i = act.findIndex(x => x.id === pmid);
+  const it = (a, ic, tx, cls, off) => '<button type="button" class="ac-mi' + (cls ? ' ' + cls : '') + (off ? ' off' : '') + '" data-a="' + a + '"' + (off ? ' disabled' : '') + '><i data-ic="' + ic + '"></i><span>' + tx + '</span></button>';
+  pmn.innerHTML = (p.a ? '' : it('new', 'plus', 'New chat here')) + it('edit', 'palette2', 'Edit project') + it('ren', 'edit', 'Rename') +
+    (p.a ? '<div class="ac-sep"></div>' + it('unarch', 'refresh', 'Unarchive') : '<div class="ac-sep"></div>' + it('up', 'arrup', 'Move up', '', i <= 0) + it('dn', 'arrdn', 'Move down', '', i < 0 || i >= act.length - 1) + it('arch', 'archive', 'Archive project')) +
+    '<div class="ac-sep"></div>' + it('del', 'trash', pmsure ? 'Tap again to delete' : 'Delete project', 'dg'); paint(pmn);
 }
 function closePm() { if (pmid === null) return; pmid = null; pmsure = false; pmn.classList.remove('open'); plist(); }
 function openPm(id, btn) {
@@ -204,23 +223,107 @@ pmn.onclick = e => {
   e.stopPropagation(); const b = e.target.closest('[data-a]'); if (!b || pmid === null) return; const a = b.dataset.a, id = pmid;
   if (a === 'del' && !pmsure) { pmsure = true; pmDraw(); return; }
   closePm(); if (a === 'new') startIn(id); else if (a === 'ren') renameProj(id); else if (a === 'del') delProj(id);
+  else if (a === 'edit') openPd(id); else if (a === 'up') moveProj(id, -1); else if (a === 'dn') moveProj(id, 1); else if (a === 'arch') archProj(id, true); else if (a === 'unarch') archProj(id, false);
 };
 function renameProj(id) {
   const p = projs.find(x => x.id === id), sp = $('#pl [data-pid="' + id + '"] .ac-pt'); if (!p || !sp) return;
   const i = document.createElement('input'); i.className = 'ac-ri'; i.value = p.n; i.maxLength = 28; i.setAttribute('aria-label', 'Rename project');
+  const dr = sp.closest('.ac-pr'); if (dr) dr.draggable = false;
   sp.replaceWith(i); i.focus(); i.select(); let done = false;
   const fin = ok => { if (done) return; done = true; const v = i.value.trim(); if (ok && v) { p.n = v.slice(0, 28); save(); } list(); tag(); };
   i.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); fin(true); } else if (e.key === 'Escape') fin(false); e.stopPropagation(); };
   i.onblur = () => fin(true); i.onclick = e => e.stopPropagation();
 }
 
+/* projects: move up/down, drag to reorder (computers), archive, and the edit popup (name, description, color, symbol) */
+function flashProj(id) { const el = $('#pl [data-pid="' + id + '"]'); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
+function moveProjTo(id, tid, after) {   // put project id before or after project tid
+  const i = projs.findIndex(p => p.id === id), t = projs.findIndex(p => p.id === tid); if (i < 0 || t < 0 || id === tid) return;
+  const [p] = projs.splice(i, 1), j = projs.findIndex(x => x.id === tid); projs.splice(after ? j + 1 : j, 0, p); save(); plist(); flashProj(id);
+}
+function moveProj(id, d) {
+  const act = liveProjs(), i = act.findIndex(p => p.id === id), j = i + d; if (i < 0 || j < 0 || j >= act.length) return;
+  moveProjTo(id, act[j].id, d > 0);
+}
+function archProj(id, on) {
+  const p = projs.find(x => x.id === id); if (!p) return; p.a = !!on; if (on) { if (pend === id) pend = null; }
+  save(); list(); tag(); toast(on ? 'Project archived' : 'Project restored');
+}
+let pdrag = null;
+const pdMark = () => $$('#sb .pdz-a,#sb .pdz-b,#sb .pdrag').forEach(x => x.classList.remove('pdz-a', 'pdz-b', 'pdrag'));
+const pdAfter = (t, e) => { const h = t.querySelector('.ac-pr').getBoundingClientRect(); return e.clientY > h.top + h.height / 2; };
+$('#sb').addEventListener('dragstart', e => {
+  const r = e.target.closest && e.target.closest('.ac-pr[data-pr]'); if (!r || r.closest('.arch') || r.querySelector('.ac-ri')) return;
+  pdrag = r.dataset.pr; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'project:' + pdrag); } catch (x) { } r.closest('.ac-pj').classList.add('pdrag');
+});
+$('#sb').addEventListener('dragover', e => {
+  if (!pdrag) return; const t = e.target.closest('.ac-pj[data-pid]:not(.arch)'); if (!t || t.dataset.pid === pdrag) return;
+  e.preventDefault(); $$('#sb .pdz-a,#sb .pdz-b').forEach(x => x.classList.remove('pdz-a', 'pdz-b')); t.classList.add(pdAfter(t, e) ? 'pdz-a' : 'pdz-b');
+});
+$('#sb').addEventListener('drop', e => {
+  if (!pdrag) return; const t = e.target.closest('.ac-pj[data-pid]:not(.arch)'); if (!t || t.dataset.pid === pdrag) return;
+  e.preventDefault(); const id = pdrag, after = pdAfter(t, e); pdrag = null; pdMark(); moveProjTo(id, t.dataset.pid, after);
+});
+$('#sb').addEventListener('dragend', () => { pdrag = null; pdMark(); });
+
+let pd = null;   // the project being edited in the popup: { id, n, d, c, i }
+const pdb = document.createElement('div'); pdb.className = 'ac-pdb'; pdb.id = 'pdb'; document.body.appendChild(pdb);
+pdb.innerHTML = '<div class="ac-pdx" role="dialog" aria-modal="true" aria-label="Edit project">' +
+  '<div class="ac-pdh"><span class="ac-pdv" id="pdv"></span><b>Edit project</b><button class="ac-ib" data-a="cancel" type="button" aria-label="Close" data-ic="x"></button></div>' +
+  '<label class="ac-pdl"><span>Name</span><input id="pdn" maxlength="28" autocomplete="off" placeholder="Project name"></label>' +
+  '<label class="ac-pdl"><span>Description <small id="pdc"></small></span><textarea id="pdd" rows="3" maxlength="140" placeholder="What is this project about? (optional)"></textarea></label>' +
+  '<div class="ac-pdl"><span>Color</span><div class="ac-pcols" id="pdcol"></div></div>' +
+  '<div class="ac-pdl"><span>Symbol</span><div class="ac-pics" id="pdic"></div></div>' +
+  '<div class="ac-pdf"><button type="button" class="ac-pbt ghost" data-a="arch" id="pda"></button><span></span><button type="button" class="ac-pbt" data-a="cancel">Cancel</button><button type="button" class="ac-pbt pri" data-a="save">Save</button></div></div>';
+paint(pdb);
+function pdDraw() {
+  const col = pd.c, list = PCOL.indexOf(col) >= 0 ? PCOL : PCOL.concat([col]);
+  pdb.style.setProperty('--pc', col);
+  $('#pdv').innerHTML = '<i data-ic="' + pd.i + '"></i>'; $('#pdc').textContent = pd.d.length + '/140';
+  $('#pdcol').innerHTML = list.map(c => '<button type="button" class="ac-sw' + (c === col ? ' on' : '') + '" data-c="' + c + '" style="--c:' + c + '" aria-label="Color ' + c + '"></button>').join('') + '<label class="ac-sw ac-swu" title="Custom color"><input type="color" id="pdu" value="' + col + '" aria-label="Custom color"></label>';
+  $('#pdic').innerHTML = PIC.map(k => '<button type="button" class="ac-pi' + (k === pd.i ? ' on' : '') + '" data-i="' + k + '" aria-label="Symbol ' + k + '" data-ic="' + k + '"></button>').join('');
+  paint(pdb);
+}
+function openPd(id) {
+  const p = projs.find(x => x.id === id); if (!p) return;
+  pd = { id, n: p.n, d: p.d || '', c: pcol(id), i: pico(p) }; closeMenu(); closePm();
+  $('#pdn').value = pd.n; $('#pdd').value = pd.d; $('#pda').textContent = p.a ? 'Unarchive' : 'Archive'; pdDraw();
+  pdb.classList.add('on'); if (!matchMedia('(hover:none) and (pointer:coarse)').matches) setTimeout(() => { const n = $('#pdn'); if (n && pdb.classList.contains('on')) { n.focus(); n.select(); } }, 60);   // not on phones: the keyboard would cover the pickers
+}
+function closePd() { pd = null; pdb.classList.remove('on'); }
+function applyPd() {
+  const p = projs.find(x => x.id === pd.id), n = $('#pdn').value.trim().slice(0, 28);
+  if (!n) { toast('Give the project a name'); $('#pdn').focus(); return false; }
+  p.n = n; p.d = pd.d.trim().slice(0, 140); p.c = pd.c; p.i = pd.i; if (!p.d) delete p.d; save(); return true;
+}
+pdb.addEventListener('click', e => {
+  if (e.target === pdb) { closePd(); return; } if (!pd) return;
+  const c = e.target.closest('.ac-sw[data-c]'); if (c) { pd.c = c.dataset.c; pdDraw(); return; }
+  const k = e.target.closest('.ac-pi[data-i]'); if (k) { pd.i = k.dataset.i; pdDraw(); return; }
+  const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
+  if (a === 'cancel') closePd();
+  else if (a === 'save') { if (applyPd()) { closePd(); list(); tag(); toast('Project updated'); } }
+  else if (a === 'arch') { const id = pd.id, was = !!(projs.find(x => x.id === id) || {}).a; if (applyPd()) { closePd(); archProj(id, !was); } }
+});
+pdb.addEventListener('input', e => {
+  if (!pd) return;
+  if (e.target.id === 'pdd') { pd.d = e.target.value; $('#pdc').textContent = pd.d.length + '/140'; }
+  else if (e.target.id === 'pdu' && /^#[0-9a-f]{6}$/i.test(e.target.value)) { pd.c = e.target.value.toLowerCase(); pdb.style.setProperty('--pc', pd.c); $$('#pdcol .ac-sw.on').forEach(x => x.classList.remove('on')); }
+});
+pdb.addEventListener('change', e => { if (pd && e.target.id === 'pdu') pdDraw(); });
+document.addEventListener('keydown', e => {
+  if (!pd) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePd(); }
+  else if (e.key === 'Enter' && (e.target.id === 'pdn' || e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); e.stopPropagation(); if (applyPd()) { closePd(); list(); tag(); toast('Project updated'); } }
+}, true);
+
 /* drag a chat onto a project (or back onto Recents) */
 $('#sb').addEventListener('dragstart', e => { const it = e.target.closest && e.target.closest('.ac-it'); if (!it) return; dragId = it.dataset.id; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (x) { } it.classList.add('drag'); });
 $('#sb').addEventListener('dragend', () => { dragId = null; $$('#sb .dz,#sb .drag').forEach(x => x.classList.remove('dz', 'drag')); });
-$('#sb').addEventListener('dragover', e => { if (!dragId) return; const t = e.target.closest('.ac-pj[data-pid],#cl'); if (!t) return; e.preventDefault(); $$('#sb .dz').forEach(x => x !== t && x.classList.remove('dz')); t.classList.add('dz'); });
+$('#sb').addEventListener('dragover', e => { if (!dragId) return; const t = e.target.closest('.ac-pj[data-pid]:not(.arch),#cl'); if (!t) return; e.preventDefault(); $$('#sb .dz').forEach(x => x !== t && x.classList.remove('dz')); t.classList.add('dz'); });
 $('#sb').addEventListener('dragleave', e => { const t = e.target.closest('.dz'); if (t && !t.contains(e.relatedTarget)) t.classList.remove('dz'); });
 $('#sb').addEventListener('drop', e => {
-  if (!dragId) return; const t = e.target.closest('.ac-pj[data-pid],#cl'); if (!t) return; e.preventDefault();
+  if (!dragId) return; const t = e.target.closest('.ac-pj[data-pid]:not(.arch),#cl'); if (!t) return; e.preventDefault();
   const c = chats.find(x => x.id === dragId), id = t.dataset.pid || ''; dragId = null; $$('#sb .dz,#sb .drag').forEach(x => x.classList.remove('dz', 'drag')); if (!c) return;
   c.proj = id || null; if (id) { pex[id] = true; sPex(); } save(); list(); toast(id ? 'Added to ' + pname(id) : 'Moved to Recents');
 });
@@ -466,7 +569,9 @@ async function run(imgs, fallback) {
 /* composer */
 const grow = () => { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 180) + 'px'; comp.classList.toggle('typing', inp.value.length > 0); };
 inp.oninput = grow; sd.onclick = send;
-inp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } };
+const touchUI = matchMedia('(hover:none) and (pointer:coarse)');   // phones and tablets: Enter = new line, the Send button sends. On a computer Enter still sends (Shift+Enter = new line).
+if (touchUI.matches) inp.enterKeyHint = 'enter';
+inp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { if (touchUI.matches) return; e.preventDefault(); send(); } };
 
 /* attachments: up to 3 images (shrunk before sending) or text files (first ~3000 characters) */
 const att = [], TXT = /\.(txt|md|csv|json|js|ts|py|html|css|java|c|cpp|cs|lua|sql|xml|yml|yaml|log)$/i;
@@ -559,7 +664,7 @@ const togglePop = id => { const o = !$(pops[id]).classList.contains('open'); clo
 const curProj = () => cur ? (cur.proj || '') : (pend === null ? (proj || '') : (pend || ''));
 function ppjDraw() {
   const c = curProj();
-  $('#ppj').innerHTML = [{ id: '', n: 'No project' }].concat(projs).map(p => '<button type="button" class="ac-mi" data-pj="' + p.id + '"><i data-ic="' + (c === p.id ? 'check' : 'blank') + '"></i><span>' + esc(p.n) + '</span></button>').join('') + '<button type="button" class="ac-mi" data-pj="__new"><i data-ic="plus"></i><span>New project</span></button>';
+  $('#ppj').innerHTML = [{ id: '', n: 'No project' }].concat(liveProjs()).map(p => '<button type="button" class="ac-mi" data-pj="' + p.id + '"><i data-ic="' + (c === p.id ? 'check' : 'blank') + '"></i><span>' + esc(p.n) + '</span></button>').join('') + '<button type="button" class="ac-mi" data-pj="__new"><i data-ic="plus"></i><span>New project</span></button>';
   paint($('#ppj'));
 }
 function ppsDraw() {
