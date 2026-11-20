@@ -5,32 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SPECSOFT® Intro</title>
 <noscript><meta http-equiv="refresh" content="0;url=index.html"></noscript>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@800;900&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:#000;overflow:hidden;color:#fff;font-family:"Space Grotesk",Arial,sans-serif}
 #stage{position:fixed;inset:0;background:#000;overflow:hidden;cursor:pointer}
 #fade{position:absolute;inset:0;background:#000;z-index:20;pointer-events:none}
-#world{position:absolute;inset:0;perspective:1400px;perspective-origin:50% 50%;will-change:transform}
-.pl{position:absolute;left:50%;top:50%;width:100vmax;height:100vmax;margin:-50vmax 0 0 -50vmax;opacity:0;will-change:transform,opacity;background-image:linear-gradient(rgba(255,255,255,.2) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.2) 1px,transparent 1px);background-size:90px 90px;-webkit-mask-image:radial-gradient(closest-side,#000 20%,transparent 100%);mask-image:radial-gradient(closest-side,#000 20%,transparent 100%)}
-.shp{position:absolute;left:50%;top:50%;opacity:0;overflow:visible;will-change:transform,opacity}
-.ic{position:absolute;left:50%;top:50%;overflow:visible;opacity:0;will-change:transform,opacity;filter:drop-shadow(0 0 7px rgba(255,255,255,.7))}
-.ic path{stroke:#fff;stroke-width:2.6;fill:none;stroke-dasharray:1;stroke-dashoffset:1}
-#fl{position:absolute;left:50%;top:50%;width:80vmin;height:80vmin;margin:-40vmin 0 0 -40vmin;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.9),rgba(255,255,255,.25) 30%,transparent 65%);opacity:0;pointer-events:none;z-index:3;will-change:opacity}
-#wmw{position:absolute;left:50%;transform:translateX(-50%);overflow:hidden;padding:.25em .6em;z-index:4}
-#wm{font-family:Orbitron,Eurostile,"Arial Black",sans-serif;font-weight:900;letter-spacing:.1em;text-indent:.1em;line-height:1.15;white-space:nowrap;color:#fff;opacity:0;will-change:transform,opacity}
-#wm sup{font-size:.28em;vertical-align:top;position:relative;top:.35em;margin-left:.15em}
-#sw{position:absolute;top:0;bottom:0;left:-30%;width:18%;transform:skewX(-20deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);opacity:0;pointer-events:none}
-#rp{position:fixed;z-index:30;right:calc(env(safe-area-inset-right,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);opacity:0;pointer-events:none;transition:opacity 1s;font:500 10px "Space Grotesk",Arial,sans-serif;letter-spacing:.4em;text-transform:uppercase;color:#fff;background:none;border:1px solid rgba(255,255,255,.4);padding:9px 14px;cursor:pointer}
-#rp.on{opacity:.5;pointer-events:auto}
-#cv{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;filter:drop-shadow(0 0 6px #fff)}
-.rg{position:absolute;left:50%;top:50%;width:30vmin;height:30vmin;margin:-15vmin 0 0 -15vmin;border:1px solid #fff;border-radius:50%;opacity:0;z-index:3;pointer-events:none;will-change:transform,opacity}
+#world{position:absolute;inset:0;perspective:1400px;perspective-origin:50% 50%}
+.pl{position:absolute;left:50%;top:50%;width:100vmax;height:100vmax;margin:-50vmax 0 0 -50vmax;opacity:0;will-change:transform,opacity;background-image:linear-gradient(rgba(255,255,255,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.14) 1px,transparent 1px);background-size:90px 90px;-webkit-mask-image:radial-gradient(closest-side,#000 15%,transparent 100%);mask-image:radial-gradient(closest-side,#000 15%,transparent 100%)}
+#cv{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;filter:drop-shadow(0 0 5px rgba(255,255,255,.7))}
+#fx{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
+#fl{position:absolute;left:50%;top:50%;width:90vmin;height:90vmin;margin:-45vmin 0 0 -45vmin;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.5),rgba(255,255,255,.1) 40%,transparent 68%);opacity:0;pointer-events:none;z-index:2}
+#lg{position:absolute;inset:0;perspective:1200px;z-index:3}
+.ic{position:absolute;left:50%;top:50%;overflow:visible;opacity:0;will-change:transform,opacity;filter:drop-shadow(0 0 6px rgba(255,255,255,.4))}
+.ic path{stroke:#fff;stroke-width:3;fill:none;stroke-dasharray:1;stroke-dashoffset:1}
+#rg{position:absolute;left:50%;top:50%;width:30vmin;height:30vmin;margin:-15vmin 0 0 -15vmin;border:1px solid #fff;border-radius:50%;opacity:0;z-index:3;pointer-events:none}
+#wmw{position:absolute;left:50%;transform:translateX(-50%);padding:.25em .6em;z-index:4}
+#wm{font-family:Orbitron,Eurostile,"Arial Black",sans-serif;font-weight:800;line-height:1.15;white-space:nowrap;color:#fff}
+#wm i{font-style:normal;display:inline-block;opacity:0;will-change:transform,opacity}
+#wm sup{font-size:.28em;vertical-align:top;position:relative;top:.35em;margin-left:.15em;opacity:.8}
+#ul{position:absolute;left:50%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.8),transparent);z-index:4;opacity:0;transform:scaleX(0)}
 #vg{position:absolute;inset:0;pointer-events:none;z-index:6;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.8) 100%)}
-#fx{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
-#an{position:absolute;left:50%;top:50%;height:2px;width:90vw;margin:-1px 0 0 -45vw;background:linear-gradient(90deg,transparent,#fff 50%,transparent);box-shadow:0 0 24px 4px rgba(255,255,255,.5);opacity:0;z-index:3;pointer-events:none;will-change:transform,opacity}
-#ul{position:absolute;left:50%;height:1px;background:linear-gradient(90deg,transparent,#fff,transparent);box-shadow:0 0 10px #fff;z-index:4;opacity:0;transform:scaleX(0)}
-#sk{position:fixed;z-index:30;left:calc(env(safe-area-inset-left,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);opacity:0;pointer-events:none;transition:opacity .6s;font:500 10px "Space Grotesk",Arial,sans-serif;letter-spacing:.4em;text-transform:uppercase;color:#fff;background:none;border:1px solid rgba(255,255,255,.25);padding:9px 14px;cursor:pointer}
-#sk.on{opacity:.4;pointer-events:auto}#sk.on:hover{opacity:.85;border-color:#fff}
+#sk,#rp{position:fixed;z-index:30;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);opacity:0;pointer-events:none;transition:opacity .8s;font:500 10px "Space Grotesk",Arial,sans-serif;letter-spacing:.4em;text-transform:uppercase;color:#fff;background:none;border:1px solid rgba(255,255,255,.3);padding:9px 14px;cursor:pointer}
+#sk{left:calc(env(safe-area-inset-left,0px) + 18px)}
+#rp{right:calc(env(safe-area-inset-right,0px) + 18px)}
+#sk.on,#rp.on{opacity:.45;pointer-events:auto}
+#sk.on:hover,#rp.on:hover{opacity:.9;border-color:#fff}
 #sk:focus-visible,#rp:focus-visible{outline:2px solid #ededed;outline-offset:3px}
 </style>
 </head>
@@ -38,119 +38,100 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden;color:#fff;font-f
 <div id="stage">
  <svg width="0" height="0" style="position:absolute"><defs>
   <linearGradient id="sv" gradientUnits="userSpaceOnUse" x1="90" y1="160" x2="890" y2="950"><stop offset="0" stop-color="#7a7a7a"/><stop offset=".28" stop-color="#f6f6f6"/><stop offset=".52" stop-color="#9a9a9a"/><stop offset=".78" stop-color="#ececec"/><stop offset="1" stop-color="#858585"/></linearGradient>
-  <linearGradient id="bd"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <linearGradient id="bd"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
   <clipPath id="cp"><polygon points="485,157 589,262 300,551 344,595 761,180 865,283 740,410 888,560 784,663 634,515 344,804 91,550"/><polygon points="634,606 738,710 494,954 390,849"/></clipPath>
  </defs></svg>
  <div id="world"><div class="pl" id="p1"></div><div class="pl" id="p2"></div></div>
- <svg id="cv"><path id="t1" fill="none" stroke="#fff" stroke-width="1.4" pathLength="1" style="stroke-dasharray:1;opacity:.35"/><path id="t2" fill="none" stroke="#fff" stroke-width="1.4" pathLength="1" style="stroke-dasharray:1;opacity:.35"/><path id="c1" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" pathLength="1" style="stroke-dasharray:.3 2"/><path id="c2" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" pathLength="1" style="stroke-dasharray:.3 2"/></svg>
- <div class="rg" id="r1"></div><div class="rg" id="r2"></div>
- <canvas id="fx"></canvas><div id="an"></div><div id="fl"></div><div id="ul"></div><div id="vg"></div>
- <div id="wmw"><div id="wm">SPECSOFT<sup>®</sup></div><div id="sw"></div></div>
- <div id="fade"></div>
+ <svg id="cv"><path id="t1" fill="none" stroke="#fff" stroke-width="1" pathLength="1" style="stroke-dasharray:1;opacity:.3"/><path id="t2" fill="none" stroke="#fff" stroke-width="1" pathLength="1" style="stroke-dasharray:1;opacity:.3"/><path id="c1" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" pathLength="1" style="stroke-dasharray:.25 2"/><path id="c2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" pathLength="1" style="stroke-dasharray:.25 2"/></svg>
+ <canvas id="fx"></canvas><div id="fl"></div>
+ <div id="lg"></div>
+ <div id="rg"></div>
+ <div id="wmw"><div id="wm"></div></div><div id="ul"></div>
+ <div id="vg"></div><div id="fade"></div>
  <button id="sk" aria-label="Skip intro">Skip ›</button>
  <button id="rp" aria-label="Replay intro">Replay</button>
 </div>
 <script>
 (function(){
 'use strict';
-// routing config (same behaviour as the old intro)
-const HOME='index.html',INTRO_DURATION=7600,SKIP_GRACE=1200;
+const HOME='index.html',INTRO_DURATION=6800,SKIP_GRACE=1200,END=6.2;
 if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){location.replace(HOME);return}
-const NS='http://www.w3.org/2000/svg',world=document.getElementById('world'),stage=document.getElementById('stage');
-const $=id=>document.getElementById(id),p1=$('p1'),p2=$('p2'),fl=$('fl'),wmw=$('wmw'),wm=$('wm'),sw=$('sw'),rp=$('rp'),cv=$('cv'),r1=$('r1'),r2=$('r2');
-// quintic smootherstep: zero velocity AND zero acceleration at both ends = no visible "kicks"
-const cl=(x,a=0,b=1)=>Math.min(b,Math.max(a,x)),sm=x=>{x=cl(x);return x*x*x*(x*(x*6-15)+10)},bell=x=>Math.sin(cl(x)*Math.PI),
- outC=x=>1-Math.pow(1-cl(x),3);
-const END=6.6,fade=$('fade'),sk=$('sk'),ul=$('ul'),an=$('an'),fx=$('fx'),cx=fx.getContext('2d');
-let PT=[],burst=false,DPR=1,lastNow=performance.now(),px=0,py=0,tx=0,ty=0;
-function resetFx(){PT=[];burst=false;for(let i=0;i<70;i++)PT.push({k:0,x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*10,vy:-4-Math.random()*14,s:.6+Math.random()*1.4,a:.15+Math.random()*.4,ph:Math.random()*6.28})}
-// sparks burst out of the impact point; dust drifts in the background (all additive canvas, one draw per frame)
-function fxStep(t,rd){
- if(!burst&&t>=3.62){burst=true;{const n=W<600?110:170;for(let i=0;i<n;i++){const a=Math.random()*6.283,v=(.25+Math.pow(Math.random(),2)*1.1)*Math.max(W,H)*.9;PT.push({k:1,x:W/2,y:H/2,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:1,d:.7+Math.random()*1.1,s:1+Math.random()*1.6})}}}
- cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,W,H);cx.globalCompositeOperation='lighter';cx.lineCap='round';
- const da=sm(t);
- for(let i=PT.length-1;i>=0;i--){const p=PT[i];
-  if(p.k){const f=Math.pow(.06,rd);p.vx*=f;p.vy*=f;p.x+=p.vx*rd;p.y+=p.vy*rd;p.l-=rd/p.d;if(p.l<=0){PT.splice(i,1);continue}
-   cx.strokeStyle=`rgba(255,255,255,${(p.l*.9).toFixed(3)})`;cx.lineWidth=p.s*p.l+.3;cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(p.x-p.vx*.04,p.y-p.vy*.04);cx.stroke()}
-  else{p.x+=(p.vx+Math.sin(t*.8+p.ph)*6)*rd;p.y+=p.vy*rd;if(p.y<-5)p.y=H+5;if(p.x<-5)p.x=W+5;if(p.x>W+5)p.x=-5;
-   cx.fillStyle=`rgba(255,255,255,${(p.a*da*(.6+.4*Math.sin(t*2+p.ph))).toFixed(3)})`;cx.beginPath();cx.arc(p.x,p.y,p.s,0,6.283);cx.fill()}}
-}
+const NS='http://www.w3.org/2000/svg',$=id=>document.getElementById(id);
+const world=$('world'),lg=$('lg'),stage=$('stage'),p1=$('p1'),p2=$('p2'),fl=$('fl'),rg=$('rg'),wmw=$('wmw'),wm=$('wm'),ul=$('ul'),fade=$('fade'),sk=$('sk'),rp=$('rp'),cv=$('cv'),fx=$('fx'),cx=fx.getContext('2d');
+// smootherstep = zero velocity AND acceleration at both ends, so nothing ever "kicks"
+const cl=(x,a=0,b=1)=>Math.min(b,Math.max(a,x)),sm=x=>{x=cl(x);return x*x*x*(x*(x*6-15)+10)},bell=x=>Math.sin(cl(x)*Math.PI),outC=x=>1-Math.pow(1-cl(x),3);
 const dB='M494 954L390 849L634 606L738 710Z',dM='M344 804L91 550L485 157L589 262L300 551L344 595L761 180L865 283L740 410L888 560L784 663L634 515Z';
-let W,H,W0,SC,SPY,t0=0,last=0,ang=0,timer,run=false;
+let W,H,W0,DPR=1,PT=[],lastNow=performance.now(),px=0,py=0,tx=0,ty=0,t0=0,run=false,band;
 const mk=(ghost,extra)=>{const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','60 130 860 850');s.classList.add('ic');
  s.innerHTML=`<path class="bp" pathLength="1" d="${dB}"/><path class="mp" pathLength="1" d="${dM}"/>`+(extra||'');
- if(ghost){s.style.filter='none';s.querySelectorAll('path').forEach(p=>{p.style.strokeDashoffset=0;p.style.strokeWidth=1.6})}
- world.appendChild(s);return s};
-const GH=[];for(let i=0;i<4;i++)for(let g=0;g<2;g++)GH.push({e:mk(true),i,lag:.09*(g+1),o:[.35,.17][g]});
-const IC=[0,1,2,3].map(i=>mk(false,i?'':'<g clip-path="url(#cp)"><g transform="skewX(-20)"><rect id="band" x="-500" y="100" width="240" height="950" fill="url(#bd)"/></g></g>'));
-IC.forEach(e=>{e.bp=e.querySelector('.bp');e.mp=e.querySelector('.mp')});
-const band=$('band');IC[0].bp.style.fill=IC[0].mp.style.fill='url(#sv)';IC[0].bp.style.fillOpacity=IC[0].mp.style.fillOpacity=0;
-const SH=[...Array(12)].map(()=>{const k=Math.floor(Math.random()*3),sz=40+Math.random()*70,e=document.createElementNS(NS,'svg');
- e.setAttribute('viewBox','0 0 100 100');e.classList.add('shp');e.style.width=e.style.height=sz+'px';e.style.marginLeft=e.style.marginTop=-sz/2+'px';
- e.innerHTML=['<rect x="8" y="8" width="84" height="84"/>','<circle cx="50" cy="50" r="44"/>','<polygon points="50,8 92,90 8,90"/>'][k].replace('/>',' fill="none" stroke="#fff" stroke-width="1.5" vector-effect="non-scaling-stroke"/>');
- world.insertBefore(e,IC[0]);return{e,x:Math.random()-.5,y:Math.random()-.5,z:-900+Math.random()*850,vx:(Math.random()-.5)*28,vy:(Math.random()-.5)*28,vz:40+Math.random()*60,r:Math.random()*360,vr:(Math.random()-.5)*30,o:.12+Math.random()*.18}});
-const cvp=['t1','c1','t2','c2'].map($);
-function rs(){W=innerWidth;H=innerHeight;W0=Math.min(.34*H,.34*W);SC=Math.min(.18*H,.3*W)/W0;SPY=1.25*SC*W0*850/860;
- const h=W0*850/860;[...IC,...GH.map(g=>g.e)].forEach(e=>{e.style.width=W0+'px';e.style.height=h+'px';e.style.marginLeft=-W0/2+'px';e.style.marginTop=-h/2+'px'});
+ s.bp=s.querySelector('.bp');s.mp=s.querySelector('.mp');
+ if(ghost){s.style.filter='none';[s.bp,s.mp].forEach(p=>{p.style.strokeDashoffset=0;p.style.strokeWidth=2})}
+ lg.appendChild(s);return s};
+// two soft motion-trail copies per mark (this is what makes the movement feel fluid instead of stiff)
+const GH=[];for(let i=0;i<4;i++)[.09,.18].forEach((lag,j)=>GH.push({e:mk(true),i,lag,o:j?.07:.14}));
+const IC=[0,1,2,3].map(i=>mk(false,i?'':'<g clip-path="url(#cp)"><rect id="band" x="-600" y="100" width="240" height="900" fill="url(#bd)" transform="skewX(-20)" opacity="0"/></g>'));
+band=document.getElementById('band');IC[0].bp.style.fill=IC[0].mp.style.fill='url(#sv)';IC[0].bp.style.fillOpacity=IC[0].mp.style.fillOpacity=0;
+wm.innerHTML=[...'SPECSOFT'].map(c=>`<i>${c}</i>`).join('')+'<sup>®</sup>';
+const LT=[...wm.querySelectorAll('i')],cvp=['t1','c1','t2','c2'].map($);
+function resetFx(){PT=[];for(let i=0;i<60;i++)PT.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*8,vy:-3-Math.random()*10,s:.6+Math.random()*1.3,a:.12+Math.random()*.3,ph:Math.random()*6.28})}
+function dust(t,rd){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,W,H);const da=sm(t/1.2);
+ for(const p of PT){p.x+=(p.vx+Math.sin(t*.7+p.ph)*5)*rd;p.y+=p.vy*rd;if(p.y<-5)p.y=H+5;if(p.x<-5)p.x=W+5;if(p.x>W+5)p.x=-5;
+  cx.fillStyle=`rgba(255,255,255,${(p.a*da*(.6+.4*Math.sin(t*1.6+p.ph))).toFixed(3)})`;cx.beginPath();cx.arc(p.x,p.y,p.s,0,6.283);cx.fill()}}
+function rs(){W=innerWidth;H=innerHeight;W0=Math.min(.34*H,.34*W);const h=W0*850/860;
+ [...IC,...GH.map(g=>g.e)].forEach(e=>{e.style.width=W0+'px';e.style.height=h+'px';e.style.marginLeft=-W0/2+'px';e.style.marginTop=-h/2+'px'});
  wmw.style.fontSize=Math.max(22,Math.min(.06*W,.09*H,84))+'px';wmw.style.top=(H/2-.08*H+.5*W0*.88+.05*H)+'px';
- cv.setAttribute('viewBox',`0 0 ${W} ${H}`);DPR=Math.min(2,devicePixelRatio||1);fx.width=W*DPR;fx.height=H*DPR;
+ wm.style.letterSpacing=wm.style.paddingLeft='.1em';
  ul.style.top=(wmw.offsetTop+wmw.offsetHeight+2)+'px';ul.style.width=wmw.offsetWidth*.8+'px';ul.style.marginLeft=-wmw.offsetWidth*.4+'px';
+ cv.setAttribute('viewBox',`0 0 ${W} ${H}`);DPR=Math.min(2,devicePixelRatio||1);fx.width=W*DPR;fx.height=H*DPR;
  const L=`M-20 ${H*.85} C${W*.22} ${H*.85} ${W*.3} ${H*.12} ${W/2} ${H/2}`,R=`M${W+20} ${H*.15} C${W*.78} ${H*.15} ${W*.7} ${H*.88} ${W/2} ${H/2}`;
  [L,L,R,R].forEach((d,i)=>cvp[i].setAttribute('d',d))}
-addEventListener('resize',rs);rs();addEventListener('pointermove',e=>{tx=e.clientX/W-.5;ty=e.clientY/H-.5});
-// four emblems swing inward on curved paths and glide into one; wider, overlapping windows so nothing starts or stops abruptly
+addEventListener('resize',rs);addEventListener('pointermove',e=>{tx=e.clientX/W-.5;ty=e.clientY/H-.5});
+// four marks swirl in from different angles and depths, then melt into one
 function pose(i,t){
- const k=i-1.5,ph=t-1.9,ce=sm((t-1.9)/.5)*(1-sm((t-3.2)/.7)),st=(i==0||i==3)?1.9:2.05,c=sm((t-st)/(3.8-st)),fs=sm((t-4.2)/1.1),arc=Math.sin(Math.PI*c);
- const x=k*.14*W0*arc,y=k*SPY*(1-c)-.08*H*fs,z=Math.sin(ph*3+i*.9)*90*ce,rx=Math.sin(ph*3.2+i*1.2)*18*ce,ry=(i%2?1:-1)*Math.sin(ph*2.8+i*.7)*26*ce,rz=k*4*arc,
-  s=(SC+(1-SC)*c)*(1-.12*fs),op=i?1-sm((t-3.55)/.5):1;
- return[x,y,z,rx,ry,s,op,rz];
+ const ts=1+i*.14,c=sm((t-ts)/1.9),r=1-c,a=i*1.5708+.785+1.3*c,R=Math.min(W,H)*(.38+.06*(i%2)),fs=sm((t-3.9)/1.1),dir=i%2?1:-1;
+ const x=Math.cos(a)*R*r,y=Math.sin(a)*R*r*.7-.08*H*fs+(i?0:Math.sin(t*1.4)*3*fs);
+ return[x,y,-420*r,dir*38*r,-dir*22*r,(.5+.5*c)*(1-.12*fs),(i?1-sm((t-3.25)/.5):1)*sm((t-ts)/.4)];
 }
-const tr=a=>`translate3d(${a[0].toFixed(2)}px,${a[1].toFixed(2)}px,${a[2].toFixed(1)}px) rotateX(${a[3].toFixed(2)}deg) rotateY(${a[4].toFixed(2)}deg) rotateZ(${a[7].toFixed(2)}deg) scale(${a[5].toFixed(4)})`;
-const ring=(el,t,s,sz)=>{const k=cl((t-s)/.8);el.style.opacity=t>s?.8*(1-sm(k)):0;el.style.transform=`scale(${.1+sz*outC(k)})`};
+const tr=a=>`translate3d(${a[0].toFixed(2)}px,${a[1].toFixed(2)}px,${a[2].toFixed(1)}px) rotateY(${a[3].toFixed(2)}deg) rotateZ(${a[4].toFixed(2)}deg) scale(${a[5].toFixed(4)})`;
 function render(t,now){
  const rd=Math.min(.05,Math.max(0,(now-lastNow)/1000));lastNow=now;
- const dt=Math.max(0,Math.min(.05,t-last));last=t;
- ang+=16*(1-sm((t-3.4)/1.6))*dt;const g=sm(t/.9)*(1-sm((t-3.6)/1.4));
+ // depth grids drift slowly in the background
+ const g=.7*sm(t/1.2)*(1-.5*sm((t-3.6)/1.5)),ang=t*7;
  p1.style.transform=`translateY(34vh) rotateX(74deg) rotateZ(${ang}deg)`;p2.style.transform=`translateY(-34vh) rotateX(-74deg) rotateZ(${-ang}deg)`;p1.style.opacity=p2.style.opacity=g;
- const se=sm((t-.2)/.8)*(1-sm((t-3.2)/1));
- SH.forEach(s=>{s.e.style.transform=`translate3d(${s.x*W*.9+s.vx*t}px,${s.y*H*.8+s.vy*t}px,${s.z+s.vz*t}px) rotate(${s.r+s.vr*t}deg)`;s.e.style.opacity=s.o*se});
- // two curved lines sweep in and meet at the center
- const pe=Math.pow(cl((t-.2)/1),1.6);cv.style.opacity=1-sm((t-1.05)/.45);
- cvp[0].style.strokeDashoffset=cvp[2].style.strokeDashoffset=1-pe;cvp[1].style.strokeDashoffset=cvp[3].style.strokeDashoffset=.3-pe;
- fl.style.opacity=.5*bell((t-.9)/.5)+.6*bell((t-3.55)/.8);ring(r1,t,1.05,4);ring(r2,t,3.6,6);
- // impact shake (decaying sines) + pointer parallax through the perspective origin
- px+=(tx-px)*(1-Math.exp(-rd*4));py+=(ty-py)*(1-Math.exp(-rd*4));
- const pa=.4+.6*sm((t-4)/1.2),amp=t>3.6?10*Math.exp(-(t-3.6)*5):0;
- world.style.perspectiveOrigin=`${50+px*18*pa}% ${50+py*18*pa}%`;
- world.style.transform=`translate(${(Math.sin(t*71)*amp).toFixed(2)}px,${(Math.cos(t*83)*amp).toFixed(2)}px) scale(${(1+.03*bell((t-3.55)/.6)).toFixed(4)})`;
- an.style.opacity=(.9*bell((t-3.55)/.9)).toFixed(3);an.style.transform=`scaleX(${(.05+.95*outC((t-3.55)/.7)).toFixed(3)}) scaleY(${(1+2*bell((t-3.55)/.5)).toFixed(3)})`;
- fxStep(t,rd);
- IC.forEach((e,i)=>{const ts=(i==1||i==2)?1.2:1.35,u=cl((t-ts)/.9),ue=1-Math.pow(1-u,3);
-  e.bp.style.strokeDashoffset=1-cl(ue/.22);e.mp.style.strokeDashoffset=1-cl((ue-.22)/.78);
-  const a=pose(i,t);e.style.transform=tr(a);e.style.opacity=a[6]*sm((t-ts)/.15)});
- GH.forEach(o=>{const a=pose(o.i,t-o.lag),vis=sm((t-2)/.5)*(1-sm((t-3.6)/.8));o.e.style.transform=tr(a);o.e.style.opacity=(o.o*vis*a[6]).toFixed(3)});
- const f=sm((t-3.6)/.8);IC[0].bp.style.fillOpacity=IC[0].mp.style.fillOpacity=f;band.setAttribute('x',-500+1900*sm((t-4)/.8));
- // wordmark: smooth center-out reveal + gentle settle, then a light sweep (no flicker)
- const wp=sm((t-4.6)/1),hw=((1-wp)*50).toFixed(2);
- const ca=(1-wp)*14+3*bell((t-5.3)/.9);
- wm.style.opacity=wp;wm.style.transform=`scale(${(1+.08*(1-wp)).toFixed(4)})`;wm.style.clipPath=wp>=1?'none':`inset(0 ${hw}% 0 ${hw}%)`;
- wm.style.textShadow=ca>.05?`${(-ca).toFixed(2)}px 0 rgba(0,255,255,.75),${ca.toFixed(2)}px 0 rgba(255,0,90,.75),0 0 18px rgba(255,255,255,.25)`:'0 0 18px rgba(255,255,255,.25)';
- const us=sm((t-5.2)/1);ul.style.transform=`scaleX(${us.toFixed(3)})`;ul.style.opacity=(.8*us).toFixed(3);
- sw.style.left=(-30+130*sm((t-5.3)/.9))+'%';sw.style.opacity=bell((t-5.3)/.9);
+ // two curved lines slide in from the corners and meet at the centre, pulling the marks in
+ const pe=Math.pow(cl((t-.3)/1.4),1.5);cv.style.opacity=1-sm((t-1.5)/.8);
+ cvp[0].style.strokeDashoffset=cvp[2].style.strokeDashoffset=1-pe;cvp[1].style.strokeDashoffset=cvp[3].style.strokeDashoffset=.25-pe;
+ // pointer parallax (very gentle)
+ px+=(tx-px)*(1-Math.exp(-rd*3));py+=(ty-py)*(1-Math.exp(-rd*3));
+ const pa=.4+.6*sm((t-3.5)/1.5),po=`${50+px*14*pa}% ${50+py*14*pa}%`;world.style.perspectiveOrigin=lg.style.perspectiveOrigin=po;
+ // soft halo + one quiet ring when the logo locks in (no flash, no shake)
+ const fs=sm((t-3.9)/1.1);fl.style.opacity=(.3*bell((t-3.1)/1.6)).toFixed(3);fl.style.transform=`translateY(${(-.08*H*fs).toFixed(1)}px)`;
+ const k=cl((t-3.3)/1.5);rg.style.opacity=t>3.3?.28*(1-sm(k)):0;rg.style.transform=`translateY(${(-.08*H*fs).toFixed(1)}px) scale(${.1+3.2*outC(k)})`;
+ dust(t,rd);
+ IC.forEach((e,i)=>{const ts=1+i*.14,u=outC((t-ts+.1)/1);
+  e.bp.style.strokeDashoffset=1-cl(u/.25);e.mp.style.strokeDashoffset=1-cl((u-.25)/.75);
+  const a=pose(i,t);e.style.transform=tr(a);e.style.opacity=a[6]});
+ GH.forEach(o=>{const a=pose(o.i,t-o.lag),vis=sm((t-1)/.5)*(1-sm((t-3.2)/.6));o.e.style.transform=tr(a);o.e.style.opacity=(o.o*vis*a[6]).toFixed(3)});
+ // fill melts in, then one slow sheen glides across
+ const f=sm((t-3.2)/1);IC[0].bp.style.fillOpacity=IC[0].mp.style.fillOpacity=f;
+ band.setAttribute('x',-600+2000*sm((t-4.2)/1.1));band.setAttribute('opacity',bell((t-4.2)/1.1).toFixed(3));
+ // wordmark: letters rise in one after another while the tracking tightens
+ const e=sm((t-4)/1.8),ls=(.1+.4*(1-e)).toFixed(3)+'em';wm.style.letterSpacing=wm.style.paddingLeft=ls;
+ LT.forEach((l,i)=>{const p=sm((t-4-i*.07)/.9);l.style.opacity=p;l.style.transform=`translateY(${((1-p)*45).toFixed(1)}%)`;l.style.filter=p<1?`blur(${((1-p)*7).toFixed(1)}px)`:'none'});
+ const us=sm((t-4.9)/1);ul.style.transform=`scaleX(${us.toFixed(3)})`;ul.style.opacity=(.6*us).toFixed(3);
 }
 function frame(now){
- if(!run)return;
- requestAnimationFrame(frame);
+ if(!run)return;requestAnimationFrame(frame);
  const el=Math.max(0,(now-t0)/1000);render(cl(el,0,END),now);
- // fade in from black at the start, fade back to black before the redirect so the cut to the site is clean
- fade.style.opacity=cl(1-sm(el/.6)+sm((el-(INTRO_DURATION/1000-.7))/.6)).toFixed(3);
+ // fade in from black, fade back to black before the redirect so the cut to the site is clean
+ fade.style.opacity=cl(1-sm(el/.7)+sm((el-(INTRO_DURATION/1000-.8))/.7)).toFixed(3);
 }
 let phase='idle',canSkip=false,endTimer,uiTimer,skipTimer;
 function clearTimers(){clearTimeout(endTimer);clearTimeout(uiTimer);clearTimeout(skipTimer)}
 function goHome(){clearTimers();location.replace(HOME)}
 function play(){
  clearTimers();phase='playing';canSkip=false;rp.classList.remove('on');sk.classList.remove('on');
- last=0;ang=0;resetFx();t0=performance.now();
+ resetFx();t0=performance.now();
  const wasRun=run;run=true;if(!wasRun)requestAnimationFrame(frame);
  skipTimer=setTimeout(()=>{canSkip=true;sk.classList.add('on')},SKIP_GRACE);   // ignore accidental early taps
  uiTimer=setTimeout(()=>{phase='done';rp.classList.add('on');sk.classList.remove('on')},INTRO_DURATION);
@@ -161,7 +142,7 @@ sk.addEventListener('click',e=>{e.stopPropagation();goHome()});
 rp.addEventListener('click',e=>{e.stopPropagation();play()});
 document.addEventListener('keydown',e=>{if((e.key==='Escape'||e.key==='Enter')&&phase==='playing'&&canSkip)goHome()});
 // wait for fonts so the wordmark never swaps mid-reveal (1.5s cap so the gate can never hang)
-resetFx();render(0,performance.now());
+rs();resetFx();render(0,performance.now());
 let started=false;const once=()=>{if(!started){started=true;rs();play()}};
 (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(once);setTimeout(once,1500);
 })();
