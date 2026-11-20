@@ -30,10 +30,10 @@ const CAPS = [
   { id: 'viz', n: 'Inline Visualizations', ic: P.chart, d: 'Draws interactive shapes and graphs inside her answers.' },
   { id: 'dev', n: 'Developer Mode', ic: P.code, d: 'Code-first answers: clean examples, why it works, edge cases and common bugs.' },
   { id: 'docs', n: 'Document Analysis', ic: P.file, d: 'Attach a file or paste a text and she summarizes it, pulls key points and flags gaps.' },
-  { id: 'pdf', n: 'Write PDF', ic: P.pdf, soon: 1, d: 'Turns her answer into a downloadable PDF.' },
-  { id: 'web', n: 'Web Search & Live URL Reader', ic: P.globe, soon: 1, d: 'Reads live web pages and docs. (Plain Web Search already lives in Tools.)' },
-  { id: 'stepper', n: 'Math & LaTeX Interactive Stepper', ic: P.sliders, soon: 1, d: 'Clean math with sliders so equations update as you change variables.' },
-  { id: 'canvas', n: 'Persistent Canvas', ic: P.split, soon: 1, d: 'A side-by-side editor for long writing or code with targeted rewrites.' }
+  { id: 'pdf', n: 'Write PDF', ic: P.pdf, d: 'Turns her answers into clean documents and adds a PDF button under each answer to save it.' },
+  { id: 'web', n: 'Web Search & Live URL Reader', ic: P.globe, d: 'Paste a link and she reads that page, then teaches from it (+1 credit when a link is read). Plain Web Search lives in Tools.' },
+  { id: 'stepper', n: 'Math & LaTeX Interactive Stepper', ic: P.sliders, d: 'Clean math with sliders: drag a variable and the equation (and graph) rewrites itself, one step at a time.' },
+  { id: 'canvas', n: 'Persistent Canvas', ic: P.split, d: 'Long writing or code opens in a side-by-side editor. Edit it by hand, flip between versions, copy, download or save as PDF.' }
 ];
 const AVAIL = CAPS.filter(c => !c.soon).map(c => c.id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -65,12 +65,14 @@ function render() {
   const caps = CAPS.map(c => {
     const on = e.caps.includes(c.id);
     return '<button type="button" class="eq-it' + (on ? ' on' : '') + (c.soon ? ' soon' : '') + (!on && full && !c.soon ? ' full' : '') + '" data-cap="' + c.id + '" role="switch" aria-checked="' + on + '"' + (c.soon ? ' disabled' : '') + '>' +
-      '<span class="eq-ic">' + ico(c.ic) + '</span><span class="eq-tx"><b>' + esc(c.n) + (c.soon ? '<em>Soon</em>' : '') + '</b><small>' + esc(c.d) + '</small></span>' + (c.soon ? '' : '<span class="eq-sw"><i></i></span>') + '</button>';
+      '<span class="eq-ic">' + ico(c.ic) + '</span><span class="eq-tx"><b>' + esc(c.n) + (c.soon ? '<em>Soon</em>' : '') + '</b><small>' + esc(c.d) + '</small></span>' + (c.soon ? '' : '<span class="eq-sw"><i></i></span>') + '</button>' +
+      (c.id === 'canvas' && on && (e.skill === 'socratic' || e.skill === 'hints') ? '<div class="eq-note">Paused while ' + (e.skill === 'socratic' ? 'Socratic Tutor' : 'Step by Step Hint') + ' is on. You can still open and edit canvases by hand.</div>' : '');
   }).join('');
   const skills = [{ id: '', n: 'None', ic: P.none, d: 'Normal Spectra teaching. This is the default.' }].concat(SKILLS).map(s => {
     const on = e.skill === s.id;
     let extra = '';
-    if (on && s.id === 'socratic') extra = '<div class="eq-note">Video and Flashcards are switched off while Socratic Tutor is on, because they would show the answer.</div>';
+    if (on && s.id === 'socratic') extra = '<div class="eq-note">Video, Flashcards and Canvas are switched off while Socratic Tutor is on, because they would show the answer.</div>';
+    if (on && s.id === 'hints') extra = '<div class="eq-note">Persistent Canvas is switched off while Step by Step Hint is on, because it would show the whole answer.</div>';
     if (on && s.id === 'roleplay' && !e.caps.includes('dev') && !full) extra = '<div class="eq-note">Tip: pair it with Developer Mode for coding scenarios like a production outage.</div>';
     return '<button type="button" class="eq-it eq-sk' + (on ? ' on' : '') + '" data-skill="' + s.id + '" role="radio" aria-checked="' + on + '"><span class="eq-ic">' + ico(s.ic) + '</span><span class="eq-tx"><b>' + esc(s.n) + '</b><small>' + esc(s.d) + '</small></span><span class="eq-rd"><i></i></span></button>' + extra;
   }).join('');
@@ -81,7 +83,8 @@ function render() {
 function change(fn) {
   const before = get(), after = fn(JSON.parse(JSON.stringify(before)));
   if (!after) return; put(after); render(); refresh();
-  if ((before.skill === 'socratic') !== (after.skill === 'socratic') && window.SpectraAcad && window.SpectraAcad.redraw) window.SpectraAcad.redraw();   // Video / Flashcards buttons grey out or come back
+  if (window.SpectraCanvas && window.SpectraCanvas.refresh) window.SpectraCanvas.refresh();   // the Rewrite bar hides or comes back
+  if (((before.skill === 'socratic') !== (after.skill === 'socratic') || before.caps.includes('pdf') !== after.caps.includes('pdf')) && window.SpectraAcad && window.SpectraAcad.redraw) window.SpectraAcad.redraw();   // Video / Flashcards buttons grey out or come back, PDF button shows or hides
 }
 function key(e) { if (e.key === 'Escape' && el) { e.preventDefault(); close(); } }
 function close() { document.removeEventListener('keydown', key, true); if (el) el.remove(); el = null; }
