@@ -29,6 +29,9 @@ const P = {
   cards: 'M8 8h12v10H8zM4 15V6a2 2 0 012-2h9',
   pdf: 'M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5M12 11v6M9 14l3 3 3-3',
   vid: 'M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2zM10 9.2v5.6l4.8-2.8z',
+  quiz: 'M10 6h10M10 12h10M10 18h10M3.5 5.5l1.2 1.2 2.3-2.4M3.5 11.5l1.2 1.2 2.3-2.4M3.5 17.5l1.2 1.2 2.3-2.4',
+  notes: 'M6 3h9l4 4v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM14.5 3v4.5H19M8.5 12h7M8.5 16h5',
+  bookmark: 'M7 3h10a1 1 0 011 1v17l-6-4-6 4V4a1 1 0 011-1z',
   x: 'M6 6l12 12M18 6L6 18', arrup: 'M12 19V5M6 11l6-6 6 6', arrdn: 'M12 5v14M6 13l6 6 6-6', archive: 'M3 5h18v4H3zM5 9v10h14V9M10 13h4', palette2: 'M12 3a9 9 0 100 18c1.5 0 2-1 1.5-2.2-.5-1.2.3-2.3 1.6-2.3H17a4 4 0 004-4c0-5-4-9.5-9-9.5zM7.5 11h.01M10 7.5h.01M14 7.5h.01M16.5 11h.01',
   /* project symbols */
   book: 'M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 19a2 2 0 012-2h13', flask: 'M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3', calc: 'M7 3h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2zM8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01',
@@ -419,10 +422,11 @@ const bt = (k, ic, lb, on) => '<button type="button" class="ac-ab' + (on ? ' on'
 const ttsBtn = '<button type="button" class="ac-ab ac-tts" data-k="tts" data-a="speak" aria-label="Read aloud" title="Read aloud"><i class="v-i" data-ic="speaker"></i><i class="v-s" data-ic="stop"></i><i class="v-l" data-ic="spin"></i></button>';
 const vidBtn = m => '<button type="button" class="ac-ab ac-vid' + (socOn() ? ' sk-off' : '') + '" data-k="video" title="' + (socOn() ? 'Off while Socratic Tutor is on' : 'Watch Spectra explain it as a video') + '" aria-label="Video"><i data-ic="vid"></i><span>' + (m.lesson ? 'Watch' : 'Video') + '</span></button>';
 const fcBtn = m => '<button type="button" class="ac-ab ac-fc' + (socOn() ? ' sk-off' : '') + '" data-k="flash" title="' + (socOn() ? 'Off while Socratic Tutor is on' : 'Turn this answer into flashcards') + '" aria-label="Flashcards"><i data-ic="cards"></i><span>' + (m.cards ? 'Study' : 'Flashcards') + '</span></button>';
+const qzBtn = m => '<button type="button" class="ac-ab ac-qb' + (socOn() ? ' sk-off' : '') + '" data-k="quiz" title="' + (socOn() ? 'Off while Socratic Tutor is on' : 'Quiz yourself on this answer') + '" aria-label="Quiz"><i data-ic="quiz"></i><span>Quiz</span></button>';
 const capOn = id => { const e = EQ(); return !!e && Array.isArray(e.caps) && e.caps.includes(id); };   // Skills & Capabilities: is this capability switched on?
 const pdfBtn = '<button type="button" class="ac-ab ac-pdf" data-k="pdf" title="Save this answer as a PDF" aria-label="Save as PDF"><i data-ic="pdf"></i><span>PDF</span></button>';
 const VM = new WeakMap(), vm = m => { let s = VM.get(m); if (!s) { s = {}; VM.set(m, s); } s.content = plain(m, true); return s; };
-const bar = (m, last) => '<div class="ac-acts">' + bt('copy', 'copy', 'Copy') + ttsBtn + bt('up', 'up', 'Good answer', m.fb === 'up') + bt('down', 'down', 'Bad answer', m.fb === 'down') + (last ? bt('regen', 'refresh', 'Try again') : '') + bt('more', 'dots', 'More') + vidBtn(m) + fcBtn(m) + (capOn('pdf') ? pdfBtn : '') + '</div>';
+const bar = (m, last) => '<div class="ac-acts">' + bt('copy', 'copy', 'Copy') + ttsBtn + bt('up', 'up', 'Good answer', m.fb === 'up') + bt('down', 'down', 'Bad answer', m.fb === 'down') + (last ? bt('regen', 'refresh', 'Try again') : '') + bt('more', 'dots', 'More') + vidBtn(m) + fcBtn(m) + qzBtn(m) + (capOn('pdf') ? pdfBtn : '') + '</div>';
 const uBar = '<div class="ac-uacts">' + bt('ucopy', 'copy', 'Copy message') + bt('uedit', 'edit', 'Edit message') + '</div>';
 const plain = (m, noCv) => (window.SpectraCanvas ? SpectraCanvas.strip(m.content, noCv) : m.content).replace(/```(?:viz|stepper)[\s\S]*?```/g, '').trim();
 const copyTxt = t => (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).catch(() => { const x = document.createElement('textarea'); x.value = t; x.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(x); x.select(); try { document.execCommand('copy'); } catch (e) { } x.remove(); });
@@ -430,7 +434,7 @@ const mm = document.createElement('div'); mm.className = 'ac-cm ac-mm'; document
 const closeMM = () => { mmm = null; mm.classList.remove('open'); };
 function openMM(m, btn) {
   if (mmm === m.id) return closeMM(); mmm = m.id;
-  mm.innerHTML = '<button type="button" class="ac-mi" data-z="share"><i data-ic="link"></i><span>Share Message Link</span></button><div class="ac-sep"></div><button type="button" class="ac-mi dg" data-z="legal"><i data-ic="flag"></i><span>Report Legal Issue</span></button>';
+  mm.innerHTML = '<button type="button" class="ac-mi" data-z="note"><i data-ic="notes"></i><span>Add to notes</span></button><button type="button" class="ac-mi" data-z="share"><i data-ic="link"></i><span>Share Message Link</span></button><div class="ac-sep"></div><button type="button" class="ac-mi dg" data-z="legal"><i data-ic="flag"></i><span>Report Legal Issue</span></button>';
   paint(mm); mm.classList.add('open'); const r = btn.getBoundingClientRect(), w = mm.offsetWidth, h = mm.offsetHeight;
   mm.style.left = Math.min(Math.max(8, r.left), innerWidth - w - 8) + 'px'; mm.style.top = (r.bottom + h + 14 > innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6) + 'px';
 }
@@ -444,6 +448,22 @@ async function reportLegal(m) {
       body: JSON.stringify({ mode: 'bug', category: 'legal', message: d, info: 'Academics legal report | msg ' + m.id + ' | ' + (subject || 'General Knowledge') + ' | ' + level, chat: cur.msgs.slice(Math.max(0, i - 5), i + 1).map(x => ({ role: x.role, content: x.content })) }) });
     toast(r.ok ? 'Report sent. Thank you!' : r.status === 429 ? 'Too many reports, try again later' : 'Could not send the report');
   } catch (e) { toast('Could not send the report'); }
+}
+/* Add to notes (three-dot menu): Spectra summarizes this answer into a short note and it is saved in the Notes tab (Supabase). Free. */
+let ntBusy = false;
+async function addNote(m) {
+  if (!window.SpectraNotes) { toast('Notes are not loaded'); return; }
+  if (ntBusy) { toast('Spectra is still writing a note'); return; }
+  const i = cur ? cur.msgs.indexOf(m) : -1; if (i < 0 || !m.content) return;
+  let q = ''; for (let k = i - 1; k >= 0; k--) if (cur.msgs[k].role === 'user') { q = cur.msgs[k].content; break; }
+  ntBusy = true; toast('Spectra is writing your note...');
+  try {
+    const r = await SpectraNotes.addFromAnswer({ text: plain(m), question: q, subject: (cur && cur.subject) || subject || 'General Knowledge', chat: cur.id, msg: m.id });
+    toast(r.dup ? 'That answer is already in your notes' : 'Saved to Notes');
+  } catch (e) {
+    toast(e.message === 'LOGIN' ? 'Log in first to save notes' : e.message === 'SETUP' ? 'Notes need the database setup first' : e.message === 'LIMIT' ? 'Note limit reached. Delete some notes first.' : 'Could not save the note');
+  }
+  ntBusy = false;
 }
 /* Flashcards button: Spectra writes a small deck from her answer (1 credit once, then it is saved on the message), the player lets you study it */
 let fcBusy = false;
@@ -465,6 +485,33 @@ async function flash(m, b) {
     toast(e.message === 'LOGIN' ? 'Log in first to make flashcards' : e.st === 429 ? 'Spectra is busy or you hit today\'s limit' : 'Spectra could not make flashcards. Try again.');
   }
   pn.end(); fcBusy = false; if (b.isConnected) { b.disabled = false; b.classList.remove('ld'); if (lb) lb.textContent = m.cards ? 'Study' : 'Flashcards'; }
+}
+/* Quiz button: Spectra writes a multiple-choice quiz from her answer (1 credit once, then it is saved on the message). The card sits right under the answer. */
+let qzBusy = false;
+function mountQuiz(m, h) {
+  const w = h.closest('.ac-m.a');
+  SpectraQuiz.mount(h, m.quiz, save, { fresh: () => { delete m.quiz; save(); h.remove(); const b = w && w.querySelector('[data-k=quiz]'); if (b) quiz(m, b); } });
+}
+async function quiz(m, b) {
+  if (!window.SpectraQuiz) { toast('Quizzes are not loaded'); return; }
+  const w = b.closest('.ac-m.a');
+  if (m.quiz) { const h = w && w.querySelector('[data-qz]'); if (h) h.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
+  if (qzBusy) { toast('Spectra is still writing a quiz'); return; }
+  const i = cur ? cur.msgs.indexOf(m) : -1; if (i < 0 || !m.content) return;
+  qzBusy = true; b.disabled = true; b.classList.add('ld'); const lb = b.querySelector('span'); if (lb) lb.textContent = 'Making...';
+  const pn = vidPanel(w, 'Making your quiz', ['Reading the answer', 'Picking what to test', 'Writing the questions', 'Mixing the choices']);
+  const hist = cur.msgs.slice(0, i + 1).slice(-7).map(x => ({ role: x.role, content: x.content }));
+  hist.push({ role: 'user', content: '[QUIZ REQUEST] Turn your last answer into a multiple-choice quiz with as many questions as the topic really needs.' });
+  let raw = '';
+  try {
+    await ask(hist, t => { raw += t; }, new AbortController().signal, null, null, { quiz: true, search: false, research: false, think: false, academics: { subject: cur.subject || subject || 'General Knowledge', level, track: '' } });
+    const D = SpectraQuiz.parse(raw); if (!D) throw new Error('PARSE');
+    m.quiz = D; save(); pn.end();
+    if (w && w.isConnected && !w.querySelector('[data-qz]')) { const h = document.createElement('div'); h.dataset.qz = m.id; w.appendChild(h); mountQuiz(m, h); h.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  } catch (e) {
+    toast(e.message === 'LOGIN' ? 'Log in first to make a quiz' : e.st === 429 ? 'Spectra is busy or you hit today\'s limit' : 'Spectra could not make a quiz. Try again.');
+  }
+  pn.end(); qzBusy = false; if (b.isConnected) { b.disabled = false; b.classList.remove('ld'); if (lb) lb.textContent = 'Quiz'; }
 }
 /* Video button: Spectra writes a lesson script (costs 2 credits once, then it is saved on the message), the player performs it */
 /* the "making your video" card: animated gradient outline, sound bars, rotating status lines */
@@ -577,14 +624,16 @@ $('#ms').addEventListener('click', e => {
   else if (k === 'up' || k === 'down') { m.fb = m.fb === k ? undefined : k; save(); b.parentNode.querySelectorAll('[data-k=up],[data-k=down]').forEach(x => x.classList.toggle('on', x.dataset.k === m.fb)); toast(m.fb ? 'Thanks for the feedback' : 'Feedback removed'); }
   else if (k === 'more') openMM(m, b);
   else if (k === 'regen') regen(m);
-  else if ((k === 'video' || k === 'flash') && socOn()) toast('Socratic Tutor is on, so no answer reveals. Switch the skill to use this.');
+  else if ((k === 'video' || k === 'flash' || k === 'quiz') && socOn()) toast('Socratic Tutor is on, so no answer reveals. Switch the skill to use this.');
   else if (k === 'pdf') savePdf(m);
   else if (k === 'video') video(m, b);
   else if (k === 'flash') flash(m, b);
+  else if (k === 'quiz') quiz(m, b);
 });
 mm.onclick = e => {
   e.stopPropagation(); const z = (e.target.closest('[data-z]') || {}).dataset; if (!z) return; const m = cur && cur.msgs.find(x => x.id === mmm); closeMM(); if (!m) return;
-  if (z.z === 'share') copyTxt(location.origin + location.pathname + '#m=' + m.id).then(() => toast('Message link copied'));
+  if (z.z === 'note') addNote(m);
+  else if (z.z === 'share') copyTxt(location.origin + location.pathname + '#m=' + m.id).then(() => toast('Message link copied'));
   else reportLegal(m);
 };
 document.addEventListener('click', closeMM); document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMM(); }); addEventListener('resize', closeMM); $('#sc').addEventListener('scroll', closeMM);
@@ -634,8 +683,9 @@ function draw() {
   (has ? $('#dock') : $('#slot')).appendChild(comp);
   $('#ms').innerHTML = has ? cur.msgs.map(m => m.role === 'user'
     ? '<div class="ac-ur" data-uid="' + mkId(m) + '">' + uImgs(m) + '<div class="ac-m u">' + uText(m) + (m.att && m.att.length ? '<div class="ac-ua">' + m.att.map(n => '<span>' + esc(n) + '</span>').join('') + '</div>' : '') + '</div>' + uBar + '</div>'
-    : '<div class="ac-m a" data-mid="' + mkId(m) + '">' + aHtml(m) + (m.content && !(busy && m === cur.msgs[cur.msgs.length - 1]) ? bar(m, m === cur.msgs[cur.msgs.length - 1]) : '') + '</div>').join('') : '';
+    : '<div class="ac-m a" data-mid="' + mkId(m) + '">' + aHtml(m) + (m.content && !(busy && m === cur.msgs[cur.msgs.length - 1]) ? bar(m, m === cur.msgs[cur.msgs.length - 1]) : '') + (m.quiz ? '<div data-qz="' + m.id + '"></div>' : '') + '</div>').join('') : '';
   paint($('#ms')); if (window.SpectraVoice && cur) $$('.ac-m.a[data-mid]').forEach(el => { const m = cur.msgs.find(x => x.id === el.dataset.mid); if (m) SpectraVoice.sync(el, vm(m)); });
+  if (window.SpectraQuiz && cur) $$('[data-qz]').forEach(el => { const m = cur.msgs.find(x => x.id === el.dataset.qz); if (m && m.quiz) mountQuiz(m, el); });
   $$('.ac-m.a').forEach(math); if (window.SpectraViz) SpectraViz.mount($('#ms')); if (window.SpectraStepper) SpectraStepper.mount($('#ms')); if (window.SpectraCanvas) SpectraCanvas.refresh(); down();
 }
 const down = () => { sc.scrollTop = sc.scrollHeight; };
@@ -935,6 +985,20 @@ if (LS('sa.acad.min', false)) setMin(true);
 
 /* settings module hooks */
 function sync() { persona = LS('sa.persona', LS('sa.acad.persona', 'spectra')); custom = String(CFGS().persona || LS('sa.acad.custom', '') || '').slice(0, 400); if (!PERS.some(p => p.id === persona) || (persona === 'custom' && !custom.trim())) persona = 'spectra'; tag(); mdraw(); gr(); cred(); }
+/* Notes bridge (spectra-notes.js): the note summary side call and the "Send to Spectra" hand-off */
+const noteSummary = async (text, question) => {
+  const sb = window.getSupabaseClient && window.getSupabaseClient(), s = sb && (await sb.auth.getSession()).data.session; if (!s) return null;
+  const C = window.SPECSOFT_CONFIG;
+  const r = await fetch(C.SUPABASE_URL + '/functions/v1/spectra-chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token, apikey: C.SUPABASE_ANON_KEY }, body: JSON.stringify({ mode: 'note', text, question, subject: subject || 'General Knowledge' }) });
+  return r.ok ? await r.json() : null;
+};
+const noteMerge = async (a, b) => {   // Notes v2: Spectra combines two notes into one clean note (free, same limits as the summary call)
+  const sb = window.getSupabaseClient && window.getSupabaseClient(), s = sb && (await sb.auth.getSession()).data.session; if (!s) return null;
+  const C = window.SPECSOFT_CONFIG;
+  const r = await fetch(C.SUPABASE_URL + '/functions/v1/spectra-chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token, apikey: C.SUPABASE_ANON_KEY }, body: JSON.stringify({ mode: 'merge', a: { title: a.title, body: a.body }, b: { title: b.title, body: b.body } }) });
+  return r.ok ? await r.json() : null;
+};
+if (window.SpectraNotes) SpectraNotes.init({ md, math, paint, toast, copy: copyTxt, closeDrawer, subject: () => (cur && cur.subject) || subject || 'General Knowledge', summarize: noteSummary, merge: noteMerge, projects: () => liveProjs().map(p => ({ id: p.id, n: p.n, c: pcol(p.id) })), toChat: t => { $('#nw').onclick(); inp.value = t; grow(); inp.focus(); }, toChatFile: (name, text, prompt) => { $('#nw').onclick(); att.length = 0; att.push({ n: name, k: 'txt', d: String(text).slice(0, MAXC) }); attDraw(); inp.value = prompt || ''; grow(); inp.focus(); } });
 window.SpectraAcad = { md, math, paint, toast, redraw: draw, setTheme: setTh, sync, msgs: () => (cur ? cur.msgs : []), save, busy: () => busy, copy: copyTxt, pdf: (text, title) => savePdf(null, { text, title }), ask: (onTok, sig, extra) => ask([], onTok, sig, undefined, undefined, extra) };
 addEventListener('storage', e => { if (!e.key || e.key === 'sa.persona' || e.key === 'sa.cfg' || e.key === 'sa.model') sync(); });
 th.dataset.ic = root.dataset.theme === 'dark' ? 'sun' : 'moon';

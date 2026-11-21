@@ -1,0 +1,98 @@
+/* Spectra Quiz card (spectra-quiz.js). Uses the page's own variables so it follows light and dark mode. */
+.ac-qz{--qz-ok:#10b981;--qz-bad:#ef4444;display:block;box-sizing:border-box;width:100%;max-width:560px;margin:14px 0 4px;padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card);color:var(--ink);box-shadow:0 10px 30px -18px rgba(0,0,0,.35);outline:none;animation:qzin .32s cubic-bezier(.2,.8,.2,1)}
+[data-theme=dark] .ac-qz{--qz-ok:#34d399;--qz-bad:#f87171}
+@keyframes qzin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.qz-h{display:flex;align-items:center;gap:10px;min-width:0}
+.qz-b{display:inline-flex;align-items:center;gap:6px;flex:none;padding:4px 10px 4px 8px;border-radius:99px;background:var(--soft);font:700 11px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.qz-b i{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#22d3ee)}
+.qz-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 13px Inter,sans-serif;color:var(--ink2)}
+.qz-c{flex:none;font:700 13px Inter,sans-serif;font-style:normal;font-variant-numeric:tabular-nums;color:var(--ink)}
+.qz-p{height:4px;margin:12px 0 14px;border-radius:99px;background:var(--soft);overflow:hidden}
+.qz-p i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#7c5cff,#22d3ee);transition:width .35s ease}
+.qz-q{font:600 16px/1.45 Inter,sans-serif;margin:0 0 12px;overflow-wrap:anywhere}
+.qz-os{display:grid;gap:8px}
+.qz-o{display:flex;align-items:flex-start;gap:12px;width:100%;min-height:46px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:500 14px/1.4 Inter,sans-serif;text-align:left;cursor:pointer;transition:border-color .15s,background .15s,transform .12s,opacity .2s}
+.qz-o:disabled{cursor:default;opacity:1}
+.qz-l{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:8px;background:var(--soft);font:700 12px Inter,sans-serif;transition:background .15s,color .15s}
+.qz-x{min-width:0;padding-top:2px;overflow-wrap:anywhere}
+@media (hover:hover) and (pointer:fine){.qz-o:not(:disabled):hover{border-color:var(--ink2);background:var(--soft)}}
+.qz-o:not(:disabled):active{transform:scale(.985)}
+.qz-o:focus-visible,.qz-bt:focus-visible,.qz-ri:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.qz-o.ok{border-color:var(--qz-ok);background:color-mix(in srgb,var(--qz-ok) 13%,var(--card))}
+.qz-o.ok .qz-l{background:var(--qz-ok);color:#fff}
+.qz-o.bad{border-color:var(--qz-bad);background:color-mix(in srgb,var(--qz-bad) 12%,var(--card));animation:qzshake .36s}
+.qz-o.bad .qz-l{background:var(--qz-bad);color:#fff}
+.qz-o.dim{opacity:.5}
+@keyframes qzshake{20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+.qz-e{margin-top:12px;padding:10px 12px;border-radius:12px;font:400 13.5px/1.5 Inter,sans-serif;animation:qzin .25s ease}
+.qz-e b{font-weight:700}
+.qz-e u{text-decoration:none;font-weight:700}
+.qz-e.ok{background:color-mix(in srgb,var(--qz-ok) 12%,transparent)}
+.qz-e.bad{background:color-mix(in srgb,var(--qz-bad) 11%,transparent)}
+.qz-e span{color:var(--ink2)}
+.qz-n{display:flex;justify-content:space-between;gap:10px;margin-top:14px}
+.qz-bt{min-height:40px;padding:0 18px;border:1.5px solid var(--line);border-radius:99px;background:var(--card);color:var(--ink);font:600 13px Inter,sans-serif;cursor:pointer;transition:background .15s,opacity .15s,transform .12s}
+.qz-bt:not(:disabled):active{transform:scale(.97)}
+@media (hover:hover) and (pointer:fine){.qz-bt:not(:disabled):hover{background:var(--soft)}.qz-bt.pri:not(:disabled):hover{opacity:.88;background:var(--acc)}}
+.qz-bt.pri{border-color:var(--acc);background:var(--acc);color:var(--onacc)}
+.qz-bt:disabled{opacity:.38;cursor:not-allowed}
+/* results */
+.qz-r{display:flex;align-items:center;gap:16px;margin:16px 0 12px}
+.qz-ring{--pc:0;position:relative;flex:none;display:grid;place-items:center;width:84px;height:84px;border-radius:50%;background:conic-gradient(var(--qz-ok) calc(var(--pc)*1%),var(--soft) 0)}
+.qz-ring::before{content:"";position:absolute;inset:8px;border-radius:50%;background:var(--card)}
+.qz-ring b{position:relative;font:700 24px Inter,sans-serif;font-variant-numeric:tabular-nums}
+.qz-ring small{font-size:13px;font-weight:600;color:var(--ink2)}
+.qz-rt{display:grid;gap:3px;min-width:0}
+.qz-rt strong{font:700 15px/1.35 Inter,sans-serif}
+.qz-rt span{font:500 13px Inter,sans-serif;color:var(--ink2)}
+.qz-rv{display:grid;gap:6px;max-height:240px;overflow:auto}
+.qz-ri{display:flex;align-items:flex-start;gap:10px;width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:500 13px/1.4 Inter,sans-serif;text-align:left;cursor:pointer}
+.qz-ri i{flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font:700 11px Inter,sans-serif;font-style:normal;color:#fff}
+.qz-ri.ok i{background:var(--qz-ok)}
+.qz-ri.bad i{background:var(--qz-bad)}
+.qz-ri span{min-width:0;padding-top:1px;overflow-wrap:anywhere}
+@media (hover:hover) and (pointer:fine){.qz-ri:hover{background:var(--soft)}}
+@media (max-width:480px){.ac-qz{padding:14px;border-radius:16px}.qz-q{font-size:15px}.qz-bt{flex:1}}
+/* the Quiz button in the answer's action row */
+.ac-ab.ac-qb{display:inline-flex;align-items:center;width:auto;height:30px;gap:7px;margin-left:8px;padding:0 14px 0 10px;border:1.5px solid var(--line);border-radius:99px;background:var(--card);color:var(--ink);font:600 12px Inter,sans-serif;letter-spacing:.01em;transition:background .15s,box-shadow .25s,transform .15s}
+.ac-ab.ac-qb svg{width:15px;height:15px;stroke-width:1.7;fill:none;transition:transform .2s}
+.ac-ab.ac-qb:hover{background:var(--soft);box-shadow:0 6px 22px -8px rgba(34,211,238,.7)}
+.ac-ab.ac-qb:hover svg{transform:scale(1.14)}
+.ac-ab.ac-qb:disabled{cursor:progress}
+.ac-ab.ac-qb.ld svg{animation:acpulse 1s ease-in-out infinite}
+.ac-ab.ac-qb.sk-off{opacity:.42;cursor:not-allowed}
+@media (hover:none),(pointer:coarse){.ac-ab.ac-qb{height:36px}}
+@media (prefers-reduced-motion:reduce){.ac-qz,.qz-e,.qz-o.bad,.ac-ab.ac-qb.ld svg{animation:none!important}.qz-p i{transition:none}}
+
+/* Quiz with Spectra: mode picker + her coach strip */
+.qz-pk{margin-top:14px}
+.qz-mds{display:grid;gap:8px;margin-top:12px}
+.qz-md{display:grid;gap:3px;width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);text-align:left;cursor:pointer;transition:border-color .15s,background .15s,transform .12s}
+.qz-md b{font:700 14px Inter,sans-serif}
+.qz-md small{font:500 12px/1.4 Inter,sans-serif;color:var(--ink2)}
+.qz-md.pri{border-color:var(--acc)}
+.qz-md:active{transform:scale(.985)}
+.qz-md:focus-visible,.qz-vb:focus-visible,.qz-bub:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media (hover:hover) and (pointer:fine){.qz-md:hover{background:var(--soft);border-color:var(--ink2)}}
+.qz-sp{display:flex;align-items:flex-start;gap:10px;margin-top:12px}
+.qz-av{--lv:0;position:relative;flex:none;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#7c5cff,#22d3ee);color:#fff;box-shadow:0 0 0 2px var(--card),0 0 0 calc(3px + var(--lv)*7px) color-mix(in srgb,#7c5cff 55%,transparent);transition:box-shadow .08s linear}
+.qz-av b{font:700 18px Inter,sans-serif}
+.qz-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 38%}
+.qz-bub{flex:1;min-width:0;padding:10px 12px;border-radius:4px 14px 14px 14px;background:var(--soft);color:var(--ink);font:400 13.5px/1.5 Inter,sans-serif;overflow-wrap:anywhere;animation:qzin .25s ease;cursor:default}
+.qz-bub.ok{background:color-mix(in srgb,var(--qz-ok) 13%,var(--card))}
+.qz-bub.bad{background:color-mix(in srgb,var(--qz-bad) 10%,var(--card))}
+.qz-vb{flex:none;display:grid;place-items:center;width:34px;height:34px;border:1.5px solid var(--line);border-radius:50%;background:var(--card);color:var(--ink2);cursor:pointer;transition:background .15s,color .15s}
+.qz-vb[aria-pressed=true]{color:var(--ink)}
+@media (hover:hover) and (pointer:fine){.qz-vb:hover{background:var(--soft)}}
+@media (max-width:480px){.qz-av{width:42px;height:42px}}
+@media (prefers-reduced-motion:reduce){.qz-bub{animation:none!important}.qz-av{transition:none}}
+
+/* names, Spectre takeover */
+.qz-nm{display:block;margin-bottom:2px;font:700 10.5px Inter,sans-serif;font-style:normal;letter-spacing:.07em;text-transform:uppercase;color:var(--ink2)}
+.qz-nt{display:block;margin-top:6px;font:500 11.5px/1.4 Inter,sans-serif;color:var(--ink2)}
+.qz-av.sp{background:var(--soft)}
+.qz-av.sp b{color:var(--ink2)}
+.qz-av.sp img{object-fit:contain;padding:3px}
+.qz-av.boot{animation:qzboot 1.15s ease-out both}
+@keyframes qzboot{0%{transform:scale(.55);opacity:.2}35%{transform:scale(1.18);opacity:1}100%{transform:none}}
+@media (prefers-reduced-motion:reduce){.qz-av.boot{animation:none}}

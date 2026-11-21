@@ -1,0 +1,8 @@
+/* Spectra Pet (spectra-pet.js): she rests on the top-left edge of the chat box. */
+.sp-pet{position:absolute;left:12px;bottom:calc(100% - 5px);z-index:3;width:128px;line-height:0;pointer-events:none;animation:sppop .5s cubic-bezier(.2,1.4,.3,1) both}
+.sp-pet img{display:block;width:100%;height:auto;pointer-events:auto;cursor:pointer;user-select:none;-webkit-user-drag:none;-webkit-tap-highlight-color:transparent;filter:drop-shadow(0 3px 4px rgba(0,0,0,.2))}
+.sp-pet.out{animation:spout .26s ease forwards}
+@keyframes sppop{from{opacity:0;transform:translateY(14px) scale(.85)}to{opacity:1;transform:none}}
+@keyframes spout{to{opacity:0;transform:translateY(10px) scale(.88)}}
+@media (max-width:560px){.sp-pet{left:8px;width:96px}}
+@media (prefers-reduced-motion:reduce){.sp-pet,.sp-pet.out{animation:none}.sp-pet.out{opacity:0}}
