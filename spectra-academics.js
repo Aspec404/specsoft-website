@@ -1,4 +1,4 @@
-/* SPECSOFT® Spectra Academics v5 (projects: edit popup with name, description, color + symbol pickers, reorder by drag or Move up/down, archive). v4: projects as folders, inline project creation, drag and drop, project menu, cooler sidebar. v3 (try again, edit + copy your message, new Video button + video-making card). v2: Talks to the same "spectra-chat" Edge Function with an `academics` field.
+/* SPECSOFT® Spectra Academics v7 (PDF and Word uploads, more code file types). v6 (drag files onto the chatbox, 4,000+ characters become a .md file, tooltips when the sidebar is collapsed). v5 (projects: edit popup with name, description, color + symbol pickers, reorder by drag or Move up/down, archive). v4: projects as folders, inline project creation, drag and drop, project menu, cooler sidebar. v3 (try again, edit + copy your message, new Video button + video-making card). v2: Talks to the same "spectra-chat" Edge Function with an `academics` field.
    v2: "+" menu (files, project, persona), Tools menu (level, web search, deep reasoning, deep research),
    chat three-dot menu (pin, rename, add to project, delete), no tracks for Elementary. */
 (function () {
@@ -813,7 +813,7 @@ if (touchUI.matches) inp.enterKeyHint = 'enter';
 inp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { if (touchUI.matches) return; e.preventDefault(); send(); } };
 
 /* attachments: up to 3 images (shrunk before sending) or text files (first ~3000 characters) */
-const att = [], TXT = /\.(txt|md|csv|json|js|ts|py|html|css|java|c|cpp|cs|lua|sql|xml|yml|yaml|log)$/i;
+const att = [], TXT = /(\.(txt|md|markdown|mdx|csv|tsv|json|jsonl|ipynb|js|mjs|cjs|jsx|ts|tsx|py|html|htm|css|scss|sass|less|java|c|h|cpp|cc|cxx|hpp|cs|lua|sql|xml|yml|yaml|toml|ini|cfg|conf|env|log|php|rb|go|rs|kt|kts|swift|dart|scala|sh|bash|zsh|bat|cmd|ps1|r|pl|ex|exs|hs|clj|vue|svelte|tex|rst|gradle|properties|gitignore)|(^|\/)(dockerfile|makefile))$/i;
 const FILE_I = 'M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5';
 function attDraw() {
   const b = $('#att'); b.hidden = !att.length;
@@ -841,11 +841,64 @@ function readTxt(f) {
   fr.onload = () => { const s = String(fr.result); if (att.length >= 3) { toast('Max 3 attachments'); return; } if (s.length > MAXC) toast('Huge file: sending the first ' + MAXC.toLocaleString() + ' characters'); att.push({ n: f.name, k: 'txt', d: s.slice(0, MAXC) }); attDraw(); };
   fr.readAsText(f);
 }
+/* v29: PDF and Word (.docx) uploads. The text is pulled out in the browser (pdf.js / mammoth load only when you attach one), then goes in as a text attachment. */
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/', MAMMOTH = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js', LIBS = {}; let pdfW = null;
+const lib = src => LIBS[src] || (LIBS[src] = new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => { delete LIBS[src]; no(new Error('load')); }; document.head.appendChild(el); }));
+const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name), isDocx = f => /\.docx$/i.test(f.name) || f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+function addTxt(n, s) {
+  if (!s || !s.trim()) { toast('No readable text in ' + n + ' (scanned file?)'); return; }
+  if (att.length >= 3) { toast('Max 3 attachments'); return; }
+  if (s.length > MAXC) toast('Huge file: sending the first ' + MAXC.toLocaleString() + ' characters');
+  att.push({ n, k: 'txt', d: s.slice(0, MAXC) }); attDraw();
+}
+async function readPdf(f) {
+  if (f.size > 15e6) { toast('That PDF is too big (15 MB max)'); return; }
+  if (att.length >= 3) { toast('Max 3 attachments'); return; }
+  toast('Reading ' + f.name + '...');
+  try {
+    await lib(PDFJS + 'pdf.min.js'); const pj = window.pdfjsLib;
+    if (!pdfW) pdfW = fetch(PDFJS + 'pdf.worker.min.js').then(r => r.blob()).then(b => URL.createObjectURL(b)).catch(() => PDFJS + 'pdf.worker.min.js');
+    pj.GlobalWorkerOptions.workerSrc = await pdfW;
+    const doc = await pj.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise; let out = '';
+    for (let i = 1; i <= doc.numPages && out.length < MAXC; i++) {
+      const tc = await (await doc.getPage(i)).getTextContent(); let ln = '', y = null;
+      tc.items.forEach(it => { const ny = it.transform ? it.transform[5] : y; if (y !== null && ny !== null && Math.abs(ny - y) > 2) ln += '\n'; else if (ln && !/\s$/.test(ln)) ln += ' '; ln += it.str; y = ny; });
+      out += (out ? '\n\n' : '') + '--- Page ' + i + ' ---\n' + ln.trim();
+    }
+    addTxt(f.name, out);
+  } catch (e) { toast('Could not read that PDF'); }
+}
+async function readDocx(f) {
+  if (f.size > 15e6) { toast('That file is too big (15 MB max)'); return; }
+  if (att.length >= 3) { toast('Max 3 attachments'); return; }
+  toast('Reading ' + f.name + '...');
+  try {
+    await lib(MAMMOTH); const r = await window.mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() });
+    addTxt(f.name, r.value);
+  } catch (e) { toast('Could not read that Word file'); }
+}
 function addFiles(fl) {
-  [...fl].forEach(f => { if (/^image\/(jpeg|png|webp|gif)$/.test(f.type)) readImg(f); else if (f.type.indexOf('text/') === 0 || TXT.test(f.name)) readTxt(f); else toast('Images and text files only for now'); });
+  [...fl].forEach(f => { if (/^image\/(jpeg|png|webp|gif)$/.test(f.type)) readImg(f); else if (isPdf(f)) readPdf(f); else if (isDocx(f)) readDocx(f); else if (/\.doc$/i.test(f.name)) toast('Old .doc files are not supported. Save it as .docx or PDF'); else if (f.type.indexOf('text/') === 0 || TXT.test(f.name)) readTxt(f); else toast('Images, PDF, Word (.docx) and text or code files only for now'); });
 }
 $('#fi').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
 inp.addEventListener('paste', e => { const fs = [...((e.clipboardData || {}).files || [])].filter(f => f.type.indexOf('image/') === 0); if (fs.length) { e.preventDefault(); addFiles(fs); } });
+
+/* v28: drag files onto the chatbox, and long text (4,000+ characters) turns into a .md file chip */
+const BIGT = 4000; let bigN = 0, dgN = 0, bigW = false;
+const dz = document.createElement('div'); dz.className = 'ac-dz'; dz.innerHTML = '<b>Drop to attach</b><small>Images, PDF, Word, text and code files</small>'; comp.appendChild(dz);
+const hasF = e => !!e.dataTransfer && [...(e.dataTransfer.types || [])].indexOf('Files') > -1, compOn = () => !!comp.offsetParent;
+const dgOff = () => { dgN = 0; comp.classList.remove('dragging'); };
+addEventListener('dragenter', e => { if (!hasF(e) || !compOn()) return; dgN++; comp.classList.add('dragging'); });
+addEventListener('dragleave', e => { if (!hasF(e)) return; dgN = Math.max(0, dgN - 1); if (!dgN) comp.classList.remove('dragging'); });
+addEventListener('dragover', e => { if (hasF(e) && compOn()) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+addEventListener('drop', e => { if (!hasF(e)) return; dgOff(); if (e.defaultPrevented || !compOn()) return; e.preventDefault(); if (e.dataTransfer.files.length) { addFiles(e.dataTransfer.files); inp.focus(); } });
+addEventListener('dragend', dgOff);
+inp.addEventListener('input', () => {
+  const v = inp.value; if (v.length < BIGT) { bigW = false; return; }
+  if (att.length >= 3) { if (!bigW) { bigW = true; toast('Max 3 attachments, so this long text stays in the box'); } return; }
+  bigN++; att.push({ n: 'pasted-text-' + bigN + '.md', k: 'txt', d: v.slice(0, MAXC) }); attDraw();
+  inp.value = ''; grow(); toast('Long text turned into a .md file');
+});
 
 /* academic tracks (Senior High and up; Elementary has none) */
 const TR = { 'ICT/TVL': [
@@ -978,7 +1031,7 @@ const cred = () => { const u = LS('sa.left', null); $('#cr').textContent = u && 
 const un = $('[data-user-name]'); if (un) new MutationObserver(gr).observe(un, { childList: true, characterData: true, subtree: true });
 const shell = $('#app'), closeDrawer = () => shell.classList.remove('drawer');
 $('#bg').onclick = () => shell.classList.add('drawer'); $('#bk').onclick = closeDrawer;
-const colb = $('#col'), setMin = m => { shell.classList.toggle('min', m); SS('sa.acad.min', m); colb.setAttribute('aria-label', m ? 'Expand sidebar' : 'Collapse sidebar'); };
+const colb = $('#col'), MT = [['#nw', 'New chat'], ['.ac-s', 'Search chats'], ['#nt', 'Notes'], ['#lab', 'Lab'], ['.ac-bkl', 'Spectra Chat'], ['.ac-me', 'Your profile'], ['#theme', 'Toggle theme']], setMin = m => { shell.classList.toggle('min', m); SS('sa.acad.min', m); colb.setAttribute('aria-label', m ? 'Expand sidebar' : 'Collapse sidebar'); colb.title = m ? 'Expand sidebar' : ''; MT.forEach(x => { const el = $(x[0]); if (!el) return; if (m) el.title = x[1]; else el.removeAttribute('title'); }); };
 colb.onclick = () => setMin(!shell.classList.contains('min'));
 $('.ac-s').addEventListener('click', () => { if (shell.classList.contains('min')) { setMin(false); setTimeout(() => $('#q').focus(), 260); } });
 if (LS('sa.acad.min', false)) setMin(true);

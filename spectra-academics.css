@@ -573,3 +573,35 @@ html.ac-pvon,html.ac-pvon body{overflow:hidden}
 .ac-m .ac-hd.h3{font-size:17px}
 .ac-m .ac-hd.h4{font-size:15px;opacity:.88}
 .ac-co{font-weight:inherit}
+
+
+/* ===== v16: no white outline on the chatbox, drag-and-drop overlay, revamped collapsed sidebar ===== */
+.ac-comp textarea,.ac-comp textarea:hover,.ac-comp textarea:focus,.ac-comp textarea:focus-visible,.ac-comp textarea:active{outline:0!important;box-shadow:none!important;border:0!important;background:transparent!important;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent}
+.ac-comp:focus,.ac-comp:focus-visible{outline:0}
+
+.ac-dz{position:absolute;inset:0;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:inherit;border:2px dashed #7c5cff;background:color-mix(in srgb,var(--card) 88%,#7c5cff);color:var(--ink);text-align:center;pointer-events:none;animation:acdz .18s ease-out}
+.ac-dz b{font:700 15px Inter,sans-serif}.ac-dz small{font:500 12px Inter,sans-serif;color:var(--ink2)}
+.ac-comp.dragging>.ac-dz{display:flex}
+@keyframes acdz{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+
+@media (min-width:851px){
+  .ac-shell.min .ac-side{width:68px;padding:14px 0 12px;gap:8px;align-items:center}
+  .ac-shell.min .ac-side .ac-brand{flex-direction:column;gap:6px;padding:2px 0 8px;width:100%;border-bottom:1px solid var(--line)}
+  .ac-shell.min .ac-side .ac-brand b{display:flex;justify-content:center}
+  .ac-shell.min .ac-side .ac-logo{width:28px;height:28px}
+  .ac-shell.min .ac-side .ac-bn,.ac-shell.min .ac-side .ac-new span,.ac-shell.min .ac-side .ac-s input,.ac-shell.min .ac-side .ac-nt span,.ac-shell.min .ac-side .ac-nt em,.ac-shell.min .ac-side .ac-lbn span,.ac-shell.min .ac-side .ac-bkl span,.ac-shell.min .ac-side .ac-mn{display:none}
+  .ac-shell.min .ac-side .ac-new,.ac-shell.min .ac-side .ac-s,.ac-shell.min .ac-side .ac-nt,.ac-shell.min .ac-side .ac-lbn,.ac-shell.min .ac-side .ac-bkl,.ac-shell.min .ac-side #col,.ac-shell.min .ac-side .ac-foot .ac-ib{display:grid;place-items:center;width:42px;height:42px;padding:0;margin:0;gap:0;border-radius:13px;flex:none}
+  .ac-shell.min .ac-side #col{height:34px;width:42px}
+  .ac-shell.min .ac-side .ac-nt,.ac-shell.min .ac-side .ac-lbn,.ac-shell.min .ac-side .ac-bkl{border:0;background:none;color:var(--ink2);cursor:pointer}
+  .ac-shell.min .ac-side .ac-nt:hover,.ac-shell.min .ac-side .ac-lbn:hover,.ac-shell.min .ac-side .ac-bkl:hover,.ac-shell.min .ac-side .ac-s:hover{background:var(--hov);color:var(--ink);transform:translateY(-1px)}
+  .ac-shell.min .ac-side .ac-nt i,.ac-shell.min .ac-side .ac-lbn i,.ac-shell.min .ac-side .ac-bkl i,.ac-shell.min .ac-side .ac-s i,.ac-shell.min .ac-side .ac-new i{display:grid;place-items:center}
+  .ac-shell.min .ac-side .ac-nt svg,.ac-shell.min .ac-side .ac-lbn svg,.ac-shell.min .ac-side .ac-bkl svg,.ac-shell.min .ac-side .ac-s svg,.ac-shell.min .ac-side .ac-new svg{width:19px;height:19px}
+  .ac-shell.min .ac-side .ac-new{border-radius:14px}
+  .ac-shell.min .ac-side .ac-s{cursor:pointer}
+  /* the project and chat lists become an invisible spacer so Back + the footer sit at the bottom */
+  .ac-shell.min .ac-side .ac-sbs{display:block;flex:1;min-height:0;overflow:hidden;visibility:hidden;pointer-events:none}
+  .ac-shell.min .ac-side .ac-foot{flex-direction:column;align-items:center;gap:8px;width:100%;padding-top:10px;border-top:1px solid var(--line);margin-top:0}
+  .ac-shell.min .ac-side .ac-me{display:grid;place-items:center;width:46px;height:46px;padding:0;border-radius:15px;flex:none}
+  .ac-shell.min .ac-side .ac-me .ac-ava{display:grid;place-items:center}
+  .ac-shell.min .ac-side .ac-foot .ac-th{display:grid;border:1px solid var(--line);background:var(--hov)}
+}
