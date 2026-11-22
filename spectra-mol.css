@@ -1,0 +1,79 @@
+/* Spectra Lab: Molecular Constructor (spectra-mol.js). Follows the page's light and dark variables.
+   Reuses the lb-* classes from spectra-lab.css (header, info bar, chips, buttons, pop-up card). */
+
+.mc-info{flex-wrap:wrap;gap:2px 0}
+.mc-info b{margin-right:8px}
+.mc-info span{color:var(--ink2)}
+.mc-info .mc-hn{margin-left:6px;opacity:.85}
+
+.mc-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
+
+/* stage: tabs, palette, canvas, tools */
+.mc-stage{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);border-radius:20px;background:var(--card);overflow:hidden}
+.mc-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.mc-seg{display:inline-flex;gap:2px;padding:3px;border-radius:99px;background:var(--soft)}
+.mc-seg button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:0;border-radius:99px;background:none;color:var(--ink2);font:600 13px Inter,sans-serif;cursor:pointer;transition:background .15s,color .15s}
+.mc-seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.mc-seg button:focus-visible,.mc-pa:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.mc-pal{display:flex;gap:8px;padding:10px 12px;overflow-x:auto;border-bottom:1px solid var(--line);scrollbar-width:thin;scrollbar-color:var(--line) transparent;-webkit-overflow-scrolling:touch}
+.mc-pa{position:relative;flex:none;display:grid;place-items:center;width:46px;height:46px;padding:0;border:2px solid transparent;border-radius:14px;background:var(--c);color:var(--t);font:700 16px Inter,sans-serif;cursor:pointer;box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--ink) 18%,transparent);transition:transform .12s,border-color .15s}
+.mc-pa i{font-style:normal}
+.mc-pa small{position:absolute;right:4px;bottom:2px;font:600 9px Inter,sans-serif;opacity:.7}
+.mc-pa.on{border-color:var(--ink);transform:scale(1.06)}
+@media (hover:hover) and (pointer:fine){.mc-pa:hover{transform:translateY(-2px)}.mc-pa.on:hover{transform:scale(1.06)}}
+
+.mc-cvw,.mc-3h{position:relative;height:clamp(300px,56vh,520px);background:var(--card)}
+.mc-cvw canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;-webkit-user-select:none;user-select:none}
+.mc-empty{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:6px;padding:20px;text-align:center;color:var(--ink2);pointer-events:none}
+.mc-empty b{color:var(--ink);font:700 16px Inter,sans-serif}
+.mc-empty span{max-width:260px;font:400 13px/1.5 Inter,sans-serif}
+.mc-empty[hidden]{display:none}
+
+.mc-tools{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+.mc-tools .lb-clr{height:38px;padding:0 14px 0 11px;font-size:12.5px}
+
+/* 3D */
+.mc-v3t{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.mc-v3t .lb-st.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.mc-sp{flex:1}
+.mc-3c{display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}
+.mc-3c:active{cursor:grabbing}
+.mc-3m{position:absolute;inset:0;display:grid;place-content:center;padding:24px;text-align:center;color:var(--ink2);font:500 13.5px/1.55 Inter,sans-serif;pointer-events:none}
+.mc-3m .lb-st{pointer-events:auto}
+.mc-3m[hidden]{display:none}
+#mcv2[hidden],#mcv3w[hidden]{display:none}
+
+/* side panel */
+.mc-panel{display:grid;justify-items:center;gap:10px;padding:18px;border:1px solid var(--line);border-radius:20px;background:var(--card);text-align:center;min-width:0}
+.mc-panel .lb-rb{margin-top:2px}
+.mc-panel .lb-b{min-width:0}
+.mc-f{max-width:100%;font:800 40px/1.15 Inter,sans-serif;letter-spacing:-.02em;overflow-wrap:anywhere;background:linear-gradient(120deg,var(--ink),var(--ink2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.mc-panel h3{margin:0;font:700 18px/1.3 Inter,sans-serif}
+.mc-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.lb-sc.mc-pl{--sc:#a78bfa}
+.lb-sc.mc-pl.p{--sc:#ec4899}
+.mc-st{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;margin:2px 0 0}
+.mc-st div{display:grid;gap:2px;padding:9px 10px;border-radius:12px;background:var(--soft);text-align:left}
+.mc-st dt{font:500 11px Inter,sans-serif;color:var(--ink2)}
+.mc-st dd{margin:0;font:700 14px Inter,sans-serif}
+.mc-sec{width:100%;padding:10px 12px;border-radius:12px;background:var(--soft);text-align:left;font:400 13px/1.5 Inter,sans-serif;color:var(--ink2)}
+.mc-sec>b{display:block;margin-bottom:3px;color:var(--ink);font:700 13px Inter,sans-serif}
+.mc-sec p{margin:0}
+.mc-sec em{font-style:normal;opacity:.7;font-size:11.5px}
+.mc-sec ul{margin:0;padding:0;list-style:none;display:grid;gap:3px}
+.mc-sec li i{display:inline-block;min-width:34px;margin-right:4px;font:700 12px Inter,sans-serif;font-style:normal;color:var(--ink)}
+.mc-sec li span{opacity:.8}
+.mc-panel .lb-tx{text-align:left}
+.mc-panel .lb-hn{text-align:left}
+.mc-panel .lb-be{padding:24px 6px}
+
+@media (max-width:980px){.mc-grid{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760px){
+  .mc-seg button span{display:inline}
+  .mc-cvw,.mc-3h{height:clamp(280px,52vh,420px)}
+  .mc-f{font-size:34px}
+  .mc-tools .lb-clr span{display:none}.mc-tools .lb-clr{padding:0 14px}.mc-tools{justify-content:space-between}
+  .mc-info .mc-hn{display:none}
+}
+@media (prefers-reduced-motion:reduce){.mc-pa,.mc-seg button{transition:none!important}}

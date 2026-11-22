@@ -1,0 +1,51 @@
+/* Spectra Physics Sandbox (spectra-phys.js). Follows the page's light and dark variables. */
+
+.ph-wrap{max-width:1180px}
+
+/* tool bar */
+.ph-tools{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:2px;scrollbar-width:thin;scrollbar-color:var(--line) transparent;-webkit-overflow-scrolling:touch}
+.ph-sep{flex:none;width:1px;margin:6px 4px;background:var(--line)}
+.ph-t{display:inline-flex;flex:none;flex-direction:column;align-items:center;gap:4px;min-width:62px;padding:9px 8px 7px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font:600 11px Inter,sans-serif;cursor:pointer;transition:background .15s,transform .12s,border-color .15s}
+.ph-t svg{display:block}
+@media (hover:hover) and (pointer:fine){.ph-t:hover{background:var(--soft);transform:translateY(-1px)}}
+.ph-t:active{transform:scale(.96)}
+.ph-t.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.ph-t:focus-visible,.ph-m:focus-visible,.ph-b:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* canvas */
+.ph-stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:20px;background:var(--soft)}
+.ph-stage canvas{display:block;width:100%;height:clamp(380px,60vh,640px);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;outline:0}
+.ph-chip{position:absolute;left:10px;top:10px;padding:4px 10px;border-radius:99px;background:color-mix(in srgb,var(--card) 82%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font:600 11px Inter,sans-serif;color:var(--ink2);pointer-events:none}
+.ph-chip:empty{display:none}
+.ph-load{position:absolute;inset:0;display:grid;place-items:center;padding:20px;background:var(--soft);color:var(--ink2);font:600 13px Inter,sans-serif;text-align:center}
+
+/* hint line */
+.ph-info{min-height:40px;display:flex;align-items:center;gap:8px;margin:10px 0;padding:9px 14px;border-radius:12px;background:var(--soft);font:500 13px/1.45 Inter,sans-serif;color:var(--ink2)}
+.ph-info b{flex:none;margin-right:2px;color:var(--ink);font-weight:700}
+
+/* controls */
+.ph-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.ph-grp{display:flex;align-items:center;gap:7px;font:600 12px Inter,sans-serif;color:var(--ink2)}
+.ph-grp input[type=range]{width:110px;accent-color:var(--acc,#7c5cff)}
+.ph-grp select{height:34px;padding:0 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:600 12px Inter,sans-serif}
+#phmat{flex-wrap:wrap}
+.ph-m{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px 0 10px;border:1.5px solid var(--line);border-radius:99px;background:var(--card);color:var(--ink);font:600 12px Inter,sans-serif;cursor:pointer;transition:background .15s,border-color .15s}
+.ph-m s{display:inline-block;width:11px;height:11px;border-radius:4px;background:var(--c);text-decoration:none}
+.ph-m.on{border-color:var(--ink);background:var(--soft)}
+.ph-b{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px 0 11px;border:1.5px solid var(--line);border-radius:99px;background:var(--card);color:var(--ink);font:600 12px Inter,sans-serif;cursor:pointer;transition:background .15s}
+@media (hover:hover) and (pointer:fine){.ph-b:hover,.ph-m:hover{background:var(--soft)}}
+.ph-try{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;font:500 12.5px Inter,sans-serif;color:var(--ink2)}
+.ph-try>b{margin-right:2px;color:var(--ink)}
+.ph-ask{margin-left:auto}
+
+@media (max-width:760px){
+  .ph-wrap{padding:16px 12px 24px}
+  .ph-stage canvas{height:clamp(360px,56vh,560px)}
+  .ph-t{min-width:56px;padding:8px 6px 6px}
+  .ph-ask{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){.ph-t,.ph-b,.ph-m{transition:none!important}}
+
+/* v2 */
+.ph-b.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+#phfl{flex-wrap:wrap}

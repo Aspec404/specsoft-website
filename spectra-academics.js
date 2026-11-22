@@ -1,4 +1,4 @@
-/* SPECSOFT® Spectra Academics v7 (PDF and Word uploads, more code file types). v6 (drag files onto the chatbox, 4,000+ characters become a .md file, tooltips when the sidebar is collapsed). v5 (projects: edit popup with name, description, color + symbol pickers, reorder by drag or Move up/down, archive). v4: projects as folders, inline project creation, drag and drop, project menu, cooler sidebar. v3 (try again, edit + copy your message, new Video button + video-making card). v2: Talks to the same "spectra-chat" Edge Function with an `academics` field.
+/* SPECSOFT® Spectra Academics v8 (chats and projects sync across devices through Supabase). v7 (PDF and Word uploads, more code file types). v6 (drag files onto the chatbox, 4,000+ characters become a .md file, tooltips when the sidebar is collapsed). v5 (projects: edit popup with name, description, color + symbol pickers, reorder by drag or Move up/down, archive). v4: projects as folders, inline project creation, drag and drop, project menu, cooler sidebar. v3 (try again, edit + copy your message, new Video button + video-making card). v2: Talks to the same "spectra-chat" Edge Function with an `academics` field.
    v2: "+" menu (files, project, persona), Tools menu (level, web search, deep reasoning, deep research),
    chat three-dot menu (pin, rename, add to project, delete), no tracks for Elementary. */
 (function () {
@@ -56,7 +56,91 @@ if (!PERS.some(p => p.id === persona) || (persona === 'custom' && !custom.trim()
 const root = document.documentElement, main = $('#main'), comp = $('#comp'), inp = $('#in'), sd = $('#sd'), sc = $('#sc');
 const SAVE_MAX = 30000;   /* a message bigger than this is kept in full while the page is open, but only its first part is saved on this device (localStorage is ~5 MB) */
 const lite = m => { const big = m.role === 'user' && m.content.length > SAVE_MAX; if (!m.imf && !big) return m; const o = Object.assign({}, m); delete o.imf; if (big) o.content = o.content.slice(0, SAVE_MAX) + '\n[...rest not saved on this device]'; return o; };
-const save = () => { const all = chats.filter(c => c.pin).concat(chats.filter(c => !c.pin)).slice(0, 40).map(c => Object.assign({}, c, { msgs: c.msgs.map(lite) })); SS('sa.acad.chats', all); SS('sa.acad.proj', projs); };
+const saveLocal = () => { const all = chats.filter(c => c.pin).concat(chats.filter(c => !c.pin)).slice(0, 40).map(c => Object.assign({}, c, { msgs: c.msgs.map(lite) })); SS('sa.acad.chats', all); SS('sa.acad.proj', projs); };
+const save = () => { saveLocal(); cloudScan(); };
+/* v30: cloud sync. Chats and projects live in the Supabase table spectra_acad_items (see spectra-academics-sync.sql). This device keeps a copy (instant loading, works offline),
+   the cloud is the shared copy. Last edit wins (the "u" stamp). Deleting marks the row deleted so other devices drop it too. If the table is missing or you are logged out, everything keeps working locally. */
+const CK = 'spectra_acad_items', CMAX = 60000, cloud = { on: false, uid: '', sb: null, known: {}, seenH: {}, dirty: new Set(), tm: 0, busy: false, since: '', warned: false };
+const clm = m => { const o = Object.assign({}, m); delete o.imf; if (o.role === 'user' && typeof o.content === 'string' && o.content.length > CMAX) o.content = o.content.slice(0, CMAX) + '\n[...rest not synced to the cloud]'; return o; };
+const cloudItem = (kind, x) => kind === 'chat' ? Object.assign({}, x, { msgs: x.msgs.map(clm) }) : Object.assign({}, x);
+const hs = it => { const o = Object.assign({}, it); delete o.u; return JSON.stringify(o); };
+function cloudScan() {
+  if (!cloud.on) return; const seen = {}, now = Date.now();
+  projs.forEach((p, i) => { p.o = i; });
+  const chk = (kind, x) => { const k = kind + ':' + x.id; seen[k] = 1; const h = hs(cloudItem(kind, x)); if (cloud.known[k] !== h) { if (cloud.seenH[k] !== h) { x.u = now; cloud.seenH[k] = h; } cloud.dirty.add(k); } };
+  chats.forEach(c => chk('chat', c)); projs.forEach(p => chk('project', p));
+  Object.keys(cloud.known).forEach(k => { if (!seen[k]) cloud.dirty.add(k); });
+  if (cloud.dirty.size) { clearTimeout(cloud.tm); cloud.tm = setTimeout(cloudPush, 1200); }
+}
+async function cloudPush() {
+  if (!cloud.on || cloud.busy || !cloud.dirty.size) return; cloud.busy = true;
+  const keys = [...cloud.dirty]; cloud.dirty.clear(); let bad = false;
+  try {
+    for (let i = 0; i < keys.length; i += 8) {
+      const part = keys.slice(i, i + 8), rows = [], hh = {};
+      part.forEach(k => {
+        const j = k.indexOf(':'), kind = k.slice(0, j), id = k.slice(j + 1), x = (kind === 'chat' ? chats : projs).find(y => y.id === id);
+        if (x) { const it = cloudItem(kind, x); hh[k] = hs(it); rows.push({ user_id: cloud.uid, kind, id, data: it, deleted: false, u: x.u || Date.now() }); }
+        else { hh[k] = null; rows.push({ user_id: cloud.uid, kind, id, data: {}, deleted: true, u: Date.now() }); }
+      });
+      const { error } = await cloud.sb.from(CK).upsert(rows, { onConflict: 'user_id,kind,id' }); if (error) throw error;
+      part.forEach(k => { if (hh[k] === null) { delete cloud.known[k]; delete cloud.seenH[k]; } else cloud.known[k] = hh[k]; });
+    }
+  } catch (e) {
+    bad = true; keys.forEach(k => cloud.dirty.add(k)); if (!cloud.warned) { cloud.warned = true; toast('Cloud sync paused, will retry'); }
+    clearTimeout(cloud.tm); cloud.tm = setTimeout(cloudPush, 15000);
+  }
+  cloud.busy = false; if (!bad && cloud.dirty.size) { clearTimeout(cloud.tm); cloud.tm = setTimeout(cloudPush, 1200); }
+}
+function cloudMerge(rows) {
+  let ch = false, pj = false, redraw = false; const touched = [];
+  rows.forEach(r => {
+    const kind = r.kind, k = kind + ':' + r.id, isC = kind === 'chat', arr = isC ? chats : projs, i = arr.findIndex(x => x.id === r.id), loc = arr[i], ru = +r.u || 0;
+    if (r.deleted) {
+      if (!loc) return;
+      if ((loc.u || 0) > ru) { delete cloud.known[k]; delete cloud.seenH[k]; return; }   // edited here after it was deleted elsewhere: keep it, it syncs back
+      if (isC && cur && cur.id === r.id) { if (busy) return; cur = null; redraw = true; }
+      arr.splice(i, 1); delete cloud.known[k]; delete cloud.seenH[k]; if (isC) ch = true; else pj = true; return;
+    }
+    if (loc && (loc.u || 0) >= ru) return;
+    const d = r.data; if (!d || typeof d !== 'object' || !d.id) return;
+    if (isC && (!Array.isArray(d.msgs) || (cur && cur.id === d.id && busy))) return;
+    const o = Object.assign({}, d, { u: ru });
+    if (i < 0) arr.push(o); else arr[i] = o;
+    if (isC) { if (cur && cur.id === o.id) { cur = o; redraw = true; } ch = true; } else pj = true;
+    touched.push([kind, o]);
+  });
+  if (!ch && !pj) return;
+  if (ch) chats.sort((a, b) => (b.t || 0) - (a.t || 0));
+  if (pj) { projs.sort((a, b) => (a.o == null ? 1e9 : a.o) - (b.o == null ? 1e9 : b.o)); projs.forEach((p, i) => { p.o = i; }); }
+  touched.forEach(t => { const k = t[0] + ':' + t[1].id, h = hs(cloudItem(t[0], t[1])); cloud.known[k] = h; cloud.seenH[k] = h; });
+  saveLocal(); list(); if (redraw) draw();
+}
+async function cloudPull() {
+  const since = cloud.since; let from = 0, last = since;
+  for (; ;) {
+    let q = cloud.sb.from(CK).select('kind,id,data,deleted,u,updated_at').order('updated_at', { ascending: true }).range(from, from + 24);
+    if (since) q = q.gte('updated_at', since);
+    const { data, error } = await q; if (error) throw error;
+    if (!data || !data.length) break;
+    cloudMerge(data); last = data[data.length - 1].updated_at;
+    if (data.length < 25) break; from += 25;
+  }
+  cloud.since = last || since;
+}
+async function cloudInit() {
+  try {
+    const sb = window.getSupabaseClient && window.getSupabaseClient(), s = sb && (await sb.auth.getSession()).data.session; if (!s) return;
+    cloud.sb = sb; cloud.uid = s.user.id;
+    const lastUid = LS('sa.acad.uid', null);
+    if (lastUid && lastUid !== cloud.uid) { chats = []; projs = []; cur = null; pex = {}; sPex(); saveLocal(); list(); draw(); }   // another account used this device: never mix their chats into this one
+    SS('sa.acad.uid', cloud.uid);
+    await cloudPull(); cloud.on = true; cloudScan();   // first run on a device also uploads the chats that were only saved locally
+    sb.channel('acad-' + cloud.uid).on('postgres_changes', { event: '*', schema: 'public', table: CK, filter: 'user_id=eq.' + cloud.uid }, p => { if (p.new && p.new.id) cloudMerge([p.new]); }).subscribe();
+    document.addEventListener('visibilitychange', () => { if (!cloud.on) return; if (document.hidden) cloudPush(); else cloudPull().catch(() => { }); });
+    addEventListener('online', () => { cloudPull().then(cloudScan).catch(() => { }); });
+  } catch (e) { cloud.on = false; }
+}
 const nm = () => (($('[data-user-name]') || {}).textContent || '').trim();
 const noTrack = () => level === 'Elementary';
 
@@ -1055,5 +1139,5 @@ if (window.SpectraNotes) SpectraNotes.init({ md, math, paint, toast, copy: copyT
 window.SpectraAcad = { md, math, paint, toast, redraw: draw, setTheme: setTh, sync, msgs: () => (cur ? cur.msgs : []), save, busy: () => busy, copy: copyTxt, pdf: (text, title) => savePdf(null, { text, title }), ask: (onTok, sig, extra) => ask([], onTok, sig, undefined, undefined, extra) };
 addEventListener('storage', e => { if (!e.key || e.key === 'sa.persona' || e.key === 'sa.cfg' || e.key === 'sa.model') sync(); });
 th.dataset.ic = root.dataset.theme === 'dark' ? 'sun' : 'moon';
-mdraw(); paint(); gr(); cred(); syncModes(); lvDraw(); plist(); list(); draw(); setBtn(); openHash();
+mdraw(); paint(); gr(); cred(); syncModes(); lvDraw(); plist(); list(); draw(); setBtn(); openHash(); cloudInit();
 })();

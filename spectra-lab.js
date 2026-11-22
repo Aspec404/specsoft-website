@@ -1,7 +1,8 @@
-/* Spectra Lab (v1) for Spectra Academics: science activities you can play with.
-   v1 has the Periodic Table Mixer: grab elements, drop them in 5 slots, press Mix, see what you made.
+/* Spectra Lab (v3) for Spectra Academics: science activities you can play with.
+   Periodic Table Mixer: grab elements, drop them in 5 slots, press Mix, see what you made.
+   Physics Sandbox: lives in spectra-phys.js (mounted the same way through window.SpectraPhys). Molecular Constructor (v2): lives in spectra-mol.js. This file shows its card in the hub and mounts it through window.SpectraMol.
    Everything runs in the browser (no database, no credits). The Lab Book is saved on this device (localStorage "sa.lab.book").
-   Load this file AFTER spectra-academics.js. It needs the sidebar button #lab and the section #labv (see spectra-academics.html).
+   Load this file AFTER spectra-academics.js (and spectra-mol.js before it, or after, both work). It needs the sidebar button #lab and the section #labv (see spectra-academics.html).
    Optional helpers it uses when they exist: window.SpectraAcad.paint / .toast, window.SpectraNotes.addFromAnswer. */
 (function () {
   'use strict';
@@ -214,7 +215,9 @@
   var ICO = {
     x: 'M6 6l12 12M18 6L6 18', back: 'M15 6l-6 6 6 6', book: 'M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 19a2 2 0 012-2h13', trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
     flask: 'M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3', spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 17v4M17 19h4', notes: 'M6 3h9l4 4v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM14.5 3v4.5H19M8.5 12h7M8.5 16h5',
-    chat: 'M4 5h16v11H9l-5 4z', plus: 'M12 5v14M5 12h14', play: 'M8 5v14l11-7z', lock: 'M6 11h12v9H6zM8 11V8a4 4 0 018 0v3'
+    chat: 'M4 5h16v11H9l-5 4z', plus: 'M12 5v14M5 12h14', play: 'M8 5v14l11-7z', lock: 'M6 11h12v9H6zM8 11V8a4 4 0 018 0v3',
+    mol: 'M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0M17 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M15 19a2 2 0 1 0 4 0a2 2 0 1 0-4 0M6.5 7.3l3 3M17.3 8.6l-3.3 2.2M15.5 17.5l-2-3',
+    wave: 'M3 12c3-8 6-8 9 0s6 8 9 0', graph: 'M4 20V4M4 20h16M7 15l4-4 3 3 5-6'
   };
   var ic = function (n, s) { return '<svg viewBox="0 0 24 24" width="' + (s || 16) + '" height="' + (s || 16) + '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICO[n] + '"/></svg>'; };
 
@@ -232,7 +235,10 @@
     return '<div class="lb-wrap"><header class="lb-hd"><div><h2>Lab</h2><p>Hands-on science you can play with.</p></div><button type="button" class="lb-bk" data-a="book">' + ic('book') + '<span>Lab Book</span><em>' + n + '</em></button></header>' +
       '<div class="lb-cards">' +
       '<button type="button" class="lb-card" data-a="mix"><span class="lb-ci" style="--c:#7c5cff">' + ic('flask', 26) + '</span><b>Periodic Table Mixer</b><span class="lb-cd">Grab elements, drop them in 5 slots, and see what you make. Start with two hydrogens.</span><span class="lb-go">' + ic('play', 14) + 'Play</span></button>' +
+      '<button type="button" class="lb-card" data-a="mol"><span class="lb-ci" style="--c:#f97316">' + ic('mol', 26) + '</span><b>Molecular Constructor</b><span class="lb-cd">Build molecules atom by atom, then spin them in 3D. See the formula, shape and polarity update as you build.</span><span class="lb-go">' + ic('play', 14) + 'Play</span></button>' +
       '<div class="lb-card soon" aria-disabled="true"><span class="lb-ci" style="--c:#14b8a6">' + ic('spark', 26) + '</span><b>Potion Flasks</b><span class="lb-cd">Drag, pour and tilt flasks to mix colors and reactions.</span><span class="lb-go">' + ic('lock', 14) + 'Coming soon</span></div>' +
+      '<button type="button" class="lb-card" data-a="phys"><span class="lb-ci" style="--c:#3b82f6">' + ic('wave', 26) + '</span><b>Physics Sandbox</b><span class="lb-cd">Real water, oil and lava. Ropes, springs, motors, fans, balloons, rockets, TNT and more. Build machines and watch the forces at work.</span><span class="lb-go">' + ic('play', 14) + 'Play</span></button>' +
+      '<div class="lb-card soon" aria-disabled="true"><span class="lb-ci" style="--c:#ec4899">' + ic('graph', 26) + '</span><b>Graphing Studio</b><span class="lb-cd">Plot functions in 2D and 3D and slide the variables around.</span><span class="lb-go">' + ic('lock', 14) + 'Coming soon</span></div>' +
       '</div></div>';
   }
 
@@ -381,23 +387,38 @@
   }
   function renderOv() { var old = $('#lbov'); if (old) old.remove(); if (!S.ov || !root) return; root.insertAdjacentHTML('beforeend', ovHtml()); paint($('#lbov')); var f = $('#lbov .lb-b.pr') || $('#lbov .lb-x'); if (f) f.focus({ preventScroll: true }); }
   function ovClose() { S.ov = null; var o = $('#lbov'); if (o) o.remove(); }
-  async function sendNote() {
-    var o = S.ov; if (!o || o.k !== 'res') return; var R = o.R;
+  async function saveNote(o) {
     if (!window.SpectraNotes || !SpectraNotes.addFromAnswer) { toast('Notes are not loaded'); return; }
-    var text = R.name + ' (' + R.formula + ')\n\nMade from: ' + R.eq + '\nState at room temperature: ' + R.state + '\n\n' + R.text;
     toast('Saving to Notes...');
-    try { var r = await SpectraNotes.addFromAnswer({ text: text, question: 'What is ' + R.name + ' and how does it form?', subject: 'General Sciences', msg: ('lab:' + R.key).slice(0, 60) }); toast(r && r.dup ? 'Already in your Notes' : 'Saved to Notes'); }
+    try { var r = await SpectraNotes.addFromAnswer(o); toast(r && r.dup ? 'Already in your Notes' : 'Saved to Notes'); }
     catch (e) { toast(e && e.message === 'LOGIN' ? 'Log in to save notes' : e && e.message === 'SETUP' ? 'Notes need their database setup first' : 'Could not save the note'); }
   }
-  function askSpectra() {
-    var o = S.ov; if (!o || o.k !== 'res') return; var R = o.R, q = 'Explain how ' + R.name + ' (' + R.formula + ') forms from ' + R.eq.split('\u2192')[0].trim() + ', step by step.';
+  function sendNote() {
+    var o = S.ov; if (!o || o.k !== 'res') return; var R = o.R;
+    saveNote({ text: R.name + ' (' + R.formula + ')\n\nMade from: ' + R.eq + '\nState at room temperature: ' + R.state + '\n\n' + R.text, question: 'What is ' + R.name + ' and how does it form?', subject: 'General Sciences', msg: ('lab:' + R.key).slice(0, 60) });
+  }
+  function askText(q) {   // leave the Lab, open a fresh chat and drop the question in the box
     closeLab(); var nw = $('#nw'); if (nw) nw.click();
     setTimeout(function () { var inp = $('#in'); if (inp) { inp.value = q; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.focus(); } }, 60);
+  }
+  function askSpectra() {
+    var o = S.ov; if (!o || o.k !== 'res') return; var R = o.R;
+    askText('Explain how ' + R.name + ' (' + R.formula + ') forms from ' + R.eq.split('\u2192')[0].trim() + ', step by step.');
   }
 
   /* ================= show / hide / events ================= */
   function draw() {
     if (!root || !S.open) return;
+    if (S.view !== 'mol' && window.SpectraMol) SpectraMol.unmount();
+    if (S.view !== 'phys' && window.SpectraPhys) SpectraPhys.unmount();
+    if (S.view === 'phys') {
+      if (!window.SpectraPhys) { S.view = 'hub'; toast('The Physics Sandbox is not loaded'); root.innerHTML = hubHtml(); paint(root); return; }
+      ovClose(); root.innerHTML = ''; SpectraPhys.mount(root, { toast: toast, onAsk: askText }); return;
+    }
+    if (S.view === 'mol') {
+      if (!window.SpectraMol) { S.view = 'hub'; toast('The Molecular Constructor is not loaded'); root.innerHTML = hubHtml(); paint(root); return; }
+      ovClose(); root.innerHTML = ''; SpectraMol.mount(root, { toast: toast, onAsk: askText, onNote: saveNote }); return;
+    }
     root.innerHTML = S.view === 'mix' ? mixHtml() : hubHtml(); paint(root); renderOv();
   }
   function openLab() {
@@ -406,7 +427,7 @@
     draw(); root.scrollTop = 0;
   }
   function closeLab() {
-    if (!S.open) return; if (D) endPress(); S.open = false; S.ov = null; mainEl.classList.remove('labbing'); btn.classList.remove('on');
+    if (!S.open) return; if (D) endPress(); if (window.SpectraMol) SpectraMol.unmount(); if (window.SpectraPhys) SpectraPhys.unmount(); S.open = false; S.ov = null; mainEl.classList.remove('labbing'); btn.classList.remove('on');
   }
   function onClick(e) {
     var t = e.target;
@@ -418,6 +439,8 @@
     var a = t.closest('[data-a]'); if (!a) return;
     var k = a.dataset.a;
     if (k === 'mix') { S.view = 'mix'; draw(); root.scrollTop = 0; }
+    else if (k === 'mol') { S.view = 'mol'; draw(); root.scrollTop = 0; }
+    else if (k === 'phys') { S.view = 'phys'; draw(); root.scrollTop = 0; }
     else if (k === 'hub') { S.view = 'hub'; ovClose(); draw(); }
     else if (k === 'book') { S.ov = { k: 'book' }; renderOv(); }
     else if (k === 'ovx' || k === 'rclose') ovClose();
