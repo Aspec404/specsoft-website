@@ -6,7 +6,8 @@
      SpectraNotes.init(host)          -> wires the sidebar button and the notes view.
         host = { md, math, paint, toast, copy, subject(), summarize(text, question), merge(a, b), projects(), toChat(text), toChatFile(name, text, prompt), closeDrawer() }
      SpectraNotes.addFromAnswer(o)    -> "Add to notes": o = { text, question, subject, chat, msg }. Spectra summarizes, the note is saved, resolves { dup, note }. Rejects with Error('LOGIN' | 'SETUP' | message).
-     SpectraNotes.open()              -> shows the notes view */
+     SpectraNotes.open()              -> shows the notes view
+     SpectraNotes.close()             -> leaves the notes view (My Tasks uses it when it opens) */
 (function () {
   'use strict';
   var TB = 'spectra_notes', MAXN = 300, MAXB = 20000;
@@ -803,5 +804,5 @@
     setTimeout(function () { load(); }, 700);
   }
 
-  window.SpectraNotes = { init: init, addFromAnswer: addFromAnswer, open: show };
+  window.SpectraNotes = { init: init, addFromAnswer: addFromAnswer, open: show, close: hide };
 })();
