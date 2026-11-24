@@ -45,10 +45,16 @@
   }
   function say(text, id) { if (!active()) return; type(text); if (id) voice(id); idle(); }
   function sayId(id) { var v = D.voiced[id]; if (v) say(v[0], id); }
-  function pickIdle() { var t; do { t = D.idle[Math.floor(Math.random() * D.idle.length)]; } while (t === line.textContent && D.idle.length > 1); return t; }
+  var lastIdle = '';
+  function pickIdle() { var t; do { t = D.idle[Math.floor(Math.random() * D.idle.length)]; } while (t === lastIdle && D.idle.length > 1); lastIdle = t; return t; }
   function idle() {
     clearTimeout(idleT);
-    idleT = setTimeout(function () { if (!document.hidden && active()) type(pickIdle()); idle(); }, 7500);
+    idleT = setTimeout(function () {
+      if (!document.hidden && active()) {
+        if (!AUD.paused && !AUD.ended) { idle(); return; }   // she's still talking: wait, don't talk over herself
+        sayId(pickIdle());                                    // types the line AND speaks it
+      } else idle();
+    }, 11000);
   }
   var h = new Date().getHours();
   if (h < 5) { line.textContent = D.late; }

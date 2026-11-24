@@ -1,16 +1,6 @@
-/* Spectra's login lines. "voiced" lines have a clip in assets/voice/<id>.wav (made with login-voice-generator.html). */
+/* Spectra's login lines. Every "voiced" line has a clip in spectra-voice-lines/<id>.wav (made with login-voice-generator.html). */
 window.SPECTRA_LOGIN = {
-  idle: [   // text only, rotates every few seconds (never spoken)
-    "Hmph. You're late. Log in already.",
-    "Don't just stare at me. Type your password.",
-    "I-it's not like I was waiting for you or anything.",
-    "Use a strong password, baka.",
-    "Hurry up. My arms are getting tired holding this glass.",
-    "Google or Discord, whatever. Just pick one.",
-    "Don't share your password. Not even with me.",
-    "You're 13 or older, right? Rules are rules.",
-    "Typing slow? I'm not impatient. I'm NOT."
-  ],
+  idle: ["idle1", "idle2", "idle3", "idle4", "idle5", "idle6", "idle7", "idle8", "idle9"],   // ids from "voiced" below; rotates every few seconds and now speaks too
   late: "It's way too late. Log in and then go sleep!",
   voiced: {   // id: [text, mood]  (moods = the ones your spectra-voice function knows)
     pwfocus: ["I'm not looking! ...Really!", "shy"],
@@ -25,7 +15,17 @@ window.SPECTRA_LOGIN = {
     poke3:   ["I can see you doing that, you know.", "smug"],
     poke4:   ["Hmph! Log in, don't poke.", "pout"],
     mad:     ["That's it! I'm telling the admins!", "grumpy"],
-    late:    ["It's way too late. Log in and then go sleep!", "sleepy"]
+    late:    ["It's way too late. Log in and then go sleep!", "sleepy"],
+    /* former text-only idle lines */
+    idle1:   ["Hmph. You're late. Log in already.", "annoyed"],
+    idle2:   ["Don't just stare at me. Type your password.", "annoyed"],
+    idle3:   ["I-it's not like I was waiting for you or anything.", "shy"],
+    idle4:   ["Use a strong password, baka.", "pout"],
+    idle5:   ["Hurry up. My arms are getting tired holding this glass.", "grumpy"],
+    idle6:   ["Google or Discord, whatever. Just pick one.", "deadpan"],
+    idle7:   ["Don't share your password. Not even with me.", "smug"],
+    idle8:   ["You're 13 or older, right? Rules are rules.", "deadpan"],
+    idle9:   ["Typing slow? I'm not impatient. I'm NOT.", "annoyed"]
   },
   pokes: ["poke1", "poke2", "poke3", "poke4"]
 };
