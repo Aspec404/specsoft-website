@@ -43,10 +43,12 @@
     <div class="crosshair br"></div>
 
     <!-- SPECTRA HERO (desktop only, hidden on mobile by login-revamp.css) -->
-    <div class="sp-hero" aria-hidden="true">
+    <div class="sp-hero">
         <img src="assets/spectra-login.gif" alt="">
         <div class="sp-brand">SPECSOFT®</div>
-        <div class="sp-bubble"><b>SPECTRA</b><span>Hmph. You're late. Log in already.</span></div>
+        <button type="button" class="sp-mute" aria-pressed="false">VOICE ON</button>
+        <div class="sp-granted">ACCESS GRANTED</div>
+        <div class="sp-bubble"><b>SPECTRA</b><span id="spLine">Hmph. You're late. Log in already.</span></div>
     </div>
 
     <!-- MOBILE HEADER + SIDEBAR (content injected by main.js) -->
@@ -353,5 +355,9 @@
     <script src="cursor.js" defer></script>
     <script src="seasons.js"></script>
 
+
+    <!-- SPECTRA LOGIN BEHAVIOUR (lines, voice clips, parallax) -->
+    <script src="login-spectra-lines.js"></script>
+    <script src="login-spectra.js" defer></script>
 </body>
 </html>

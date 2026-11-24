@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Spectra login voice generator | SPECSOFT®</title>
+<style>
+  body{margin:0;padding:24px;background:#030303;color:#f5f5f5;font:14px/1.5 system-ui,sans-serif}
+  h1{font-size:20px;margin:0 0 6px} p{color:#a0a0a0;margin:4px 0 16px;max-width:720px}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+  button,select{padding:9px 14px;border:1px solid #404040;border-radius:10px;background:#0d0d0d;color:#f5f5f5;font:inherit;cursor:pointer}
+  button.main{background:#f5f5f5;color:#030303;font-weight:600} button:disabled{opacity:.5;cursor:wait}
+  table{width:100%;max-width:860px;border-collapse:collapse} td{padding:8px 6px;border-top:1px solid #202020;vertical-align:middle}
+  .id{font-family:monospace;color:#a0a0a0} .ok{color:#3ddc84} .bad{color:#ff6b6f} #who{margin-bottom:12px}
+</style>
+</head>
+<body>
+<h1>Spectra login voice generator</h1>
+<p>Run this once while logged in to SPECSOFT. It asks your <b>spectra-voice</b> function (Gemini) to speak each login line, then you download the clips and put them in <b>assets/voice/</b>. Each line costs the normal voice credit(s), and the function allows 10 clips per minute, so "Generate all" goes slowly on purpose. You can delete this page afterwards.</p>
+<div id="who"></div>
+<div class="bar">
+  <label>Voice <select id="voice"><option>Leda</option><option>Zephyr</option><option>Aoede</option><option>Autonoe</option><option>Laomedeia</option><option>Kore</option></select></label>
+  <button class="main" id="all">Generate all</button>
+  <button id="dl">Download all</button>
+</div>
+<table id="rows"></table>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+<script src="supabase-config.js"></script>
+<script src="login-spectra-lines.js"></script>
+<script>
+var L = window.SPECTRA_LOGIN.voiced, ids = Object.keys(L), blobs = {}, busy = false;
+var $ = function (s) { return document.querySelector(s); };
+var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+async function authInfo() {
+  var sb = window.getSupabaseClient && window.getSupabaseClient(), c = window.SPECSOFT_CONFIG;
+  var s = sb && (await sb.auth.getSession()).data.session;
+  if (!s || !c || !c.SUPABASE_URL) return null;
+  return { url: c.SUPABASE_URL + '/functions/v1/spectra-voice', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token, apikey: c.SUPABASE_ANON_KEY } };
+}
+function row(id) {
+  return '<tr data-id="' + id + '"><td class="id">' + id + '</td><td>' + L[id][0] + '<br><small class="id">mood: ' + L[id][1] + '</small></td>' +
+    '<td class="st">-</td><td><button class="g">Generate</button> <button class="p" disabled>Play</button> <button class="d" disabled>Download</button></td></tr>';
+}
+$('#rows').innerHTML = ids.map(row).join('');
+function st(id, msg, cls) { var e = $('tr[data-id="' + id + '"] .st'); e.textContent = msg; e.className = 'st ' + (cls || ''); }
+
+async function gen(id, retry) {
+  var a = await authInfo(); if (!a) { st(id, 'not logged in', 'bad'); throw new Error('login'); }
+  st(id, 'generating...');
+  var r; try { r = await fetch(a.url, { method: 'POST', headers: a.headers, body: JSON.stringify({ text: L[id][0], mood: L[id][1], voice: $('#voice').value }) }); }
+  catch (e) { st(id, 'network error', 'bad'); throw e; }
+  if (!r.ok) {
+    var m = await r.text().catch(function () { return ''; });
+    if (/^rate/.test(m) && !retry) { st(id, 'rate limit, waiting 25s...'); await wait(25000); return gen(id, true); }
+    st(id, /^daily/.test(m) ? 'daily credits used up' : 'error: ' + (m || r.status), 'bad'); throw new Error(m);
+  }
+  var b = await r.blob(); if (b.size < 1000) { st(id, 'empty audio', 'bad'); throw new Error('empty'); }
+  blobs[id] = b; st(id, 'ready (' + Math.round(b.size / 1024) + ' KB)', 'ok');
+  var tr = $('tr[data-id="' + id + '"]'); tr.querySelector('.p').disabled = false; tr.querySelector('.d').disabled = false;
+}
+function save(id) { var a = document.createElement('a'); a.href = URL.createObjectURL(blobs[id]); a.download = id + '.wav'; document.body.appendChild(a); a.click(); a.remove(); }
+
+$('#rows').addEventListener('click', async function (e) {
+  var tr = e.target.closest('tr'); if (!tr) return; var id = tr.dataset.id;
+  if (e.target.classList.contains('g') && !busy) { busy = true; try { await gen(id); } catch (x) {} busy = false; }
+  if (e.target.classList.contains('p') && blobs[id]) new Audio(URL.createObjectURL(blobs[id])).play();
+  if (e.target.classList.contains('d') && blobs[id]) save(id);
+});
+$('#all').onclick = async function () {
+  if (busy) return; busy = true; $('#all').disabled = true;
+  for (var i = 0; i < ids.length; i++) { if (blobs[ids[i]]) continue; try { await gen(ids[i]); } catch (x) { if (String(x.message) === 'login') break; } if (i < ids.length - 1) await wait(6500); }
+  busy = false; $('#all').disabled = false;
+};
+$('#dl').onclick = async function () { var k = Object.keys(blobs); for (var i = 0; i < k.length; i++) { save(k[i]); await wait(400); } if (!k.length) alert('Nothing generated yet.'); };
+authInfo().then(function (a) { $('#who').innerHTML = a ? '<span class="ok">Logged in. Ready.</span>' : '<span class="bad">You are not logged in. Log in on SPECSOFT first, then reload this page.</span>'; });
+</script>
+</body>
+</html>
