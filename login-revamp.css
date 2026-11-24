@@ -1,0 +1,128 @@
+/* ==========================================================================
+   login-revamp.css — load AFTER auth.css and cursor.css in login.html
+   Built against the real style.css (breakpoint 850px, --sidebar-width,
+   .main-content padding) and auth.css. Uses your CSS variables, so the
+   monochrome look + light mode follow the site theme automatically.
+   ========================================================================== */
+
+/* 1) No topbar / sidebar on the login page (all screen sizes) */
+.sidebar,
+.sidebar-overlay,
+.mobile-header,
+.hud-bar,
+/* floating bottom nav bar (Home / Chats / Projects / Store / My Profile) */
+.bottom-nav, .bottom-bar, .bottom-dock, .bottom-tabs, .bottombar,
+.nav-dock, .dock, .dock-nav, .floating-nav, .float-nav, .mobile-nav,
+.tab-bar, .tabbar, .app-nav, .app-dock, .pill-nav, .nav-pill,
+nav[class*="dock"], nav[class*="bottom"], div[class*="dock"],
+div[class*="bottom-nav"], div[class*="bottomnav"] { display: none !important; }
+
+.main-content {
+    margin-left: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+}
+
+/* Centre the auth card vertically */
+.au-page {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    padding-top: 32px;
+    padding-bottom: 32px;
+}
+.au-wrap { width: 100%; }
+
+/* Spectra hero is desktop-only */
+.sp-hero { display: none; }
+
+/* 2) MOBILE (<= 850px): your plain old login UI, minus nav.
+      style.css adds 88px top padding for the mobile header, so remove it. */
+@media (max-width: 850px) {
+    .main-content { padding: 20px 16px 28px !important; }
+    .au-page { padding: 0; }
+    .au-aside { display: none !important; }
+    .au-card { margin: 0 auto; }
+}
+
+/* 3) DESKTOP (>= 851px): Spectra left, monochrome card right */
+@media (min-width: 851px) {
+    :root { --au-right: max(30%, 400px); }   /* right side = 30% (never narrower than 400px) */
+    .sp-hero {
+        display: block;
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: calc(100% - var(--au-right));
+        z-index: 6;
+        overflow: hidden;
+        background: var(--bg-base);
+    }
+    .sp-hero img {
+        position: absolute;
+        inset: 0;
+        width: 100%; height: 100%;
+        object-fit: cover;
+        object-position: 55% 40%;
+        animation: spDrift 18s ease-in-out infinite alternate;
+    }
+    .sp-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+            linear-gradient(90deg, transparent 72%, var(--bg-base) 100%),
+            linear-gradient(0deg, rgba(3, 3, 3, .85), transparent 45%);
+    }
+    .sp-brand {
+        position: absolute;
+        top: 28px; left: 32px;
+        z-index: 2;
+        font-family: var(--font-sans);
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: .18em;
+        color: #f5f5f5;
+    }
+    .sp-bubble {
+        position: absolute;
+        z-index: 2;
+        left: 32px; bottom: 40px;
+        max-width: 360px;
+        padding: 14px 18px;
+        border-radius: 18px 18px 18px 4px;
+        background: rgba(8, 8, 8, .72);
+        backdrop-filter: blur(10px);
+        border: 1px solid #404040;
+        color: #f5f5f5;
+    }
+    .sp-bubble b {
+        display: block;
+        margin-bottom: 6px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: .12em;
+        color: #a0a0a0;
+    }
+    .sp-bubble span { font-size: 15px; line-height: 1.4; }
+
+    .main-content {
+        margin-left: calc(100% - var(--au-right)) !important;
+        width: var(--au-right) !important;
+        padding: 0 24px !important;
+    }
+    .au-aside { display: none !important; }            /* old headline + terminal */
+    .au-wrap {
+        grid-template-columns: minmax(0, 1fr) !important;
+        max-width: 440px !important;
+        gap: 0 !important;
+    }
+    .au-card { width: 100%; }
+}
+
+@keyframes spDrift {
+    from { transform: scale(1.04); }
+    to   { transform: scale(1.12) translateX(-1.5%); }
+}
+@media (prefers-reduced-motion: reduce) { .sp-hero img { animation: none; } }

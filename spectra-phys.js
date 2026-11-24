@@ -1,4 +1,8 @@
-/* Spectra Physics Sandbox (v7) for the Spectra Academics Lab.
+/* Spectra Physics Sandbox (v9) for the Spectra Academics Lab.
+   v9 (Phase 5): breakable blocks. Explosions hurt blocks by distance, cracks show as health drops, and a block shatters into flying fragments at zero health (capped, they fade out).
+   Lava heat now burns flammable blocks and melts Metal, Copper Block and Gold slowly, water cools them, and a Breakable switch turns it all off (the older instant burning comes back).
+   v8 (Phase 4): the Math tab. Angle tool (angle of elevation and depression with live sin, cos, tan), right-triangle solver (build it as a ramp), ramp meter (g sin and g cos split),
+   projectile launcher with a predicted path, textbook formulas next to measured results, challenges (Bullseye, Set the speed, High ground), pendulum with its period, and an Ideal / Real air drag switch.
    v7 (Phase 3): initiators. Toggle (tap it with Grab) and Collision initiators send a signal to a group; a Move initiator listens for that signal (or sim start) and moves a whole group along
    keyframes (time, X, Y, turn, easing) with a timeline editor in the Properties board. Loop modes, speed, what happens when the signal ends, safe squish. A placeable Initiator block in Special.
    Moving objects are kinematic. Initiators only run while the sandbox is running. Rewind resets them. Two demo scenes: Door switch and Elevator.
@@ -43,7 +47,9 @@
     magnet: 'M6 4v9a6 6 0 0012 0V4h-4v9a2 2 0 01-4 0V4zM6 8h4M14 8h4', erase: 'M4 17l9-11 7 6-6 8H8zM8 20h12',
     pause: 'M8 5v14M16 5v14', play: 'M8 5v14l11-7z', trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3', chat: 'M4 5h16v11H9l-5 4z',
     rain: 'M7 14a4 4 0 112-7.5A5 5 0 1118 14zM8 17l-1 3M12 17l-1 3M16 17l-1 3', drain: 'M12 4v10M8 11l4 4 4-4M5 19h14',
-    info: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 11v5M12 8h.01', sliders: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', x: 'M6 6l12 12M18 6L6 18', bolt: 'M13 3L5 14h6l-1 7 8-11h-6z', node: 'M13 3L5 14h6l-1 7 8-11h-6z', rewind: 'M11 6L4 12l7 6zM20 6l-7 6 7 6z', plus: 'M12 5v14M5 12h14'
+    info: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 11v5M12 8h.01', sliders: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', x: 'M6 6l12 12M18 6L6 18', bolt: 'M13 3L5 14h6l-1 7 8-11h-6z', node: 'M13 3L5 14h6l-1 7 8-11h-6z', rewind: 'M11 6L4 12l7 6zM20 6l-7 6 7 6z', plus: 'M12 5v14M5 12h14',
+    angle: 'M4 19h16M4 19L17 6M10 19a6 6 0 00-1.8-4.2', mangle: 'M4 19h16M4 19L17 6M10 19a6 6 0 00-1.8-4.2', mtri: 'M4 19V5l16 14zM4 14h5v5', mramp: 'M3 19h18L3 8zM11 19a8 8 0 00-3.5-6.5',
+    mlaunch: 'M3 19C6 6 15 6 21 19M3 19h.01M21 19h.01', mpend: 'M12 3v9M8 3h8M12 12a4 4 0 100 8 4 4 0 000-8z'
   };
   var ic = function (n, s) { return '<svg viewBox="0 0 24 24" width="' + (s || 18) + '" height="' + (s || 18) + '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICO[n] + '"/></svg>'; };
 
@@ -51,7 +57,7 @@
      Everything the sandbox knows about its blocks, items, liquids and tools is listed here, so adding a new one is one table entry. */
   var PX_M = 100;   // scale: 100 px = 1 m, so the sandbox gravity of 1000 px/s^2 is 10 m/s^2
   var m2px = function (m) { return m * PX_M; }, px2m = function (px) { return px / PX_M; };
-  var CATS = [{ id: 'block', n: 'Blocks' }, { id: 'item', n: 'Items' }, { id: 'special', n: 'Special' }, { id: 'liquid', n: 'Liquids' }, { id: 'tool', n: 'Tools' }];
+  var CATS = [{ id: 'block', n: 'Blocks' }, { id: 'item', n: 'Items' }, { id: 'special', n: 'Special' }, { id: 'liquid', n: 'Liquids' }, { id: 'tool', n: 'Tools' }, { id: 'math', n: 'Math' }];
 
   /* blocks (materials): d = density in Matter units (water is 0.001, so lighter floats and heavier sinks), r = bounciness, f = friction, c = colour,
      hp = health (for the breakage phase, tunable), flam = burns, mag = pulled by the magnet, melts = turns into water in lava, lava = lava-proof,
@@ -60,10 +66,10 @@
     { id: 'wood', n: 'Wood', d: 0.0007, r: 0.2, f: 0.6, c: '#c68b59', hp: 60, flam: 1, note: 'Lighter than water, so it floats. It also burns.' },
     { id: 'stone', n: 'Stone', d: 0.0026, r: 0.1, f: 0.7, c: '#9a9fa8', hp: 220, note: 'Heavy and tough. It sinks fast.' },
     { id: 'concrete', n: 'Concrete', d: 0.0034, r: 0.05, f: 0.95, fs: 1.2, c: '#b7b2a7', hp: 380, note: 'Heavier than stone, with a lot of grip.' },
-    { id: 'metal', n: 'Metal', d: 0.008, r: 0.1, f: 0.3, c: '#8b98a8', hp: 450, mag: 1, smelt: 1, sh: 0.9, note: 'Very heavy. The magnet pulls it, and it melts slowly in lava.' },
+    { id: 'metal', n: 'Metal', d: 0.008, r: 0.1, f: 0.3, c: '#8b98a8', hp: 450, mag: 1, smelt: 1, hk: 0.35, sh: 0.9, note: 'Very heavy. The magnet pulls it, and it melts slowly in lava.' },
     { id: 'obsidian', n: 'Obsidian', d: 0.0028, r: 0.06, f: 0.4, c: '#2e2142', hp: 1500, lava: 1, sh: 1, note: 'Volcanic glass: very hard, and lava cannot hurt it.' },
-    { id: 'copper', n: 'Copper Block', d: 0.0086, r: 0.15, f: 0.35, c: '#d17b4a', hp: 320, mag: 1, sh: 0.8, note: 'Heavy and metal-like. The magnet pulls it here.' },
-    { id: 'gold', n: 'Gold', d: 0.0135, r: 0.1, f: 0.4, c: '#f2c230', hp: 90, sh: 1, note: 'The densest block. Soft, so it breaks easily, and it sinks fastest.' },
+    { id: 'copper', n: 'Copper Block', d: 0.0086, r: 0.15, f: 0.35, c: '#d17b4a', hp: 320, mag: 1, smelt: 1, hk: 0.6, sh: 0.8, note: 'Heavy and metal-like. The magnet pulls it here, and it melts in lava.' },
+    { id: 'gold', n: 'Gold', d: 0.0135, r: 0.1, f: 0.4, c: '#f2c230', hp: 90, smelt: 1, hk: 0.9, sh: 1, note: 'The densest block. Soft, so it breaks easily and melts fast in lava, and it sinks fastest.' },
     { id: 'asphalt', n: 'Asphalt', d: 0.0022, r: 0.02, f: 1.3, fs: 3, c: '#3a3d44', hp: 240, note: 'Very grippy: it barely slides, even on a slope.' },
     { id: 'rubber', n: 'Rubber', d: 0.0012, r: 0.85, f: 0.9, c: '#ef4444', hp: 120, flam: 1, note: 'Very bouncy and grippy. It burns.' },
     { id: 'ice', n: 'Ice', d: 0.0009, r: 0.1, f: 0.02, c: '#8fd8ff', hp: 40, melts: 1, note: 'Almost no friction, and just light enough to float. It melts in lava.' },
@@ -98,7 +104,7 @@
     node: 'An initiator block links cause and effect. A Toggle or Collision initiator sends a signal to a group number, and a Move initiator listens for it. That is how real machines work: a sensor triggers an actuator.'
   };
   var GRAV = [['Earth', 1], ['Moon', 0.165], ['Mars', 0.38], ['Jupiter', 2.5], ['Zero-G', 0], ['Upside down', -1]];
-  var TABICO = { block: 'box', item: 'rocket', special: 'spring', liquid: 'water', tool: 'magnet' }, DEFT = { block: 'box', item: 'wheel', special: 'rope', liquid: 'water', tool: 'drag' };
+  var TABICO = { block: 'box', item: 'rocket', special: 'spring', liquid: 'water', tool: 'magnet', math: 'angle' }, DEFT = { block: 'box', item: 'wheel', special: 'rope', liquid: 'water', tool: 'drag', math: 'mangle' };
   var BAL = ['#ef4444', '#3b82f6', '#ec4899', '#facc15', '#22c55e', '#a855f7'];
 
   /* things that are not made of a chosen material, or have their own health: defaults by kind (anything else uses its material's health) */
@@ -131,7 +137,12 @@
     { id: 'node', n: 'Initiator', cat: 'special', g: 6, tip: 'Tap to place a fixed Initiator block, then pick Toggle, Collision or Move below. Open its Properties to link it to groups. Tap a Toggle with Grab to flip it.' },
     { id: 'magnet', n: 'Magnet', cat: 'tool', g: 6, tip: 'Hold it near metal things (Metal and Copper Block) to pull them toward you.' },
     { id: 'boom', n: 'Explosion', cat: 'tool', g: 6, tip: 'Tap anywhere for an instant explosion.' },
-    { id: 'erase', n: 'Erase', cat: 'tool', g: 7, tip: 'Tap things (or drag across them) to delete them. Tap a rope, rod, spring, fan or faucet to remove it.' }
+    { id: 'erase', n: 'Erase', cat: 'tool', g: 7, tip: 'Tap things (or drag across them) to delete them. Tap a rope, rod, spring, fan or faucet to remove it.' },
+    { id: 'mangle', n: 'Angle', cat: 'math', g: 8, tip: 'Drag from one point to another. Higher means angle of elevation, lower means angle of depression. Live sin, cos and tan.' },
+    { id: 'mtri', n: 'Right triangle', cat: 'math', g: 8, tip: 'Pick an angle and one known side and the lab solves the triangle. Tap the canvas to move it, or build it as a ramp.' },
+    { id: 'mramp', n: 'Ramp meter', cat: 'math', g: 8, tip: 'Tap a ramp, plank or block to read its angle and how gravity splits along and across the slope.' },
+    { id: 'mlaunch', n: 'Launcher', cat: 'math', g: 8, tip: 'Tap to place a launcher. Set angle and speed, press Fire. The dotted line is the predicted path, compared with the real one.' },
+    { id: 'mpend', n: 'Pendulum', cat: 'math', g: 8, tip: 'Tap to hang a pendulum from that point and compare its period with T = 2\u03c0\u221a(L/g).' }
   ];
   var INFO = {}, CATOF = {};
   REG.forEach(function (t) { INFO[t.id] = [t.id, t.n, t.tip]; CATOF[t.id] = t.cat; });
@@ -261,7 +272,7 @@
           var best = -1e9, bi = -1, e, ne = S.nx.length; for (e = 0; e < ne; e++) { var dd2 = S.nx[e] * px + S.ny[e] * py - S.nd[e]; if (dd2 > best) { best = dd2; bi = e; } }
           if (best >= mg) continue; nx = S.nx[bi]; ny = S.ny[bi]; pen = mg - best;
         }
-        px += nx * pen; py += ny * pen; S.fx -= nx * pen; S.fy -= ny * pen; S.cx += px; S.cy += py; S.cnt++; if (t[i] === 2) S.hot++;
+        px += nx * pen; py += ny * pen; S.fx -= nx * pen; S.fy -= ny * pen; S.cx += px; S.cy += py; S.cnt++; if (t[i] === 2) S.hot++; else if (t[i] === 0) S.wet++;
       }
       if (px < mg) px = mg; else if (px > W - mg) px = W - mg; if (py > H - mg) py = H - mg; if (py < mg) py = mg;
       x[i] = px; y[i] = py;
@@ -293,6 +304,7 @@
         p += '<div class="ph-row">' + catTools(c.id).map(tbtn).join('') + '</div>';
         if (c.id === 'item') p += '<div class="ph-row ph-sub" data-for="wheel" hidden><span class="ph-rl">Material</span>' + MATS.map(chip).join('') + '</div>';
         if (c.id === 'special') p += '<div class="ph-row ph-sub" data-for="platform" hidden><span class="ph-rl">Material</span>' + MATS.map(chip).join('') + '</div><div class="ph-row ph-sub" data-for="faucet" hidden><span class="ph-rl">Liquid</span>' + LIQ.map(lchip).join('') + '</div><div class="ph-row ph-sub" data-for="node" hidden><span class="ph-rl">Type</span>' + ['toggle', 'collision', 'move'].map(itchip).join('') + '</div>';
+        if (c.id === 'math') p += mathPanels();
       }
       return p + '</div>';
     }).join('') + '</div>';
@@ -302,6 +314,7 @@
       '<label class="ph-grp">Size<input type="range" id="phsz" min="10" max="60" value="28" aria-label="Object size"></label>' +
       '<label class="ph-grp">Gravity<select id="phg" aria-label="Gravity">' + GRAV.map(function (g, i) { return '<option value="' + i + '">' + g[0] + '</option>'; }).join('') + '</select></label>' +
       '<label class="ph-grp">Speed<select id="phsp" aria-label="Speed"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></label>' +
+      '<label class="ph-grp ph-ck2" title="Explosions crack and shatter blocks, and lava burns and melts them"><input type="checkbox" id="phbr" checked aria-label="Breakable blocks">Breakable blocks</label>' +
       '<div class="ph-grp"><button type="button" class="ph-b" data-pa="pause" id="phpa">' + ic('pause', 16) + '<span>Pause</span></button><button type="button" class="ph-b" data-pa="rewind">' + ic('rewind', 16) + '<span>Rewind</span></button><button type="button" class="ph-b" data-pa="rain" id="phrn">' + ic('rain', 16) + '<span>Rain</span></button>' +
       '<button type="button" class="ph-b" data-pa="drain">' + ic('drain', 16) + '<span>Drain</span></button><button type="button" class="ph-b" data-pa="clear">' + ic('trash', 16) + '<span>Clear</span></button></div></div>';
     h += '<div class="ph-try"><b>Scenes:</b><button type="button" class="ph-b" data-sc="tower">Box tower</button><button type="button" class="ph-b" data-sc="pendulum">Pendulum</button><button type="button" class="ph-b" data-sc="pool">Float or sink?</button>' +
@@ -337,7 +350,8 @@
     s.spr = document.createElement('canvas'); s.spr.width = s.spr.height = 32;
     var sx = s.spr.getContext('2d'), g = sx.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,.27)'); g.addColorStop(0.55, 'rgba(255,255,255,.17)'); g.addColorStop(1, 'rgba(255,255,255,0)'); sx.fillStyle = g; sx.fillRect(0, 0, 32, 32);
     s.wc = document.createElement('canvas'); s.wx = s.wc.getContext('2d', { willReadFrequently: true });
-    fit(true);
+    fit(true); s.cal = calibrate();
+    try { s.brk = localStorage.getItem('sa.phys.brk') !== '0'; } catch (er) { s.brk = true; } var bk = $('#phbr'); if (bk) bk.checked = s.brk;
     M.Events.on(s.eng, 'collisionStart', function (ev) {   // TNT goes off when it hits something hard
       ev.pairs.forEach(function (p) {
         var a = p.bodyA, b = p.bodyB; if (!a.tnt && !b.tnt) return;
@@ -384,7 +398,7 @@
   function opts(m, extra) {
     var o = { friction: m.f, restitution: m.r, density: m.d, frictionAir: 0.01, sleepThreshold: Infinity }; if (m.fs) o.frictionStatic = m.fs; for (var k in extra) o[k] = extra[k]; return o;
   }
-  function objCount() { return M.Composite.allBodies(S.world).filter(function (b) { return !b.wall && !b.rope; }).length; }
+  function objCount() { return M.Composite.allBodies(S.world).filter(function (b) { return !b.wall && !b.rope && !b.frag; }).length; }
   /* every object carries a props record: what it is, its health, and the group ids and initiators the Properties board will edit.
      It is filled in the first time it is read (a bomb or TNT gets its kind a moment after it is added) */
   function propsOf(b) {
@@ -549,8 +563,102 @@
     var s = S;
     M.Composite.allConstraints(s.world).forEach(function (c) { M.Composite.remove(s.world, c); });
     M.Composite.allBodies(s.world).forEach(function (b) { if (!b.wall) { M.Composite.remove(s.world, b); b.gone = true; } });
-    s.fl.clear(); s.stat = {}; s.sig = {}; s.ropes = {}; s.fx = []; s.faucets = []; s.fans = []; s.grab = null; s.line = null; s.pour = false;
+    s.fl.clear(); s.stat = {}; s.sig = {}; s.ropes = {}; s.fx = []; s.faucets = []; s.fans = []; s.frags = []; s.grab = null; s.line = null; s.pour = false; mathReset();
   }
+
+  /* ================= breakage, fire and melting (Phase 5) =================
+     Blocks have health. Explosions hurt them by distance. Cracks show as health drops, and at zero a block shatters into flying fragments
+     (capped, and they fade out). Lava heat slowly burns flammable blocks and melts metals. The Breakable switch turns all of this off,
+     and the older instant burning rules come back. */
+  var FRAGMAX = 150;
+  var brkOn = function () { return S.brk !== false; };
+  function isBreakable(b) {
+    if (!b.matId || b.frag || b.wall || b.rope || b.kind === 'pad' || b.kind === 'node') return false;
+    return propsOf(b).hpMax > 0;
+  }
+  function hpBar(b) { var p = propsOf(b); return bar(p.hpMax ? p.hp / p.hpMax : 0, 'Health', p.hpMax ? Math.round(p.hp) + ' / ' + p.hpMax : 'n/a'); }
+  function hurt(b, dmg, src, ox, oy) {
+    if (b.gone || !(dmg > 0) || !isBreakable(b)) return;
+    var p = propsOf(b); p.hp -= dmg; if (src === 'blast') b.hurtT = S.tt; if (src === 'fire') b.char = true;
+    if (p.hp <= 0) { p.hp = 0; breakBody(b, src, ox, oy); }
+  }
+  function blastDamage(x, y, R, P) {   // an explosion hurts every block by how close it is (to the nearest edge, so long planks count too)
+    if (!brkOn()) return; var list = [];
+    M.Composite.allBodies(S.world).forEach(function (b) {
+      if (b.wall || b.rope || b.frag || !isBreakable(b)) return;
+      var bb = b.bounds, d = Math.hypot(Math.max(bb.min.x, Math.min(x, bb.max.x)) - x, Math.max(bb.min.y, Math.min(y, bb.max.y)) - y);
+      if (d < R) list.push([b, P * Math.pow(1 - d / R, 1.2) * 14]);
+    });
+    list.forEach(function (q) { hurt(q[0], q[1], 'blast', x, y); });
+  }
+  function breakBody(b, src, ox, oy) {
+    var s = S, m = MAT[b.matId], x = b.position.x, y = b.position.y, i, a;
+    if (b.gone) return;
+    if (src === 'fire' || src === 'melt') {   // burns away or melts: no fragments, just a few cheap effects
+      if (src === 'melt') for (i = 0; i < 10; i++) s.fx.push({ t: 'sp', x: x + (rnd() - 0.5) * 18, y: y + (rnd() - 0.5) * 14, vx: (rnd() - 0.5) * 2, vy: -0.5 - rnd() * 2, l: 1, dec: 0.0015, c: rnd() < 0.5 ? '#ffb347' : '#ff7a1a' });
+      burnFx(x, y); for (i = 0; i < 4; i++) s.fx.push({ t: 'sm', x: x + (rnd() - 0.5) * 24, y: y + (rnd() - 0.5) * 24, vx: (rnd() - 0.5), vy: -0.6 - rnd(), r: 8 + rnd() * 8, l: 1, dec: 0.0007 });
+      rm(b); return;
+    }
+    var area = b.area || 900, n = clampN(Math.round(Math.sqrt(area) / 5), 6, 12), pts = partsOf(b), rr = Math.max(3.5, Math.sqrt(area / n) * 0.62), vx0 = b.velocity.x, vy0 = b.velocity.y, made = [], fr;
+    for (i = 0; i < n; i++) {
+      var pt = pts[(rnd() * pts.length) | 0], px, py, q;
+      if (pt.circleRadius) { a = rnd() * 6.2832; q = Math.sqrt(rnd()) * pt.circleRadius * 0.8; px = pt.position.x + Math.cos(a) * q; py = pt.position.y + Math.sin(a) * q; }
+      else { var v = pt.vertices, e = (rnd() * v.length) | 0, v2 = v[(e + 1) % v.length], u = rnd(), w = rnd() * (1 - u), cx = pt.position.x, cy = pt.position.y; px = cx + (v[e].x - cx) * u + (v2.x - cx) * w; py = cy + (v[e].y - cy) * u + (v2.y - cy) * w; }
+      fr = M.Bodies.polygon(px, py, rnd() < 0.5 ? 3 : 4, rr * (0.8 + rnd() * 0.5), opts(m, { collisionFilter: { group: -777 } }));   // fragments do not collide with each other: cheap
+      fr.col = m.c; fr.kind = 'frag'; fr.matId = m.id; fr.frag = { t: 0, life: 9000 + rnd() * 5000 };
+      fr.props = { groups: [], inits: [], cat: 'block', kind: 'frag', mat: m.id, hp: 0, hpMax: 0 };
+      M.Body.setAngle(fr, rnd() * 6.2832); addB(fr);
+      var dx = px - x, dy = py - y, dl = Math.hypot(dx, dy) || 1, sp = 1.5 + rnd() * 4.5;
+      M.Body.setVelocity(fr, { x: vx0 + dx / dl * sp + (rnd() - 0.5) * 2, y: vy0 + dy / dl * sp - rnd() * 2 }); M.Body.setAngularVelocity(fr, (rnd() - 0.5) * 0.5); made.push(fr);
+    }
+    s.frags = (s.frags || []).concat(made); while (s.frags.length > FRAGMAX) { var old = s.frags.shift(); if (!old.gone) rm(old); }
+    for (i = 0; i < (calm() ? 4 : 12); i++) { a = rnd() * 6.2832; s.fx.push({ t: 'sp', x: x, y: y, vx: Math.cos(a) * (1 + rnd() * 3), vy: Math.sin(a) * (1 + rnd() * 3) - 1, l: 1, dec: 0.003, c: m.c }); }
+    for (i = 0; i < 3; i++) s.fx.push({ t: 'sm', x: x + (rnd() - 0.5) * 16, y: y + (rnd() - 0.5) * 16, vx: (rnd() - 0.5), vy: -0.4 - rnd() * 0.6, r: 8 + rnd() * 8, l: 1, dec: 0.0011 });
+    rm(b);
+  }
+  function fragTick(dt) {   // fragments fade out after a while
+    var s = S, list = s.frags; if (!list || !list.length) return; var keep = [];
+    list.forEach(function (b) { if (b.gone) return; b.frag.t += dt; if (b.frag.t > b.frag.life) { rm(b); return; } keep.push(b); });
+    s.frags = keep;
+  }
+  function heatFx(b, dt) {   // heat slowly hurts flammable blocks (they burn) and smelting metals (they melt); lava-proof ones ignore it
+    var s = S, m = MAT[b.matId], h = b.heat;
+    if (!brkOn() || !m || m.lava || !isBreakable(b)) return;
+    var flam = !!m.flam; if (!flam && !m.smelt) return;
+    var thr = flam ? 150 : 700; if (h < thr) return;
+    hurt(b, (h - thr * 0.5) * 0.0009 * (flam ? 1 : (m.hk || 0.4)) * (dt / STEP), flam ? 'fire' : 'melt');
+    if (b.gone || calm() || s.fx.length > 450) return;
+    var bb = b.bounds, fx = bb.min.x + rnd() * (bb.max.x - bb.min.x);
+    if (flam) {
+      if (rnd() < 0.18) s.fx.push({ t: 'sp', x: fx, y: bb.min.y + rnd() * 8, vx: (rnd() - 0.5) * 1.2, vy: -1.2 - rnd() * 2.2, l: 1, dec: 0.0022, c: rnd() < 0.5 ? '#ffb347' : '#ff5e3a' });
+      if (rnd() < 0.05) s.fx.push({ t: 'sm', x: fx, y: bb.min.y, vx: (rnd() - 0.5) * 0.6, vy: -0.8 - rnd(), r: 7 + rnd() * 6, l: 1, dec: 0.0009 });
+    } else if (rnd() < 0.12) s.fx.push({ t: 'sp', x: fx, y: bb.max.y, vx: (rnd() - 0.5) * 0.6, vy: 0.2, l: 1, dec: 0.002, c: '#ff8a1f' });   // a drip of molten metal
+  }
+  /* cracks: a few jagged lines per part, made once from the part's id so they stay put; more of them show as health drops */
+  function crackData(pt, b) {
+    if (pt._ck) return pt._ck;
+    var c = Math.cos(-b.angle), sn = Math.sin(-b.angle), hx = 4, hy = 4, seed = (pt.id * 9301 + 49297) % 233280, i, j, list = [];
+    var rr = function () { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    if (pt.circleRadius) { hx = hy = pt.circleRadius; }
+    else pt.vertices.forEach(function (v) { var dx = v.x - pt.position.x, dy = v.y - pt.position.y, lx = dx * c - dy * sn, ly = dx * sn + dy * c; hx = Math.max(hx, Math.abs(lx)); hy = Math.max(hy, Math.abs(ly)); });
+    for (i = 0; i < 7; i++) {
+      var a = rr() * 6.2832, x = (rr() - 0.5) * hx * 0.4, y = (rr() - 0.5) * hy * 0.4, cr = [[x, y]], st = Math.max(4, Math.min(hx, hy) * 0.45);
+      for (j = 0; j < 4; j++) { a += (rr() - 0.5) * 1.3; x += Math.cos(a) * st * (0.6 + rr() * 0.8); y += Math.sin(a) * st * (0.6 + rr() * 0.8); var ex = x / hx, ey = y / hy; if (ex * ex + ey * ey > 0.85) break; cr.push([x, y]); }
+      if (cr.length > 1) list.push(cr);
+    }
+    return (pt._ck = list);
+  }
+  function drawCracks(c, b, parts, n) {
+    c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+    parts.forEach(function (pt) {
+      var list = crackData(pt, b), k = Math.min(n, list.length), i, j; if (!k) return;
+      c.save(); c.translate(pt.position.x, pt.position.y); c.rotate(b.angle); c.beginPath();
+      for (i = 0; i < k; i++) { var L = list[i]; c.moveTo(L[0][0], L[0][1]); for (j = 1; j < L.length; j++) c.lineTo(L[j][0], L[j][1]); }
+      c.lineWidth = 2.6; c.strokeStyle = 'rgba(255,255,255,.28)'; c.stroke(); c.lineWidth = 1.5; c.strokeStyle = 'rgba(15,15,25,.75)'; c.stroke(); c.restore();
+    });
+    c.restore();
+  }
+  function tintParts(c, parts, col) { parts.forEach(function (pp) { if (pp.circleRadius) { c.beginPath(); c.arc(pp.position.x, pp.position.y, pp.circleRadius, 0, 6.2832); } else path(c, pp); c.fillStyle = col; c.fill(); }); }
 
   /* ================= explosions ================= */
   function boom(x, y, R, P) {
@@ -568,6 +676,7 @@
       if (b.balloon) pops.push(b);
     });
     pops.forEach(function (b) { popFx(b); rm(b); });
+    blastDamage(x, y, R, P);
     for (var i = 0; i < f.n; i++) {   // the liquid gets thrown too
       var ex = f.x[i] - x, ey = f.y[i] - y, ed = Math.sqrt(ex * ex + ey * ey); if (ed > R) continue; f.sl[i] = 0; f.cm[i] = 0; f.gen[i] = 0;
       var ek = Math.pow(1 - ed / R, 1.2), en = ed < 1 ? 1 : ed, dv2 = P * ek * 55;
@@ -780,6 +889,387 @@
     if (type === 'change') { if (p === 't') sortKf(ini, kf); renderBoard(); }
   }
 
+  /* ================= Math tab (Phase 4) =================
+     Angle of elevation and depression, right triangles, ramps, projectiles and pendulums, with live readouts beside the real physics.
+     Scale: 100 px = 1 m. The engine takes 120 steps a second. calibrate() measures how this version of Matter.js turns a launch speed into motion, so the dotted
+     predicted path matches what the engine really does. */
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI, SPS = 1000 / STEP;
+  var MTOOL = { mangle: 1, mtri: 1, mramp: 1, mlaunch: 1, mpend: 1 };
+  var clampN = function (v, a, b) { return Math.max(a, Math.min(b, v)); };
+  var n1 = function (v) { return v.toFixed(1); }, n2 = function (v) { return v.toFixed(2); }, dg = function (v) { return v.toFixed(1) + '\u00b0'; }, mm = function (px) { return n2(px / PX_M) + ' m'; };
+  var CHN = { none: 'None', bull: 'Bullseye', speed: 'Set the speed (35\u00b0)', high: 'High ground' };
+
+  function MS() {
+    var s = S; return s.mth || (s.mth = { ideal: false, m: null, tri: { th: 35, kind: 'opp', val: 2, at: null, shown: false }, ramp: null, L: null, ang: 40, spd: 0, dir: 1, shots: [], ch: 'none', tg: null, hits: 0, pen: null, pl: 1.6, pa: 35 });
+  }
+  function mathReset() { var ms = S.mth; if (!ms) return; ms.m = null; ms.ramp = null; ms.L = null; ms.shots = []; ms.tg = null; ms.pen = null; }
+  function gms() { var s = S; return (s.cal ? s.cal.ag * SPS * SPS / PX_M : 10) * s.grav; }   // gravity in m/s^2 (the engine's own value)
+
+  /* how does this Matter.js turn setVelocity, gravity and air friction into motion per step? (measured once, on a throwaway engine) */
+  function calibrate() {
+    var out = { kv: 0.5, ag: 0.0694, q: 0.995 }, i, x1;
+    try {
+      var mkb = function (fa, g) {
+        var en = M.Engine.create(); en.gravity.y = g;
+        var bd = M.Bodies.circle(0, 0, 5, { frictionAir: fa, friction: 0, sleepThreshold: Infinity }); bd.deltaTime = STEP; M.Composite.add(en.world, bd); return { en: en, b: bd };
+      };
+      var t = mkb(0, 0); M.Body.setVelocity(t.b, { x: 1, y: 0 }); for (i = 0; i < 3; i++) M.Engine.update(t.en, STEP); out.kv = t.b.position.x / 3;
+      t = mkb(0, 1); for (i = 0; i < 20; i++) M.Engine.update(t.en, STEP); out.ag = t.b.position.y * 2 / (20 * 21);
+      t = mkb(0.01, 0); M.Body.setVelocity(t.b, { x: 1, y: 0 }); M.Engine.update(t.en, STEP); x1 = t.b.position.x; M.Engine.update(t.en, STEP); out.q = (t.b.position.x - x1) / x1;
+    } catch (er) { }
+    if (!(out.kv > 0.05 && out.kv < 5)) out.kv = 0.5;
+    if (!(out.ag > 0.01 && out.ag < 0.5)) out.ag = 0.0694;
+    if (!(out.q > 0.9 && out.q <= 1)) out.q = 0.995;
+    return out;
+  }
+
+  /* the maths */
+  function solveTri(th, kind, val) {   // a right triangle from one angle (degrees) and one side
+    var t = clampN(th, 1, 89) * D2R, hyp, opp, adj;
+    if (kind === 'hyp') { hyp = val; opp = val * Math.sin(t); adj = val * Math.cos(t); }
+    else if (kind === 'opp') { opp = val; hyp = val / Math.sin(t); adj = val / Math.tan(t); }
+    else { adj = val; hyp = val / Math.cos(t); opp = val * Math.tan(t); }
+    return { th: th, other: 90 - th, opp: opp, adj: adj, hyp: hyp };
+  }
+  function angleRead(m) {   // two points: angle of elevation (second point higher) or depression (lower)
+    var dx = m.b.x - m.a.x, dy = m.a.y - m.b.y, ax = Math.abs(dx), ay = Math.abs(dy), h = Math.hypot(dx, dy);
+    if (h < 1) return null;
+    return { dx: dx, dy: dy, adj: ax, opp: ay, hyp: h, th: Math.atan2(ay, ax) * R2D, kind: ay < 1.5 ? 'level' : dy > 0 ? 'elevation' : 'depression' };
+  }
+  function theory(ang, v, g) {   // textbook projectile, level ground, no drag
+    if (!(g > 0) || ang < 0 || !(v > 0)) return null; var t = ang * D2R;
+    return { R: v * v * Math.sin(2 * t) / g, H: v * v * Math.pow(Math.sin(t), 2) / (2 * g), T: 2 * v * Math.sin(t) / g };
+  }
+  function predict(x0, y0, vx, vy, ideal, grav, W, H, cal) {   // follows the engine's own rule each step: v = v * drag + g, then move. vx, vy in px/s
+    var q = ideal ? 1 : cal.q, a = cal.ag * grav, x = x0, y = y0, ux = vx / SPS, uy = vy / SPS, i, pts = [], apex = { x: x0, y: y0 }, land = null, rose = false;
+    for (i = 1; i <= 1600; i++) {
+      ux *= q; uy = uy * q + a; x += ux; y += uy;
+      if (y < apex.y) apex = { x: x, y: y };
+      if (y < y0 - 1) rose = true;
+      if (!land && rose && a > 0 && uy > 0 && y >= y0) land = { x: x, y: y0, t: i / SPS };
+      if (i % 3 === 0) pts.push({ x: x, y: y, after: !!land });
+      if (x < 0 || x > W || y > H - 3 || y < -200) break;
+    }
+    return { pts: pts, apex: apex, land: land };
+  }
+  function needSpeed(ang, x, y, g) {   // the speed that hits a point x m across and y m up, launched at ang degrees (no drag)
+    var t = ang * D2R, den = 2 * Math.cos(t) * Math.cos(t) * (x * Math.tan(t) - y);
+    return den > 1e-9 && g > 0 ? Math.sqrt(g * x * x / den) : null;
+  }
+
+  function yAtX(ang, v, dir, mx, my, tx) {   // where (screen y) the predicted path is when it reaches x = tx, with the engine's drag rule
+    var s = S, q = MS().ideal ? 1 : s.cal.q, a = s.cal.ag * s.grav, t = ang * D2R, ux = dir * v * PX_M * Math.cos(t) / SPS, uy = -v * PX_M * Math.sin(t) / SPS, x = mx, y = my, px, py, i;
+    for (i = 0; i < 3000; i++) {
+      px = x; py = y; ux *= q; uy = uy * q + a; x += ux; y += uy;
+      if ((x - tx) * dir >= 0) return py + (y - py) * ((tx - px) / (x - px));
+      if (y > s.H + 400 || Math.abs(ux) < 1e-4) return null;
+    }
+    return null;
+  }
+  function solveSpeed(ang, dir, mx, my, tx, ty) {   // the speed (m/s) that really hits the target with the current drag setting: bisection on the predicted path
+    var lo = 0.3, hi = 40, i, m, y;
+    for (i = 0; i < 40; i++) { m = (lo + hi) / 2; y = yAtX(ang, m, dir, mx, my, tx); if (y === null || y > ty) lo = m; else hi = m; }
+    y = yAtX(ang, hi, dir, mx, my, tx); return y !== null && Math.abs(y - ty) < 4 ? hi : null;
+  }
+
+  /* panels */
+  function mathPanels() {
+    var fr = function (label, mi, mn, mx, st, val, txt, id) { return '<div class="ph-fr"><span>' + label + '</span><input type="range" min="' + mn + '" max="' + mx + '" step="' + st + '" value="' + val + '" data-mi="' + mi + '" aria-label="' + label + '"><b class="ph-rv" id="phm-' + id + '">' + txt + '</b></div>'; };
+    var btn = function (a, label, ico) { return '<button type="button" class="ph-b" data-ma="' + a + '">' + (ico ? ic(ico, 16) : '') + '<span>' + label + '</span></button>'; };
+    var h = '<div class="ph-row ph-mrow"><button type="button" class="ph-b" data-ma="ideal" id="phm-ideal">' + ic('sliders', 16) + '<span>Real: air drag on</span></button>' + btn('mask', 'Quiz me on this', 'chat') + '</div>';
+    h += '<div class="ph-card ph-sub ph-mc" data-for="mangle" hidden><p class="ph-bn">Drag from one point to another. If the second point is higher you get the <b>angle of elevation</b>, if it is lower the <b>angle of depression</b>.</p><div id="phm-a"></div><div class="ph-rowb">' + btn('aclr', 'Clear', 'trash') + '</div></div>';
+    h += '<div class="ph-card ph-sub ph-mc" data-for="mtri" hidden><p class="ph-bn">Pick an angle and one known side. Tap the canvas to move the triangle.</p>' + fr('Angle', 'ta', 5, 85, 1, 35, '35\u00b0', 'ta-v') +
+      '<div class="ph-fr"><span>Known side</span><select class="ph-sel" data-mi="tk" aria-label="Known side"><option value="opp">Opposite</option><option value="adj">Adjacent</option><option value="hyp">Hypotenuse</option></select></div>' + fr('Length', 'tv', 0.5, 6, 0.1, 2, '2.0 m', 'tv-v') +
+      '<div id="phm-t"></div><div class="ph-rowb">' + btn('tbuild', 'Build it as a ramp', 'platform') + '</div></div>';
+    h += '<div class="ph-card ph-sub ph-mc" data-for="mramp" hidden><p class="ph-bn">Tap a ramp, plank or block to read its angle and how gravity splits along and across the slope.</p><div id="phm-r"></div></div>';
+    h += '<div class="ph-card ph-sub ph-mc" data-for="mlaunch" hidden><p class="ph-bn">Tap to place the launcher, set angle and speed, then Fire. The dotted line is the predicted path.</p>' + fr('Angle', 'la', -30, 85, 1, 40, '40\u00b0', 'la-v') + fr('Speed', 'lv', 1, 14, 0.1, 6, '6.0 m/s', 'lv-v') +
+      '<div class="ph-fr"><span>Challenge</span><select class="ph-sel" data-mi="lc" aria-label="Challenge">' + Object.keys(CHN).map(function (k) { return '<option value="' + k + '">' + CHN[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="ph-rowb">' + btn('fire', 'Fire', 'rocket') + btn('lface', 'Face: right', 'back') + btn('ltarget', 'New target', 'boom') + btn('lsolve', 'Solve it', 'info') + '</div><div id="phm-l"></div></div>';
+    h += '<div class="ph-card ph-sub ph-mc" data-for="mpend" hidden><p class="ph-bn">Tap to hang a pendulum from that point. Compare its period with the formula.</p>' + fr('Length', 'pl', 0.5, 3, 0.1, 1.6, '1.6 m', 'pl-v') + fr('Start angle', 'pa', 5, 80, 1, 35, '35\u00b0', 'pa-v') +
+      '<div class="ph-rowb">' + btn('prel', 'Release again', 'rewind') + '</div><div id="phm-p"></div></div>';
+    return h;
+  }
+  function rd(rows) { return '<div class="ph-rd">' + rows.map(function (r) { return r.length === 1 ? '<div class="hd">' + r[0] + '</div>' : '<span>' + r[0] + '</span><b>' + r[1] + '</b>'; }).join('') + '</div>'; }
+  function fm(t) { return '<div class="ph-fm">' + t + '</div>'; }
+  function setHtml(id, html) { var el = $(id); if (el && el._h !== html) { el._h = html; el.innerHTML = html; } }
+  function setTxt(id, t) { var el = $(id); if (el) el.textContent = t; }
+  function setSpd(v) { var ms = MS(), el = $('[data-mi="lv"]'); ms.spd = v; if (el) el.value = v; setTxt('#phm-lv-v', n1(v) + ' m/s'); }
+  function lockAng(on) { var el = $('[data-mi="la"]'); if (el) el.disabled = !!on; }
+  function nameOfRamp(b) { return b.kind === 'platform' ? 'Ramp' : b.kind === 'pad' ? 'Bounce pad' : nameOf(b); }
+
+  function rampRead(b) {
+    var a = ((b.angle * R2D) % 180 + 180) % 180; if (a > 90) a -= 180;
+    var th = Math.abs(a), t = th * D2R, g = gms(), mu = b.friction != null ? b.friction : 0.5, sn = Math.sin(t), cs = Math.cos(t);
+    return { th: th, sn: sn, cs: cs, tn: Math.tan(t), g: g, along: g * sn, across: g * cs, mu: mu, slide: Math.tan(t) > mu, acc: g * (sn - mu * cs), dirx: Math.cos(b.angle), diry: Math.sin(b.angle) };
+  }
+  function updMath() {
+    var s = S; if (!s || !s.eng || !MTOOL[s.tool]) return; var ms = MS(), T = s.tool, g = gms(), h, r;
+    if (T === 'mangle') {
+      r = ms.m ? angleRead(ms.m) : null;
+      if (!r) h = fm('Nothing measured yet. Drag across the canvas.');
+      else {
+        h = rd([[cap(r.kind) + ' angle \u03b8', dg(r.th)], ['Opposite (up or down)', mm(r.opp)], ['Adjacent (sideways)', mm(r.adj)], ['Hypotenuse', mm(r.hyp)], ['sin \u03b8 = opp / hyp', n2(r.opp / r.hyp)], ['cos \u03b8 = adj / hyp', n2(r.adj / r.hyp)], ['tan \u03b8 = opp / adj', r.adj < 0.5 ? '\u221e' : n2(r.opp / r.adj)]]) +
+          fm(r.kind === 'elevation' ? 'Looking up from the first point to the second: the angle of elevation.' : r.kind === 'depression' ? 'Looking down from the first point to the second: the angle of depression. It equals the angle of elevation looking back up.' : 'Level: the angle is 0\u00b0.');
+      }
+      setHtml('#phm-a', h);
+    } else if (T === 'mtri') {
+      r = solveTri(ms.tri.th, ms.tri.kind, ms.tri.val);
+      setHtml('#phm-t', rd([['Angle \u03b8 / other angle', dg(r.th) + ' / ' + dg(r.other)], ['Opposite = hyp \u00d7 sin \u03b8', n2(r.opp) + ' m'], ['Adjacent = hyp \u00d7 cos \u03b8', n2(r.adj) + ' m'], ['Hypotenuse', n2(r.hyp) + ' m'], ['tan \u03b8 = opp / adj', n2(r.opp / r.adj)]]) + fm('Pythagoras: ' + n2(r.opp) + '\u00b2 + ' + n2(r.adj) + '\u00b2 = ' + n2(r.hyp) + '\u00b2'));
+    } else if (T === 'mramp') {
+      if (!ms.ramp || ms.ramp.gone) h = fm('Nothing selected. Tap a ramp, plank or block.');
+      else {
+        r = rampRead(ms.ramp);
+        h = rd([[nameOfRamp(ms.ramp)], ['Angle \u03b8', dg(r.th)], ['sin \u03b8 / cos \u03b8', n2(r.sn) + ' / ' + n2(r.cs)], ['Along the slope: g sin \u03b8', n2(r.along) + ' m/s\u00b2'], ['Into the slope: g cos \u03b8', n2(r.across) + ' m/s\u00b2'], ['Friction number \u03bc', n2(r.mu)]]) +
+          fm(r.th < 0.5 ? 'Flat: gravity pushes straight into the surface.' : r.slide ? 'Slides: tan \u03b8 = ' + n2(r.tn) + ' is bigger than \u03bc, so a \u2248 g(sin \u03b8 \u2212 \u03bc cos \u03b8) = ' + n2(r.acc) + ' m/s\u00b2. With no friction it would be ' + n2(r.along) + ' m/s\u00b2.' : 'Holds: tan \u03b8 = ' + n2(r.tn) + ' is below \u03bc, so friction wins and things grip.');
+      }
+      setHtml('#phm-r', h);
+    } else if (T === 'mlaunch') {
+      var rows = [['Settings'], ['Angle / speed', dg(ms.ang) + ' / ' + n1(ms.spd) + ' m/s'], ['Gravity g', n1(g) + ' m/s\u00b2'], ['Air drag', ms.ideal ? 'off (ideal)' : 'on (real)']], th = theory(ms.ang, ms.spd, g);
+      rows.push(['Textbook (level ground, no drag)']);
+      if (th) rows.push(['Range R = v\u00b2 sin 2\u03b8 / g', n2(th.R) + ' m'], ['Height H = v\u00b2 sin\u00b2\u03b8 / 2g', n2(th.H) + ' m'], ['Time T = 2v sin \u03b8 / g', n2(th.T) + ' s']); else rows.push(['Needs an angle of 0\u00b0 or more and gravity', '\u2014']);
+      var last = null; ms.shots.forEach(function (q) { if (q.done) last = q; });
+      rows.push(['Measured (last shot that landed)']);
+      if (last) rows.push(['Range / height / time', n2(last.done.R) + ' m / ' + n2(last.done.H) + ' m / ' + n2(last.done.T) + ' s'], ['From', n1(last.spd) + ' m/s at ' + dg(last.ang) + (last.ideal ? ', no drag' : ', with drag')]); else rows.push(['Fire to measure', '\u2014']);
+      h = rd(rows);
+      if (ms.ch !== 'none') {
+        h += fm(!ms.L ? 'Place the launcher first, then a target appears.' : !ms.tg ? 'Press New target.' : ms.tg.hit ? 'Bullseye! Press New target for another one.' :
+          ms.ch === 'bull' ? 'Hit the target. It is ' + mm(Math.abs(ms.tg.x - ms.L.x)) + ' away at the same height. Pick any angle and speed.' :
+          ms.ch === 'speed' ? 'The angle is locked at 35\u00b0. Find the speed that hits the target ' + mm(Math.abs(ms.tg.x - ms.L.x)) + ' away. Hint: R = v\u00b2 sin 2\u03b8 / g.' :
+          'The target is at an angle of elevation of ' + dg(ms.tg.e) + ' from the launcher, ' + mm(Math.hypot(ms.tg.x - ms.L.x, ms.tg.y - ms.L.y)) + ' away. Hit it.');
+        if (ms.hits) h += '<div class="ph-bn">Targets hit this session: ' + ms.hits + '</div>';
+      }
+      if (ms.msg) h += fm(ms.msg);
+      setHtml('#phm-l', h);
+    } else if (T === 'mpend') {
+      var T0 = 2 * Math.PI * Math.sqrt(ms.pl / Math.max(0.01, g)), t0 = ms.pa * D2R, T1 = T0 * (1 + t0 * t0 / 16 + 11 * Math.pow(t0, 4) / 3072), pn = ms.pen, meas = '\u2014';
+      if (pn && pn.per.length) { var sum = 0; pn.per.forEach(function (v) { sum += v; }); meas = n2(sum / pn.per.length) + ' s'; }
+      setHtml('#phm-p', rd([['Length L', n2(ms.pl) + ' m'], ['Gravity g', n1(g) + ' m/s\u00b2'], ['Small angle: T = 2\u03c0\u221a(L/g)', g > 0 ? n2(T0) + ' s' : '\u2014'], ['With a ' + dg(ms.pa) + ' start', g > 0 ? n2(T1) + ' s' : '\u2014'], ['Measured period', meas], ['Swing now', pn && !pn.b.gone ? dg(pn.now * R2D) : '\u2014']]) + fm('The mass does not matter. Only L and g do. Turn Ideal on to remove air drag, so the swing does not fade.'));
+    }
+  }
+
+  /* pressing, dragging and the buttons */
+  function mathPress(T, p) {
+    var s = S, ms = MS(), W = s.W, H = s.H;
+    if (T === 'mangle') ms.m = { a: p, b: p, live: true };
+    else if (T === 'mtri') { ms.tri.at = { x: p.x, y: p.y }; ms.tri.shown = true; }
+    else if (T === 'mramp') { var b = bodyAt(p, false); if (b && !b.rope && !b.wall) ms.ramp = b; else { ms.ramp = null; toast('Tap a ramp, plank or block'); } }
+    else if (T === 'mlaunch') {
+      var first = !ms.L; ms.L = { x: clampN(p.x, 20, W - 20), y: clampN(p.y, 40, H - 20) };
+      if (first && !ms.spd) setSpd(clampN(Math.round(Math.sqrt(0.5 * (W / PX_M) * (gms() || 10) / Math.max(0.3, Math.sin(2 * Math.max(10, ms.ang) * D2R))) * 2) / 2, 1, 14));
+      if (ms.ch !== 'none') chTarget();
+    } else if (T === 'mpend') placePend(p);
+    updMath();
+  }
+  function mathDrag(p) { var ms = S.mth; if (ms && ms.m && ms.m.live) ms.m.b = p; }
+  function mathRelease(p) {
+    var ms = S.mth; if (!ms || !ms.m || !ms.m.live) return; ms.m.live = false; ms.m.b = p;
+    if (Math.hypot(p.x - ms.m.a.x, p.y - ms.m.a.y) < 14) { ms.m = null; toast('Drag from one point to another to measure an angle'); }
+    updMath();
+  }
+  function chTarget() {
+    var s = S, ms = MS(), L = ms.L, d = ms.dir; if (ms.ch === 'none') { ms.tg = null; return; } if (!L) { toast('Tap the canvas to place a launcher first'); return; }
+    var room = Math.max(120, d > 0 ? s.W - L.x - 36 : L.x - 36);
+    if (ms.ch === 'high') {
+      var e = (15 + rnd() * 20) * D2R, dist = Math.max(90, Math.min(room / Math.cos(e), (L.y - 50) / Math.sin(e)) * (0.6 + rnd() * 0.35));
+      ms.tg = { x: L.x + d * dist * Math.cos(e), y: L.y - dist * Math.sin(e), r: 22, e: e * R2D, hit: false };
+    } else ms.tg = { x: L.x + d * Math.max(100, room * (0.45 + rnd() * 0.4)), y: L.y, r: 22, e: 0, hit: false };
+    ms.msg = '';
+  }
+  function fireShot() {
+    var s = S, ms = MS(), L = ms.L; if (!L) { toast('Tap the canvas to place a launcher first'); return; }
+    if (full()) return; if (s.paused) togglePause();
+    var th = ms.ang * D2R, d = ms.dir, v = ms.spd * PX_M, mx = L.x + d * 24 * Math.cos(th), my = L.y - 24 * Math.sin(th);
+    var b = addB(mk('ball', mx, my, 9, 'metal')); b.deltaTime = STEP;
+    M.Body.setVelocity(b, { x: d * v * Math.cos(th) / SPS / s.cal.kv, y: -v * Math.sin(th) / SPS / s.cal.kv });
+    var sh = { b: b, x0: mx, y0: my, t0: s.tt, apexY: my, pts: [], n: 0, done: null, rose: false, ang: ms.ang, spd: ms.spd, dir: d, ideal: ms.ideal, hit: false }; b.shot = sh; ms.shots.push(sh);
+    while (ms.shots.length > 4) { var old = ms.shots.shift(); if (!old.b.gone) rm(old.b); }
+    ms.msg = '';
+  }
+  function placePend(p) {
+    var s = S, ms = MS(); if (full()) return;
+    var Lpx = ms.pl * PX_M, th = ms.pa * D2R, bx = p.x + Lpx * Math.sin(th), by = p.y + Lpx * Math.cos(th);
+    if (bx < 20 || bx > s.W - 20 || by > s.H - 20 || p.y < 10) { toast('Not enough room. Tap higher up, or make it shorter.'); return; }
+    if (ms.pen && !ms.pen.b.gone) rm(ms.pen.b);
+    var b = addB(mk('ball', bx, by, 14, 'metal')); b.deltaTime = STEP;
+    mkLink('rod', p, { x: bx, y: by }, null, b);
+    ms.pen = { px: p.x, py: p.y, b: b, th0: th, prev: th, now: th, lastUp: null, per: [] };
+  }
+  function mathAsk() {
+    var s = S, ms = MS(), T = s.tool, g = n1(gms()), r, t;
+    if (T === 'mangle' && ms.m && (r = angleRead(ms.m))) t = 'In the Spectra physics lab I measured an angle of ' + r.kind + ' of ' + dg(r.th) + ': opposite ' + mm(r.opp) + ', adjacent ' + mm(r.adj) + ', hypotenuse ' + mm(r.hyp) + ', so sin = ' + n2(r.opp / r.hyp) + ', cos = ' + n2(r.adj / r.hyp) + '. Explain angle of elevation versus depression and SOH CAH TOA with this example, then quiz me.';
+    else if (T === 'mtri') { r = solveTri(ms.tri.th, ms.tri.kind, ms.tri.val); t = 'I solved a right triangle in the Spectra physics lab: angle ' + dg(r.th) + ', opposite ' + n2(r.opp) + ' m, adjacent ' + n2(r.adj) + ' m, hypotenuse ' + n2(r.hyp) + ' m. Show how sin, cos and tan give each side, and quiz me.'; }
+    else if (T === 'mramp' && ms.ramp && !ms.ramp.gone) { r = rampRead(ms.ramp); t = 'I measured a ramp at ' + dg(r.th) + ' in the Spectra physics lab: g sin \u03b8 = ' + n2(r.along) + ' m/s\u00b2 along the slope and g cos \u03b8 = ' + n2(r.across) + ' m/s\u00b2 into it, with friction number ' + n2(r.mu) + '. Explain how gravity splits on a slope and when something slides, then quiz me.'; }
+    else if (T === 'mlaunch' && ms.L) {
+      var th = theory(ms.ang, ms.spd, gms()), last = null; ms.shots.forEach(function (q) { if (q.done) last = q; });
+      t = 'In the Spectra physics lab I launched a ball at ' + dg(ms.ang) + ' and ' + n1(ms.spd) + ' m/s with g = ' + g + ' m/s\u00b2 and air drag ' + (ms.ideal ? 'off' : 'on') + '. ' + (th ? 'Textbook range ' + n2(th.R) + ' m, height ' + n2(th.H) + ' m, time ' + n2(th.T) + ' s. ' : '') +
+        (last ? 'I measured range ' + n2(last.done.R) + ' m, height ' + n2(last.done.H) + ' m, time ' + n2(last.done.T) + ' s. ' : '') + 'Explain projectile motion, why drag changes the result, why 45\u00b0 gives the longest range on level ground, and quiz me.';
+    } else if (T === 'mpend' && ms.pen) {
+      var per = ms.pen.per.length ? ms.pen.per[ms.pen.per.length - 1] : null;
+      t = 'In the Spectra physics lab I hung a pendulum of length ' + n2(ms.pl) + ' m with g = ' + g + ' m/s\u00b2. The formula T = 2\u03c0\u221a(L/g) gives ' + n2(2 * Math.PI * Math.sqrt(ms.pl / Math.max(0.01, gms()))) + ' s' + (per ? ' and I measured ' + n2(per) + ' s' : '') + '. Explain why the mass does not matter and what changes with a bigger angle, then quiz me.';
+    } else t = 'Teach me angle of elevation and depression, SOH CAH TOA, projectile motion and pendulums using a physics sandbox with a launcher, ramps and a pendulum. Use simple examples and a short quiz at the end.';
+    if (O.onAsk) O.onAsk(t);
+  }
+  function syncIdeal() {
+    var ms = MS(), b = $('#phm-ideal'); if (!b) return; b.classList.toggle('on', ms.ideal); var sp = b.querySelector('span'); if (sp) sp.textContent = ms.ideal ? 'Ideal: no air drag' : 'Real: air drag on';
+  }
+  function mathAct(a) {
+    var s = S, ms = MS(), r;
+    if (a === 'ideal') { ms.ideal = !ms.ideal; syncIdeal(); toast(ms.ideal ? 'Ideal: no air drag. The textbook formulas now match.' : 'Real: air slows things down'); }
+    else if (a === 'mask') mathAsk();
+    else if (a === 'aclr') ms.m = null;
+    else if (a === 'fire') fireShot();
+    else if (a === 'lface') { ms.dir = -ms.dir; var b = $('[data-ma="lface"] span'); if (b) b.textContent = 'Face: ' + (ms.dir > 0 ? 'right' : 'left'); if (ms.ch !== 'none') chTarget(); }
+    else if (a === 'ltarget') { if (ms.ch === 'none') { ms.ch = 'bull'; var sel = $('[data-mi="lc"]'); if (sel) sel.value = 'bull'; } chTarget(); }
+    else if (a === 'lsolve') {
+      if (!ms.L || !ms.tg) { ms.msg = 'Pick a challenge and place the launcher first.'; }
+      else {
+        var tq = ms.ang * D2R, mx0 = ms.L.x + ms.dir * 24 * Math.cos(tq), my0 = ms.L.y - 24 * Math.sin(tq), x = (ms.tg.x - mx0) * ms.dir / PX_M, y = (my0 - ms.tg.y) / PX_M, vf = needSpeed(ms.ang, x, y, gms());
+        var v = ms.ideal ? vf : solveSpeed(ms.ang, ms.dir, mx0, my0, ms.tg.x, ms.tg.y);
+        if (v == null) ms.msg = 'At ' + dg(ms.ang) + ' the ball cannot reach that target' + (ms.ideal ? '' : ' with air drag on') + '. Try a steeper angle' + (ms.ideal ? '.' : ' or turn Ideal on.');
+        else if (v > 14) ms.msg = 'That needs ' + n1(v) + ' m/s but the slider stops at 14. Try a steeper angle.';
+        else {
+          setSpd(clampN(Math.round(v * 10) / 10, 1, 14));
+          ms.msg = ms.ideal ? 'v\u00b2 = g x\u00b2 / (2 cos\u00b2\u03b8 (x tan \u03b8 \u2212 y)) with x = ' + n2(x) + ' m, y = ' + n2(y) + ' m gives v = ' + n2(v) + ' m/s. I set the speed.' :
+            'With air drag on, the engine needs ' + n2(v) + ' m/s' + (vf ? ' (the no-drag formula says ' + n2(vf) + ' m/s)' : '') + '. I set the speed. Turn Ideal on to use the textbook formula.';
+        }
+      }
+    } else if (a === 'tbuild') {
+      var q = solveTri(ms.tri.th, ms.tri.kind, ms.tri.val), g = triGeom(q);
+      var rb = mkPlatform(g.A, g.B, 'platform'); ms.ramp = rb; ms.tri.shown = false; setTool('mramp'); toast('Ramp built at ' + dg(q.th) + '. The ramp meter is reading it.');
+    } else if (a === 'prel') { if (ms.pen) placePend({ x: ms.pen.px, y: ms.pen.py }); else toast('Tap the canvas to hang a pendulum'); }
+    updMath();
+  }
+  function mathIn(t) {
+    var ms = MS(), k = t.dataset.mi, v = +t.value;
+    if (k === 'ta') { ms.tri.th = v; setTxt('#phm-ta-v', v + '\u00b0'); ms.tri.shown = true; }
+    else if (k === 'tk') { ms.tri.kind = t.value; ms.tri.shown = true; }
+    else if (k === 'tv') { ms.tri.val = v; setTxt('#phm-tv-v', n1(v) + ' m'); ms.tri.shown = true; }
+    else if (k === 'la') { ms.ang = v; setTxt('#phm-la-v', v + '\u00b0'); }
+    else if (k === 'lv') { ms.spd = v; setTxt('#phm-lv-v', n1(v) + ' m/s'); }
+    else if (k === 'lc') {
+      ms.ch = t.value; lockAng(ms.ch === 'speed'); if (ms.ch === 'speed') { ms.ang = 35; var ai = $('[data-mi="la"]'); if (ai) ai.value = 35; setTxt('#phm-la-v', '35\u00b0'); }
+      if (ms.ch === 'none') ms.tg = null; else chTarget();
+    } else if (k === 'pl') { ms.pl = v; setTxt('#phm-pl-v', n1(v) + ' m'); }
+    else if (k === 'pa') { ms.pa = v; setTxt('#phm-pa-v', v + '\u00b0'); }
+    updMath();
+  }
+
+  /* every physics step: follow shots and the pendulum, check targets */
+  function mathTick(dt) {
+    var s = S, ms = s.mth; if (!ms) return; var tg = ms.tg;
+    ms.shots = ms.shots.filter(function (sh) { return !sh.b.gone; });
+    ms.shots.forEach(function (sh) {
+      var b = sh.b, p = b.position; sh.n++; if (p.y < sh.apexY) sh.apexY = p.y; if (sh.n % 4 === 0 && sh.pts.length < 400) sh.pts.push({ x: p.x, y: p.y });
+      if (!sh.done && s.grav > 0) {
+        if (p.y < sh.y0 - 1) sh.rose = true;
+        if (sh.rose && p.y >= sh.y0 && p.y - b.positionPrev.y > 0) sh.done = { R: (p.x - sh.x0) * sh.dir / PX_M, H: (sh.y0 - sh.apexY) / PX_M, T: (s.tt - sh.t0) / 1000 };
+      }
+      if (tg && !tg.hit && !sh.hit && Math.hypot(p.x - tg.x, p.y - tg.y) < tg.r + 9) {
+        tg.hit = true; sh.hit = true; ms.hits++; toast('Bullseye!');
+        for (var q = 0; q < 26; q++) { var an = rnd() * 6.2832, sp = 1.5 + rnd() * 3.5; s.fx.push({ t: 'sp', x: tg.x, y: tg.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, l: 1, dec: 0.004, c: rnd() < 0.5 ? '#22c55e' : '#facc15' }); }
+      }
+    });
+    var pn = ms.pen; if (pn && !pn.b.gone) {
+      var th = Math.atan2(pn.b.position.x - pn.px, pn.b.position.y - pn.py);
+      if (pn.prev < 0 && th >= 0 && th - pn.prev > 1e-6) {
+        var tc = s.tt - dt * th / (th - pn.prev); if (pn.lastUp != null) { pn.per.push((tc - pn.lastUp) / 1000); if (pn.per.length > 4) pn.per.shift(); } pn.lastUp = tc;
+      }
+      pn.prev = th; pn.now = th;
+    }
+  }
+
+  /* drawing */
+  function mPill(c, x, y, text, bg) {
+    c.save(); c.font = '700 11.5px Inter,sans-serif'; var w = c.measureText(text).width + 14, rx = clampN(x - w / 2, 4, S.W - w - 4), ry = clampN(y - 10, 4, S.H - 24);
+    c.fillStyle = bg || 'rgba(15,23,42,.88)'; c.beginPath(); if (c.roundRect) c.roundRect(rx, ry, w, 20, 10); else c.rect(rx, ry, w, 20); c.fill();
+    c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, rx + w / 2, ry + 10.5); c.restore();
+  }
+  function mArrow(c, x0, y0, x1, y1, col, w) {
+    var a = Math.atan2(y1 - y0, x1 - x0), hl = 9; c.save(); c.strokeStyle = col; c.fillStyle = col; c.lineWidth = w || 3; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1 - Math.cos(a) * 4, y1 - Math.sin(a) * 4); c.stroke();
+    c.beginPath(); c.moveTo(x1, y1); c.lineTo(x1 - hl * Math.cos(a - 0.45), y1 - hl * Math.sin(a - 0.45)); c.lineTo(x1 - hl * Math.cos(a + 0.45), y1 - hl * Math.sin(a + 0.45)); c.closePath(); c.fill(); c.restore();
+  }
+  function triGeom(q) {   // where the solved triangle sits on the canvas: A (the angle), C (the right angle), B (the top). Drawn smaller if it does not fit.
+    var s = S, ms = MS(), W = s.W, H = s.H, k = Math.min(1, (W - 70) / Math.max(1, q.adj * PX_M), (H - 100) / Math.max(1, q.opp * PX_M)), w = q.adj * PX_M * k, h = q.opp * PX_M * k, at = ms.tri.at || { x: 40, y: H - 36 };
+    var ax = clampN(at.x, 30, Math.max(30, W - w - 30)), ay = clampN(at.y, h + 40, H - 24);
+    return { A: { x: ax, y: ay }, C: { x: ax + w, y: ay }, B: { x: ax + w, y: ay - h }, k: k };
+  }
+  function drawMath(c) {
+    var s = S, ms = s.mth; if (!ms) return; var onM = s.cat === 'math', T = s.tool, i;
+    /* shots: trails and where they landed */
+    ms.shots.forEach(function (sh) {
+      c.fillStyle = 'rgba(124,92,255,.55)'; sh.pts.forEach(function (p) { c.beginPath(); c.arc(p.x, p.y, 1.8, 0, 6.2832); c.fill(); });
+      if (sh.done) { var lx = sh.x0 + sh.dir * sh.done.R * PX_M; c.beginPath(); c.arc(lx, sh.y0, 5, 0, 6.2832); c.lineWidth = 2; c.strokeStyle = '#22c55e'; c.stroke(); }
+    });
+    if (!onM) return;
+    /* angle of elevation and depression */
+    if (ms.m) {
+      var r = angleRead(ms.m), A = ms.m.a, B = ms.m.b;
+      if (r) {
+        var col = r.kind === 'elevation' ? '#22c55e' : r.kind === 'depression' ? '#f97316' : '#94a3b8', sx = r.dx >= 0 ? 1 : -1, base = r.dx >= 0 ? 0 : Math.PI, ang = Math.atan2(B.y - A.y, B.x - A.x);
+        c.save(); c.lineWidth = 2; c.strokeStyle = 'rgba(100,116,139,.9)'; c.setLineDash([6, 5]);
+        c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.setLineDash([]);
+        c.strokeStyle = col; c.lineWidth = 3.5; c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+        c.lineWidth = 3; c.beginPath(); c.arc(A.x, A.y, Math.min(40, r.hyp * 0.45), base, ang, (r.dx >= 0) === (r.dy > 0)); c.stroke();
+        if (r.adj > 18 && r.opp > 18) { c.strokeStyle = 'rgba(100,116,139,.9)'; c.lineWidth = 1.5; c.strokeRect(B.x - sx * 10, A.y, sx * 10, r.dy > 0 ? -10 : 10); }
+        [A, B].forEach(function (p) { c.beginPath(); c.arc(p.x, p.y, 6, 0, 6.2832); c.fillStyle = col; c.fill(); c.lineWidth = 2; c.strokeStyle = '#fff'; c.stroke(); });
+        c.restore();
+        mPill(c, A.x + sx * 62, A.y + (r.dy > 0 ? -20 : 20), (r.kind === 'level' ? 'Level ' : cap(r.kind) + ' ') + dg(r.th), col === '#94a3b8' ? undefined : (r.kind === 'elevation' ? 'rgba(21,128,61,.92)' : 'rgba(194,65,12,.92)'));
+        if (r.adj > 60) mPill(c, (A.x + B.x) / 2, A.y + (r.dy > 0 ? 16 : -16), 'adj ' + mm(r.adj));
+        if (r.opp > 40) mPill(c, B.x + sx * 34, (A.y + B.y) / 2, 'opp ' + mm(r.opp));
+        mPill(c, (A.x + B.x) / 2 - sx * 44, (A.y + B.y) / 2 - (r.dy > 0 ? 14 : -14), 'hyp ' + mm(r.hyp));
+      }
+    }
+    /* the right triangle */
+    if (ms.tri.shown || T === 'mtri') {
+      var q = solveTri(ms.tri.th, ms.tri.kind, ms.tri.val), g = triGeom(q), tA = g.A, tB = g.B, tC = g.C;
+      c.save(); c.beginPath(); c.moveTo(tA.x, tA.y); c.lineTo(tC.x, tC.y); c.lineTo(tB.x, tB.y); c.closePath(); c.fillStyle = 'rgba(124,92,255,.16)'; c.fill(); c.lineWidth = 3; c.strokeStyle = '#7c5cff'; c.stroke();
+      c.lineWidth = 1.5; c.strokeStyle = '#7c5cff'; c.strokeRect(tC.x - 11, tC.y - 11, 11, 11);
+      c.lineWidth = 2.5; c.beginPath(); c.arc(tA.x, tA.y, Math.min(34, (tC.x - tA.x) * 0.5), 0, -q.th * D2R, true); c.stroke(); c.restore();
+      mPill(c, tA.x + 62, tA.y - 14, dg(q.th)); mPill(c, (tA.x + tC.x) / 2, tA.y + 15, 'adj ' + n2(q.adj) + ' m'); mPill(c, tC.x + 36, (tB.y + tC.y) / 2, 'opp ' + n2(q.opp) + ' m');
+      mPill(c, (tA.x + tB.x) / 2 - 36, (tA.y + tB.y) / 2 - 8, 'hyp ' + n2(q.hyp) + ' m'); mPill(c, tB.x - 6, tB.y - 14, dg(q.other));
+      if (g.k < 1) mPill(c, tA.x + 90, tA.y - (tA.y - tB.y) - 30, 'drawn smaller to fit');
+    }
+    /* the ramp meter */
+    if (ms.ramp && !ms.ramp.gone) {
+      var b = ms.ramp, rr = rampRead(b), p = b.position, dx = rr.dirx, dy = rr.diry; if (dy < 0) { dx = -dx; dy = -dy; }
+      var nx = dy, ny = -dx, ox = p.x + nx * 22, oy = p.y + ny * 22, sc = 5;
+      c.save(); c.lineWidth = 3; c.strokeStyle = '#7c5cff'; c.setLineDash([7, 5]); partsOf(b).forEach(function (pt) { if (pt.circleRadius) { c.beginPath(); c.arc(pt.position.x, pt.position.y, pt.circleRadius + 3, 0, 6.2832); } else path(c, pt); c.stroke(); }); c.setLineDash([]);
+      c.strokeStyle = 'rgba(100,116,139,.9)'; c.lineWidth = 1.5; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(p.x - 70, p.y); c.lineTo(p.x + 70, p.y); c.stroke(); c.setLineDash([]); c.restore();
+      mArrow(c, ox, oy, ox, oy + sc * rr.g * 1.1, '#64748b', 2.5);                      // gravity, straight down
+      mArrow(c, ox, oy, ox + dx * sc * rr.along * 1.1, oy + dy * sc * rr.along * 1.1, '#f97316', 3.5);   // along the slope
+      mArrow(c, ox, oy, ox - nx * sc * rr.across * 1.1, oy - ny * sc * rr.across * 1.1, '#22c55e', 3.5);  // into the slope
+      mPill(c, ox + 38, oy + sc * rr.g * 1.1 + 4, 'g', 'rgba(71,85,105,.92)'); mPill(c, ox + dx * sc * rr.along * 1.1 + 52, oy + dy * sc * rr.along * 1.1 + 8, 'g sin \u03b8 = ' + n1(rr.along), 'rgba(194,65,12,.92)');
+      mPill(c, ox - nx * sc * rr.across * 1.1 - 50, oy - ny * sc * rr.across * 1.1 + 22, 'g cos \u03b8 = ' + n1(rr.across), 'rgba(21,128,61,.92)'); mPill(c, p.x - 52, p.y - 14, dg(rr.th));
+    }
+    /* the launcher, its predicted path, and the target */
+    if (ms.L) {
+      var L = ms.L, th = ms.ang * D2R, d = ms.dir, mx = L.x + d * 24 * Math.cos(th), my = L.y - 24 * Math.sin(th);
+      if (s.cal) {
+        var pr = predict(mx, my, d * ms.spd * PX_M * Math.cos(th), -ms.spd * PX_M * Math.sin(th), ms.ideal, s.grav, s.W, s.H, s.cal);
+        pr.pts.forEach(function (pt) { c.beginPath(); c.arc(pt.x, pt.y, pt.after ? 1.6 : 2.3, 0, 6.2832); c.fillStyle = pt.after ? 'rgba(148,163,184,.7)' : 'rgba(124,92,255,.95)'; c.fill(); });
+        if (pr.land) { c.beginPath(); c.arc(pr.land.x, pr.land.y, 6, 0, 6.2832); c.lineWidth = 2; c.strokeStyle = '#7c5cff'; c.stroke(); mPill(c, pr.land.x, pr.land.y + 20, 'lands ' + n2(Math.abs(pr.land.x - mx) / PX_M) + ' m'); }
+        if (pr.apex.y < my - 8) { c.beginPath(); c.moveTo(pr.apex.x - 8, pr.apex.y); c.lineTo(pr.apex.x + 8, pr.apex.y); c.lineWidth = 2; c.strokeStyle = '#7c5cff'; c.stroke(); mPill(c, pr.apex.x, pr.apex.y - 16, 'top ' + n2((my - pr.apex.y) / PX_M) + ' m'); }
+      }
+      c.save(); c.translate(L.x, L.y); c.lineWidth = 1.5; c.strokeStyle = 'rgba(100,116,139,.9)'; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(0, 0); c.lineTo(d * 56, 0); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.arc(0, 0, 34, d > 0 ? 0 : Math.PI, d > 0 ? -th : Math.PI + th, d > 0 ? th > 0 : th < 0); c.lineWidth = 2.5; c.strokeStyle = '#7c5cff'; c.stroke();
+      c.rotate(d > 0 ? -th : Math.PI + th); c.fillStyle = '#334155'; c.strokeStyle = '#0f172a'; c.lineWidth = 2; c.beginPath(); c.rect(0, -6, 30, 12); c.fill(); c.stroke(); c.restore();
+      c.beginPath(); c.arc(L.x, L.y, 12, 0, 6.2832); c.fillStyle = '#475569'; c.fill(); c.lineWidth = 2; c.strokeStyle = '#0f172a'; c.stroke(); mPill(c, L.x + d * 52, L.y - 18 * (th >= 0 ? 1 : -1) - 4, dg(ms.ang));
+    }
+    if (ms.tg) {
+      var t = ms.tg, ok = t.hit; c.save(); c.translate(t.x, t.y);
+      [t.r, t.r * 0.66, t.r * 0.33].forEach(function (rad, k) { c.beginPath(); c.arc(0, 0, rad, 0, 6.2832); c.fillStyle = ok ? (k % 2 ? '#bbf7d0' : '#22c55e') : (k % 2 ? '#ffffff' : '#ef4444'); c.fill(); c.lineWidth = 1.5; c.strokeStyle = 'rgba(0,0,0,.35)'; c.stroke(); }); c.restore();
+      if (ms.L && ms.ch === 'high') { c.save(); c.setLineDash([4, 5]); c.strokeStyle = 'rgba(100,116,139,.8)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(ms.L.x, ms.L.y); c.lineTo(t.x, t.y); c.stroke(); c.restore(); mPill(c, (ms.L.x + t.x) / 2, (ms.L.y + t.y) / 2 - 14, 'elevation ' + dg(t.e)); }
+    }
+    /* the pendulum */
+    if (ms.pen && !ms.pen.b.gone) {
+      var pn = ms.pen, bp = pn.b.position, ang2 = Math.atan2(bp.x - pn.px, bp.y - pn.py), len = Math.hypot(bp.x - pn.px, bp.y - pn.py), rad = Math.min(46, len * 0.5);
+      c.save(); c.setLineDash([5, 5]); c.strokeStyle = 'rgba(100,116,139,.9)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(pn.px, pn.py); c.lineTo(pn.px, pn.py + len + 18); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.arc(pn.px, pn.py, rad, Math.PI / 2, Math.PI / 2 - ang2, ang2 > 0); c.lineWidth = 2.5; c.strokeStyle = '#7c5cff'; c.stroke(); c.restore();
+      mPill(c, pn.px + (ang2 >= 0 ? 1 : -1) * 40, pn.py + rad + 10, dg(Math.abs(ang2) * R2D));
+    }
+  }
+
   /* ================= scenes ================= */
   function scene(name) {
     var s = S; if (!s.eng) return; clearAll(); var W = s.W, H = s.H, i, j, pw, x0, x1;
@@ -841,9 +1331,10 @@
   function pos(e) { var r = S.cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
   var INSTANT = { box: 1, ball: 1, tri: 1, hex: 1, plank: 1, wheel: 1, faucet: 1, bomb: 1, tnt: 1, balloon: 1, rocket: 1, boom: 1, motor: 1, pin: 1, node: 1 };   // tools that act the moment you press
   var NOHOLD = { water: 1, magnet: 1, erase: 1 };   // tools where holding means something else
-  function holdTarget(p) { var b = bodyAt(p, false); return b && !b.rope && !b.wall ? b : null; }
+  function holdTarget(p) { var b = bodyAt(p, false); return b && !b.rope && !b.wall && !b.frag ? b : null; }
   function act(T, p) {
     var s = S;
+    if (MTOOL[T]) { mathPress(T, p); return; }
     if (T === 'drag') {
       var b = bodyAt(p, true) || nodeAt(p, 16);
       if (b) {
@@ -893,6 +1384,7 @@
     if (s.hold && Math.hypot(p.x - s.hold.x, p.y - s.hold.y) > 10) { clearTimeout(s.hold.id); s.hold = null; }
     if (s.grab) s.grab.pointA = { x: p.x, y: p.y };
     else if (s.tool === 'erase') eraseAt(p);
+    else if (s.tool === 'mangle') mathDrag(p);
   }
   function up(e) {
     var s = S; if (!s || e.pointerId !== s.pid) return; var p = pos(e), T = s.tool;
@@ -901,6 +1393,7 @@
     if (s.hold) { clearTimeout(s.hold.id); s.hold = null; }
     if (s.held) { s.held = false; s.pend = null; return; }   // the hold opened the menu: nothing else happens on release
     if (s.pend) { var f = s.pend; s.pend = null; if (e.type !== 'pointercancel') f(); }
+    if (T === 'mangle') mathRelease(p);
     if (s.tap) { var tp = s.tap; s.tap = null; if (tp.b && !tp.b.gone && e.type !== 'pointercancel' && performance.now() - tp.t < 400 && Math.hypot(p.x - tp.x, p.y - tp.y) < 10) flipToggles(tp.b); }   // a quick tap with Grab flips a Toggle
     if (s.grab) { M.Composite.remove(s.world, s.grab); s.grab = null; s.cv.style.cursor = 'grab'; }
     if (s.line) {
@@ -1000,7 +1493,7 @@
       var rel = m ? m.d / 0.001 : 0;
       h += '<section class="ph-bs"><h4>Material stats</h4><div class="ph-sg">' +
         '<div class="ph-sr"><span>Density</span><em></em><b>' + (m ? Math.round(m.d * 1e6) + ' kg/m\u00b3 \u00b7 ' + (rel < 0.995 ? 'floats' : rel > 1.005 ? 'sinks' : 'hovers') : 'n/a') + '</b></div>' +
-        bar(p.hpMax ? p.hp / p.hpMax : 0, 'Health', p.hpMax ? p.hp + ' / ' + p.hpMax : 'n/a') +
+        '<div id="phhp">' + hpBar(b) + '</div>' +
         '<div class="ph-sr"><span>Bounciness</span><input type="range" min="0" max="1.2" step="0.01" value="' + b.restitution.toFixed(2) + '" data-bp="restitution" aria-label="Bounciness"><b id="phv-restitution">' + b.restitution.toFixed(2) + '</b></div>' +
         '<div class="ph-sr"><span>Friction</span><input type="range" min="0" max="1.5" step="0.01" value="' + b.friction.toFixed(2) + '" data-bp="friction" aria-label="Friction"><b id="phv-friction">' + b.friction.toFixed(2) + '</b></div>' +
         '<div class="ph-sr"><span>Size</span><em></em><b>' + sizeText(b) + '</b></div></div>' +
@@ -1044,7 +1537,7 @@
   var bar = function (v, label, txt) { return '<div class="ph-sr"><span>' + label + '</span><div class="ph-bar"><i style="width:' + Math.max(3, Math.min(100, v * 100)).toFixed(0) + '%"></i></div><b>' + txt + '</b></div>'; };
   function statsHtml(id) {
     var m = MAT[id] || MAT.wood, rel = m.d / 0.001, fl = [];
-    if (m.flam) fl.push('Flammable'); if (m.mag) fl.push('Magnetic'); if (m.lava) fl.push('Lava-proof'); if (m.melts) fl.push('Melts');
+    if (m.flam) fl.push('Flammable'); if (m.mag) fl.push('Magnetic'); if (m.lava) fl.push('Lava-proof'); if (m.melts) fl.push('Melts'); if (m.smelt) fl.push('Melts in lava');
     return '<div class="ph-sh"><s style="--c:' + m.c + '"></s><div><b>' + m.n + '</b><span>' + m.note + '</span></div></div><div class="ph-sg">' +
       '<div class="ph-sr"><span>Density</span><em></em><b>' + Math.round(m.d * 1e6) + ' kg/m\u00b3 \u00b7 ' + (rel < 0.995 ? 'floats on water' : rel > 1.005 ? 'sinks in water' : 'hovers in water') + '</b></div>' +
       bar(m.r / 0.9, 'Bounciness', m.r.toFixed(2)) + bar(m.f / 1.3, 'Friction', m.f.toFixed(2)) + bar(Math.sqrt(m.hp / 1500), 'Max health', String(m.hp)) + '</div>' +
@@ -1067,8 +1560,9 @@
     var s = S; if (!s) return; s.paused = !s.paused; var b = $('#phpa'); if (b) b.innerHTML = ic(s.paused ? 'play' : 'pause', 16) + '<span>' + (s.paused ? 'Play' : 'Pause') + '</span>';
   }
   function onClick(e) {
-    var s = S; if (!s) return; var b = e.target.closest('[data-pc],[data-pt],[data-pm],[data-pf],[data-pa],[data-sc],[data-mn],[data-bd],[data-pi]'); if (!b) return;
-    if (b.dataset.pc) setCat(b.dataset.pc);
+    var s = S; if (!s) return; var b = e.target.closest('[data-pc],[data-pt],[data-pm],[data-pf],[data-pa],[data-sc],[data-mn],[data-bd],[data-pi],[data-ma]'); if (!b) return;
+    if (b.dataset.ma) mathAct(b.dataset.ma);
+    else if (b.dataset.pc) setCat(b.dataset.pc);
     else if (b.dataset.pt) setTool(b.dataset.pt);
     else if (b.dataset.pm) { s.mat = b.dataset.pm; S.root.querySelectorAll('.ph-m[data-pm]').forEach(function (m) { m.classList.toggle('on', m.dataset.pm === s.mat); }); refreshStats(); }
     else if (b.dataset.pf !== undefined) { s.fluid = +b.dataset.pf; S.root.querySelectorAll('.ph-m[data-pf]').forEach(function (m) { m.classList.toggle('on', +m.dataset.pf === s.fluid); }); if (s.tool !== 'water' && s.tool !== 'faucet') setTool('water'); }
@@ -1085,12 +1579,14 @@
   }
   function onChange(e) {
     var s = S; if (!s) return; var t = e.target;
-    if (t.id === 'phsz') s.size = +t.value;
+    if (t.id === 'phbr') { s.brk = !!t.checked; try { localStorage.setItem('sa.phys.brk', s.brk ? '1' : '0'); } catch (x) { } if (e.type === 'change') toast(s.brk ? 'Blocks can crack and break' : 'Blocks are unbreakable (the older burning rules apply)'); }
+    else if (t.id === 'phsz') s.size = +t.value;
     else if (t.id === 'phg' && e.type === 'change') { s.grav = GRAV[+t.value][1]; if (s.eng) s.eng.gravity.y = s.grav; if (s.fl) s.fl.wakeAll(); }
     else if (t.id === 'phsp' && e.type === 'change') s.speed = +t.value;
     else if (t.dataset && t.dataset.bp && s.sel && !s.sel.gone) setBodyProp(s.sel, t.dataset.bp, +t.value);
     else if (t.dataset && t.dataset.fld && s.sel && !s.sel.gone) setField(t, e.type);
     else if (t.dataset && t.dataset.kp && s.sel && !s.sel.gone) setKf(t, e.type);
+    else if (t.dataset && t.dataset.mi) mathIn(t);
   }
 
   /* ================= simulation ================= */
@@ -1101,7 +1597,7 @@
       if (b.wall) return;
       (b.parts.length > 1 ? b.parts.slice(1) : [b]).forEach(function (p) {
         var bb = p.bounds; if (bb.max.x < x0 - 6 || bb.min.x > x1 + 6 || bb.max.y < y0 - 6 || bb.min.y > y1 + 6) return;
-        var o = { b: b, k: 0, x0: bb.min.x, y0: bb.min.y, x1: bb.max.x, y1: bb.max.y, fx: 0, fy: 0, cx: 0, cy: 0, cnt: 0, hot: 0, nof: !!b.rope };
+        var o = { b: b, k: 0, x0: bb.min.x, y0: bb.min.y, x1: bb.max.x, y1: bb.max.y, fx: 0, fy: 0, cx: 0, cy: 0, cnt: 0, hot: 0, wet: 0, nof: !!b.rope };
         if (p.circleRadius) { o.x = p.position.x; o.y = p.position.y; o.r = p.circleRadius; }
         else {
           var v = p.vertices, n = v.length, nx = [], ny = [], nd = [], e;
@@ -1126,7 +1622,7 @@
     s.tt += dt;
     bodies.forEach(function (b) {
       if (b.wall || b.isStatic) return;
-      b.frictionAir = b.fa0 || 0.01;
+      b.frictionAir = (s.mth && s.mth.ideal && !b.balloon) ? 0 : (b.fa0 || 0.01);   // Ideal mode (Math tab): no air drag
       if (b.bomb) { b.bomb.t -= dt; if (b.bomb.t <= 0) acts.push(['boom', b, 190, 30]); }
       if (b.tnt && b.fuse != null) { b.fuse -= dt; if (b.fuse <= 0) acts.push(['boom', b, 170, 27]); }
       if (b.balloon) b.force.y -= b.area * 0.00055 * g;   // lighter than air: lift grows with size
@@ -1173,6 +1669,7 @@
           b.frictionAir = (b.fa0 || 0.01) + Math.min(o.cnt, 14) * 0.004;
         }
         if (o.hot) { b.heat = (b.heat || 0) + dtm * Math.min(1, o.hot / 5) * 1.4; hotSet.push(b); }
+        if (o.wet && b.heat > 0) b.heat = Math.max(0, b.heat - dtm * Math.min(1, o.wet / 4) * 1.2);   // water cools things down
       });
       hotSet.forEach(function (b) {
         if (b.gone) return; var h = b.heat, x = b.position.x, y = b.position.y;
@@ -1181,11 +1678,14 @@
         else if (b.tnt) { if (b.fuse == null) b.fuse = 80; }
         else if (b.bomb) { b.bomb.t = Math.min(b.bomb.t, 100); }
         else if (hasMat(b, 'melts')) { if (h > 700) { var cnt = Math.min(26, Math.round((b.area || 900) / 55)), q; for (q = 0; q < cnt; q++) emit(x + (rnd() - 0.5) * 14, y + (rnd() - 0.5) * 14, (rnd() - 0.5) * 80, 0, 0); burnFx(x, y); rm(b); } }
-        else if (hasMat(b, 'flam') || b.kind === 'wheelx') { if (h > 1200) { burnFx(x, y); rm(b); } }
+        else if ((hasMat(b, 'flam') && !(brkOn() && isBreakable(b))) || b.kind === 'wheelx') { if (h > 1200) { burnFx(x, y); rm(b); } }
       });
     }
+    bodies.forEach(function (b) { if (b.wall || b.gone || !(b.heat > 0)) return; if (b.isStatic) b.heat = Math.max(0, b.heat - dt * 0.4); heatFx(b, dt); });
+    fragTick(dt);
     moversStep(bodies, dt);
     M.Engine.update(s.eng, dt);
+    mathTick(dt);
   }
   /* ---- far-field ripples: a cheap 1D wave on the water surface, so a splash sends ripples across the whole screen even though the water far away is asleep ---- */
   function waveStep() {
@@ -1240,6 +1740,7 @@
     var dt = Math.min(50, t - (s.last || t)); s.last = t; s.frame++;
     if (s.sel && s.sel.gone) closeBoard(); if (s.mt && s.mt.gone) closeMenu();
     if (s.sel && s.frame % 3 === 0) updPlayheads();
+    if (s.sel && !s.sel.gone && s.frame % 10 === 0) { var hpEl = $('#phhp'); if (hpEl) hpEl.innerHTML = hpBar(s.sel); }
     if (s.frame % 90 === 1) colors();
     if (!s.paused) {
       s.acc += dt * s.speed; var n = 0, t0 = performance.now(), cut = false;
@@ -1250,7 +1751,8 @@
       fxTick(dt * s.speed);
     }
     draw();
-    if (s.frame % 20 === 0) { var ch = $('#phchip'); if (ch) ch.textContent = objCount() + ' objects \u00b7 ' + s.fl.n + ' liquid' + (s.fl.n > 400 ? ' (' + s.fl.na + ' awake)' : '') + ' \u00b7 g = ' + (9.8 * s.grav).toFixed(1) + ' m/s\u00b2' + (Object.keys(s.sig).length ? ' \u00b7 signal: group ' + Object.keys(s.sig).join(', ') : '') + (s.paused ? ' \u00b7 paused' : ''); }
+    if (s.frame % 6 === 0) updMath();
+    if (s.frame % 20 === 0) { var ch = $('#phchip'); if (ch) ch.textContent = objCount() + ' objects \u00b7 ' + s.fl.n + ' liquid' + (s.fl.n > 400 ? ' (' + s.fl.na + ' awake)' : '') + ' \u00b7 g = ' + (10 * s.grav).toFixed(1) + ' m/s\u00b2' + (Object.keys(s.sig).length ? ' \u00b7 signal: group ' + Object.keys(s.sig).join(', ') : '') + (s.paused ? ' \u00b7 paused' : ''); }
   }
 
   /* ================= drawing ================= */
@@ -1258,7 +1760,8 @@
     var v = p.vertices, i; c.beginPath(); c.moveTo(v[0].x, v[0].y); for (i = 1; i < v.length; i++) c.lineTo(v[i].x, v[i].y); c.closePath();
   }
   function drawBody(c, b) {
-    var p = b.position, i, r, parts = b.parts.length > 1 ? b.parts.slice(1) : [b];
+    var p = b.position, i, r, parts = b.parts.length > 1 ? b.parts.slice(1) : [b], ga0 = c.globalAlpha;
+    if (b.frag) { var left = b.frag.life - b.frag.t; if (left < 1500) c.globalAlpha = Math.max(0, left / 1500); }   // fragments fade out
     parts.forEach(function (q) {
       if (q.circleRadius) { c.beginPath(); c.arc(q.position.x, q.position.y, q.circleRadius, 0, 6.2832); } else path(c, q);
       c.fillStyle = q.col || b.col || '#94a3b8'; c.fill();
@@ -1297,7 +1800,15 @@
     }
     if (b.kind === 'node' && window.Path2D) { var bp = S.bolt || (S.bolt = new Path2D(ICO.bolt)); c.save(); c.translate(p.x - 9, p.y - 9); c.scale(0.75, 0.75); c.lineWidth = 2.4; c.strokeStyle = '#fff'; c.lineCap = 'round'; c.lineJoin = 'round'; c.stroke(bp); c.restore(); }
     if (b.motor) { c.beginPath(); c.arc(p.x, p.y, 9, b.motor > 0 ? 0.3 : 2.84, b.motor > 0 ? 4.6 : 6.8, b.motor < 0); c.lineWidth = 3; c.strokeStyle = '#22c55e'; c.stroke(); }
+    var pr = b.props;
+    if (pr && pr.hpMax > 0 && brkOn()) {   // cracks as health drops, char marks on burnt wood
+      var hf = pr.hp / pr.hpMax;
+      if (hf < 0.75) drawCracks(c, b, parts, hf <= 0.25 ? 7 : hf <= 0.5 ? 4 : 2);
+      if (b.char) tintParts(c, parts, 'rgba(18,10,6,' + (0.62 * (1 - hf)).toFixed(2) + ')');
+    }
+    if (b.hurtT != null) { var hf2 = 1 - (S.tt - b.hurtT) / 160; if (hf2 > 0) tintParts(c, parts, 'rgba(255,255,255,' + (0.5 * hf2).toFixed(2) + ')'); }
     if (b.heat > 80) { var q = Math.min(0.7, b.heat / 1200); parts.forEach(function (pp) { if (pp.circleRadius) { c.beginPath(); c.arc(pp.position.x, pp.position.y, pp.circleRadius, 0, 6.2832); } else path(c, pp); c.fillStyle = 'rgba(255,90,20,' + q + ')'; c.fill(); }); }
+    c.globalAlpha = ga0;
   }
   function coil(c, a, b) {
     var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy, ny = ux, n = Math.max(4, Math.floor(L / 9)), lead = Math.min(10, L * 0.15), span = L - 2 * lead, i;
@@ -1453,6 +1964,7 @@
     drawLiquid(c);
     drawDevices(c);
     drawMarks(c);
+    drawMath(c);
     M.Composite.allConstraints(s.world).forEach(function (k) {
       var e, kd = k.kind; if (!kd || kd === 'rseg') return; e = endsOf(k);
       if (kd === 'rod') { c.beginPath(); c.moveTo(e.a.x, e.a.y); c.lineTo(e.b.x, e.b.y); c.lineWidth = 6; c.strokeStyle = '#475569'; c.stroke(); c.lineWidth = 2.5; c.strokeStyle = '#cbd5e1'; c.stroke(); nail(c, e.a); nail(c, e.b); }
