@@ -605,3 +605,6 @@ html.ac-pvon,html.ac-pvon body{overflow:hidden}
   .ac-shell.min .ac-side .ac-me .ac-ava{display:grid;place-items:center}
   .ac-shell.min .ac-side .ac-foot .ac-th{display:grid;border:1px solid var(--line);background:var(--hov)}
 }
+
+/* Keep a previous account's cached history off-screen until the current session is known. */
+.ac-shell.auth-pending .ac-main,.ac-shell.auth-pending #cl,.ac-shell.auth-pending #pl{visibility:hidden}

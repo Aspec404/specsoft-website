@@ -60,7 +60,7 @@ const saveLocal = () => { const all = chats.filter(c => c.pin).concat(chats.filt
 const save = () => { saveLocal(); cloudScan(); };
 /* v30: cloud sync. Chats and projects live in the Supabase table spectra_acad_items (see spectra-academics-sync.sql). This device keeps a copy (instant loading, works offline),
    the cloud is the shared copy. Last edit wins (the "u" stamp). Deleting marks the row deleted so other devices drop it too. If the table is missing or you are logged out, everything keeps working locally. */
-const CK = 'spectra_acad_items', CMAX = 60000, cloud = { on: false, uid: '', sb: null, known: {}, seenH: {}, dirty: new Set(), tm: 0, busy: false, since: '', warned: false };
+const CK = 'spectra_acad_items', CMAX = 60000, cloud = { on: false, uid: '', sb: null, known: {}, seenH: {}, dirty: new Set(), tm: 0, busy: false, since: '', warned: false, channel: null, authSub: null, generation: 0 };
 const clm = m => { const o = Object.assign({}, m); delete o.imf; if (o.role === 'user' && typeof o.content === 'string' && o.content.length > CMAX) o.content = o.content.slice(0, CMAX) + '\n[...rest not synced to the cloud]'; return o; };
 const cloudItem = (kind, x) => kind === 'chat' ? Object.assign({}, x, { msgs: x.msgs.map(clm) }) : Object.assign({}, x);
 const hs = it => { const o = Object.assign({}, it); delete o.u; return JSON.stringify(o); };
@@ -117,11 +117,12 @@ function cloudMerge(rows) {
   saveLocal(); list(); if (redraw) draw();
 }
 async function cloudPull() {
-  const since = cloud.since; let from = 0, last = since;
+  const generation = cloud.generation, since = cloud.since; let from = 0, last = since;
   for (; ;) {
     let q = cloud.sb.from(CK).select('kind,id,data,deleted,u,updated_at').order('updated_at', { ascending: true }).range(from, from + 24);
     if (since) q = q.gte('updated_at', since);
     const { data, error } = await q; if (error) throw error;
+    if (generation !== cloud.generation || !cloud.uid) return;
     if (!data || !data.length) break;
     cloudMerge(data); last = data[data.length - 1].updated_at;
     if (data.length < 25) break; from += 25;
@@ -130,16 +131,46 @@ async function cloudPull() {
 }
 async function cloudInit() {
   try {
-    const sb = window.getSupabaseClient && window.getSupabaseClient(), s = sb && (await sb.auth.getSession()).data.session; if (!s) return;
-    cloud.sb = sb; cloud.uid = s.user.id;
-    const lastUid = LS('sa.acad.uid', null);
-    if (lastUid && lastUid !== cloud.uid) { chats = []; projs = []; cur = null; pex = {}; sPex(); saveLocal(); list(); draw(); }   // another account used this device: never mix their chats into this one
-    SS('sa.acad.uid', cloud.uid);
-    await cloudPull(); cloud.on = true; cloudScan();   // first run on a device also uploads the chats that were only saved locally
-    sb.channel('acad-' + cloud.uid).on('postgres_changes', { event: '*', schema: 'public', table: CK, filter: 'user_id=eq.' + cloud.uid }, p => { if (p.new && p.new.id) cloudMerge([p.new]); }).subscribe();
+    const sb = window.getSupabaseClient && window.getSupabaseClient();
+    if (!sb) { hideSignedOutChats(); return; }
+    cloud.sb = sb;
+    // Do not briefly render a previous session's local cache while Supabase checks auth.
+    shell.classList.add('auth-pending');
+    cloud.authSub = sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) { hideSignedOutChats(); return; }
+      if (event === 'SIGNED_IN') setTimeout(() => connectCloud(sb, session).catch(() => showSignedInLocal()), 0);
+    }).data.subscription;
+    const s = (await sb.auth.getSession()).data.session;
+    if (!s) { hideSignedOutChats(); return; }
+    await connectCloud(sb, s);
     document.addEventListener('visibilitychange', () => { if (!cloud.on) return; if (document.hidden) cloudPush(); else cloudPull().catch(() => { }); });
-    addEventListener('online', () => { cloudPull().then(cloudScan).catch(() => { }); });
-  } catch (e) { cloud.on = false; }
+    addEventListener('online', () => { if (cloud.on) cloudPull().then(cloudScan).catch(() => { }); });
+  } catch (e) {
+    const s = cloud.sb && (await cloud.sb.auth.getSession()).data.session;
+    if (s) showSignedInLocal(); else hideSignedOutChats();
+  }
+}
+function showSignedInLocal() { shell.classList.remove('auth-pending'); }
+function hideSignedOutChats() {
+  cloud.generation++;
+  cloud.on = false; cloud.uid = ''; cloud.known = {}; cloud.seenH = {}; cloud.dirty.clear(); cloud.since = '';
+  clearTimeout(cloud.tm);
+  if (cloud.channel) { try { cloud.channel.unsubscribe(); } catch (e) { } cloud.channel = null; }
+  chats = []; projs = []; cur = null; proj = null; pex = {}; sPex(); saveLocal(); list(); draw();
+  shell.classList.remove('auth-pending');
+}
+async function connectCloud(sb, session) {
+  if (!session || !session.user || cloud.uid === session.user.id && cloud.on) return;
+  const generation = ++cloud.generation;
+  shell.classList.add('auth-pending');
+  cloud.on = false; cloud.sb = sb; cloud.uid = session.user.id; cloud.known = {}; cloud.seenH = {}; cloud.dirty.clear(); cloud.since = '';
+  if (cloud.channel) { try { cloud.channel.unsubscribe(); } catch (e) { } cloud.channel = null; }
+  const lastUid = LS('sa.acad.uid', null);
+  if (lastUid && lastUid !== cloud.uid) { chats = []; projs = []; cur = null; proj = null; pex = {}; sPex(); saveLocal(); list(); draw(); }
+  SS('sa.acad.uid', cloud.uid);
+  await cloudPull(); if (generation !== cloud.generation || cloud.uid !== session.user.id) return; cloud.on = true; cloudScan();
+  cloud.channel = sb.channel('acad-' + cloud.uid).on('postgres_changes', { event: '*', schema: 'public', table: CK, filter: 'user_id=eq.' + cloud.uid }, p => { if (p.new && p.new.id) cloudMerge([p.new]); }).subscribe();
+  shell.classList.remove('auth-pending');
 }
 const nm = () => (($('[data-user-name]') || {}).textContent || '').trim();
 const noTrack = () => level === 'Elementary';
@@ -868,12 +899,13 @@ async function run(imgs, fallback) {
   const a = { role: 'assistant', content: '', st: pool[si] }; chat.msgs.push(a);
   busy = true; setBtn(); draw(); plist(); list();
   const sent = chat.msgs.slice(0, -1).slice(-12), hist = sent.map(m => ({ role: m.role, content: m.content })), oc = window.SpectraCanvas && SpectraCanvas.older ? SpectraCanvas.older(chat.msgs.slice(0, -1), sent) : null; ctrl = new AbortController(); let raw = '', failed = false;
+  if (window.SAVoiceChat && SAVoiceChat.on) { const lu = hist[hist.length - 1]; if (lu && lu.role === 'user') lu.content += SAVoiceChat.hint; }   // voice chat: ask for a short spoken reply with a [mood:] tag (not saved in the chat)
   const el = () => cur === chat ? $$('.ac-m.a').pop() : null;
   let own = false;
   if (!fallback && lq.trim().length > 2) aiStatus(lq, ctrl.signal).then(t => { if (!t || a.content || own || !a.st) return; own = true; a.st = t; const e = el(), s = e && e.querySelector('.ac-sx'); if (s) { s.textContent = t; s.style.animation = 'none'; void s.offsetWidth; s.style.animation = ''; } });
   const rot = setInterval(() => { if (a.content || !a.st || own) return; si = (si + 1) % pool.length; a.st = pool[si]; const e = el(), s = e && e.querySelector('.ac-sx'); if (s) { s.textContent = a.st; s.style.animation = 'none'; void s.offsetWidth; s.style.animation = ''; } }, 2600);
   try {
-    await ask(hist, tok => { raw += tok; a.content = clean(raw); const e = el(); if (e) { e.innerHTML = aHtml(a, true); down(); if (window.SpectraCanvas) SpectraCanvas.live(a); } }, ctrl.signal, imgs, j => {
+    await ask(hist, tok => { raw += tok; a.content = clean(raw); if (window.SAVoiceChat) SAVoiceChat.feed(raw); const e = el(); if (e) { e.innerHTML = aHtml(a, true); down(); if (window.SpectraCanvas) SpectraCanvas.live(a); } }, ctrl.signal, imgs, j => {
       if (j.status) { own = false; pool = research ? ST.res : j.status === 'reading' ? ST.link : ST.web; si = 0; a.st = pool[0]; }
       if (j.read && j.read.failed && !j.read.ok) toast('Could not open that link');
       if (j.sources) a.src = j.sources.slice(0, 10);

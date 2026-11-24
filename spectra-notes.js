@@ -1,4 +1,4 @@
-/* Spectra Notes (v2 + tabs view): a notebook inside Spectra Academics, saved in Supabase (table spectra_notes, see supabase-spectra-notes.sql and supabase-spectra-notes-v2.sql) so it follows you on every device.
+/* Spectra Notes (v3 glow-up batch 1: colored cards + icons, grid/list/compact + sort, formatting toolbar, / slash menu, callouts, clickable checklists, templates, outline, zen mode, text size; needs supabase-spectra-notes-v3.sql for colors/icons) (v2 + tabs view): a notebook inside Spectra Academics, saved in Supabase (table spectra_notes, see supabase-spectra-notes.sql and supabase-spectra-notes-v2.sql) so it follows you on every device.
    Tabs view: "Open in tabs view" in the note menu shows open notes in a tab bar (links, merges and new notes open as tabs). Browser-side only, no new SQL.
    v2 adds: Graph view, [[Back links]], Source mode, Find & Replace, Merge note with..., Add to my projects, Share (copy, .md, .txt, PDF, device share).
    Send to Spectra attaches the note as a .md file (host.toChatFile) and falls back to pasting the text.
@@ -30,7 +30,7 @@
   var H = null, root = null, btn = null, badge = null, mainEl = null;
   var S = {
     notes: [], loaded: false, busy: false, err: '', open: false, tab: 'all', cat: '', pf: '', q: '', id: null, mode: 'read',
-    menu: false, del: false, view: 'list', find: false, ov: null, gsel: null, gcats: false, tabsOn: false, tabs: []
+    menu: false, del: false, view: 'list', find: false, ov: null, gsel: null, gcats: false, tabsOn: false, tabs: [], pop: null, zen: false, slash: null
   };
   var F = { q: '', r: '', cs: false };
   var dirty = {}, dirtyId = null, timer = null, TM = null, lkc = {}, selMem = null, G = null;
@@ -125,6 +125,11 @@
       if (r.error) throw fail(r.error);
       var n = byId(id); if (n && r.data) n.updated_at = r.data.updated_at; sv('Saved');
     } catch (e) {
+      if (e && e.message === 'SETUP2' && ('color' in f || 'icon' in f)) {   // colors and icons need supabase-spectra-notes-v3.sql: drop them so the text still saves
+        delete f.color; delete f.icon; toast('Run supabase-spectra-notes-v3.sql to save colors and icons');
+        if (Object.keys(f).length) { if (!dirtyId) { dirty = f; dirtyId = id; flush(); } else dirty = Object.assign({}, f, dirty); } else sv('Saved');
+        return;
+      }
       sv('Not saved'); toast('Could not save your note');
       if (!dirtyId) { dirty = f; dirtyId = id; } else dirty = Object.assign({}, f, dirty);
     }
@@ -215,7 +220,7 @@
       if (S.cat && n.category !== S.cat) return false;
       if (S.pf && n.project !== S.pf) return false;
       return !q || n.title.toLowerCase().indexOf(q) >= 0 || (n.body || '').toLowerCase().indexOf(q) >= 0;
-    }).sort(function (a, b) { return (b.pinned - a.pinned) || (new Date(b.updated_at) - new Date(a.updated_at)); });
+    }).sort(sorter);
   }
   function badgeDraw(pulse) {
     if (!badge) return;
@@ -231,18 +236,20 @@
     if (S.err) return msgBox('Could not load your notes', 'Check your connection and <button type="button" class="nt-lk" data-a="retry">try again</button>.');
     var ns = visible();
     if (!ns.length) return S.notes.length ? msgBox('Nothing here', S.q ? 'No notes match your search.' : 'No notes in this view yet.') : msgBox('No notes yet', 'Tap the three dots on any Spectra answer and choose <b>Add to notes</b>, or make your own with <b>New Note</b>.');
-    return '<div class="nt-grid">' + ns.map(function (n) {
-      var p = n.project && pn(n.project);
-      return '<button type="button" class="nt-card' + (n.pinned ? ' pin' : '') + '" data-id="' + n.id + '"><span class="nt-ct"><b>' + esc(n.title) + '</b>' + (n.pinned ? '<i data-ic="pin"></i>' : '') + (n.bookmarked ? '<i data-ic="bookmark"></i>' : '') + '</span><span class="nt-cs">' + (esc(snip(n.body)) || '<em>Empty note</em>') + '</span><span class="nt-cf"><span class="nt-tg"><u>' + esc(n.category) + '</u>' + (p ? '<u class="pj"><s style="--pc:' + esc(p.c || '#7c5cff') + '"></s>' + esc(p.n) + '</u>' : '') + '</span><small>' + fmt(n.updated_at) + '</small></span></button>';
+    return '<div class="nt-grid l-' + P.lay + '">' + ns.map(function (n, i) {
+      var p = n.project && pn(n.project), td = todoStat(n.body);
+      return '<button type="button" class="nt-card' + (n.pinned ? ' pin' : '') + '" data-id="' + n.id + '" style="--nc:' + ncol(n) + ';--i:' + Math.min(i, 12) + '"><span class="nt-cbar"></span><span class="nt-ct"><span class="nt-ei">' + esc(n.icon || '\uD83D\uDCDD') + '</span><b>' + esc(n.title) + '</b>' + (n.pinned ? '<i data-ic="pin"></i>' : '') + (n.bookmarked ? '<i data-ic="bookmark"></i>' : '') + '</span><span class="nt-cs">' + (esc(snip(n.body).replace(/\[!(?:tip|note|important|warning)\]\s*/gi, '').replace(/\[[ xX]\]\s*/g, '')) || '<em>Empty note</em>') + '</span>' +
+        (td.t ? '<span class="nt-td"><span class="nt-tb2"><i style="width:' + Math.round(td.d / td.t * 100) + '%"></i></span><em>' + td.d + '/' + td.t + '</em></span>' : '') +
+        '<span class="nt-cf"><span class="nt-tg"><u>' + esc(n.category) + '</u>' + (p ? '<u class="pj"><s style="--pc:' + esc(p.c || '#7c5cff') + '"></s>' + esc(p.n) + '</u>' : '') + '</span><small>' + fmt(n.updated_at) + '</small></span></button>';
     }).join('') + '</div>';
   }
   function drawGrid() { var g = $('#ntg'); if (!g) return; g.innerHTML = gridHtml(); paint(g); }
   function listHtml() {
     var live = S.notes.filter(function (n) { return !n.archived; }), cnt = {}, pc = {};
     S.notes.forEach(function (n) { if (S.tab === 'arch' ? n.archived : !n.archived) { cnt[n.category] = (cnt[n.category] || 0) + 1; if (n.project) pc[n.project] = (pc[n.project] || 0) + 1; } });
-    var h = '<div class="nt-wrap">' + tabBar() + '<header class="nt-hd"><div><h2>Notes</h2><p>' + (S.loaded ? live.length + (live.length === 1 ? ' note' : ' notes') : '&nbsp;') + '</p></div><div class="nt-ha"><button type="button" class="nt-gb" data-a="graph" aria-label="Open graph view" title="Graph view">' + ic('graph') + '<span>Graph</span></button><button type="button" class="nt-add" data-a="new"><i data-ic="plus"></i><span>New Note</span></button></div></header>';
+    var h = '<div class="nt-wrap">' + tabBar() + '<header class="nt-hd"><div><h2>Notes</h2><p>' + (S.loaded ? live.length + (live.length === 1 ? ' note' : ' notes') : '&nbsp;') + '</p></div><div class="nt-ha"><button type="button" class="nt-gb" data-a="graph" aria-label="Open graph view" title="Graph view">' + ic('graph') + '<span>Graph</span></button><span class="nt-mw nt-pw"><button type="button" class="nt-gb" data-a="tpl" aria-label="New note from a template" title="New from template">' + ic('tpl') + '<span>Templates</span></button>' + (S.pop === 'tpl' ? tplMenu() : '') + '</span><button type="button" class="nt-add" data-a="new"><i data-ic="plus"></i><span>New Note</span></button></div></header>';
     h += '<label class="nt-s"><i data-ic="search"></i><input id="ntq" type="search" placeholder="Search notes" autocomplete="off" value="' + esc(S.q) + '"></label>';
-    h += '<div class="nt-tabs" role="tablist">' + TABS.map(function (t) { return '<button type="button" role="tab" class="' + (S.tab === t[0] ? 'on' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
+    h += '<div class="nt-rowb"><div class="nt-tabs" role="tablist">' + TABS.map(function (t) { return '<button type="button" role="tab" class="' + (S.tab === t[0] ? 'on' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' + viewBar() + '</div>';
     h += '<div class="nt-cats"><button type="button" class="' + (S.cat ? '' : 'on') + '" data-cat="">All categories</button>' + CATS.filter(function (c) { return cnt[c] || S.cat === c; }).map(function (c) { return '<button type="button" class="' + (S.cat === c ? 'on' : '') + '" data-cat="' + esc(c) + '">' + esc(c) + '<em>' + (cnt[c] || 0) + '</em></button>'; }).join('') + '</div>';
     var pl = projs().filter(function (p) { return pc[p.id] || S.pf === p.id; });
     if (pl.length) h += '<div class="nt-cats nt-pcs"><button type="button" class="' + (S.pf ? '' : 'on') + '" data-pf="">All projects</button>' + pl.map(function (p) { return '<button type="button" class="' + (S.pf === p.id ? 'on' : '') + '" data-pf="' + esc(p.id) + '"><s style="--pc:' + esc(p.c || '#7c5cff') + '"></s>' + esc(p.n) + '<em>' + (pc[p.id] || 0) + '</em></button>'; }).join('') + '</div>';
@@ -275,6 +282,8 @@
     h += '<div class="nt-seg">' + [['read', 'Read'], ['edit', 'Edit'], ['source', 'Source']].map(function (m) { return '<button type="button" data-m="' + m[0] + '" class="' + (S.mode === m[0] ? 'on' : '') + '">' + m[1] + '</button>'; }).join('') + '</div>';
     h += '<button type="button" class="nt-ib' + (n.pinned ? ' on' : '') + '" data-a="pin" aria-label="' + (n.pinned ? 'Unpin note' : 'Pin note') + '" title="' + (n.pinned ? 'Unpin note' : 'Pin note') + '"><i data-ic="pin"></i></button>';
     h += '<button type="button" class="nt-ib' + (n.bookmarked ? ' on' : '') + '" data-a="mark" aria-label="' + (n.bookmarked ? 'Remove bookmark' : 'Bookmark note') + '" title="' + (n.bookmarked ? 'Remove bookmark' : 'Bookmark note') + '"><i data-ic="bookmark"></i></button>';
+    h += '<span class="nt-mw nt-pw"><button type="button" class="nt-ib nt-aa2' + (S.pop === 'typo' ? ' on' : '') + '" data-a="typo" aria-label="Text and reading options" title="Text size and zen mode">Aa</button>' + (S.pop === 'typo' ? typoMenu() : '') + '</span>';
+    h += '<span class="nt-mw nt-pw"><button type="button" class="nt-ib' + (S.pop === 'out' ? ' on' : '') + '" data-a="out" aria-label="Outline" title="Outline">' + ic('outline') + '</button>' + (S.pop === 'out' ? outMenu(n) : '') + '</span>';
     h += '<span class="nt-mw"><button type="button" class="nt-ib" data-a="more" aria-label="More" aria-haspopup="menu"><i data-ic="dots"></i></button>';
     if (S.menu) {
       var mi = function (a, i, t, c, raw) { return '<button type="button" role="menuitem"' + (c ? ' class="' + c + '"' : '') + ' data-a="' + a + '"><i' + (raw ? '>' + ic(i) : ' data-ic="' + i + '">') + '</i><span>' + t + '</span></button>'; };
@@ -283,15 +292,17 @@
     }
     h += '</span></header>';
     if (S.find && S.mode === 'edit') h += findHtml();
-    h += '<input class="nt-ti" id="ntt" maxlength="120" placeholder="Untitled note" aria-label="Note title" value="' + esc(n.title === 'Untitled note' && !n.body ? '' : n.title) + '"' + (rd ? ' readonly' : '') + '>';
+    h += '<div class="nt-cover" style="--nc:' + ncol(n) + '"></div><div class="nt-tr"><span class="nt-mw nt-pw"><button type="button" class="nt-ic" data-a="sty" aria-label="Change icon and color" title="Icon and color">' + esc(n.icon || '\uD83D\uDCDD') + '</button>' + (S.pop === 'sty' ? styMenu(n) : '') + '</span>';
+    h += '<input class="nt-ti" id="ntt" maxlength="120" placeholder="Untitled note" aria-label="Note title" value="' + esc(n.title === 'Untitled note' && !n.body ? '' : n.title) + '"' + (rd ? ' readonly' : '') + '></div>';
     h += '<div class="nt-mt"><select id="ntc" aria-label="Category">' + cats.map(function (c) { return '<option' + (c === n.category ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>';
     if (pl.length || n.project) h += '<select id="ntp" aria-label="Project"><option value="">No project</option>' + pl.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === n.project ? ' selected' : '') + '>' + esc(p.n) + '</option>'; }).join('') + '</select>';
-    h += '<span>Edited ' + fmt(n.updated_at) + '</span></div>';
+    h += '<span>Edited ' + fmt(n.updated_at) + '</span><span id="ntwc">' + statTxt(n.body) + '</span></div>';
     if (S.mode === 'edit') {
-      h += '<div class="nt-tb"><button type="button" class="nt-bt sm" data-a="linkpick"><i data-ic="link"></i><span>Link a note</span></button><button type="button" class="nt-bt sm" data-a="find"><i data-ic="search"></i><span>Find &amp; Replace</span></button></div>';
+      h += fmtBar();
       h += '<textarea class="nt-tx" id="ntx" maxlength="' + MAXB + '" placeholder="Write your note here. Markdown works: **bold**, # headings, - lists, $math$. Link notes with [[Note Title]]." aria-label="Note text">' + esc(n.body) + '</textarea>';
     } else if (S.mode === 'source') h += srcHtml(n);
-    else h += '<div class="nt-md ac-m a" id="ntm"></div>' + relHtml(n);
+    else h += todoBar(n) + '<div class="nt-md ac-m a" id="ntm"></div>' + relHtml(n);
+    if (S.zen) h += '<button type="button" class="nt-zx" data-a="zen"><i>' + ic('zen') + '</i><span>Exit zen</span></button>';
     h += '<div class="nt-ft"><button type="button" class="nt-bt" data-a="send"><i data-ic="send"></i><span>Send to Spectra</span></button></div></div>';
     return h;
   }
@@ -303,9 +314,10 @@
     if (!n && S.view === 'graph') { gStop(); root.innerHTML = graphHtml(); paint(root); gInit(); renderOv(); return; }
     gStop();
     var keepQ = document.activeElement && document.activeElement.id === 'ntq', pos = keepQ ? document.activeElement.selectionStart : 0;
-    root.innerHTML = n ? editHtml(n) : listHtml(); paint(root);
+    if (!n) S.zen = false; slashClose();
+    root.innerHTML = n ? editHtml(n) : listHtml(); paint(root); view(n);
     if (n) {
-      if (S.mode === 'read') { var m = $('#ntm'); if (m) { m.innerHTML = n.body.trim() ? H.md(n.body) : '<p class="nt-mu">Nothing here yet. Switch to Edit and start writing.</p>'; H.math(m); wikify(m); } }
+      if (S.mode === 'read') { var m = $('#ntm'); if (m) { m.innerHTML = n.body.trim() ? H.md(n.body) : '<p class="nt-mu">Nothing here yet. Switch to Edit and start writing.</p>'; H.math(m); wikify(m); callouts(m); todos(m, n); } }
       else if (S.mode === 'edit') { var t = $('#ntx'); if (t) grow(t); if (S.find) fUpdate(); }
     } else if (keepQ) { var q = $('#ntq'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (e) { } } }
     renderOv();
@@ -661,7 +673,7 @@
     draw();
   }
   function hide() {
-    if (!S.open) return; flush(); gStop(); ovClose(); S.open = false; S.menu = false; S.id = null; S.find = false;
+    if (!S.open) return; flush(); gStop(); ovClose(); slashClose(); S.open = false; S.menu = false; S.id = null; S.find = false; S.pop = null; S.zen = false;
     root.classList.remove('gmode'); mainEl.classList.remove('noting'); btn.classList.remove('on');
   }
   function openNote(id, mode) {
@@ -695,6 +707,280 @@
     if (m === 'edit') { var x = $('#ntx'); if (x) { x.focus(); x.setSelectionRange(x.value.length, x.value.length); } }
   }
 
+  /* ================= Batch 1 glow-up: look, toolbar, slash menu, templates, checklists, outline, zen ================= */
+  var PKEY = 'sa.notes.prefs';
+  function loadPrefs() {
+    var p = { lay: 'grid', sort: 'upd', fs: 1, ser: false, wide: false };
+    try { var r = JSON.parse(localStorage.getItem(PKEY) || '{}'); if (['grid', 'list', 'compact'].indexOf(r.lay) >= 0) p.lay = r.lay; if (['upd', 'cre', 'az', 'cat'].indexOf(r.sort) >= 0) p.sort = r.sort; if (r.fs >= 0 && r.fs <= 5) p.fs = r.fs | 0; p.ser = !!r.ser; p.wide = !!r.wide; } catch (e) { }
+    return p;
+  }
+  var P = loadPrefs();
+  function savePrefs() { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch (e) { } }
+  var FS = [14, 15, 16, 17, 19, 21];
+  var EMO = ['\uD83D\uDCDD', '\uD83D\uDCDA', '\uD83E\uDDEA', '\uD83E\uDDEE', '\uD83C\uDF0D', '\uD83D\uDCA1', '\uD83C\uDFAF', '\uD83D\uDD25', '\u2B50', '\uD83D\uDCCC', '\uD83E\uDDE0', '\uD83D\uDCBB', '\uD83C\uDFA8', '\uD83C\uDFB5', '\uD83C\uDFDB\uFE0F', '\uD83D\uDD2C', '\uD83D\uDCD0', '\u270F\uFE0F', '\uD83D\uDCD6', '\uD83D\uDDC2\uFE0F', '\uD83D\uDE80', '\uD83C\uDF40', '\u2764\uFE0F', '\u2705'];
+  var COLS = ['#7c5cff', '#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#a855f7', '#64748b'];
+  var CO = { tip: ['\uD83D\uDCA1', 'Tip', '#14b8a6'], note: ['\uD83D\uDCDD', 'Note', '#3b82f6'], important: ['\uD83D\uDCCC', 'Important', '#a855f7'], warning: ['\u26A0\uFE0F', 'Warning', '#f59e0b'] };
+  var CONAMES = ['tip', 'note', 'important', 'warning'];
+  Object.assign(ICO, {
+    bold: 'M7 5h6a3.5 3.5 0 010 7H7zM7 12h7a3.5 3.5 0 010 7H7z', italic: 'M14 5h-4M14 19h-4M15 5l-6 14',
+    strike: 'M5 12h14M16 7.5C15 6 13.7 5.5 12 5.5c-2.2 0-3.5 1-3.5 2.5 0 1.4 1.3 2.2 3.5 2.8M8 16c.9 1.6 2.3 2.5 4.2 2.5 2.4 0 3.8-1.1 3.8-2.7',
+    hl: 'M4 20h16M6 16l9-9 3 3-9 9H6z', code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14', ul: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+    todo: 'M4 6.5l1.5 1.5 3-3M4 14.5l1.5 1.5 3-3M12 7h8M12 15h8', quote: 'M5 11V8a3 3 0 013-3M5 11h4v6H5zM14 11V8a3 3 0 013-3M14 11h4v6h-4z',
+    hr: 'M3 12h4M10 12h4M17 12h4', table: 'M4 5h16v14H4zM4 10h16M4 15h16M10 5v14', callout: 'M12 3a6 6 0 00-3.5 10.9V17h7v-3.1A6 6 0 0012 3zM9.5 20h5',
+    outline: 'M4 6h16M8 12h12M12 18h8', zen: 'M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3',
+    grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', rows: 'M4 5h16v5H4zM4 14h16v5H4z', compact: 'M4 6h16M4 10h16M4 14h16M4 18h16',
+    tpl: 'M5 3h10l4 4v14H5zM14 3v5h5M9 13h6M9 17h6', find2: 'M11 4a7 7 0 105 12l4 4M11 8v6M8 11h6'
+  });
+  var ncol = function (n) { return /^#[0-9a-f]{6}$/i.test(n.color || '') ? n.color : (CATCOL[n.category] || '#64748b'); };
+
+  /* ---------- checklists, word count, headings (all skip code fences) ---------- */
+  function eachTodo(body, fn) {
+    var lines = String(body || '').split('\n'), inF = false, k = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i]; if (/^\s*```/.test(l)) { inF = !inF; continue; } if (inF) continue;
+      var m = l.match(/^([-*] )\[( |x|X)\] /); if (m) fn(i, m, k++, lines);
+    }
+    return lines;
+  }
+  function todoStat(body) { var d = 0, t = 0; eachTodo(body, function (i, m) { t++; if (m[2] !== ' ') d++; }); return { d: d, t: t }; }
+  function statTxt(body) {
+    var w = (String(body || '').replace(/```/g, ' ').replace(/[#>*_~`=|\[\]$-]+/g, ' ').match(/\S+/g) || []).length;
+    return w + (w === 1 ? ' word' : ' words') + (w ? ' \u00B7 ' + Math.max(1, Math.ceil(w / 200)) + ' min read' : '');
+  }
+  function wc(v) { var e = $('#ntwc'); if (e) e.textContent = statTxt(v); }
+  function heads(body) {
+    var out = [], inF = false, pos = 0;
+    String(body || '').split('\n').forEach(function (l) {
+      if (/^\s*```/.test(l)) inF = !inF;
+      else if (!inF) { var m = l.match(/^(#{1,3}) +(.+?)\s*#*\s*$/); if (m) out.push({ lvl: m[1].length, text: m[2].replace(/[*_~`=]/g, '').trim(), pos: pos }); }
+      pos += l.length + 1;
+    });
+    return out;
+  }
+  function todoBar(n) {
+    var s = todoStat(n.body); if (!s.t) return '';
+    return '<div class="nt-tp" id="nttp"><i style="width:' + Math.round(s.d / s.t * 100) + '%"></i><span>' + s.d + ' of ' + s.t + ' done' + (s.d === s.t ? ' \uD83C\uDF89' : '') + '</span></div>';
+  }
+
+  /* ---------- sorting + layout bar ---------- */
+  function sorter(a, b) {
+    var p = (b.pinned - a.pinned); if (p) return p;
+    if (P.sort === 'az') return String(a.title).localeCompare(String(b.title));
+    if (P.sort === 'cat') return String(a.category).localeCompare(String(b.category)) || (new Date(b.updated_at) - new Date(a.updated_at));
+    if (P.sort === 'cre') return (new Date(b.created_at) - new Date(a.created_at)) || 0;
+    return new Date(b.updated_at) - new Date(a.updated_at);
+  }
+  function viewBar() {
+    var L = [['grid', 'grid', 'Grid'], ['list', 'rows', 'List'], ['compact', 'compact', 'Compact']];
+    return '<div class="nt-vw"><div class="nt-lay" role="group" aria-label="Layout">' + L.map(function (l) { return '<button type="button" data-a="lay" data-v="' + l[0] + '" class="' + (P.lay === l[0] ? 'on' : '') + '" aria-label="' + l[2] + ' layout" title="' + l[2] + '">' + ic(l[1]) + '</button>'; }).join('') + '</div>' +
+      '<select id="ntsort" aria-label="Sort notes">' + [['upd', 'Recently edited'], ['cre', 'Newest first'], ['az', 'A to Z'], ['cat', 'Category']].map(function (o) { return '<option value="' + o[0] + '"' + (P.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+  }
+
+  /* ---------- templates ---------- */
+  var TPL = [
+    ['lecture', '\uD83C\uDF93', 'Lecture notes', 'Class notes with key ideas', '#7c5cff', function () { return '# Lecture Notes\n\n**Subject:** \n**Date:** ' + new Date().toLocaleDateString() + '\n**Topic:** \n\n## Key ideas\n- \n\n## Details\n> [!tip] Remember\n> \n\n## Questions\n- [ ] \n\n## Summary\n'; }],
+    ['cornell', '\uD83D\uDCD2', 'Cornell notes', 'Cues, notes and a summary', '#3b82f6', function () { return '# Cornell Notes\n\n**Topic:** \n**Date:** ' + new Date().toLocaleDateString() + '\n\n## Cues and questions\n- \n\n## Notes\n- \n\n## Summary\n> [!note] In my own words\n> \n'; }],
+    ['guide', '\uD83D\uDCDA', 'Study guide', 'Terms, concepts, practice', '#14b8a6', function () { return '# Study Guide\n\n## Key terms\n- **Term:** meaning\n\n## Main concepts\n1. \n\n## Formulas and rules\n> [!important] Must know\n> \n\n## Practice\n- [ ] Question 1\n- [ ] Question 2\n- [ ] Question 3\n'; }],
+    ['cheat', '\uD83E\uDDFE', 'Cheat sheet', 'One page of fast facts', '#f59e0b', function () { return '# Cheat Sheet\n\n| Item | Rule or formula |\n| --- | --- |\n|  |  |\n|  |  |\n\n> [!warning] Common mistakes\n> \n'; }],
+    ['lab', '\uD83E\uDDEA', 'Lab report', 'Aim, method, results', '#22c55e', function () { return '# Lab Report\n\n**Date:** ' + new Date().toLocaleDateString() + '\n\n## Aim\n\n## Materials\n- \n\n## Procedure\n1. \n\n## Observations\n| Trial | Result |\n| --- | --- |\n|  |  |\n\n## Conclusion\n'; }],
+    ['book', '\uD83D\uDCD6', 'Book summary', 'Chapters, quotes, thoughts', '#ec4899', function () { return '# Book Summary\n\n**Title:** \n**Author:** \n\n## Main idea\n\n## Chapter notes\n- \n\n## Favorite quote\n> \n\n## What I think\n'; }]
+  ];
+  function tplMenu() {
+    return '<div class="nt-mn nt-pp nt-tp2" role="menu">' + TPL.map(function (t) { return '<button type="button" role="menuitem" data-a="tplgo" data-k="' + t[0] + '"><span class="nt-ti2">' + t[1] + '</span><span><b>' + t[2] + '</b><small>' + t[3] + '</small></span></button>'; }).join('') + '</div>';
+  }
+  async function insertSafe(f) {   // colors and icons need supabase-spectra-notes-v3.sql; without it the note is still made
+    try { return await insert(f); }
+    catch (e) {
+      if (e && e.message === 'SETUP2' && ('color' in f || 'icon' in f)) { var g = Object.assign({}, f); delete g.color; delete g.icon; toast('Run supabase-spectra-notes-v3.sql to save note colors and icons'); return await insert(g); }
+      throw e;
+    }
+  }
+  async function makeTpl(key) {
+    var t = null; TPL.forEach(function (x) { if (x[0] === key) t = x; }); if (!t) return;
+    if (S.notes.length >= MAXN) { toast('Note limit reached (' + MAXN + '). Delete or archive some first.'); return; }
+    try {
+      var f = { title: t[2], body: t[5](), category: S.cat || (CATS.indexOf(H.subject()) >= 0 ? H.subject() : 'General Knowledge'), icon: t[1], color: t[4] };
+      if (S.pf) f.project = S.pf;
+      var row = await insertSafe(f);
+      S.notes.unshift(row); TM = null; S.loaded = true; S.err = ''; badgeDraw(); openNote(row.id, 'edit');
+    } catch (e) { toast(e.message === 'LOGIN' ? 'Log in first to make notes' : e.message === 'SETUP' ? 'Notes need the database setup first' : e.message === 'LIMIT' ? 'Note limit reached. Delete some first.' : 'Could not make a note'); }
+  }
+
+  /* ---------- style (icon + color), reading options, outline popovers ---------- */
+  function styMenu(n) {
+    return '<div class="nt-mn nt-pp nt-sy" role="dialog" aria-label="Icon and color"><b>Icon</b><div class="nt-eg">' + EMO.map(function (e) { return '<button type="button" data-a="icon" data-v="' + e + '" class="' + (n.icon === e ? 'on' : '') + '">' + e + '</button>'; }).join('') + '</div>' +
+      '<b>Color</b><div class="nt-cg">' + COLS.map(function (c) { return '<button type="button" data-a="color" data-v="' + c + '" class="' + (n.color === c ? 'on' : '') + '" style="--c:' + c + '" aria-label="Color ' + c + '"></button>'; }).join('') + '</div>' +
+      '<button type="button" class="nt-rs" data-a="stclr">Reset to default</button></div>';
+  }
+  function typoMenu() {
+    return '<div class="nt-mn nt-pp nt-ty" role="menu"><div class="nt-tyr"><span>Text size</span><span class="nt-stp"><button type="button" data-a="fsd" aria-label="Smaller text"' + (P.fs <= 0 ? ' disabled' : '') + '>A\u2212</button><em>' + FS[P.fs] + '</em><button type="button" data-a="fsu" aria-label="Bigger text"' + (P.fs >= 5 ? ' disabled' : '') + '>A+</button></span></div>' +
+      '<button type="button" role="menuitemcheckbox" aria-checked="' + P.ser + '" data-a="ser"><span>Serif font</span><u class="nt-sw' + (P.ser ? ' on' : '') + '"></u></button>' +
+      '<button type="button" role="menuitemcheckbox" aria-checked="' + P.wide + '" data-a="wide"><span>Wide page</span><u class="nt-sw' + (P.wide ? ' on' : '') + '"></u></button>' +
+      '<div class="nt-sp"></div><button type="button" role="menuitem" data-a="zen"><i>' + ic('zen') + '</i><span>Zen mode</span></button></div>';
+  }
+  function outMenu(n) {
+    var hs = heads(n.body);
+    return '<div class="nt-mn nt-pp nt-ou" role="menu">' + (hs.length ? hs.map(function (h, i) { return '<button type="button" role="menuitem" data-a="olgo" data-i="' + i + '" style="padding-left:' + (10 + (h.lvl - 1) * 14) + 'px" class="l' + h.lvl + '"><span>' + esc(h.text) + '</span></button>'; }).join('') : '<p class="nt-mu">No headings yet. Start a line with <code>#</code> to make one.</p>') + '</div>';
+  }
+  function fmtBar() {
+    var B = function (f, lab, ttl, raw) { return '<button type="button" data-a="fmt" data-f="' + f + '" aria-label="' + ttl + '" title="' + ttl + '">' + (raw ? lab : ic(lab)) + '</button>'; };
+    return '<div class="nt-fmt" role="toolbar" aria-label="Formatting">' + B('b', 'bold', 'Bold (Ctrl+B)') + B('i', 'italic', 'Italic (Ctrl+I)') + B('s', 'strike', 'Strikethrough') + B('hl', 'hl', 'Highlight') + B('code', 'code', 'Code') +
+      '<span class="sep"></span>' + B('h1', 'H1', 'Heading 1', 1) + B('h2', 'H2', 'Heading 2', 1) + '<span class="sep"></span>' + B('ul', 'ul', 'Bullet list') + B('ol', '1.', 'Numbered list', 1) + B('todo', 'todo', 'Checklist') + B('quote', 'quote', 'Quote') +
+      '<span class="sep"></span>' + B('co', 'callout', 'Callout (tap again to change type)') + B('table', 'table', 'Table') + B('hr', 'hr', 'Divider') + B('math', '\u03A3', 'Math ($x$)', 1) +
+      '<span class="sep"></span><button type="button" data-a="linkpick" aria-label="Link a note" title="Link a note"><i data-ic="link"></i></button><button type="button" data-a="find" aria-label="Find and replace" title="Find and replace">' + ic('find2') + '</button></div>';
+  }
+
+  /* ---------- text box helpers (execCommand keeps the browser's undo working) ---------- */
+  function rep(x, a, b, text, s, e) {
+    x.focus(); x.setSelectionRange(a, b);
+    var ok = false; try { ok = document.execCommand('insertText', false, text); } catch (er) { ok = false; }
+    if (!ok) { x.value = x.value.slice(0, a) + text + x.value.slice(b); x.dispatchEvent(new Event('input', { bubbles: true })); }
+    x.setSelectionRange(s, e == null ? s : e);
+  }
+  function lineBounds(x) {
+    var v = x.value, a = x.selectionStart, b = x.selectionEnd, ls = v.lastIndexOf('\n', a - 1) + 1, bb = (b > a && v.charAt(b - 1) === '\n') ? b - 1 : b, le = v.indexOf('\n', bb);
+    return { ls: ls, le: le < 0 ? v.length : le };
+  }
+  function wrapSel(x, m) {
+    var v = x.value, a = x.selectionStart, b = x.selectionEnd, s = v.slice(a, b), L = m.length;
+    if (a >= L && v.slice(a - L, a) === m && v.slice(b, b + L) === m) { rep(x, a - L, b + L, s, a - L, a - L + s.length); return; }
+    if (s.length >= 2 * L && s.slice(0, L) === m && s.slice(-L) === m) { var inner = s.slice(L, -L); rep(x, a, b, inner, a, a + inner.length); return; }
+    var t = s || 'text'; rep(x, a, b, m + t + m, a + L, a + L + t.length);
+  }
+  var LSTRIP = /^(#{1,6} |[-*] \[[ xX]\] |[-*] |\d+\. |> )/;
+  function prefixLines(x, kind, pfx) {
+    var v = x.value, r = lineBounds(x), lines = v.slice(r.ls, r.le).split('\n');
+    var has = function (l) { return kind === 'ol' ? /^\d+\. /.test(l) : l.indexOf(pfx) === 0; }, live = lines.filter(function (l) { return l.trim(); });
+    var allHave = live.length && live.every(has), n = 0;
+    var out = lines.map(function (l) {
+      if (!l.trim() && lines.length > 1) return l;
+      if (allHave) return l.replace(LSTRIP, '');
+      n++; return (kind === 'ol' ? n + '. ' : pfx) + l.replace(LSTRIP, '');
+    }).join('\n');
+    rep(x, r.ls, r.le, out, r.ls + out.length);
+  }
+  function insBlock(x, text) {
+    var v = x.value, r = lineBounds(x), line = v.slice(r.ls, r.le);
+    if (!line.trim()) { rep(x, r.ls, r.le, text + '\n', r.ls + text.length + 1); return; }
+    rep(x, r.le, r.le, '\n' + text + '\n', r.le + text.length + 2);
+  }
+  function calloutCycle(x) {
+    var v = x.value, r = lineBounds(x), line = v.slice(r.ls, r.le), m = line.match(/^> \[!(tip|note|important|warning)\] ?/i);
+    if (m) { var nx = CONAMES[(CONAMES.indexOf(m[1].toLowerCase()) + 1) % CONAMES.length]; rep(x, r.ls, r.ls + m[0].length, '> [!' + nx + '] ', r.ls + nx.length + 7); }
+    else if (line.indexOf('> ') === 0) rep(x, r.ls, r.ls + 2, '> [!tip] ', r.ls + 9);
+    else rep(x, r.ls, r.ls, '> [!tip] ', r.ls + 9);
+  }
+  function doFmt(f) {
+    var x = $('#ntx'); if (!x) return; x.focus();
+    var W = { b: '**', i: '*', s: '~~', hl: '==', code: '`', math: '$' }, PF = { h1: '# ', h2: '## ', ul: '- ', todo: '- [ ] ', quote: '> ' };
+    if (W[f]) wrapSel(x, W[f]); else if (PF[f]) prefixLines(x, f, PF[f]); else if (f === 'ol') prefixLines(x, 'ol', '1. ');
+    else if (f === 'hr') insBlock(x, '---'); else if (f === 'table') insBlock(x, '| Column 1 | Column 2 |\n| --- | --- |\n|  |  |'); else if (f === 'co') calloutCycle(x);
+  }
+  function listEnter(x) {   // Enter on a list, checklist, number or quote line continues it (an empty item ends it)
+    var v = x.value, p = x.selectionStart; if (x.selectionEnd !== p) return false;
+    var ls = v.lastIndexOf('\n', p - 1) + 1, le = v.indexOf('\n', p); if (le < 0) le = v.length; if (p !== le) return false;
+    var line = v.slice(ls, p), m = line.match(/^(\s*)([-*] \[[ xX]\] |[-*] |(\d+)\. |> )(.*)$/); if (!m) return false;
+    if (!m[4].trim()) { rep(x, ls, p, '', ls); return true; }
+    var nx = /^[-*] \[/.test(m[2]) ? m[2].charAt(0) + ' [ ] ' : m[3] ? (+m[3] + 1) + '. ' : m[2];
+    rep(x, p, p, '\n' + m[1] + nx, p + 1 + m[1].length + nx.length); return true;
+  }
+
+  /* ---------- slash menu: type / in the text box ---------- */
+  var SL = [
+    ['h1', 'Heading 1', 'Big section title', '# ', null, 'title big', 1], ['h2', 'Heading 2', 'Medium heading', '## ', null, 'title', 1], ['h3', 'Heading 3', 'Small heading', '### ', null, 'title small', 1],
+    ['ul', 'Bullet list', 'Simple list', '- ', null, 'list', 1], ['ol', 'Numbered list', '1, 2, 3', '1. ', null, 'list number', 1], ['todo', 'To-do list', 'Tick things off', '- [ ] ', null, 'check task checklist', 1],
+    ['quote', 'Quote', 'Highlight a quote', '> ', null, 'blockquote', 1], ['tip', 'Callout: Tip', 'Helpful hint', '> [!tip] ', null, 'callout hint', 1], ['note', 'Callout: Note', 'Side note', '> [!note] ', null, 'callout', 1],
+    ['important', 'Callout: Important', 'Must remember', '> [!important] ', null, 'callout key', 1], ['warning', 'Callout: Warning', 'Careful here', '> [!warning] ', null, 'callout danger', 1],
+    ['code', 'Code block', 'Monospace code', '```\n\n```', 4, 'snippet', 1], ['math', 'Math block', 'Big formula', '$$\n\n$$', 3, 'latex equation formula', 1],
+    ['table', 'Table', '2 columns', '| Column 1 | Column 2 |\n| --- | --- |\n|  |  |', null, 'grid', 1], ['hr', 'Divider', 'Horizontal line', '---', null, 'line separator', 1],
+    ['date', 'Today\u2019s date', 'Insert the date', function () { return new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); }, null, 'time now', 0],
+    ['link', 'Link a note', 'Type [[Note Title]]', '[[]]', 2, 'wiki backlink', 0]
+  ];
+  function slashClose(quiet) { S.slash = null; var e = $('#ntsl'); if (e) e.remove(); }
+  function slashCheck(x) {
+    var p = x.selectionStart; if (x.selectionEnd !== p) { slashClose(); return; }
+    var ls = x.value.lastIndexOf('\n', p - 1) + 1, m = x.value.slice(ls, p).match(/(?:^|\s)\/([a-z0-9]{0,12})$/i);
+    if (!m) { slashClose(); return; }
+    var q = m[1].toLowerCase(), items = SL.filter(function (it) { return !q || it[0].indexOf(q) === 0 || it[1].toLowerCase().indexOf(q) >= 0 || it[5].indexOf(q) >= 0; });
+    if (!items.length) { slashClose(); return; }
+    var prev = S.slash; S.slash = { x: x, start: p - m[1].length - 1, q: q, items: items, i: prev && prev.q === q ? Math.min(prev.i, items.length - 1) : 0 };
+    slashDraw();
+  }
+  function slashDraw() {
+    var s = S.slash, w = $('.nt-ed'); if (!s || !w) return;
+    var el = $('#ntsl'); if (!el) { el = document.createElement('div'); el.id = 'ntsl'; el.className = 'nt-sl2'; el.setAttribute('role', 'listbox'); w.appendChild(el); }
+    el.innerHTML = s.items.map(function (it, i) { return '<button type="button" role="option" data-a="slgo" data-i="' + i + '" class="' + (i === s.i ? 'on' : '') + '"><b>' + it[1] + '</b><small>' + it[2] + '</small></button>'; }).join('');
+    var x = s.x, top = x.offsetTop + caretY(x, s.start) + 30, left = Math.max(0, Math.min(x.offsetLeft + 14, w.clientWidth - 280));
+    el.style.top = top + 'px'; el.style.left = left + 'px';
+    var on = el.querySelector('.on'); if (on) { var a = on.offsetTop, h = on.offsetHeight; if (a < el.scrollTop) el.scrollTop = a; else if (a + h > el.scrollTop + el.clientHeight) el.scrollTop = a + h - el.clientHeight; }
+  }
+  function slashPick(i) {
+    var s = S.slash; if (!s || !s.items[i]) return; var it = s.items[i], x = s.x, p = x.selectionStart; slashClose();
+    var txt = typeof it[3] === 'function' ? it[3]() : it[3], caret = it[4] == null ? txt.length : it[4], pre = '';
+    if (it[6]) { var ls = x.value.lastIndexOf('\n', s.start - 1) + 1; if (x.value.slice(ls, s.start).trim()) pre = '\n'; }
+    rep(x, s.start, p, pre + txt, s.start + pre.length + caret);
+  }
+
+  /* ---------- read mode extras: callouts, clickable checklists, outline jumps ---------- */
+  function callouts(m) {
+    m.querySelectorAll('blockquote').forEach(function (b) {
+      var mm = b.innerHTML.match(/^\s*\[!(tip|note|important|warning)\]\s*([\s\S]*)$/i); if (!mm) return;
+      var k = mm[1].toLowerCase(), c = CO[k], parts = mm[2].split('<br>'), title = '', body = mm[2];
+      if (parts.length > 1 && parts[0].trim()) { title = parts[0].trim(); body = parts.slice(1).join('<br>'); }
+      b.className = 'nt-co'; b.style.setProperty('--cc', c[2]);
+      b.innerHTML = '<div class="nt-coh"><span>' + c[0] + '</span><b>' + (title || c[1]) + '</b></div>' + (body.replace(/<br>/g, '').trim() ? '<div class="nt-cob">' + body + '</div>' : '');
+    });
+  }
+  function toggleTodo(id, m, li) {
+    var n = byId(id); if (!n) return; var all = Array.prototype.slice.call(m.querySelectorAll('.ac-td')), idx = all.indexOf(li); if (idx < 0) return;
+    var lines = eachTodo(n.body, function (i, mt, k, ls) { if (k === idx) ls[i] = mt[1] + (mt[2] === ' ' ? '[x]' : '[ ]') + ' ' + ls[i].slice(mt[0].length); });
+    queue(n.id, { body: lines.join('\n') });
+    var on = li.classList.toggle('on'); li.setAttribute('aria-checked', on ? 'true' : 'false');
+    var bar = $('#nttp'); if (bar) { var tmp = document.createElement('div'); tmp.innerHTML = todoBar(n); if (tmp.firstChild) bar.replaceWith(tmp.firstChild); }
+  }
+  function todos(m, n) {
+    m.querySelectorAll('.ac-td').forEach(function (li) { li.classList.add('nt-tdi'); li.tabIndex = 0; li.setAttribute('role', 'checkbox'); li.setAttribute('aria-checked', li.classList.contains('on') ? 'true' : 'false'); });
+    m.addEventListener('click', function (e) { var li = e.target.closest('.ac-td'); if (li && m.contains(li) && !e.target.closest('a')) toggleTodo(n.id, m, li); });
+    m.addEventListener('keydown', function (e) { if ((e.key === ' ' || e.key === 'Enter') && e.target.classList && e.target.classList.contains('ac-td')) { e.preventDefault(); toggleTodo(n.id, m, e.target); } });
+  }
+  function jumpHead(n, i) {
+    var hs = heads(n.body), h = hs[i]; if (!h) return;
+    if (S.mode === 'edit') {
+      var x = $('#ntx'); if (!x) return; x.focus({ preventScroll: true }); x.setSelectionRange(h.pos, h.pos);
+      var r = x.getBoundingClientRect(), rr = root.getBoundingClientRect(); root.scrollTop += (r.top - rr.top) + caretY(x, h.pos) - 80; return;
+    }
+    var m = $('#ntm'); if (!m) return; var els = m.querySelectorAll('h1,h2,h3,h4,h5,h6'), norm = function (t) { return String(t).replace(/\s+/g, ' ').trim().toLowerCase(); }, seen = 0, el = null;
+    for (var k = 0; k < i; k++) if (norm(hs[k].text) === norm(h.text)) seen++;
+    for (var j = 0; j < els.length; j++) if (norm(els[j].textContent) === norm(h.text)) { if (seen-- === 0) { el = els[j]; break; } }
+    if (!el) el = els[i]; if (el) el.scrollIntoView({ behavior: window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  /* ---------- view settings (size, serif, wide, zen) ---------- */
+  function view(n) {
+    root.classList.toggle('nt-zen', !!(n && S.zen)); root.classList.toggle('nt-ser', !!P.ser); root.classList.toggle('nt-wide', !!P.wide);
+    root.style.setProperty('--ntfs', FS[P.fs] + 'px');
+  }
+
+  /* one handler for every new button; returns true when it handled the click */
+  function fmtAct(k, a, n) {
+    if (k === 'tpl') { S.pop = S.pop === 'tpl' ? null : 'tpl'; draw(); return true; }
+    if (k === 'tplgo') { S.pop = null; draw(); makeTpl(a.dataset.k); return true; }
+    if (k === 'lay') { P.lay = a.dataset.v; savePrefs(); draw(); return true; }
+    if (k === 'sty' || k === 'typo' || k === 'out') { S.pop = S.pop === k ? null : k; S.menu = false; draw(); return true; }
+    if (k === 'icon' && n) { queue(n.id, { icon: String(a.dataset.v).slice(0, 8) }, true); draw(); return true; }
+    if (k === 'color' && n) { queue(n.id, { color: a.dataset.v }, true); draw(); return true; }
+    if (k === 'stclr' && n) { queue(n.id, { icon: null, color: null }, true); draw(); return true; }
+    if (k === 'fsd' || k === 'fsu') { P.fs = Math.max(0, Math.min(5, P.fs + (k === 'fsu' ? 1 : -1))); savePrefs(); draw(); return true; }
+    if (k === 'ser') { P.ser = !P.ser; savePrefs(); draw(); return true; }
+    if (k === 'wide') { P.wide = !P.wide; savePrefs(); draw(); return true; }
+    if (k === 'zen') { S.zen = !S.zen; S.pop = null; draw(); if (S.zen) toast('Zen mode on. Press Esc to leave.'); return true; }
+    if (k === 'olgo' && n) { S.pop = null; draw(); jumpHead(n, +a.dataset.i); return true; }
+    if (k === 'fmt') { doFmt(a.dataset.f); return true; }
+    if (k === 'slgo') { slashPick(+a.dataset.i); return true; }
+    return false;
+  }
+
+
   /* ---------- events ---------- */
   function onClick(e) {
     var t = e.target;
@@ -718,8 +1004,14 @@
     var pf = t.closest('[data-pf]'); if (pf) { S.pf = pf.dataset.pf; draw(); return; }
     var md = t.closest('[data-m]'); if (md) { if (md.dataset.m !== S.mode) setMode(md.dataset.m); return; }
     var a = t.closest('[data-a]');
-    if (!a) { if (S.menu) { S.menu = false; S.del = false; draw(); } return; }
+    if (!a) {
+      if (S.pop) { S.pop = null; root.querySelectorAll('.nt-pp').forEach(function (el) { el.remove(); }); }
+      if (S.menu) { S.menu = false; S.del = false; draw(); }
+      return;
+    }
     var k = a.dataset.a, n = S.id && byId(S.id);
+    if (S.pop && ['tpl', 'sty', 'typo', 'out'].indexOf(k) < 0 && !a.closest('.nt-pp')) S.pop = null;
+    if (fmtAct(k, a, n)) return;
     if (k === 'new') newNote();
     else if (k === 'retry') load(true);
     else if (k === 'graph') toGraph();
@@ -770,17 +1062,31 @@
     if (t.id === 'ntfr') { F.r = t.value; return; }
     if (!n) return;
     if (t.id === 'ntt') queue(n.id, { title: t.value.trim().slice(0, 120) || 'Untitled note' });
-    else if (t.id === 'ntx') { grow(t); queue(n.id, { body: t.value }); if (S.find) fUpdate(); }
+    else if (t.id === 'ntx') { grow(t); queue(n.id, { body: t.value }); wc(t.value); slashCheck(t); if (S.find) fUpdate(); }
   }
   function onChange(e) {
+    if (e.target.id === 'ntsort') { P.sort = e.target.value; savePrefs(); drawGrid(); return; }
     var n = S.id && byId(S.id); if (!n) return;
     if (e.target.id === 'ntc') queue(n.id, { category: e.target.value }, true);
     else if (e.target.id === 'ntp') setProject(e.target.value);
   }
   function onKey(e) {
     if (!S.open) return;
+    var tx = e.target;
+    if (S.slash && tx && tx.id === 'ntx') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); var L = S.slash.items.length; S.slash.i = (S.slash.i + (e.key === 'ArrowDown' ? 1 : L - 1)) % L; slashDraw(); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); slashPick(S.slash.i); return; }
+      if (e.key === 'Escape') { e.preventDefault(); slashClose(); return; }
+    }
+    if (tx && tx.id === 'ntx' && !e.isComposing) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); doFmt('b'); return; }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'i' || e.key === 'I')) { e.preventDefault(); doFmt('i'); return; }
+      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && listEnter(tx)) { e.preventDefault(); return; }
+    }
     if (e.key === 'Escape') {
       if (S.ov) { ovClose(); e.preventDefault(); }
+      else if (S.pop) { S.pop = null; draw(); }
+      else if (S.zen) { S.zen = false; draw(); }
       else if (S.find) { S.find = false; draw(); }
       else if (S.menu) { S.menu = false; S.del = false; draw(); }
       else if (G && G.sel) { G.sel = null; gCard(); gDraw(); }
@@ -798,6 +1104,7 @@
     if (!root || !btn || !mainEl) return;
     btn.addEventListener('click', function () { if (S.open) { S.id = null; S.view = 'list'; S.find = false; ovClose(); draw(); } else show(); });
     root.addEventListener('click', onClick); root.addEventListener('input', onInput); root.addEventListener('change', onChange);
+    root.addEventListener('mousedown', function (e) { if (e.target.closest('#ntsl, .nt-fmt')) e.preventDefault(); });   // the text box keeps its focus and selection while you tap the toolbar or slash menu
     document.addEventListener('keydown', onKey);
     var side = $('#side');   // opening a chat or starting a new one leaves the notes view
     if (side) side.addEventListener('click', function (e) { if (S.open && !e.target.closest('#nt') && e.target.closest('.ac-it, .ac-new, [data-pn]')) hide(); }, true);

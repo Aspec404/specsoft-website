@@ -1,0 +1,80 @@
+/* SPECSOFT® Spectra Academics Voice Chat v1: composer button + full screen "call" with her expressions.
+   Uses the Academics theme variables (--bg --card --ink --ink2 --line --acc --onacc), so light and dark mode just work. */
+.ac-vcb{margin-left:auto}
+.ac-vcb+.ac-send{margin-left:0}
+.ac-vcb svg{width:19px;height:19px}
+.ac-vcb.na{opacity:.4}
+html.vc-open,html.vc-open body{overflow:hidden}
+
+.vc{position:fixed;inset:0;z-index:8000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:calc(64px + env(safe-area-inset-top,0px)) 20px calc(28px + env(safe-area-inset-bottom,0px));color:var(--ink,#0b0b0c);font:14px var(--font-sans,'Inter',sans-serif);opacity:0;transition:opacity .25s;--lv:0}
+.vc[hidden]{display:none}
+.vc.in{opacity:1}
+.vc-bg{position:absolute;inset:0;z-index:-1;background:
+  radial-gradient(60% 45% at 50% 38%,rgba(124,92,255,.22),transparent 70%),
+  radial-gradient(50% 40% at 15% 90%,rgba(0,200,200,.16),transparent 70%),
+  radial-gradient(50% 40% at 90% 85%,rgba(60,120,255,.16),transparent 70%),var(--bg,#e9ebed)}
+.vc-top{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:16px;right:16px;display:flex;align-items:center;gap:10px}
+.vc-top b{font-weight:600;font-size:15px;margin-right:auto}
+.vc-lang{max-width:48vw;padding:8px 10px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card,#fff);color:inherit;font:inherit;font-size:13px}
+.vc-x{display:grid;place-items:center;width:38px;height:38px;border:1px solid var(--line,#ddd);border-radius:50%;background:var(--card,#fff);color:inherit;cursor:pointer}
+.vc-x svg{width:16px;height:16px}
+
+/* her */
+.vc-stage{position:relative;width:min(62vw,300px);aspect-ratio:1;display:grid;place-items:center}
+.vc-ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--acc,#0b0b0c);opacity:.14;transition:transform .08s linear,opacity .2s}
+.vc-ring.r1{transform:scale(calc(1.02 + var(--lv) * .22))}
+.vc-ring.r2{transform:scale(calc(1.12 + var(--lv) * .42));opacity:.07}
+.vc[data-s=speaking] .vc-ring{opacity:.38}
+.vc[data-s=speaking] .vc-ring.r2{opacity:.18}
+.vc[data-s=listening] .vc-ring{animation:vcBreath 2.4s ease-in-out infinite}
+.vc-av{position:relative;width:86%;aspect-ratio:1;padding:0;border:0;border-radius:50%;overflow:hidden;background:var(--card,#fff);box-shadow:0 18px 60px rgba(0,0,0,.22);cursor:pointer;animation:vcFloat 4.2s ease-in-out infinite;transition:transform .15s}
+.vc-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.04);transition:opacity .28s,transform .4s}
+.vc-av img.on{opacity:1;transform:scale(1)}
+.vc[data-s=speaking] .vc-av{transform:scale(calc(1 + var(--lv) * .045))}
+
+/* little animation per face, so she acts it out too */
+.vc[data-s=speaking][data-f=happy] .vc-av{animation:vcBounce .62s ease-in-out infinite}
+.vc[data-s=speaking][data-f=upset] .vc-av{animation:vcShake .5s ease-in-out infinite}
+.vc[data-f=upset]:not([data-s=speaking]) .vc-av{animation:vcDroop 3.4s ease-in-out infinite}
+.vc[data-f=think] .vc-av{animation:vcTilt 3s ease-in-out infinite}
+.vc[data-m=surprised][data-s=speaking] .vc-av,.vc[data-m=shocked][data-s=speaking] .vc-av{animation:vcPop .5s ease-out 1}
+@keyframes vcFloat{50%{transform:translateY(-8px)}}
+@keyframes vcBreath{50%{transform:scale(1.07);opacity:.26}}
+@keyframes vcBounce{50%{transform:translateY(-12px) rotate(1.2deg)}}
+@keyframes vcShake{25%{transform:translateX(-4px) rotate(-1deg)}75%{transform:translateX(4px) rotate(1deg)}}
+@keyframes vcDroop{50%{transform:translateY(5px) scale(.985)}}
+@keyframes vcTilt{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg) translateY(-3px)}}
+@keyframes vcPop{0%{transform:scale(.92)}60%{transform:scale(1.07)}100%{transform:scale(1)}}
+
+/* text */
+.vc-st{min-height:20px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink2,#5d6065);text-align:center}
+.vc[data-s=listening] .vc-st::before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:#22c55e;animation:vcBlink 1s infinite}
+@keyframes vcBlink{50%{opacity:.25}}
+.vc-cap{width:min(560px,100%);max-height:26vh;overflow:auto;text-align:center;display:flex;flex-direction:column;gap:8px}
+.vc-cap p{margin:0;line-height:1.45}
+.vc-cap .me{font-size:15px;color:var(--ink2,#5d6065)}
+.vc-cap .ai{font-size:17px;font-weight:500}
+.vc-cap p:empty{display:none}
+
+/* controls */
+.vc-ctl{display:flex;gap:18px;margin-top:6px}
+.vc-b{display:grid;place-items:center;width:58px;height:58px;border:1px solid var(--line,#ddd);border-radius:50%;background:var(--card,#fff);color:inherit;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.1);transition:transform .12s}
+.vc-b:active{transform:scale(.93)}
+.vc-b svg{width:24px;height:24px}
+.vc-b.off{background:var(--acc,#0b0b0c);color:var(--onacc,#fff)}
+.vc-end{background:#e5484d;border-color:transparent;color:#fff}
+.vc-end svg{transform:rotate(135deg)}
+.vc-tip{font-size:12px;color:var(--ink2,#5d6065);opacity:.7}
+
+@media (max-height:640px){.vc-stage{width:min(40vw,200px)}.vc-cap{max-height:20vh}}
+@media (prefers-reduced-motion:reduce){.vc-av,.vc-ring,.vc[data-s=listening] .vc-st::before{animation:none!important}.vc-av img{transition:opacity .1s}}
+
+/* her Spectre (sphere drone) takes over when Spectra's voice is busy, out of credits, or the free browser voice is used */
+.vc-why{min-height:0;max-width:min(420px,90vw);font-size:12.5px;text-align:center;color:var(--ink2,#5d6065)}
+.vc-why:empty{display:none}
+.vc[data-who=spectre] .vc-av{border-radius:0;overflow:visible;background:transparent;box-shadow:none;animation:vcFloat 3.2s ease-in-out infinite!important}
+.vc[data-who=spectre] .vc-av img{object-fit:contain;filter:drop-shadow(0 16px 30px rgba(0,0,0,.3))}
+.vc[data-who=spectre] .vc-ring{border-color:#7c5cff}
+.vc[data-who=spectre][data-s=speaking] .vc-av{transform:scale(calc(1 + var(--lv) * .08))}
+.vc[data-boot] .vc-av{animation:vcBoot 1.15s ease-out both!important}
+@keyframes vcBoot{0%{transform:scale(.4);opacity:0;filter:brightness(2.2)}35%{transform:scale(1.18);opacity:1}100%{transform:scale(1);filter:none}}

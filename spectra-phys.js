@@ -1,4 +1,6 @@
-/* Spectra Physics Sandbox (v9) for the Spectra Academics Lab.
+/* Spectra Physics Sandbox (v10) for the Spectra Academics Lab.
+   v10 (Phase 6): liquids react. Water flowing onto lava makes obsidian, lava flowing into water makes stone (a crust of 16 px rock blocks grows along the edge, with steam), oil that touches lava burns,
+   and there is a new liquid, Acid, that eats wood, rubber and foam (and slowly stone and concrete). Two new scenes: Lava and water, Acid test.
    v9 (Phase 5): breakable blocks. Explosions hurt blocks by distance, cracks show as health drops, and a block shatters into flying fragments at zero health (capped, they fade out).
    Lava heat now burns flammable blocks and melts Metal, Copper Block and Gold slowly, water cools them, and a Breakable switch turns it all off (the older instant burning comes back).
    v8 (Phase 4): the Math tab. Angle tool (angle of elevation and depression with live sin, cos, tan), right-triangle solver (build it as a ramp), ramp meter (g sin and g cos split),
@@ -25,9 +27,10 @@
   var STEP = 1000 / 120, MAXO = 140, CB = 1, CR = 4, FMAX = 18000, WAKE = 36;   // collision categories: bodies, rope
   var MP = 0.042, KB = 1.3;   // mass of one water particle (Matter units) and how strongly water pushes on things (tuned so wood floats and steel sinks)
   var LIQ = [
-    { id: 'water', n: 'Water', c0: [120, 205, 255], c1: [10, 56, 160], g: 1, v: 0.05, a: 0.84, a0: 0.62, dl: 95, sg: 1, wg: 1, dot: '#38a0ff' },
-    { id: 'oil', n: 'Oil', c0: [214, 168, 70], c1: [96, 58, 14], g: 0.3, v: 0.4, a: 0.92, a0: 0.8, dl: 80, sg: 0.25, wg: 0, dot: '#b9822b' },
-    { id: 'lava', n: 'Lava', c0: [255, 226, 110], c1: [200, 38, 8], g: 1.15, v: 0.6, a: 1, a0: 1, dl: 60, sg: 0, wg: 0, dot: '#ff6a1a' }
+    { id: 'water', n: 'Water', c0: [120, 205, 255], c1: [10, 56, 160], g: 1, v: 0.05, a: 0.84, a0: 0.62, dl: 95, sg: 1, wg: 1, dot: '#38a0ff', tip: 'Water floats wood, ice and foam. Poured onto lava it makes obsidian, and it cools hot blocks.' },
+    { id: 'oil', n: 'Oil', c0: [214, 168, 70], c1: [96, 58, 14], g: 0.3, v: 0.4, a: 0.92, a0: 0.8, dl: 80, sg: 0.25, wg: 0, dot: '#b9822b', tip: 'Oil is lighter than water, so it floats on it. Lava sets it on fire.' },
+    { id: 'lava', n: 'Lava', c0: [255, 226, 110], c1: [200, 38, 8], g: 1.15, v: 0.6, a: 1, a0: 1, dl: 60, sg: 0, wg: 0, dot: '#ff6a1a', tip: 'Lava burns wood and melts metal and ice. Water turns it to stone or obsidian.' },
+    { id: 'acid', n: 'Acid', c0: [205, 255, 140], c1: [40, 150, 40], g: 1.1, v: 0.12, a: 0.86, a0: 0.7, dl: 90, sg: 0.5, wg: 0, dot: '#7ddc3a', tip: 'Acid eats wood, rubber and foam, and slowly stone and concrete. Metal, gold and obsidian are safe.' }
   ];
   /* liquids: g = gravity multiplier (oil is lighter so it floats on water), v = thickness, c0/c1 = surface and deep colour, a = opacity, dl = how fast it darkens with depth, sg = light shafts, wg = surface ripples */
   var TG = LIQ.map(function (l) { return l.g; }), TV = LIQ.map(function (l) { return l.v; });
@@ -63,17 +66,17 @@
      hp = health (for the breakage phase, tunable), flam = burns, mag = pulled by the magnet, melts = turns into water in lava, lava = lava-proof,
      smelt = melts slowly (used by the fire phase), fs = static friction (grip when resting), sh = shine, note = one line shown on the stats card */
   var MATS = [
-    { id: 'wood', n: 'Wood', d: 0.0007, r: 0.2, f: 0.6, c: '#c68b59', hp: 60, flam: 1, note: 'Lighter than water, so it floats. It also burns.' },
-    { id: 'stone', n: 'Stone', d: 0.0026, r: 0.1, f: 0.7, c: '#9a9fa8', hp: 220, note: 'Heavy and tough. It sinks fast.' },
-    { id: 'concrete', n: 'Concrete', d: 0.0034, r: 0.05, f: 0.95, fs: 1.2, c: '#b7b2a7', hp: 380, note: 'Heavier than stone, with a lot of grip.' },
+    { id: 'wood', n: 'Wood', d: 0.0007, r: 0.2, f: 0.6, c: '#c68b59', hp: 60, flam: 1, acid: 0.8, note: 'Lighter than water, so it floats. It also burns.' },
+    { id: 'stone', n: 'Stone', d: 0.0026, r: 0.1, f: 0.7, c: '#9a9fa8', hp: 220, acid: 0.25, note: 'Heavy and tough. It sinks fast.' },
+    { id: 'concrete', n: 'Concrete', d: 0.0034, r: 0.05, f: 0.95, fs: 1.2, c: '#b7b2a7', hp: 380, acid: 0.2, note: 'Heavier than stone, with a lot of grip.' },
     { id: 'metal', n: 'Metal', d: 0.008, r: 0.1, f: 0.3, c: '#8b98a8', hp: 450, mag: 1, smelt: 1, hk: 0.35, sh: 0.9, note: 'Very heavy. The magnet pulls it, and it melts slowly in lava.' },
     { id: 'obsidian', n: 'Obsidian', d: 0.0028, r: 0.06, f: 0.4, c: '#2e2142', hp: 1500, lava: 1, sh: 1, note: 'Volcanic glass: very hard, and lava cannot hurt it.' },
     { id: 'copper', n: 'Copper Block', d: 0.0086, r: 0.15, f: 0.35, c: '#d17b4a', hp: 320, mag: 1, smelt: 1, hk: 0.6, sh: 0.8, note: 'Heavy and metal-like. The magnet pulls it here, and it melts in lava.' },
     { id: 'gold', n: 'Gold', d: 0.0135, r: 0.1, f: 0.4, c: '#f2c230', hp: 90, smelt: 1, hk: 0.9, sh: 1, note: 'The densest block. Soft, so it breaks easily and melts fast in lava, and it sinks fastest.' },
     { id: 'asphalt', n: 'Asphalt', d: 0.0022, r: 0.02, f: 1.3, fs: 3, c: '#3a3d44', hp: 240, note: 'Very grippy: it barely slides, even on a slope.' },
-    { id: 'rubber', n: 'Rubber', d: 0.0012, r: 0.85, f: 0.9, c: '#ef4444', hp: 120, flam: 1, note: 'Very bouncy and grippy. It burns.' },
+    { id: 'rubber', n: 'Rubber', d: 0.0012, r: 0.85, f: 0.9, c: '#ef4444', hp: 120, flam: 1, acid: 0.6, note: 'Very bouncy and grippy. It burns.' },
     { id: 'ice', n: 'Ice', d: 0.0009, r: 0.1, f: 0.02, c: '#8fd8ff', hp: 40, melts: 1, note: 'Almost no friction, and just light enough to float. It melts in lava.' },
-    { id: 'foam', n: 'Foam', d: 0.0002, r: 0.3, f: 0.5, c: '#fbbf24', hp: 25, flam: 1, note: 'Super light, so it floats high. It burns.' }
+    { id: 'foam', n: 'Foam', d: 0.0002, r: 0.3, f: 0.5, c: '#fbbf24', hp: 25, flam: 1, acid: 1.2, note: 'Super light, so it floats high. It burns.' }
   ];
   var MAT = {}; MATS.forEach(function (m) { MAT[m.id] = m; });
   /* object menu and About board: names, a fact per block, and a physics note per item */
@@ -123,7 +126,7 @@
     { id: 'tnt', n: 'TNT', cat: 'item', g: 2, tip: 'Tap to place a TNT crate. It blows up if a blast reaches it or it hits something hard. A fall from high up is enough.' },
     { id: 'rocket', n: 'Rocket', cat: 'item', g: 2, tip: 'Tap to place a rocket. It lights after half a second and pushes forward for a few seconds: thrust. Tilt it by dropping it on a ramp.' },
     { id: 'bomb', n: 'Bomb', cat: 'item', g: 2, tip: 'Tap to place a bomb. It explodes after 2 seconds. The blast pushes things away, harder when they are closer, and lighter things fly further.' },
-    { id: 'water', n: 'Pour', cat: 'liquid', g: 3, tip: 'Hold and drag to pour. Pick Water, Oil or Lava below. Wood, ice and foam float on water; stone, metal and gold sink. Oil floats on water. Lava burns wood and melts ice.' },
+    { id: 'water', n: 'Pour', cat: 'liquid', g: 3, tip: 'Hold and drag to pour. Pick a liquid below (water, oil, lava or acid). Wood, ice and foam float on water; stone, metal and gold sink. Oil floats on water. Lava burns wood and melts ice.' },
     { id: 'faucet', n: 'Faucet', cat: 'special', g: 3, tip: 'Tap to place a faucet that keeps pouring the liquid chosen below. Put a wheel under it, or fill a pool.' },
     { id: 'rope', n: 'Rope', cat: 'special', g: 4, tip: 'Drag to draw a rope. Each end attaches to whatever object it touches, or to the wall. Pull on it and you feel tension.' },
     { id: 'rod', n: 'Rod', cat: 'special', g: 4, tip: 'Drag to add a rigid rod between two things (or a thing and the wall).' },
@@ -176,6 +179,7 @@
     this.rho = new Float32Array(max); this.rn = new Float32Array(max); this.t = new Uint8Array(max); this.nc = new Uint8Array(max);
     this.order = new Int32Array(max); this.cs = new Int32Array(8); this.cur = new Int32Array(8); this.gw = 1; this.gh = 1;
     this.sl = new Uint8Array(max); this.cm = new Uint8Array(max); this.s2 = new Float32Array(max); this.act = new Int32Array(max); this.wl = new Int32Array(max); this.gen = new Uint8Array(max);
+    this.rxl = new Int32Array(1024); this.rf = new Uint8Array(max); this.nr = 0; this.rxm = new Uint8Array(64); this.rxm[2] = 1; this.rxm[16] = 1; this.rxm[10] = 1; this.rxm[17] = 1;   // pairs that react: water+lava, oil+lava
     this.na = 0; this.gn = -1; this.G = 6; this.vs = 12; this.vw = 150; this.sN = 40;   // sleep when slower than vs (px/s) for sN steps; a neighbour faster than vw wakes it
     this.ks = 0.04; this.kn = 0.5; this.vis = 0.05; this.damp = 0.996; this.rho0 = 0;
     var r0 = 0;
@@ -186,7 +190,16 @@
     if (this.n >= this.max) return -1; var i = this.n++;
     this.x[i] = x; this.y[i] = y; this.vx[i] = vx || 0; this.vy[i] = vy || 0; this.t[i] = t || 0; this.sl[i] = asleep ? 1 : 0; this.cm[i] = 0; this.gen[i] = 0; this.nc[i] = asleep ? 12 : 0; this.s2[i] = 0; return i;
   };
-  Fluid.prototype.clear = function () { this.n = 0; this.na = 0; this.gn = -1; };
+  Fluid.prototype.clear = function () { this.n = 0; this.na = 0; this.gn = -1; this.nr = 0; };
+  Fluid.prototype.dropMany = function (idx) {   // remove particles by index (each is replaced by the last one)
+    var ar = [this.x, this.y, this.vx, this.vy, this.ox, this.oy, this.ax, this.ay, this.rho, this.rn, this.t, this.nc, this.sl, this.cm, this.s2, this.gen, this.rf], prev = -1, k, i, last, q;
+    idx.sort(function (p, r) { return r - p; });
+    for (k = 0; k < idx.length; k++) {
+      i = idx[k]; if (i === prev || i >= this.n || i < 0) continue; prev = i; last = --this.n;
+      if (i !== last) for (q = 0; q < ar.length; q++) ar[q][i] = ar[q][last];
+    }
+    this.gn = -1; this.nr = 0;
+  };
   Fluid.prototype.wakeAll = function () { for (var i = 0; i < this.n; i++) { this.sl[i] = 0; this.cm[i] = 0; this.gen[i] = 0; } };
   Fluid.prototype.grid = function (W, H) {
     var n = this.n, c = this.cell, gw = Math.ceil(W / c) + 3, gh = Math.ceil(H / c) + 3, size = gw * gh, i, k, cx, cy, ci;
@@ -222,7 +235,7 @@
   Fluid.prototype.step = function (dt, gy, gx, W, H, solids, tg, tv) {
     var n = this.n; if (!n) { this.na = 0; return; }
     var x = this.x, y = this.y, vx = this.vx, vy = this.vy, ox = this.ox, oy = this.oy, ax = this.ax, ay = this.ay, rho = this.rho, rn = this.rn, t = this.t, sl = this.sl, cm = this.cm, s2 = this.s2, act = this.act, wl = this.wl, nc = this.nc, gen = this.gen, G = this.G;
-    var h = this.h, h2 = h * h, i, j, k, c = this.cell, a, na = 0, nw = 0;
+    var h = this.h, h2 = h * h, i, j, k, c = this.cell, a, na = 0, nw = 0, rxm = this.rxm, rl = this.rxl, nr = this.nr, rf = this.rf;
     for (i = 0; i < n; i++) if (!sl[i]) act[na++] = i;
     this.na = na;
     if (!na) { if (this.gn !== n) this.grid(W, H); return; }
@@ -240,12 +253,13 @@
     }
     /* pass 2: pressure displacements + viscosity */
     for (a = 0; a < na; a++) {
-      i = act[a]; var P = ks * (rho[i] - rho0), Pn = ks * kn * rn[i], cx2 = (x[i] / c | 0) + 1, cy2 = (y[i] / c | 0) + 1, dx2, dy2, fast = s2[i] > vw2 && gen[i] < G;
+      i = act[a]; var P = ks * (rho[i] - rho0), Pn = ks * kn * rn[i], cx2 = (x[i] / c | 0) + 1, cy2 = (y[i] / c | 0) + 1, dx2, dy2, tI = t[i], fast = s2[i] > vw2 && gen[i] < G;
       if (P < 0) P = 0;   // stretched: no suction
       for (dy2 = -1; dy2 <= 1; dy2++) for (dx2 = -1; dx2 <= 1; dx2++) {
         var gx3 = cx2 + dx2, gy3 = cy2 + dy2; if (gx3 < 0 || gy3 < 0 || gx3 >= gw || gy3 >= gh) continue; var c3 = gx3 + gy3 * gw;
         for (k = cs[c3]; k < cs[c3 + 1]; k++) {
           j = s[k]; if (j === i) continue; var ex2 = x[j] - x[i], ey2 = y[j] - y[i], dd = ex2 * ex2 + ey2 * ey2; if (dd >= h2 || dd < 1e-8) continue;
+          if (rxm[tI * 8 + t[j]] && nr < 1020) { rl[nr++] = i; rl[nr++] = j; rf[i] = 1; if (sl[j]) { if (cm[j] !== 255) { cm[j] = 255; wl[nw++] = j; gen[j] = 0; } } else rf[j] = 1; }   // a lava and water (or oil) pair is touching: neither may sleep
           var dist = Math.sqrt(dd), qq = 1 - dist / h, D = h * (P * qq + Pn * qq * qq) * 0.5, ux = ex2 / dist, uy = ey2 / dist, u = ((vx[i] - vx[j]) * ux + (vy[i] - vy[j]) * uy), I = 0;
           if (u > 0) I = (tv ? (tv[t[i]] + tv[t[j]]) * 0.5 : this.vis) * qq * u * 0.5 * dt;
           if (sl[j]) {   // a sleeping neighbour acts like a wall; a fast awake one wakes it up next step
@@ -272,7 +286,7 @@
           var best = -1e9, bi = -1, e, ne = S.nx.length; for (e = 0; e < ne; e++) { var dd2 = S.nx[e] * px + S.ny[e] * py - S.nd[e]; if (dd2 > best) { best = dd2; bi = e; } }
           if (best >= mg) continue; nx = S.nx[bi]; ny = S.ny[bi]; pen = mg - best;
         }
-        px += nx * pen; py += ny * pen; S.fx -= nx * pen; S.fy -= ny * pen; S.cx += px; S.cy += py; S.cnt++; if (t[i] === 2) S.hot++; else if (t[i] === 0) S.wet++;
+        px += nx * pen; py += ny * pen; S.fx -= nx * pen; S.fy -= ny * pen; S.cx += px; S.cy += py; S.cnt++; if (t[i] === 2) S.hot++; else if (t[i] === 0) S.wet++; else if (t[i] === 3) S.acid++;
       }
       if (px < mg) px = mg; else if (px > W - mg) px = W - mg; if (py > H - mg) py = H - mg; if (py < mg) py = mg;
       x[i] = px; y[i] = py;
@@ -281,9 +295,11 @@
     for (a = 0; a < na; a++) {
       i = act[a]; var nvx = (x[i] - ox[i]) * inv, nvy = (y[i] - oy[i]) * inv, sp = nvx * nvx + nvy * nvy; if (sp > vmax * vmax) { var kk = vmax / Math.sqrt(sp); nvx *= kk; nvy *= kk; sp = vmax * vmax; }
       vx[i] = nvx * dm; vy[i] = nvy * dm; s2[i] = sp;
-      if (sp < vs2 && nc[i] >= 5) { if (++cm[i] > sN) { sl[i] = 1; vx[i] = 0; vy[i] = 0; s2[i] = 0; gen[i] = 0; } } else cm[i] = 0;
+      if (sp < vs2 && nc[i] >= 5 && !rf[i]) { if (++cm[i] > sN) { sl[i] = 1; vx[i] = 0; vy[i] = 0; s2[i] = 0; gen[i] = 0; } } else cm[i] = 0;
+      rf[i] = 0;
     }
     for (k = 0; k < nw; k++) { j = wl[k]; sl[j] = 0; cm[j] = 0; }
+    this.nr = nr;
   };
 
 
@@ -318,7 +334,7 @@
       '<div class="ph-grp"><button type="button" class="ph-b" data-pa="pause" id="phpa">' + ic('pause', 16) + '<span>Pause</span></button><button type="button" class="ph-b" data-pa="rewind">' + ic('rewind', 16) + '<span>Rewind</span></button><button type="button" class="ph-b" data-pa="rain" id="phrn">' + ic('rain', 16) + '<span>Rain</span></button>' +
       '<button type="button" class="ph-b" data-pa="drain">' + ic('drain', 16) + '<span>Drain</span></button><button type="button" class="ph-b" data-pa="clear">' + ic('trash', 16) + '<span>Clear</span></button></div></div>';
     h += '<div class="ph-try"><b>Scenes:</b><button type="button" class="ph-b" data-sc="tower">Box tower</button><button type="button" class="ph-b" data-sc="pendulum">Pendulum</button><button type="button" class="ph-b" data-sc="pool">Float or sink?</button>' +
-      '<button type="button" class="ph-b" data-sc="wheel">Water wheel</button><button type="button" class="ph-b" data-sc="lava">Lava lake</button><button type="button" class="ph-b" data-sc="lift">Balloon lift</button><button type="button" class="ph-b" data-sc="ocean">Ocean</button><button type="button" class="ph-b" data-sc="door">Door switch</button><button type="button" class="ph-b" data-sc="elev">Elevator</button>' +
+      '<button type="button" class="ph-b" data-sc="wheel">Water wheel</button><button type="button" class="ph-b" data-sc="lava">Lava lake</button><button type="button" class="ph-b" data-sc="lavawater">Lava and water</button><button type="button" class="ph-b" data-sc="acid">Acid test</button><button type="button" class="ph-b" data-sc="lift">Balloon lift</button><button type="button" class="ph-b" data-sc="ocean">Ocean</button><button type="button" class="ph-b" data-sc="door">Door switch</button><button type="button" class="ph-b" data-sc="elev">Elevator</button>' +
       '<button type="button" class="ph-b ph-ask" data-pa="ask">' + ic('chat', 16) + '<span>Ask Spectra</span></button></div></div>';
     return h;
   }
@@ -398,7 +414,7 @@
   function opts(m, extra) {
     var o = { friction: m.f, restitution: m.r, density: m.d, frictionAir: 0.01, sleepThreshold: Infinity }; if (m.fs) o.frictionStatic = m.fs; for (var k in extra) o[k] = extra[k]; return o;
   }
-  function objCount() { return M.Composite.allBodies(S.world).filter(function (b) { return !b.wall && !b.rope && !b.frag; }).length; }
+  function objCount() { return M.Composite.allBodies(S.world).filter(function (b) { return !b.wall && !b.rope && !b.frag && !b.rock; }).length; }
   /* every object carries a props record: what it is, its health, and the group ids and initiators the Properties board will edit.
      It is filled in the first time it is read (a bomb or TNT gets its kind a moment after it is added) */
   function propsOf(b) {
@@ -563,7 +579,7 @@
     var s = S;
     M.Composite.allConstraints(s.world).forEach(function (c) { M.Composite.remove(s.world, c); });
     M.Composite.allBodies(s.world).forEach(function (b) { if (!b.wall) { M.Composite.remove(s.world, b); b.gone = true; } });
-    s.fl.clear(); s.stat = {}; s.sig = {}; s.ropes = {}; s.fx = []; s.faucets = []; s.fans = []; s.frags = []; s.grab = null; s.line = null; s.pour = false; mathReset();
+    s.fl.clear(); s.stat = {}; s.sig = {}; s.ropes = {}; s.fx = []; s.faucets = []; s.fans = []; s.frags = []; s.rocks = []; s.rockAt = {}; s.rk = {}; s.grab = null; s.line = null; s.pour = false; mathReset();
   }
 
   /* ================= breakage, fire and melting (Phase 5) =================
@@ -594,9 +610,9 @@
   function breakBody(b, src, ox, oy) {
     var s = S, m = MAT[b.matId], x = b.position.x, y = b.position.y, i, a;
     if (b.gone) return;
-    if (src === 'fire' || src === 'melt') {   // burns away or melts: no fragments, just a few cheap effects
+    if (src === 'fire' || src === 'melt' || src === 'acid') {   // burns away, melts or dissolves: no fragments, just a few cheap effects
       if (src === 'melt') for (i = 0; i < 10; i++) s.fx.push({ t: 'sp', x: x + (rnd() - 0.5) * 18, y: y + (rnd() - 0.5) * 14, vx: (rnd() - 0.5) * 2, vy: -0.5 - rnd() * 2, l: 1, dec: 0.0015, c: rnd() < 0.5 ? '#ffb347' : '#ff7a1a' });
-      burnFx(x, y); for (i = 0; i < 4; i++) s.fx.push({ t: 'sm', x: x + (rnd() - 0.5) * 24, y: y + (rnd() - 0.5) * 24, vx: (rnd() - 0.5), vy: -0.6 - rnd(), r: 8 + rnd() * 8, l: 1, dec: 0.0007 });
+      if (src === 'acid') acidFx(x, y); else burnFx(x, y); for (i = 0; i < 4; i++) s.fx.push({ t: 'sm', x: x + (rnd() - 0.5) * 24, y: y + (rnd() - 0.5) * 24, vx: (rnd() - 0.5), vy: -0.6 - rnd(), r: 8 + rnd() * 8, l: 1, dec: 0.0007 });
       rm(b); return;
     }
     var area = b.area || 900, n = clampN(Math.round(Math.sqrt(area) / 5), 6, 12), pts = partsOf(b), rr = Math.max(3.5, Math.sqrt(area / n) * 0.62), vx0 = b.velocity.x, vy0 = b.velocity.y, made = [], fr;
@@ -659,6 +675,65 @@
     c.restore();
   }
   function tintParts(c, parts, col) { parts.forEach(function (pp) { if (pp.circleRadius) { c.beginPath(); c.arc(pp.position.x, pp.position.y, pp.circleRadius, 0, 6.2832); } else path(c, pp); c.fillStyle = col; c.fill(); }); }
+
+  /* ================= liquid reactions and acid (Phase 6) =================
+     Where lava and water touch, the contact particles turn to rock: water flowing onto lava makes obsidian, lava flowing into water makes stone
+     (and stone when it is a tie). The rock is built as 16 px static blocks on a grid, so a crust grows along the edge instead of thousands of tiny bodies.
+     Oil that touches lava burns. Acid eats wood, rubber and foam (and slowly stone and concrete) through the same health system as fire. */
+  var ROCKMAX = 260, RC = 16;
+  var rockKey = function (cx, cy) { return cx + ',' + cy; };
+  function rockFree(cx, cy) {   // is this grid cell free of rocks and of other objects?
+    var s = S, r = s.rockAt && s.rockAt[rockKey(cx, cy)]; if (r && !r.gone) return false;
+    var x0 = cx * RC, y0 = cy * RC, ok = true;
+    if (x0 < 0 || y0 < 0 || x0 + RC > s.W || y0 + RC > s.H) return false;
+    M.Composite.allBodies(s.world).forEach(function (b) {
+      if (!ok || b.wall || b.frag) return; var bb = b.bounds;
+      if (bb.max.x > x0 + 1 && bb.min.x < x0 + RC - 1 && bb.max.y > y0 + 1 && bb.min.y < y0 + RC - 1) ok = false;
+    });
+    return ok;
+  }
+  function makeRock(cx, cy, obs) {
+    var s = S, m = MAT[obs ? 'obsidian' : 'stone'], b = M.Bodies.rectangle(cx * RC + RC / 2, cy * RC + RC / 2, RC, RC, opts(m, { isStatic: true }));
+    b.col = m.c; b.kind = 'rock'; b.matId = m.id; b.rock = true; b.area = RC * RC; addB(b);
+    (s.rocks = s.rocks || []).push(b); (s.rockAt = s.rockAt || {})[rockKey(cx, cy)] = b;
+    while (s.rocks.length > ROCKMAX) { var o = s.rocks.shift(); if (!o.gone) rm(o); }
+    var i; for (i = 0; i < (calm() ? 3 : 7); i++) s.fx.push({ t: 'sp', x: b.position.x + (rnd() - 0.5) * RC, y: b.position.y + (rnd() - 0.5) * RC, vx: (rnd() - 0.5) * 2, vy: -0.5 - rnd() * 1.5, l: 1, dec: 0.003, c: obs ? '#7c6aa6' : '#cfd3da' });
+    return b;
+  }
+  function steamFx(x, y) {
+    var s = S; if (s.fx.length > 450 || calm() && rnd() < 0.6) return;
+    s.fx.push({ t: 'sm', x: x, y: y, vx: (rnd() - 0.5) * 0.8, vy: -1.1 - rnd() * 1.3, r: 5 + rnd() * 5, l: 0.9, dec: 0.0013, steam: true });
+  }
+  function acidFx(x, y) { var s = S, i; for (i = 0; i < 14; i++) s.fx.push({ t: 'sp', x: x + (rnd() - 0.5) * 20, y: y + (rnd() - 0.5) * 20, vx: (rnd() - 0.5) * 1.6, vy: -0.6 - rnd() * 1.6, l: 1, dec: 0.002, c: rnd() < 0.5 ? '#9be15d' : '#d9f99d' }); }
+  function reactions() {   // called after the liquid has stepped: it lists the lava/water and lava/oil pairs that touched
+    var s = S, f = s.fl, nr = f.nr, k; if (!nr) return; f.nr = 0;
+    var rl = f.rxl, used = {}, drop = [], cells = s.rk || (s.rk = {}), free = {}, budget = 24, now = s.tt, oilLeft = s.frame % 3 === 0 ? 1 : 0;   // oil burns about 20 particles a second
+    for (k = 0; k < nr && budget > 0; k += 2) {
+      var a = rl[k], b = rl[k + 1]; if (a >= f.n || b >= f.n || used[a] || used[b]) continue;
+      var L = f.t[a] === 2 ? a : b, O = L === a ? b : a, tO = f.t[O]; if (f.t[L] !== 2) continue;
+      if (tO === 0) {   // water meets lava
+        if (rnd() > 0.35) continue;
+        var cx = Math.floor(f.x[L] / RC), cy = Math.floor(f.y[L] / RC), key = rockKey(cx, cy);
+        if (free[key] === undefined) free[key] = rockFree(cx, cy); if (!free[key]) continue;
+        var dx = f.x[O] - f.x[L], dy = f.y[O] - f.y[L], d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;   // pointing from the lava to the water
+        var vw = -(f.vx[O] * ux + f.vy[O] * uy), vl = f.vx[L] * ux + f.vy[L] * uy, obs = vw > vl + 120;   // water moving into lava = obsidian, otherwise stone
+        used[a] = 1; used[b] = 1; drop.push(a, b); budget--; steamFx(f.x[O], f.y[O]);
+        var e = cells[key] || (cells[key] = { n: 0, o: 0, t: now }); e.n++; if (obs) e.o++; e.t = now;
+        if (e.n >= 3) { makeRock(cx, cy, e.o * 2 > e.n); delete cells[key]; free[key] = false; }
+      } else if (tO === 1) {   // oil meets lava: it burns
+        if (oilLeft <= 0) continue; oilLeft--; used[O] = 1; drop.push(O); budget--;
+        if (s.fx.length < 450) { s.fx.push({ t: 'sp', x: f.x[O], y: f.y[O], vx: (rnd() - 0.5) * 1.4, vy: -1.5 - rnd() * 2, l: 1, dec: 0.0022, c: rnd() < 0.5 ? '#ffb347' : '#ff5e3a' }); if (rnd() < 0.4) s.fx.push({ t: 'sm', x: f.x[O], y: f.y[O], vx: (rnd() - 0.5) * 0.6, vy: -0.8 - rnd(), r: 6 + rnd() * 5, l: 1, dec: 0.001 }); }
+      }
+    }
+    if (drop.length) f.dropMany(drop);
+    if (s.frame % 40 === 0) { for (var q in cells) if (now - cells[q].t > 1500) delete cells[q]; if (s.rocks) s.rocks = s.rocks.filter(function (r) { return !r.gone; }); }
+  }
+  function acidHit(b, n, dt) {   // acid touching a block wears its health down (the Breakable switch turns this off)
+    if (!brkOn() || b.frag || !isBreakable(b)) return; var m = MAT[b.matId], k = m && m.acid; if (!k) return;
+    hurt(b, Math.min(n, 12) * k * 0.02 * (dt / STEP), 'acid');
+    if (b.gone || calm() || S.fx.length > 450 || rnd() > 0.15) return;
+    var bb = b.bounds; S.fx.push({ t: 'sp', x: bb.min.x + rnd() * (bb.max.x - bb.min.x), y: bb.min.y + rnd() * (bb.max.y - bb.min.y), vx: (rnd() - 0.5) * 0.5, vy: -0.8 - rnd() * 1.2, l: 1, dec: 0.003, c: '#9be15d' });
+  }
 
   /* ================= explosions ================= */
   function boom(x, y, R, P) {
@@ -1300,6 +1375,19 @@
       fillRect(x0 + 8, H - 90, x1 - 8, H - 6, 2);
       addB(mk('box', W / 2 - pw / 3, H - 320, 18, 'wood')); addB(mk('hex', W / 2, H - 340, 18, 'ice')); addB(mk('ball', W / 2 + pw / 3, H - 320, 16, 'metal'));
       toast('Lava burns wood, melts ice, and metal just sits there');
+    } else if (name === 'lavawater') {
+      pw = Math.min(340, W - 70); x0 = W / 2 - pw / 2; x1 = W / 2 + pw / 2;
+      mkPlatform({ x: x0, y: H - 190 }, { x: x0, y: H - 4 }); mkPlatform({ x: x1, y: H - 190 }, { x: x1, y: H - 4 });
+      fillRect(x0 + 8, H - 110, x1 - 8, H - 6, 2);
+      s.faucets.push({ x: W / 2 - 14, y: 60, t: 0 });
+      toast('The faucet pours water onto lava: obsidian forms. Pour lava into water for stone');
+    } else if (name === 'acid') {
+      pw = Math.min(340, W - 70); x0 = W / 2 - pw / 2; x1 = W / 2 + pw / 2;
+      mkPlatform({ x: x0, y: H - 170 }, { x: x0, y: H - 4 }); mkPlatform({ x: x1, y: H - 170 }, { x: x1, y: H - 4 });
+      fillRect(x0 + 8, H - 100, x1 - 8, H - 6, 3);
+      var ak = [['box', 'wood'], ['ball', 'rubber'], ['box', 'foam'], ['ball', 'metal'], ['box', 'stone'], ['hex', 'obsidian'], ['box', 'gold']], aq;
+      for (aq = 0; aq < ak.length; aq++) addB(mk(ak[aq][0], x0 + pw * (aq + 1) / (ak.length + 1), H - 260 - (aq % 2) * 60, 14, ak[aq][1]));
+      toast('Acid eats wood, rubber and foam. Metal, gold and obsidian are safe');
     } else if (name === 'ocean') {
       var lvl = Math.round(H * 0.42), ob;
       fillRect(4, lvl, W - 4, H - 6, 0, true);
@@ -1414,7 +1502,7 @@
   var gcol = function (id) { return 'hsl(' + ((id * 47) % 360) + ',68%,50%)'; };
   var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   function nameOf(b) {
-    var k = b.kind, m = MAT[b.matId]; if (KINDN[k]) return KINDN[k];
+    var k = b.kind, m = MAT[b.matId]; if (k === 'rock') return m ? m.n + ' rock' : 'Rock'; if (KINDN[k]) return KINDN[k];
     var sh = SHAPE[k] || 'object'; return m ? m.n.replace(' Block', '') + ' ' + sh : cap(sh);
   }
   function colOf(b) { var m = MAT[b.matId]; return b.col || (m && m.c) || '#94a3b8'; }
@@ -1452,7 +1540,7 @@
   var groupCount = function (id) { var n = 0; M.Composite.allBodies(S.world).forEach(function (b) { if (b.props && b.props.groups.indexOf(id) >= 0) n++; }); return n; };
   function flagsOf(b) {
     var m = MAT[b.matId], fl = [];
-    if (m) { if (m.flam) fl.push('Flammable'); if (m.mag) fl.push('Magnetic'); if (m.lava) fl.push('Lava-proof'); if (m.melts) fl.push('Melts'); if (m.smelt) fl.push('Melts slowly'); }
+    if (m) { if (m.flam) fl.push('Flammable'); if (m.mag) fl.push('Magnetic'); if (m.lava) fl.push('Lava-proof'); if (m.melts) fl.push('Melts'); if (m.acid) fl.push('Dissolves in acid'); if (m.smelt) fl.push('Melts slowly'); }
     (KFLAGS[b.kind] || []).forEach(function (f) { fl.push(f); }); if (b.isStatic) fl.push('Fixed in place');
     return fl;
   }
@@ -1537,7 +1625,7 @@
   var bar = function (v, label, txt) { return '<div class="ph-sr"><span>' + label + '</span><div class="ph-bar"><i style="width:' + Math.max(3, Math.min(100, v * 100)).toFixed(0) + '%"></i></div><b>' + txt + '</b></div>'; };
   function statsHtml(id) {
     var m = MAT[id] || MAT.wood, rel = m.d / 0.001, fl = [];
-    if (m.flam) fl.push('Flammable'); if (m.mag) fl.push('Magnetic'); if (m.lava) fl.push('Lava-proof'); if (m.melts) fl.push('Melts'); if (m.smelt) fl.push('Melts in lava');
+    if (m.flam) fl.push('Flammable'); if (m.mag) fl.push('Magnetic'); if (m.lava) fl.push('Lava-proof'); if (m.melts) fl.push('Melts'); if (m.acid) fl.push('Dissolves in acid'); if (m.smelt) fl.push('Melts in lava');
     return '<div class="ph-sh"><s style="--c:' + m.c + '"></s><div><b>' + m.n + '</b><span>' + m.note + '</span></div></div><div class="ph-sg">' +
       '<div class="ph-sr"><span>Density</span><em></em><b>' + Math.round(m.d * 1e6) + ' kg/m\u00b3 \u00b7 ' + (rel < 0.995 ? 'floats on water' : rel > 1.005 ? 'sinks in water' : 'hovers in water') + '</b></div>' +
       bar(m.r / 0.9, 'Bounciness', m.r.toFixed(2)) + bar(m.f / 1.3, 'Friction', m.f.toFixed(2)) + bar(Math.sqrt(m.hp / 1500), 'Max health', String(m.hp)) + '</div>' +
@@ -1565,7 +1653,7 @@
     else if (b.dataset.pc) setCat(b.dataset.pc);
     else if (b.dataset.pt) setTool(b.dataset.pt);
     else if (b.dataset.pm) { s.mat = b.dataset.pm; S.root.querySelectorAll('.ph-m[data-pm]').forEach(function (m) { m.classList.toggle('on', m.dataset.pm === s.mat); }); refreshStats(); }
-    else if (b.dataset.pf !== undefined) { s.fluid = +b.dataset.pf; S.root.querySelectorAll('.ph-m[data-pf]').forEach(function (m) { m.classList.toggle('on', +m.dataset.pf === s.fluid); }); if (s.tool !== 'water' && s.tool !== 'faucet') setTool('water'); }
+    else if (b.dataset.pf !== undefined) { s.fluid = +b.dataset.pf; S.root.querySelectorAll('.ph-m[data-pf]').forEach(function (m) { m.classList.toggle('on', +m.dataset.pf === s.fluid); }); if (s.tool !== 'water' && s.tool !== 'faucet') setTool('water'); if (LIQ[s.fluid] && LIQ[s.fluid].tip) toast(LIQ[s.fluid].tip); }
     else if (b.dataset.pi) { s.initType = b.dataset.pi; S.root.querySelectorAll('.ph-m[data-pi]').forEach(function (m) { m.classList.toggle('on', m.dataset.pi === s.initType); }); }
     else if (b.dataset.mn) menuAct(b.dataset.mn);
     else if (b.dataset.bd) boardAct(b.dataset.bd, b);
@@ -1597,7 +1685,7 @@
       if (b.wall) return;
       (b.parts.length > 1 ? b.parts.slice(1) : [b]).forEach(function (p) {
         var bb = p.bounds; if (bb.max.x < x0 - 6 || bb.min.x > x1 + 6 || bb.max.y < y0 - 6 || bb.min.y > y1 + 6) return;
-        var o = { b: b, k: 0, x0: bb.min.x, y0: bb.min.y, x1: bb.max.x, y1: bb.max.y, fx: 0, fy: 0, cx: 0, cy: 0, cnt: 0, hot: 0, wet: 0, nof: !!b.rope };
+        var o = { b: b, k: 0, x0: bb.min.x, y0: bb.min.y, x1: bb.max.x, y1: bb.max.y, fx: 0, fy: 0, cx: 0, cy: 0, cnt: 0, hot: 0, wet: 0, acid: 0, nof: !!b.rope };
         if (p.circleRadius) { o.x = p.position.x; o.y = p.position.y; o.r = p.circleRadius; }
         else {
           var v = p.vertices, n = v.length, nx = [], ny = [], nd = [], e;
@@ -1659,6 +1747,7 @@
       wakeAround(sol, bodies);
       s.fans.forEach(function (fan) { var ca = Math.cos(fan.a), sa = Math.sin(fan.a); for (i = 0; i < f.n; i++) { var w = windAt(fan, f.x[i], f.y[i]); if (w) { f.vx[i] += ca * w * 2200 * dtm / 1000; f.vy[i] += sa * w * 2200 * dtm / 1000; f.sl[i] = 0; f.cm[i] = 0; f.gen[i] = 0; } } });
       for (sub = 0; sub < 2; sub++) f.step(dtf, gy, 0, s.W, s.H, sol, TG, TV);
+      reactions();
       var hotSet = [];
       sol.forEach(function (o) {
         if (!o.cnt) return; var b = o.b;
@@ -1669,6 +1758,7 @@
           b.frictionAir = (b.fa0 || 0.01) + Math.min(o.cnt, 14) * 0.004;
         }
         if (o.hot) { b.heat = (b.heat || 0) + dtm * Math.min(1, o.hot / 5) * 1.4; hotSet.push(b); }
+        if (o.acid) acidHit(b, o.acid, dtm);
         if (o.wet && b.heat > 0) b.heat = Math.max(0, b.heat - dtm * Math.min(1, o.wet / 4) * 1.2);   // water cools things down
       });
       hotSet.forEach(function (b) {
@@ -1881,10 +1971,10 @@
      Calm water deep inside a pool is just stamped in (no sprite), which is what keeps a full screen of water cheap to draw. */
   function drawLiquid(c) {
     var s = S, f = s.fl, n = f.n, i, ty; if (!n) return;
-    var sc = s.wsc, lw = s.lw, lh = s.lh, wx = s.wx, R = 12 * sc, cnt = [0, 0, 0], hs = Math.max(1, Math.round(5 * sc)), sl = f.sl, nc = f.nc, tp = f.t, fx = f.x, fy = f.y, T = calm() ? 0 : s.tt;
+    var sc = s.wsc, lw = s.lw, lh = s.lh, wx = s.wx, R = 12 * sc, cnt = LIQ.map(function () { return 0; }), hs = Math.max(1, Math.round(5 * sc)), sl = f.sl, nc = f.nc, tp = f.t, fx = f.x, fy = f.y, T = calm() ? 0 : s.tt;
     for (i = 0; i < n; i++) cnt[tp[i]]++;
     for (i = 0; i < lw; i++) s.lc[i] = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(i * 0.21 + T * 0.0012)) * (0.5 + 0.5 * Math.sin(i * 0.067 - T * 0.0007 + 1.3));
-    for (ty = 0; ty < 3; ty++) {
+    for (ty = 0; ty < LIQ.length; ty++) {
       if (!cnt[ty]) continue;
       wx.setTransform(1, 0, 0, 1, 0, 0); wx.clearRect(0, 0, lw, lh);
       for (i = 0; i < n; i++) if (tp[i] === ty && !(sl[i] && nc[i] >= 11)) wx.drawImage(s.spr, fx[i] * sc - R, fy[i] * sc - R, R * 2, R * 2);
@@ -1893,7 +1983,7 @@
         px = (fx[i] * sc) | 0; py = (fy[i] * sc) | 0;
         for (yy = py - hs; yy <= py + hs; yy++) { if (yy < 0 || yy >= lh) continue; for (xx = px - hs; xx <= px + hs; xx++) if (xx >= 0 && xx < lw) d[(yy * lw + xx) * 4 + 3] = 255; }
       }
-      s.st.top = LIQ[ty].wg && !(cnt[1] || cnt[2]) ? s.top : null; s.st.T = T; s.st.flip = s.grav < 0; s.st.amb = !calm() && s.grav > 0;
+      s.st.top = LIQ[ty].wg && cnt[ty] === n ? s.top : null; s.st.T = T; s.st.flip = s.grav < 0; s.st.amb = !calm() && s.grav > 0;
       shadeLiquid(d, lw, lh, LIQ[ty], s.lut[ty], s.st);
       wx.putImageData(img, 0, 0);
       c.imageSmoothingEnabled = true; c.drawImage(s.wc, 0, 0, lw, lh, 0, 0, s.W, s.H);
@@ -1901,7 +1991,7 @@
     /* single drops and splash foam */
     for (i = 0; i < n; i++) {
       var sp2 = f.vx[i] * f.vx[i] + f.vy[i] * f.vy[i], t2 = tp[i];
-      if (nc[i] < 3) { c.beginPath(); c.arc(fx[i], fy[i], 2.6, 0, 6.2832); c.fillStyle = t2 === 2 ? '#ff7a1a' : t2 === 1 ? '#b9822b' : 'rgba(80,175,255,.9)'; c.fill(); c.beginPath(); c.arc(fx[i] - 0.8, fy[i] - 0.8, 0.9, 0, 6.2832); c.fillStyle = 'rgba(255,255,255,.7)'; c.fill(); }
+      if (nc[i] < 3) { c.beginPath(); c.arc(fx[i], fy[i], 2.6, 0, 6.2832); c.fillStyle = t2 === 0 ? 'rgba(80,175,255,.9)' : LIQ[t2].dot; c.fill(); c.beginPath(); c.arc(fx[i] - 0.8, fy[i] - 0.8, 0.9, 0, 6.2832); c.fillStyle = 'rgba(255,255,255,.7)'; c.fill(); }
       else if (t2 === 0 && sp2 > 160000 && nc[i] < 9) { c.beginPath(); c.arc(fx[i], fy[i], 1.7, 0, 6.2832); c.fillStyle = 'rgba(255,255,255,.65)'; c.fill(); }
     }
   }
@@ -1984,7 +2074,7 @@
       if (f.t === 'ring') { var r = f.R * (1 - Math.pow(f.l, 2.2)); c.beginPath(); c.arc(f.x, f.y, r, 0, 6.2832); c.lineWidth = 2 + 10 * f.l; c.strokeStyle = 'rgba(255,196,90,' + (f.l * 0.8) + ')'; c.stroke(); }
       else if (f.t === 'flash') { var g = c.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.R); g.addColorStop(0, 'rgba(255,245,200,' + f.l + ')'); g.addColorStop(0.4, 'rgba(255,160,60,' + f.l * 0.55 + ')'); g.addColorStop(1, 'rgba(255,90,40,0)'); c.fillStyle = g; c.beginPath(); c.arc(f.x, f.y, f.R, 0, 6.2832); c.fill(); }
       else if (f.t === 'sp') { c.beginPath(); c.arc(f.x, f.y, 1.5 + 2 * f.l, 0, 6.2832); c.globalAlpha = Math.min(1, f.l * 1.5); c.fillStyle = f.c; c.fill(); c.globalAlpha = 1; }
-      else if (f.t === 'sm') { c.beginPath(); c.arc(f.x, f.y, f.r, 0, 6.2832); c.fillStyle = 'rgba(70,70,80,' + (f.l * 0.28) + ')'; c.fill(); }
+      else if (f.t === 'sm') { c.beginPath(); c.arc(f.x, f.y, f.r, 0, 6.2832); c.fillStyle = f.steam ? 'rgba(236,241,246,' + (f.l * 0.4) + ')' : 'rgba(70,70,80,' + (f.l * 0.28) + ')'; c.fill(); }
       else if (f.t === 'wd') { c.beginPath(); c.moveTo(f.x, f.y); c.lineTo(f.x - f.vx * 2.2, f.y - f.vy * 2.2); c.lineWidth = 2; c.strokeStyle = 'rgba(120,180,255,' + (f.l * 0.5) + ')'; c.stroke(); }
     });
     c.restore();
