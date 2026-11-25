@@ -1,4 +1,4 @@
-/* Spectra Tasks v1: the "My Tasks" dashboard inside Spectra Academics, saved in Supabase (table spectra_tasks, see supabase-spectra-tasks.sql) so it follows you on every device.
+/* Spectra Tasks v2 (glow-up batch 1: board view with drag and drop, weekly activity chart, search, sort, due today filter, quick due dates, reschedule missing, subject tints): the "My Tasks" dashboard inside Spectra Academics, saved in Supabase (table spectra_tasks, see supabase-spectra-tasks.sql) so it follows you on every device.
    Statuses: Pending, Ongoing, Completed are saved. MISSING is worked out by the page: not completed + due date already passed.
    Load this file AFTER spectra-academics.js. It needs the sidebar button #tk, the badge #tkc and the section #tasks (see spectra-academics.html).
    It wires itself (like the Lab), and uses window.SpectraAcad.toast when it exists.
@@ -26,7 +26,7 @@
   var ic = function (n) { return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICO[n] + '"/></svg>'; };
 
   var root = null, btn = null, badge = null, mainEl = null;
-  var S = { tasks: [], loaded: false, busy: false, err: '', open: false, f: 'all', sj: '', more: false, exp: {}, ed: null };
+  var S = { tasks: [], loaded: false, busy: false, err: '', open: false, f: 'all', sj: '', more: false, exp: {}, ed: null, q: '', td: false, drag: null };
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
@@ -153,51 +153,105 @@
     var C = 2 * Math.PI * 34, off = (C * (1 - pct / 100)).toFixed(1);
     return '<div class="tk-ring" role="img" aria-label="' + esc(label) + '"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" class="tk-rb"/><circle cx="40" cy="40" r="34" class="tk-rf" style="stroke-dasharray:' + C.toFixed(1) + ';stroke-dashoffset:' + off + '"/></svg><b>' + pct + '%</b></div>';
   }
+  /* ---------- glow-up: prefs, sorting, weekly chart, board ---------- */
+  var PK = 'sa.tasks.prefs';
+  function loadPrefs() {
+    var p = { lay: 'list', sort: 'due' };
+    try { var r = JSON.parse(localStorage.getItem(PK) || '{}'); if (r.lay === 'board') p.lay = 'board'; if (['due', 'pri', 'new', 'az'].indexOf(r.sort) >= 0) p.sort = r.sort; } catch (e) { }
+    return p;
+  }
+  var P = loadPrefs();
+  var savePrefs = function () { try { localStorage.setItem(PK, JSON.stringify(P)); } catch (e) { } };
+  var SEMO = { 'Math': '\uD83E\uDDEE', 'General Sciences': '\uD83D\uDD2C', 'Social Studies': '\uD83C\uDF0D', 'Languages': '\uD83D\uDCD6', 'ICT/TVL': '\uD83D\uDCBB', 'General Knowledge': '\uD83D\uDCA1' };
+  var BORDER = ['missing', 'pending', 'ongoing', 'completed'];
+  Object.assign(ICO, { board: 'M4 4h5v16H4zM10.5 4h5v10h-5zM17 4h3v13h-3z', rows: 'M4 5h16v5H4zM4 14h16v5H4z', search: 'M11 4a7 7 0 105 12l4 4' });
+  var cmpPri = function (a, b) { return PW[a.priority] !== PW[b.priority] ? PW[a.priority] - PW[b.priority] : cmp(a, b); };
+  var cmpNew = function (a, b) { return a.created_at < b.created_at ? 1 : -1; };
+  var cmpAz = function (a, b) { return String(a.title).localeCompare(String(b.title)); };
+  function srt(k) { return k === 'completed' ? cmpDone : P.sort === 'pri' ? cmpPri : P.sort === 'new' ? cmpNew : P.sort === 'az' ? cmpAz : cmp; }
+  function week() {   // tasks finished on each of the last 7 days
+    var days = [], base = new Date(); base.setHours(12, 0, 0, 0);
+    for (var i = 6; i >= 0; i--) { var d = new Date(base); d.setDate(base.getDate() - i); days.push({ k: ymd(d), l: d.toLocaleDateString(undefined, { weekday: 'narrow' }), full: d.toLocaleDateString(undefined, { weekday: 'long' }), n: 0, t: i === 0 }); }
+    var idx = {}; days.forEach(function (d, i) { idx[d.k] = i; });
+    S.tasks.forEach(function (t) { if (t.status === 'completed' && t.completed_at) { var k = ymd(new Date(t.completed_at)); if (idx[k] != null) days[idx[k]].n++; } });
+    return days;
+  }
+  function weekHtml() {
+    var w = week(), mx = Math.max.apply(null, w.map(function (d) { return d.n; })), tot = w.reduce(function (a, d) { return a + d.n; }, 0);
+    return '<div class="tk-wk" role="img" aria-label="' + tot + ' tasks finished in the last 7 days"><div class="tk-wkb">' + w.map(function (d) {
+      return '<div class="tk-wc' + (d.t ? ' t' : '') + (d.n ? '' : ' z') + '" title="' + d.full + ': ' + d.n + ' done"><b>' + (d.n || '') + '</b><i style="height:' + (d.n ? Math.max(14, Math.round(d.n / mx * 100)) : 4) + '%"></i><span>' + d.l + '</span></div>';
+    }).join('') + '</div><small>' + tot + ' done this week</small></div>';
+  }
+  function toolHtml() {
+    return '<div class="tk-tool"><label class="tk-sq"><i>' + ic('search') + '</i><input id="tksq" type="search" placeholder="Search tasks" autocomplete="off" value="' + esc(S.q) + '" aria-label="Search tasks"></label>' +
+      '<div class="tk-lay" role="group" aria-label="Layout"><button type="button" data-a="lay" data-v="list" class="' + (P.lay === 'list' ? 'on' : '') + '" aria-label="List view" title="List">' + ic('rows') + '</button><button type="button" data-a="lay" data-v="board" class="' + (P.lay === 'board' ? 'on' : '') + '" aria-label="Board view" title="Board">' + ic('board') + '</button></div>' +
+      '<select id="tksort" aria-label="Sort tasks">' + [['due', 'Due date'], ['pri', 'Priority'], ['new', 'Newest'], ['az', 'A to Z']].map(function (o) { return '<option value="' + o[0] + '"' + (P.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+  }
   function draw() {
     var d = $('#tkd', root); if (!d) return;
+    root.classList.toggle('tk-b', P.lay === 'board');
     if (S.busy && !S.loaded) { d.innerHTML = '<div class="tk-none">Loading your tasks...</div>'; return; }
     if (S.err) {
       var m = S.err === 'LOGIN' ? 'Log in to use My Tasks.' : S.err === 'SETUP' ? 'My Tasks needs the database setup first. Run supabase-spectra-tasks.sql in Supabase.' : 'Could not load your tasks.';
       d.innerHTML = '<div class="tk-none">' + esc(m) + (S.err === 'LOGIN' ? '' : '<br><button class="tk-more" type="button" data-a="retry">Try again</button>') + '</div>'; return;
     }
+    var keep = document.activeElement && document.activeElement.id === 'tksq' ? document.activeElement.selectionStart : -1;
     var c = counts(), total = S.tasks.length, pct = total ? Math.round(c.completed / total * 100) : 0, st = streak(), dt = dueToday();
-    var h = '<section class="tk-hero"><div class="tk-hl">' + ring(pct, c.completed + ' of ' + total + ' tasks done') + '<div><b>' + c.completed + ' of ' + total + ' done</b><p>' + esc(says(c, total, dt)) + '</p></div></div>' +
+    var h = '<section class="tk-hero"><div class="tk-hl">' + ring(pct, c.completed + ' of ' + total + ' tasks done') + '<div><b>' + c.completed + ' of ' + total + ' done</b><p>' + esc(says(c, total, dt)) + '</p>' +
       '<div class="tk-hc"><span class="tk-chip' + (st ? ' hot' : '') + '" title="Days in a row with a finished task">' + ic('flame') + (st ? st + ' day streak' : 'No streak yet') + '</span>' +
-      '<span class="tk-chip">' + ic('cal') + dt + ' due today</span></div></section>';
+      '<span class="tk-chip">' + ic('cal') + dt + ' due today</span></div></div></div>' + weekHtml() + '</section>';
     h += '<div class="tk-sts">' + ['completed', 'pending', 'ongoing', 'missing'].map(function (k) {
       return '<button type="button" class="tk-st' + (S.f === k ? ' on' : '') + '" data-a="f" data-f="' + k + '" style="--kc:' + KIND[k].c + '" aria-pressed="' + (S.f === k) + '"><i>' + ic(KIND[k].i) + '</i><b>' + c[k] + '</b><span>' + KIND[k].n + '</span></button>';
     }).join('') + '</div>';
     var seen = {}; S.tasks.forEach(function (t) { if (t.subject) seen[t.subject] = 1; });
     var subs = SUBJ.filter(function (s) { return seen[s]; });
-    h += '<div class="tk-flt"><button type="button" data-a="f" data-f="all" class="' + (S.f === 'all' ? 'on' : '') + '">All</button>' +
+    h += '<div class="tk-flt"><button type="button" data-a="f" data-f="all" class="' + (S.f === 'all' && !S.sj && !S.td ? 'on' : '') + '">All</button>' +
+      '<button type="button" data-a="td" class="' + (S.td ? 'on' : '') + '">' + ic('cal') + 'Due today</button>' +
       (subs.length ? '<span class="tk-sep"></span>' + subs.map(function (s) { return '<button type="button" data-a="sj" data-s="' + esc(s) + '" class="' + (S.sj === s ? 'on' : '') + '"><s style="background:' + SC[s] + '"></s>' + esc(s) + '</button>'; }).join('') : '') + '</div>';
-    d.innerHTML = h + listHtml();
+    d.innerHTML = h + toolHtml() + '<div id="tklist">' + listHtml() + '</div>';
+    if (keep >= 0) { var q = $('#tksq', root); if (q) { q.focus(); try { q.setSelectionRange(keep, keep); } catch (e) { } } }
   }
+  function drawList() { var l = $('#tklist', root); if (l) l.innerHTML = listHtml(); }
   function emptyHtml() {
     return '<div class="tk-em"><div class="tk-emi">\uD83C\uDF89</div><p>Wohoo! You\'re all caught up! Add a task to get started with your tasks.</p>' +
       '<button class="tk-add" type="button" data-a="add"><i>' + ic('plus') + '</i>Add task</button></div>';
   }
+  function rescBtn() { return '<button type="button" class="tk-resc" data-a="resc" title="Move every missing task to today">Reschedule to today</button>'; }
   function listHtml() {
     if (!S.tasks.length) return emptyHtml();
-    var items = S.tasks.filter(function (t) { return (S.f === 'all' || cat(t) === S.f) && (!S.sj || t.subject === S.sj); });
-    if (!items.length) return '<div class="tk-none">Nothing here, bro \uD83D\uDC40</div>';
+    var q = S.q.trim().toLowerCase(), td = today();
+    var items = S.tasks.filter(function (t) {
+      return (S.f === 'all' || cat(t) === S.f) && (!S.sj || t.subject === S.sj) && (!S.td || (t.status !== 'completed' && t.due === td)) &&
+        (!q || t.title.toLowerCase().indexOf(q) >= 0 || (t.notes || '').toLowerCase().indexOf(q) >= 0 || (t.subject || '').toLowerCase().indexOf(q) >= 0);
+    });
+    if (!items.length) return '<div class="tk-none">' + (q ? 'No tasks match your search.' : 'Nothing here, bro \uD83D\uDC40') + '</div>';
+    if (P.lay === 'board') return boardHtml(items);
     var h = '';
     if (S.f === 'all') {
       KORDER.forEach(function (k) {
         var g = items.filter(function (t) { return cat(t) === k; }); if (!g.length) return;
-        g.sort(k === 'completed' ? cmpDone : cmp);
+        g.sort(srt(k));
         var lim = k === 'completed' && !S.more ? 5 : g.length;
-        h += '<h3 class="tk-gh" style="--kc:' + KIND[k].c + '"><i></i>' + KIND[k].n + '<em>' + g.length + '</em></h3><div class="tk-list">' + g.slice(0, lim).map(card).join('') + '</div>';
+        h += '<h3 class="tk-gh" style="--kc:' + KIND[k].c + '"><i></i>' + KIND[k].n + '<em>' + g.length + '</em>' + (k === 'missing' ? rescBtn() : '') + '</h3><div class="tk-list">' + g.slice(0, lim).map(card).join('') + '</div>';
         if (g.length > lim) h += '<button class="tk-more" type="button" data-a="more">Show all ' + g.length + ' completed</button>';
       });
-    } else { items.sort(S.f === 'completed' ? cmpDone : cmp); h = '<div class="tk-list">' + items.map(card).join('') + '</div>'; }
+    } else { items.sort(srt(S.f)); h = (S.f === 'missing' ? '<div class="tk-rw">' + rescBtn() + '</div>' : '') + '<div class="tk-list">' + items.map(card).join('') + '</div>'; }
     return h;
+  }
+  function boardHtml(items) {
+    var cols = BORDER.filter(function (k) { return S.f === 'all' || S.f === k; });
+    return '<div class="tk-brd" style="--cols:' + cols.length + '">' + cols.map(function (k) {
+      var g = items.filter(function (t) { return cat(t) === k; }).sort(srt(k)), lim = k === 'completed' && !S.more ? 6 : g.length;
+      return '<section class="tk-col" data-col="' + k + '" style="--kc:' + KIND[k].c + '"><h3 class="tk-gh"><i></i>' + KIND[k].n + '<em>' + g.length + '</em>' + (k === 'missing' && g.length ? rescBtn() : '') + '</h3><div class="tk-list">' +
+        (g.length ? g.slice(0, lim).map(card).join('') : '<div class="tk-cn">' + (k === 'completed' ? 'Nothing done yet' : k === 'missing' ? 'Nothing missing \uD83D\uDE0E' : 'Drop tasks here') + '</div>') + '</div>' +
+        (g.length > lim ? '<button class="tk-more" type="button" data-a="more">Show all ' + g.length + '</button>' : '') + '</section>';
+    }).join('') + '</div>';
   }
   function card(t) {
     var k = cat(t), subs = t.subtasks || [], dn = subs.filter(function (s) { return s.d; }).length, di = dueInfo(t), open = !!S.exp[t.id], doneT = t.status === 'completed';
-    var h = '<article class="tk-card k-' + k + '" data-id="' + esc(t.id) + '" style="--kc:' + KIND[k].c + '">' +
+    var h = '<article class="tk-card k-' + k + '" data-id="' + esc(t.id) + '" style="--kc:' + KIND[k].c + ';--sc:' + (SC[t.subject] || KIND[k].c) + '"' + (P.lay === 'board' ? ' draggable="true"' : '') + '>' +
       '<button type="button" class="tk-ck" data-a="ck" aria-label="' + (doneT ? 'Mark as not done' : 'Mark as done') + '">' + ic('check') + '</button>' +
-      '<div class="tk-bd" data-a="edit" role="button" tabindex="0" aria-label="Edit task: ' + esc(t.title) + '"><div class="tk-tt">' + esc(t.title) + '</div><div class="tk-mt">' +
+      '<div class="tk-bd" data-a="edit" role="button" tabindex="0" aria-label="Edit task: ' + esc(t.title) + '"><div class="tk-tt"><span class="tk-se" aria-hidden="true">' + (SEMO[t.subject] || '\uD83D\uDCDD') + '</span>' + esc(t.title) + '</div><div class="tk-mt">' +
       '<u class="tk-k">' + KIND[k].n + '</u>' + (t.subject ? '<u class="tk-sj"><s style="background:' + (SC[t.subject] || '#64748b') + '"></s>' + esc(t.subject) + '</u>' : '') +
       '<u class="tk-pr" title="' + PRI[t.priority] + ' priority"><s style="background:' + PRC[t.priority] + '"></s>' + PRI[t.priority] + '</u>' +
       (di ? '<u class="tk-du ' + di.cls + '">' + ic('cal') + esc(di.txt) + '</u>' : '') + '</div>' +
@@ -207,6 +261,17 @@
       (subs.length ? '<button type="button" class="tk-ex' + (open ? ' on' : '') + '" data-a="exp" aria-expanded="' + open + '" aria-label="Subtasks">' + dn + '/' + subs.length + ic('chev') + '</button>' : '') + '</div>';
     if (open && subs.length) h += '<div class="tk-subs">' + subs.map(function (s, i) { return '<label class="tk-sub' + (s.d ? ' d' : '') + '"><input type="checkbox" data-a="sub" data-i="' + i + '"' + (s.d ? ' checked' : '') + '><span>' + esc(s.t) + '</span></label>'; }).join('') + '</div>';
     return h + '</article>';
+  }
+  async function rescue() {
+    var t0 = today(), ids = S.tasks.filter(function (t) { return cat(t) === 'missing'; }).map(function (t) { return t.id; });
+    if (!ids.length) return; toast('Moved ' + ids.length + (ids.length === 1 ? ' task' : ' tasks') + ' to today \uD83D\uDCAA');
+    await Promise.all(ids.map(function (id) { return patch(id, { due: t0 }); }));
+  }
+  function dropOn(id, k) {
+    var t = byId(id); if (!t || cat(t) === k) return;
+    if (k === 'missing') { toast('Missing happens by itself when a due date passes'); return; }
+    if (k === 'completed') { complete(id, null); return; }
+    patch(id, { status: k, completed_at: null }).then(function (ok) { var u = byId(id); if (ok && u && cat(u) !== k) toast('Its due date has passed, so it stays Missing. Change the date to rescue it.'); });
   }
 
   /* ---------- actions ---------- */
@@ -254,6 +319,7 @@
       '<label class="tk-fl">Title<input id="tkt" data-f="title" type="text" maxlength="120" value="' + esc(e.title) + '" placeholder="What do you need to do?" autocomplete="off"></label>' +
       '<div class="tk-row"><label class="tk-fl">Subject<select data-f="subject"><option value="">No subject</option>' + SUBJ.map(function (s) { return '<option' + (e.subject === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
       '<label class="tk-fl">Due date<input data-f="due" type="date" value="' + esc(e.due) + '"></label></div>' +
+      '<div class="tk-dq" role="group" aria-label="Quick due dates">' + [['0', 'Today'], ['1', 'Tomorrow'], ['3', 'In 3 days'], ['7', 'Next week'], ['x', 'No date']].map(function (q) { return '<button type="button" data-a="dd" data-v="' + q[0] + '">' + q[1] + '</button>'; }).join('') + '</div>' +
       '<div class="tk-fl">Priority<div class="tk-seg">' + ['low', 'medium', 'high'].map(function (p) { return '<button type="button" data-a="pri" data-v="' + p + '" class="' + (e.priority === p ? 'on' : '') + '"><s style="background:' + PRC[p] + '"></s>' + PRI[p] + '</button>'; }).join('') + '</div></div>' +
       '<label class="tk-fl">Notes<textarea data-f="notes" rows="2" maxlength="600" placeholder="Optional details">' + esc(e.notes) + '</textarea></label>' +
       '<div class="tk-fl">Subtasks <small>' + e.subs.length + '/' + MAXS + '</small><div class="tk-sl">' + e.subs.map(function (s, i) {
@@ -304,7 +370,11 @@
     else if (k === 'ck') { var tk = byId(id); if (tk) { if (tk.status === 'completed') reopen(id); else complete(id, a); } }
     else if (k === 'start') patch(id, { status: 'ongoing' });
     else if (k === 'exp') { S.exp[id] = !S.exp[id]; draw(); }
-    else if (k === 'f') { S.f = S.f === a.dataset.f && a.dataset.f !== 'all' ? 'all' : a.dataset.f; draw(); }
+    else if (k === 'f') { if (a.dataset.f === 'all') { S.f = 'all'; S.sj = ''; S.td = false; S.q = ''; } else S.f = S.f === a.dataset.f ? 'all' : a.dataset.f; draw(); }
+    else if (k === 'td') { S.td = !S.td; draw(); }
+    else if (k === 'lay') { P.lay = a.dataset.v; savePrefs(); draw(); }
+    else if (k === 'resc') rescue();
+    else if (k === 'dd' && S.ed) { var o = a.dataset.v; if (o === 'x') S.ed.due = ''; else { var dd = new Date(); dd.setDate(dd.getDate() + (+o)); S.ed.due = ymd(dd); } edDraw(); }
     else if (k === 'sj') { S.sj = S.sj === a.dataset.s ? '' : a.dataset.s; draw(); }
     else if (k === 'more') { S.more = true; draw(); }
     else if (k === 'retry') load(true);
@@ -318,11 +388,13 @@
     else if (k === 'delc') edDelete();
   }
   function onChange(e) {
+    if (e.target.id === 'tksort') { P.sort = e.target.value; savePrefs(); draw(); return; }
     var a = e.target.closest && e.target.closest('input[data-a="sub"]'); if (!a) return;
     var cd = a.closest('.tk-card'); if (cd) toggleSub(cd.dataset.id, +a.dataset.i, a.checked, a);
   }
   function onInput(e) {
-    var t = e.target; if (!S.ed) return;
+    var t = e.target; if (t.id === 'tksq') { S.q = t.value; drawList(); return; }
+    if (!S.ed) return;
     if (t.dataset.f) S.ed[t.dataset.f] = t.value;
     else if (t.dataset.si != null && S.ed.subs[+t.dataset.si]) S.ed.subs[+t.dataset.si].t = t.value;
   }
@@ -357,6 +429,11 @@
     root.innerHTML = shell();
     btn.addEventListener('click', function () { if (S.open) { edClose(); draw(); } else show(); });
     root.addEventListener('click', onClick); root.addEventListener('change', onChange); root.addEventListener('input', onInput); root.addEventListener('keydown', onKey);
+    root.addEventListener('dragstart', function (e) { var c = e.target.closest && e.target.closest('.tk-card'); if (!c || P.lay !== 'board') return; S.drag = c.dataset.id; c.classList.add('dragging'); try { e.dataTransfer.setData('text/plain', S.drag); e.dataTransfer.effectAllowed = 'move'; } catch (x) { } });
+    root.addEventListener('dragend', function () { S.drag = null; root.querySelectorAll('.dragging,.over').forEach(function (el) { el.classList.remove('dragging', 'over'); }); });
+    root.addEventListener('dragover', function (e) { var col = e.target.closest && e.target.closest('.tk-col'); if (col && S.drag) { e.preventDefault(); col.classList.add('over'); } });
+    root.addEventListener('dragleave', function (e) { var col = e.target.closest && e.target.closest('.tk-col'); if (col && !col.contains(e.relatedTarget)) col.classList.remove('over'); });
+    root.addEventListener('drop', function (e) { var col = e.target.closest && e.target.closest('.tk-col'); if (!col || !S.drag) return; e.preventDefault(); var id = S.drag; S.drag = null; col.classList.remove('over'); dropOn(id, col.dataset.col); });
     document.addEventListener('keydown', function (e) { if (S.open && S.ed && e.key === 'Escape') { e.preventDefault(); edClose(); } });
     var side = $('#side');   // opening Notes, the Lab, a chat or a new chat leaves My Tasks
     if (side) side.addEventListener('click', function (e) { if (S.open && e.target.closest('#nt, #lab, .ac-it, .ac-new, [data-pn]')) hide(); }, true);

@@ -1,4 +1,6 @@
-/* Spectra Physics Sandbox (v10) for the Spectra Academics Lab.
+/* Spectra Physics Sandbox (v11) for the Spectra Academics Lab.
+   v11 (Phase 7): tools. New Move tool (place an object exactly: it freezes while you drag, works on fixed ramps too, can snap to a grid, also moves fans and faucets) and Rotate tool
+   (tap an object, drag the orange handle, angle readout, optional 15 degree snap). Magnet can now Pull or Push, Explosion has Small, Medium and Big, and Explosion and Magnet show a size ring on a computer.
    v10 (Phase 6): liquids react. Water flowing onto lava makes obsidian, lava flowing into water makes stone (a crust of 16 px rock blocks grows along the edge, with steam), oil that touches lava burns,
    and there is a new liquid, Acid, that eats wood, rubber and foam (and slowly stone and concrete). Two new scenes: Lava and water, Acid test.
    v9 (Phase 5): breakable blocks. Explosions hurt blocks by distance, cracks show as health drops, and a block shatters into flying fragments at zero health (capped, they fade out).
@@ -48,6 +50,7 @@
     platform: 'M3 16l18-6v5L3 21z', pad: 'M3 20h18M6 20l2-5h8l2 5M9 15l-1-3h8l-1 3',
     fan: 'M12 11a1 1 0 100 2 1 1 0 000-2zM12 10.5c0-4 4-5 5-3s-2 3-5 3zM13.5 12c4 0 5 4 3 5s-3-2-3-5zM12 13.5c0 4-4 5-5 3s2-3 5-3zM10.5 12c-4 0-5-4-3-5s3 2 3 5z',
     magnet: 'M6 4v9a6 6 0 0012 0V4h-4v9a2 2 0 01-4 0V4zM6 8h4M14 8h4', erase: 'M4 17l9-11 7 6-6 8H8zM8 20h12',
+    move: 'M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3', rotate: 'M20 12a8 8 0 11-2.6-5.9M20 4v4h-4',
     pause: 'M8 5v14M16 5v14', play: 'M8 5v14l11-7z', trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3', chat: 'M4 5h16v11H9l-5 4z',
     rain: 'M7 14a4 4 0 112-7.5A5 5 0 1118 14zM8 17l-1 3M12 17l-1 3M16 17l-1 3', drain: 'M12 4v10M8 11l4 4 4-4M5 19h14',
     info: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 11v5M12 8h.01', sliders: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', x: 'M6 6l12 12M18 6L6 18', bolt: 'M13 3L5 14h6l-1 7 8-11h-6z', node: 'M13 3L5 14h6l-1 7 8-11h-6z', rewind: 'M11 6L4 12l7 6zM20 6l-7 6 7 6z', plus: 'M12 5v14M5 12h14',
@@ -116,6 +119,8 @@
   /* every toolbar entry: id, name, category, toolbar group (g, the separators), hint line */
   var REG = [
     { id: 'drag', n: 'Grab', cat: 'tool', g: 0, tip: 'Drag anything to move or throw it. A fast fling gives it more kinetic energy. Hold an object (or right-click it) for its menu.' },
+    { id: 'move', n: 'Move', cat: 'tool', g: 0, tip: 'Press an object and drag to place it exactly. It freezes while you drag (no fling), and it works on fixed ramps too. Turn on Snap to line things up.' },
+    { id: 'rotate', n: 'Rotate', cat: 'tool', g: 0, tip: 'Tap an object, then drag the orange handle to turn it. The object freezes while selected. Tap empty space to let go. Snap 15\u00b0 helps with exact angles.' },
     { id: 'box', n: 'Box', cat: 'block', g: 1, tip: 'Tap to drop a box. Pick a block first: density decides what floats and what sinks.' },
     { id: 'plank', n: 'Plank', cat: 'block', g: 1, tip: 'Tap to drop a long plank. Great for seesaws, boats and bridges.' },
     { id: 'ball', n: 'Ball', cat: 'block', g: 1, tip: 'Tap to drop a ball. Rubber bounces, metal does not. That is the coefficient of restitution.' },
@@ -138,8 +143,8 @@
     { id: 'pad', n: 'Bounce pad', cat: 'special', g: 5, tip: 'Drag to build a bouncy pad. Things leave it faster than they hit it.' },
     { id: 'fan', n: 'Fan', cat: 'special', g: 6, tip: 'Drag to place a fan and aim it. It blows objects and liquids along the wind. Lighter things get pushed more.' },
     { id: 'node', n: 'Initiator', cat: 'special', g: 6, tip: 'Tap to place a fixed Initiator block, then pick Toggle, Collision or Move below. Open its Properties to link it to groups. Tap a Toggle with Grab to flip it.' },
-    { id: 'magnet', n: 'Magnet', cat: 'tool', g: 6, tip: 'Hold it near metal things (Metal and Copper Block) to pull them toward you.' },
-    { id: 'boom', n: 'Explosion', cat: 'tool', g: 6, tip: 'Tap anywhere for an instant explosion.' },
+    { id: 'magnet', n: 'Magnet', cat: 'tool', g: 6, tip: 'Hold it near metal things (Metal and Copper Block) to pull them toward you. Pick Push below to repel them instead: like poles push, unlike poles pull.' },
+    { id: 'boom', n: 'Explosion', cat: 'tool', g: 6, tip: 'Tap anywhere for an instant explosion. Pick Small, Medium or Big below. The ring shows how far the blast reaches.' },
     { id: 'erase', n: 'Erase', cat: 'tool', g: 7, tip: 'Tap things (or drag across them) to delete them. Tap a rope, rod, spring, fan or faucet to remove it.' },
     { id: 'mangle', n: 'Angle', cat: 'math', g: 8, tip: 'Drag from one point to another. Higher means angle of elevation, lower means angle of depression. Live sin, cos and tan.' },
     { id: 'mtri', n: 'Right triangle', cat: 'math', g: 8, tip: 'Pick an angle and one known side and the lab solves the triangle. Tap the canvas to move it, or build it as a ramp.' },
@@ -304,6 +309,7 @@
 
 
   /* ================= page ================= */
+  function pkc(k, label, on) { return '<button type="button" class="ph-m' + (on ? ' on' : '') + '" data-pk="' + k + '">' + label + '</button>'; }
   function shellHtml() {
     var h = '<div class="lb-wrap ph-wrap"><header class="lb-hd"><button type="button" class="lb-bk2" data-a="hub" aria-label="Back to Lab">' + ic('back', 18) + '<span>Lab</span></button>' +
       '<div class="lb-tt"><h2>Physics Sandbox</h2><p>Build it, pour it, tie it, blow it up.</p></div></header>';
@@ -320,6 +326,10 @@
         p += '<div class="ph-row">' + catTools(c.id).map(tbtn).join('') + '</div>';
         if (c.id === 'item') p += '<div class="ph-row ph-sub" data-for="wheel" hidden><span class="ph-rl">Material</span>' + MATS.map(chip).join('') + '</div>';
         if (c.id === 'special') p += '<div class="ph-row ph-sub" data-for="platform" hidden><span class="ph-rl">Material</span>' + MATS.map(chip).join('') + '</div><div class="ph-row ph-sub" data-for="faucet" hidden><span class="ph-rl">Liquid</span>' + LIQ.map(lchip).join('') + '</div><div class="ph-row ph-sub" data-for="node" hidden><span class="ph-rl">Type</span>' + ['toggle', 'collision', 'move'].map(itchip).join('') + '</div>';
+        if (c.id === 'tool') p += '<div class="ph-row ph-sub" data-for="move" hidden><span class="ph-rl">Option</span>' + pkc('snap', 'Snap to grid', false) + '</div>' +
+          '<div class="ph-row ph-sub" data-for="rotate" hidden><span class="ph-rl">Option</span>' + pkc('asnap', 'Snap 15\u00b0', true) + '</div>' +
+          '<div class="ph-row ph-sub" data-for="magnet" hidden><span class="ph-rl">Mode</span>' + pkc('pull', 'Pull', true) + pkc('push', 'Push', false) + '</div>' +
+          '<div class="ph-row ph-sub" data-for="boom" hidden><span class="ph-rl">Size</span>' + pkc('b0', 'Small', false) + pkc('b1', 'Medium', true) + pkc('b2', 'Big', false) + '</div>';
         if (c.id === 'math') p += mathPanels();
       }
       return p + '</div>';
@@ -341,11 +351,11 @@
 
   function mount(root, opts) {
     unmount(); O = opts || {};
-    S = { root: root, tool: 'box', cat: 'block', tlast: {}, sel: null, mt: null, tab: 'props', hold: null, held: false, pend: null, ptype: '', initType: 'toggle', adding: false, sig: {}, tap: null, mat: 'wood', fluid: 0, size: 28, grav: 1, speed: 1, paused: false, rain: false, W: 0, H: 0, dpr: 1, acc: 0, last: 0, shake: 0, fx: [], ropes: {}, walls: [], faucets: [], fans: [], line: null, grab: null, pid: null, pp: { x: 0, y: 0 }, pour: false, pourAcc: 0, frame: 0, tt: 0, full: 0, bg: '#f3f4f6', gridc: 'rgba(120,120,140,.18)' };
+    S = { root: root, tool: 'box', cat: 'block', snap: false, asnap: true, bsz: 1, mpol: 1, lk: null, rot: null, mvd: null, hv: null, rotHint: false, tlast: {}, sel: null, mt: null, tab: 'props', hold: null, held: false, pend: null, ptype: '', initType: 'toggle', adding: false, sig: {}, tap: null, mat: 'wood', fluid: 0, size: 28, grav: 1, speed: 1, paused: false, rain: false, W: 0, H: 0, dpr: 1, acc: 0, last: 0, shake: 0, fx: [], ropes: {}, walls: [], faucets: [], fans: [], line: null, grab: null, pid: null, pp: { x: 0, y: 0 }, pour: false, pourAcc: 0, frame: 0, tt: 0, full: 0, bg: '#f3f4f6', gridc: 'rgba(120,120,140,.18)' };
     root.innerHTML = shellHtml();
     var s = S, wrap = root.querySelector('.ph-wrap');
     wrap.addEventListener('pointerdown', onKd); wrap.addEventListener('click', onClick); wrap.addEventListener('change', onChange); wrap.addEventListener('input', onChange);
-    s.onk = function (e) { if (e.code === 'Escape') { if (s.mt) closeMenu(); else if (s.sel) closeBoard(); return; } if (e.code === 'Space' && !/INPUT|SELECT|TEXTAREA|BUTTON/.test((e.target || {}).tagName || '')) { e.preventDefault(); togglePause(); } };
+    s.onk = function (e) { if (e.code === 'Escape') { if (s.mt) closeMenu(); else if (s.sel) closeBoard(); else if (s.rot) { s.rot = null; s.lk = null; } return; } if (e.code === 'Space' && !/INPUT|SELECT|TEXTAREA|BUTTON/.test((e.target || {}).tagName || '')) { e.preventDefault(); togglePause(); } };
     document.addEventListener('keydown', s.onk);
     setTool('box');
     loadM().then(function () { if (S === s) boot(); }).catch(function () { var l = $('#phload'); if (l && S === s) l.textContent = 'Could not load the physics engine. Check your connection, then open the sandbox again.'; });
@@ -368,6 +378,8 @@
     s.wc = document.createElement('canvas'); s.wx = s.wc.getContext('2d', { willReadFrequently: true });
     fit(true); s.cal = calibrate();
     try { s.brk = localStorage.getItem('sa.phys.brk') !== '0'; } catch (er) { s.brk = true; } var bk = $('#phbr'); if (bk) bk.checked = s.brk;
+    try { s.snap = localStorage.getItem('sa.phys.snap') === '1'; s.asnap = localStorage.getItem('sa.phys.asnap') !== '0'; } catch (er2) { s.snap = false; s.asnap = true; }
+    ['snap', 'asnap'].forEach(function (k) { var m = s.root.querySelector('.ph-m[data-pk="' + k + '"]'); if (m) m.classList.toggle('on', !!s[k]); });
     M.Events.on(s.eng, 'collisionStart', function (ev) {   // TNT goes off when it hits something hard
       ev.pairs.forEach(function (p) {
         var a = p.bodyA, b = p.bodyB; if (!a.tnt && !b.tnt) return;
@@ -378,6 +390,7 @@
     M.Events.on(s.eng, 'collisionStart', touchEv); M.Events.on(s.eng, 'collisionActive', touchEv);
     s.cv.addEventListener('pointerdown', down); s.cv.addEventListener('pointermove', move); s.cv.addEventListener('pointerup', up); s.cv.addEventListener('pointercancel', up);
     s.cv.addEventListener('contextmenu', onCtx);
+    s.cv.addEventListener('pointermove', function (e) { var q = S; if (q && q.cv && e.pointerType === 'mouse') q.hv = pos(e); }); s.cv.addEventListener('pointerleave', function () { if (S) S.hv = null; });
     if (window.ResizeObserver) { s.ro = new ResizeObserver(function () { fit(); }); s.ro.observe(s.cv); } else { s.onr = function () { fit(); }; window.addEventListener('resize', s.onr); }
     var l = $('#phload'); if (l) l.style.display = 'none';
     colors(); s.raf = requestAnimationFrame(frame);
@@ -579,7 +592,7 @@
     var s = S;
     M.Composite.allConstraints(s.world).forEach(function (c) { M.Composite.remove(s.world, c); });
     M.Composite.allBodies(s.world).forEach(function (b) { if (!b.wall) { M.Composite.remove(s.world, b); b.gone = true; } });
-    s.fl.clear(); s.stat = {}; s.sig = {}; s.ropes = {}; s.fx = []; s.faucets = []; s.fans = []; s.frags = []; s.rocks = []; s.rockAt = {}; s.rk = {}; s.grab = null; s.line = null; s.pour = false; mathReset();
+    s.fl.clear(); s.stat = {}; s.sig = {}; s.ropes = {}; s.fx = []; s.faucets = []; s.fans = []; s.frags = []; s.rocks = []; s.rockAt = {}; s.rk = {}; s.grab = null; s.line = null; s.pour = false; s.lk = null; s.rot = null; s.mvd = null; mathReset();
   }
 
   /* ================= breakage, fire and melting (Phase 5) =================
@@ -1419,10 +1432,103 @@
   function pos(e) { var r = S.cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
   var INSTANT = { box: 1, ball: 1, tri: 1, hex: 1, plank: 1, wheel: 1, faucet: 1, bomb: 1, tnt: 1, balloon: 1, rocket: 1, boom: 1, motor: 1, pin: 1, node: 1 };   // tools that act the moment you press
   var NOHOLD = { water: 1, magnet: 1, erase: 1 };   // tools where holding means something else
+  /* ================= Move and Rotate tools (Phase 7) =================
+     Move and Rotate hold their object still (s.lk): every step the object is put back on its spot and its speed is zeroed, so gravity and bumps do not carry it away.
+     Nails (Nail and Motor) are fixed to a spot on the wall, so while you move or turn the object they follow it (pinSync). */
+  var BSZ = [[120, 20], [200, 34], [300, 50]];   // Explosion sizes: blast radius (px) and power
+  function movable(b) {
+    if (!b || b.gone || b.wall || b.rope || b.frag) return false;
+    if (b.rock) { toast('That is part of a rock crust. Use Erase to clear it'); return false; }
+    if (b.mv) { toast('An initiator is moving that one. Press Rewind first'); return false; }
+    return true;
+  }
+  function pinSync(b) {
+    M.Composite.allConstraints(S.world).forEach(function (k) {
+      if (k.kind !== 'pin' || k.bodyA !== b || k.bodyB) return;
+      var r = M.Vector.rotate(k.pointA, b.angle - (k.angleA || 0)); k.pointB = { x: b.position.x + r.x, y: b.position.y + r.y };
+    });
+  }
+  function lockTo(L) {
+    var b = L.b; M.Body.setPosition(b, { x: L.x, y: L.y }); M.Body.setVelocity(b, { x: 0, y: 0 }); M.Body.setAngularVelocity(b, 0); pinSync(b);
+  }
+  function snapV(v) { return S.snap ? Math.round(v / 20) * 20 : v; }
+  function movePress(p) {
+    var s = S, i, o = null;
+    for (i = s.fans.length - 1; i >= 0 && !o; i--) if (Math.hypot(s.fans[i].x - p.x, s.fans[i].y - p.y) < 24) o = s.fans[i];
+    for (i = s.faucets.length - 1; i >= 0 && !o; i--) if (Math.abs(s.faucets[i].x - 14 - p.x) < 26 && Math.abs(s.faucets[i].y - p.y) < 16) o = s.faucets[i];
+    if (o) { s.mvd = { o: o, dx: o.x - p.x, dy: o.y - p.y }; s.cv.style.cursor = 'grabbing'; return; }
+    var b = bodyAt(p, false); if (!movable(b)) return;
+    s.lk = { b: b, dx: b.position.x - p.x, dy: b.position.y - p.y, x: b.position.x, y: b.position.y }; s.cv.style.cursor = 'grabbing';
+  }
+  function moveDrag(p) {
+    var s = S, d = s.mvd, L = s.lk;
+    if (d) { d.o.x = Math.max(24, Math.min(s.W - 24, snapV(p.x + d.dx))); d.o.y = Math.max(24, Math.min(s.H - 24, snapV(p.y + d.dy))); return; }
+    if (!L || L.b.gone) return;
+    var bb = L.b.bounds, hw = (bb.max.x - bb.min.x) / 2, hh = (bb.max.y - bb.min.y) / 2;
+    L.x = Math.max(hw + 2, Math.min(s.W - hw - 2, snapV(p.x + L.dx))); L.y = Math.max(hh + 2, Math.min(s.H - hh - 2, snapV(p.y + L.dy)));
+    lockTo(L);
+  }
+  function moveEnd() { var s = S; s.lk = null; s.mvd = null; if (s.cv) s.cv.style.cursor = 'move'; }
+  function rotR(b) { var r = 10, i, v = b.vertices; for (i = 0; i < v.length; i++) r = Math.max(r, Math.hypot(v[i].x - b.position.x, v[i].y - b.position.y)); return r; }
+  function rotHandle(b) { var R = rotR(b) + 30, a = b.angle - Math.PI / 2; return { x: b.position.x + Math.cos(a) * R, y: b.position.y + Math.sin(a) * R, R: R }; }
+  function rotHandleHit(p) { var r = S.rot; if (!r || r.b.gone) return false; var h = rotHandle(r.b); return Math.hypot(p.x - h.x, p.y - h.y) < 24; }
+  function rotatePress(p) {
+    var s = S;
+    if (rotHandleHit(p)) { s.rot.drag = true; s.cv.style.cursor = 'grabbing'; rotateDrag(p); return; }
+    var b = bodyAt(p, false);
+    if (b) {
+      if (!movable(b)) return;
+      s.rot = { b: b, drag: false }; s.lk = { b: b, x: b.position.x, y: b.position.y }; lockTo(s.lk);
+      if (!s.rotHint) { s.rotHint = true; toast('Drag the orange handle to turn it. Tap empty space to let go'); }
+    } else { s.rot = null; s.lk = null; }
+  }
+  function rotateDrag(p) {
+    var s = S, r = s.rot; if (!r || !r.drag || r.b.gone) return; var b = r.b;
+    var a = Math.atan2(p.y - b.position.y, p.x - b.position.x) + Math.PI / 2;   // the handle sits straight above the object at 0 degrees
+    if (s.asnap) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+    var d = a - b.angle; d = Math.atan2(Math.sin(d), Math.cos(d));   // turn the short way round, so it never spins a full circle
+    M.Body.setAngle(b, b.angle + d); M.Body.setAngularVelocity(b, 0); pinSync(b);
+  }
+  function pkAct(k) {
+    var s = S, r = s.root, radio = function (keys) { r.querySelectorAll('.ph-m[data-pk]').forEach(function (m) { if (keys.indexOf(m.dataset.pk) >= 0) m.classList.toggle('on', m.dataset.pk === k); }); };
+    if (k === 'snap' || k === 'asnap') {
+      s[k] = !s[k]; r.querySelectorAll('.ph-m[data-pk="' + k + '"]').forEach(function (m) { m.classList.toggle('on', s[k]); });
+      try { localStorage.setItem('sa.phys.' + k, s[k] ? '1' : '0'); } catch (e) { }
+      toast(k === 'snap' ? (s.snap ? 'Snap on: things land on a 20 px grid' : 'Snap off') : (s.asnap ? 'Turns in steps of 15\u00b0' : 'Free turning'));
+    } else if (k === 'pull' || k === 'push') { s.mpol = k === 'pull' ? 1 : -1; radio(['pull', 'push']); toast(s.mpol > 0 ? 'Magnet pulls metal in' : 'Magnet pushes metal away'); }
+    else if (k.charAt(0) === 'b') { s.bsz = +k.slice(1) || 0; radio(['b0', 'b1', 'b2']); }
+  }
+  function outline(c, b, col) {
+    c.save(); c.lineWidth = 2.5; c.strokeStyle = col; c.setLineDash([6, 4]);
+    (b.parts && b.parts.length > 1 ? b.parts.slice(1) : [b]).forEach(function (q) { path(c, q); c.stroke(); }); c.restore();
+  }
+  function drawToolsUI(c) {
+    var s = S, b, h, deg, t, w, ly;
+    if (s.tool === 'move') {
+      if (s.lk && !s.lk.b.gone) outline(c, s.lk.b, '#22c55e');
+      if (s.mvd) { c.beginPath(); c.arc(s.mvd.o.x, s.mvd.o.y, 26, 0, 6.2832); c.strokeStyle = '#22c55e'; c.lineWidth = 2.5; c.setLineDash([6, 4]); c.stroke(); c.setLineDash([]); }
+    }
+    if (s.tool === 'rotate' && s.rot && !s.rot.b.gone) {
+      b = s.rot.b; h = rotHandle(b); deg = ((b.angle * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
+      outline(c, b, '#f59e0b');
+      c.save(); c.beginPath(); c.arc(b.position.x, b.position.y, h.R, 0, 6.2832); c.strokeStyle = 'rgba(245,158,11,.35)'; c.lineWidth = 2; c.setLineDash([5, 7]); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.moveTo(b.position.x, b.position.y); c.lineTo(h.x, h.y); c.strokeStyle = 'rgba(245,158,11,.7)'; c.lineWidth = 2; c.stroke();
+      c.beginPath(); c.arc(h.x, h.y, s.rot.drag ? 12 : 10, 0, 6.2832); c.fillStyle = '#f59e0b'; c.fill(); c.lineWidth = 2.5; c.strokeStyle = '#fff'; c.stroke();
+      t = Math.round(deg) + '\u00b0'; c.font = '700 12px Inter, sans-serif'; w = c.measureText(t).width + 14; ly = h.y < 26 ? h.y + 28 : h.y - 20;
+      c.fillStyle = 'rgba(15,23,42,.85)'; c.fillRect(h.x - w / 2, ly - 11, w, 20); c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, h.x, ly - 1); c.restore();
+    }
+    if (s.hv && s.pid === null && (s.tool === 'boom' || s.tool === 'magnet')) {   // size ring while the mouse hovers
+      c.beginPath(); c.arc(s.hv.x, s.hv.y, s.tool === 'boom' ? (BSZ[s.bsz] || BSZ[1])[0] : 340, 0, 6.2832);
+      c.strokeStyle = s.tool === 'boom' ? 'rgba(255,150,60,.55)' : (s.mpol > 0 ? 'rgba(239,68,68,.3)' : 'rgba(59,130,246,.35)'); c.lineWidth = 1.5; c.setLineDash([5, 7]); c.stroke(); c.setLineDash([]);
+    }
+  }
+
   function holdTarget(p) { var b = bodyAt(p, false); return b && !b.rope && !b.wall && !b.frag ? b : null; }
   function act(T, p) {
     var s = S;
     if (MTOOL[T]) { mathPress(T, p); return; }
+    if (T === 'move') { movePress(p); return; }
+    if (T === 'rotate') { rotatePress(p); return; }
     if (T === 'drag') {
       var b = bodyAt(p, true) || nodeAt(p, 16);
       if (b) {
@@ -1436,7 +1542,7 @@
     else if (T === 'tnt') mkTnt(p);
     else if (T === 'balloon') mkBalloon(p);
     else if (T === 'rocket') mkRocket(p);
-    else if (T === 'boom') boom(p.x, p.y, 200, 34);
+    else if (T === 'boom') { var bz = BSZ[s.bsz] || BSZ[1]; boom(p.x, p.y, bz[0], bz[1]); }
     else if (T === 'erase') eraseAt(p);
     else if (T === 'node') { var nb = mkNode(p); if (nb) { openBoard(nb, 'props'); toast(NODEHINT[s.initType]); } }
     else if (T === 'motor') motorAt(p);
@@ -1453,13 +1559,13 @@
     s.pid = e.pointerId; var p = pos(e), T = s.tool; s.pp = p; s.held = false; s.pend = null;
     s.tap = T === 'drag' ? { b: holdTarget(p), x: p.x, y: p.y, t: performance.now() } : null;
     /* on a phone, holding still on an object opens its menu. A tap that lands on an object waits for the finger to lift, so a hold does not drop something on top of it. */
-    var hb = (e.pointerType !== 'mouse' && !NOHOLD[T]) ? holdTarget(p) : null;
+    var hb = (e.pointerType !== 'mouse' && !NOHOLD[T] && !(T === 'rotate' && rotHandleHit(p))) ? holdTarget(p) : null;
     if (hb) s.hold = { b: hb, x: p.x, y: p.y, id: setTimeout(holdFire, 480) };
     if (hb && INSTANT[T]) s.pend = function () { act(T, p); }; else act(T, p);
   }
   function holdFire() {
     var s = S; if (!s || !s.hold) return; var h = s.hold; s.hold = null; if (s.pid === null || h.b.gone) return;
-    s.held = true; s.pend = null; if (s.grab) { M.Composite.remove(s.world, s.grab); s.grab = null; } s.line = null;
+    s.held = true; s.pend = null; if (s.tool === 'move') { s.lk = null; s.mvd = null; } if (s.rot) s.rot.drag = false; if (s.grab) { M.Composite.remove(s.world, s.grab); s.grab = null; } s.line = null;
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (x) { }
     openMenu(h.b, { x: h.x, y: h.y });
   }
@@ -1471,6 +1577,8 @@
     var s = S; if (!s || !s.eng || e.pointerId !== s.pid) return; var p = pos(e); s.pp = p;
     if (s.hold && Math.hypot(p.x - s.hold.x, p.y - s.hold.y) > 10) { clearTimeout(s.hold.id); s.hold = null; }
     if (s.grab) s.grab.pointA = { x: p.x, y: p.y };
+    else if (s.tool === 'move') moveDrag(p);
+    else if (s.tool === 'rotate') rotateDrag(p);
     else if (s.tool === 'erase') eraseAt(p);
     else if (s.tool === 'mangle') mathDrag(p);
   }
@@ -1482,6 +1590,8 @@
     if (s.held) { s.held = false; s.pend = null; return; }   // the hold opened the menu: nothing else happens on release
     if (s.pend) { var f = s.pend; s.pend = null; if (e.type !== 'pointercancel') f(); }
     if (T === 'mangle') mathRelease(p);
+    if (T === 'move') moveEnd();
+    if (T === 'rotate' && s.rot) { s.rot.drag = false; s.cv.style.cursor = 'crosshair'; }
     if (s.tap) { var tp = s.tap; s.tap = null; if (tp.b && !tp.b.gone && e.type !== 'pointercancel' && performance.now() - tp.t < 400 && Math.hypot(p.x - tp.x, p.y - tp.y) < 10) flipToggles(tp.b); }   // a quick tap with Grab flips a Toggle
     if (s.grab) { M.Composite.remove(s.world, s.grab); s.grab = null; s.cv.style.cursor = 'grab'; }
     if (s.line) {
@@ -1636,20 +1746,21 @@
     var on = s.cat === 'block' || s.tool === 'platform' || s.tool === 'wheel'; st.hidden = !on; if (on) st.innerHTML = statsHtml(s.mat);
   }
   function setTool(id) {
-    var s = S; if (!s) return; s.tool = id; s.line = null; closeMenu();
+    var s = S; if (!s) return; s.tool = id; s.line = null; s.lk = null; s.rot = null; s.mvd = null; closeMenu();
     var cat = CATOF[id]; if (cat) { s.tlast[cat] = id; if (cat !== s.cat) showCat(cat); }
     s.root.querySelectorAll('.ph-t').forEach(function (b) { b.classList.toggle('on', b.dataset.pt === id); });
     s.root.querySelectorAll('.ph-sub').forEach(function (r) { r.hidden = (r.dataset.for || '').split(' ').indexOf(id) < 0; });
     refreshStats();
     var t = INFO[id], inf = $('#phinfo'); if (inf && t) inf.innerHTML = '<b>' + t[1] + '</b>' + t[2];
-    if (s.cv) s.cv.style.cursor = id === 'drag' ? 'grab' : 'crosshair';
+    if (s.cv) s.cv.style.cursor = id === 'drag' ? 'grab' : id === 'move' ? 'move' : 'crosshair';
   }
   function togglePause() {
     var s = S; if (!s) return; s.paused = !s.paused; var b = $('#phpa'); if (b) b.innerHTML = ic(s.paused ? 'play' : 'pause', 16) + '<span>' + (s.paused ? 'Play' : 'Pause') + '</span>';
   }
   function onClick(e) {
-    var s = S; if (!s) return; var b = e.target.closest('[data-pc],[data-pt],[data-pm],[data-pf],[data-pa],[data-sc],[data-mn],[data-bd],[data-pi],[data-ma]'); if (!b) return;
-    if (b.dataset.ma) mathAct(b.dataset.ma);
+    var s = S; if (!s) return; var b = e.target.closest('[data-pc],[data-pt],[data-pm],[data-pf],[data-pa],[data-sc],[data-mn],[data-bd],[data-pi],[data-ma],[data-pk]'); if (!b) return;
+    if (b.dataset.pk) pkAct(b.dataset.pk);
+    else if (b.dataset.ma) mathAct(b.dataset.ma);
     else if (b.dataset.pc) setCat(b.dataset.pc);
     else if (b.dataset.pt) setTool(b.dataset.pt);
     else if (b.dataset.pm) { s.mat = b.dataset.pm; S.root.querySelectorAll('.ph-m[data-pm]').forEach(function (m) { m.classList.toggle('on', m.dataset.pm === s.mat); }); refreshStats(); }
@@ -1708,6 +1819,7 @@
   function step(dt) {
     var s = S, f = s.fl, bodies = M.Composite.allBodies(s.world), acts = [], g = s.eng.gravity.y * s.eng.gravity.scale, i, k;
     s.tt += dt;
+    if (s.lk) { if (s.lk.b.gone) s.lk = null; else lockTo(s.lk); }   // Move and Rotate hold their object still
     bodies.forEach(function (b) {
       if (b.wall || b.isStatic) return;
       b.frictionAir = (s.mth && s.mth.ideal && !b.balloon) ? 0 : (b.fa0 || 0.01);   // Ideal mode (Math tab): no air drag
@@ -1734,7 +1846,7 @@
     if (s.tool === 'magnet' && s.pid !== null) {
       bodies.forEach(function (b) {
         if (b.isStatic || b.wall || !hasMat(b, 'mag')) return; var dx = s.pp.x - b.position.x, dy = s.pp.y - b.position.y, d = Math.hypot(dx, dy); if (d > 340 || d < 2) return;
-        var acc = 0.0034 * (1 - d / 340), F = b.mass * acc; b.force.x += dx / d * F; b.force.y += dy / d * F; b.frictionAir = 0.04;
+        var acc = 0.0034 * (1 - d / 340), F = b.mass * acc * s.mpol; b.force.x += dx / d * F; b.force.y += dy / d * F; b.frictionAir = 0.04;
       });
     }
     /* faucets and rain */
@@ -1828,7 +1940,7 @@
   function frame(t) {
     var s = S; if (!s || !s.eng) return; s.raf = requestAnimationFrame(frame);
     var dt = Math.min(50, t - (s.last || t)); s.last = t; s.frame++;
-    if (s.sel && s.sel.gone) closeBoard(); if (s.mt && s.mt.gone) closeMenu();
+    if (s.sel && s.sel.gone) closeBoard(); if (s.mt && s.mt.gone) closeMenu(); if (s.rot && s.rot.b.gone) s.rot = null; if (s.lk && s.lk.b.gone) s.lk = null;
     if (s.sel && s.frame % 3 === 0) updPlayheads();
     if (s.sel && !s.sel.gone && s.frame % 10 === 0) { var hpEl = $('#phhp'); if (hpEl) hpEl.innerHTML = hpBar(s.sel); }
     if (s.frame % 90 === 1) colors();
@@ -2036,8 +2148,8 @@
       c.rotate(s.tt * 0.03); c.fillStyle = '#cbd5e1'; for (var k = 0; k < 4; k++) { c.rotate(1.5708); c.beginPath(); c.ellipse(9, 0, 9, 3.4, 0, 0, 6.2832); c.fill(); } c.beginPath(); c.arc(0, 0, 3, 0, 6.2832); c.fillStyle = '#0f172a'; c.fill(); c.restore();
     });
     if (s.tool === 'magnet' && s.pid !== null) {
-      c.beginPath(); c.arc(s.pp.x, s.pp.y, 340 * (0.9 + 0.1 * Math.sin(s.tt * 0.01)), 0, 6.2832); c.strokeStyle = 'rgba(239,68,68,.22)'; c.lineWidth = 2; c.setLineDash([6, 8]); c.stroke(); c.setLineDash([]);
-      c.fillStyle = '#ef4444'; c.fillRect(s.pp.x - 12, s.pp.y - 8, 8, 16); c.fillStyle = '#e5e7eb'; c.fillRect(s.pp.x + 4, s.pp.y - 8, 8, 16);
+      c.beginPath(); c.arc(s.pp.x, s.pp.y, 340 * (0.9 + 0.1 * Math.sin(s.tt * 0.01)), 0, 6.2832); c.strokeStyle = s.mpol > 0 ? 'rgba(239,68,68,.22)' : 'rgba(59,130,246,.3)'; c.lineWidth = 2; c.setLineDash([6, 8]); c.stroke(); c.setLineDash([]);
+      c.fillStyle = s.mpol > 0 ? '#ef4444' : '#3b82f6'; c.fillRect(s.pp.x - 12, s.pp.y - 8, 8, 16); c.fillStyle = '#e5e7eb'; c.fillRect(s.pp.x + 4, s.pp.y - 8, 8, 16);
     }
   }
   function draw() {
@@ -2055,6 +2167,7 @@
     drawDevices(c);
     drawMarks(c);
     drawMath(c);
+    drawToolsUI(c);
     M.Composite.allConstraints(s.world).forEach(function (k) {
       var e, kd = k.kind; if (!kd || kd === 'rseg') return; e = endsOf(k);
       if (kd === 'rod') { c.beginPath(); c.moveTo(e.a.x, e.a.y); c.lineTo(e.b.x, e.b.y); c.lineWidth = 6; c.strokeStyle = '#475569'; c.stroke(); c.lineWidth = 2.5; c.strokeStyle = '#cbd5e1'; c.stroke(); nail(c, e.a); nail(c, e.b); }
