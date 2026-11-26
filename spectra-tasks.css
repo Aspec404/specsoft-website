@@ -215,3 +215,14 @@
   #tksort{flex:1}
   .tk-brd{grid-template-columns:repeat(var(--cols,4),82%)}
 }
+
+/* ===== v3: icons instead of emojis, note link chip ===== */
+.tk-se{display:inline-grid;place-items:center;width:24px;height:24px;margin-right:8px;border-radius:8px;background:color-mix(in srgb,var(--sc,#64748b) 16%,var(--card));color:var(--sc,#64748b);font-size:0;vertical-align:-6px}
+.tk-se svg{width:14px;height:14px}
+.tk-emi{color:#22c55e;font-size:0}
+.tk-emi svg{width:36px;height:36px;stroke-width:2.2}
+.tk-mt .tk-nl{max-width:170px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;background:color-mix(in srgb,#7c5cff 14%,var(--card));color:#6d4aff}
+[data-theme=dark] .tk-mt .tk-nl{color:#a78bfa}
+.tk-mt .tk-nl svg{width:12px;height:12px;flex:none}
+@media (hover:hover) and (pointer:fine){.tk-mt .tk-nl:hover{background:color-mix(in srgb,#7c5cff 24%,var(--card))}}
+.tk-mt .tk-nl:focus-visible{outline:2px solid var(--ink);outline-offset:2px}

@@ -381,3 +381,43 @@
   .nt-cover{height:56px}
 }
 @media (prefers-reduced-motion:reduce){.nt-sl2,.nt-ic,.nt-tp i{animation:none!important;transition:none!important}}
+
+/* ===== Batch 3: icons instead of emojis, Spectra actions panel ===== */
+.nt-ct .nt-ei{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:10px;background:color-mix(in srgb,var(--nc,#64748b) 16%,var(--card));color:var(--nc,#64748b);font-size:0}
+.nt-ct .nt-ei svg{width:17px;height:17px}
+.nt-ic{color:var(--nc,#7c5cff);font-size:0}
+.nt-ic svg{width:28px;height:28px}
+.nt-eg button{color:var(--ink)}
+.nt-eg button svg{width:20px;height:20px}
+.nt-tp2 .nt-ti2{color:var(--ink)}
+.nt-tp2 .nt-ti2 svg{width:18px;height:18px}
+.nt-coh span{display:grid;color:var(--cc)}
+.nt-coh span svg{width:17px;height:17px}
+.nt-ai2 svg{width:17px;height:17px}
+.nt-eh .nt-pw .nt-pp{left:auto;right:0}
+.nt-ai{width:278px;max-height:min(72vh,480px);overflow:auto}
+.nt-ah{padding:8px 10px 3px;font:700 10.5px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.nt-ai button{height:auto;padding:7px 10px;align-items:center;gap:10px}
+.nt-ai button:disabled{opacity:.45;cursor:default}
+.nt-ai-i{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:9px;background:var(--soft);color:var(--ink)}
+.nt-ai-i svg{width:16px;height:16px}
+.nt-ai button span:last-child{display:grid;gap:1px;text-align:left}
+.nt-ai small{font:500 11.5px Inter,sans-serif;color:var(--ink2)}
+.nt-air{margin:18px 0 6px;padding:14px;border:1px solid color-mix(in srgb,#7c5cff 35%,var(--line));border-radius:18px;background:linear-gradient(180deg,color-mix(in srgb,#7c5cff 8%,var(--card)),var(--card));animation:ntin .2s ease}
+.nt-aih{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.nt-aih b{flex:1;font:700 13.5px Inter,sans-serif}
+.nt-aii{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:color-mix(in srgb,#7c5cff 16%,var(--card));color:#7c5cff}
+.nt-aii svg{width:15px;height:15px}
+.nt-aix{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:8px;background:none;color:var(--ink2);cursor:pointer}
+.nt-aix:hover{background:var(--soft);color:var(--ink)}
+.nt-aib{max-height:320px;overflow:auto;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.nt-aif{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.nt-aid{flex:1;font:600 13px Inter,sans-serif;color:var(--ink2)}
+.nt-air .nt-bt.pri{border-color:var(--acc);background:var(--acc);color:var(--onacc)}
+.nt-aiw{display:flex;align-items:center;gap:6px;font:500 13px Inter,sans-serif;color:var(--ink2)}
+.nt-aiw i{width:7px;height:7px;border-radius:50%;background:#7c5cff;animation:ntdot 1s ease-in-out infinite}
+.nt-aiw i:nth-child(2){animation-delay:.15s}.nt-aiw i:nth-child(3){animation-delay:.3s}
+.nt-aiw span{margin-left:6px}
+@keyframes ntdot{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+@media (max-width:560px){.nt-ai{max-width:calc(100vw - 32px)}}
+@media (prefers-reduced-motion:reduce){.nt-aiw i,.nt-air{animation:none!important}}

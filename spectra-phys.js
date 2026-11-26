@@ -1,4 +1,6 @@
-/* Spectra Physics Sandbox (v11) for the Spectra Academics Lab.
+/* Spectra Physics Sandbox (v12) for the Spectra Academics Lab.
+   v12 (Phase 8): new Items (Beach ball, Anvil, Ice cube), new Special items (Conveyor belt that carries things, Portals that link two spots), three new liquids (Honey, Slime, Mercury),
+   Clone and Freeze in the object menu, and three new scenes (Liquid layers, Conveyor, Portals).
    v11 (Phase 7): tools. New Move tool (place an object exactly: it freezes while you drag, works on fixed ramps too, can snap to a grid, also moves fans and faucets) and Rotate tool
    (tap an object, drag the orange handle, angle readout, optional 15 degree snap). Magnet can now Pull or Push, Explosion has Small, Medium and Big, and Explosion and Magnet show a size ring on a computer.
    v10 (Phase 6): liquids react. Water flowing onto lava makes obsidian, lava flowing into water makes stone (a crust of 16 px rock blocks grows along the edge, with steam), oil that touches lava burns,
@@ -32,7 +34,10 @@
     { id: 'water', n: 'Water', c0: [120, 205, 255], c1: [10, 56, 160], g: 1, v: 0.05, a: 0.84, a0: 0.62, dl: 95, sg: 1, wg: 1, dot: '#38a0ff', tip: 'Water floats wood, ice and foam. Poured onto lava it makes obsidian, and it cools hot blocks.' },
     { id: 'oil', n: 'Oil', c0: [214, 168, 70], c1: [96, 58, 14], g: 0.3, v: 0.4, a: 0.92, a0: 0.8, dl: 80, sg: 0.25, wg: 0, dot: '#b9822b', tip: 'Oil is lighter than water, so it floats on it. Lava sets it on fire.' },
     { id: 'lava', n: 'Lava', c0: [255, 226, 110], c1: [200, 38, 8], g: 1.15, v: 0.6, a: 1, a0: 1, dl: 60, sg: 0, wg: 0, dot: '#ff6a1a', tip: 'Lava burns wood and melts metal and ice. Water turns it to stone or obsidian.' },
-    { id: 'acid', n: 'Acid', c0: [205, 255, 140], c1: [40, 150, 40], g: 1.1, v: 0.12, a: 0.86, a0: 0.7, dl: 90, sg: 0.5, wg: 0, dot: '#7ddc3a', tip: 'Acid eats wood, rubber and foam, and slowly stone and concrete. Metal, gold and obsidian are safe.' }
+    { id: 'acid', n: 'Acid', c0: [205, 255, 140], c1: [40, 150, 40], g: 1.1, v: 0.12, a: 0.86, a0: 0.7, dl: 90, sg: 0.5, wg: 0, dot: '#7ddc3a', tip: 'Acid eats wood, rubber and foam, and slowly stone and concrete. Metal, gold and obsidian are safe.' },
+    { id: 'honey', n: 'Honey', c0: [255, 214, 90], c1: [176, 96, 10], g: 1.35, v: 0.95, a: 0.95, a0: 0.85, dl: 70, sg: 0.15, wg: 0, dot: '#e0a526', tip: 'Honey is thick and heavier than water, so it sinks under it. Things crawl through it. Viscosity is how much a liquid resists flowing.' },
+    { id: 'slime', n: 'Slime', c0: [240, 170, 255], c1: [130, 40, 170], g: 1.05, v: 0.8, a: 0.9, a0: 0.75, dl: 80, sg: 0.3, wg: 0, dot: '#c26be0', tip: 'Slime is thick and gooey: it oozes slowly and drags on everything that moves through it.' },
+    { id: 'mercury', n: 'Mercury', c0: [235, 240, 248], c1: [110, 120, 140], g: 2.2, v: 0.02, a: 1, a0: 1, dl: 50, sg: 0.6, wg: 1, dot: '#aab4c4', tip: 'Mercury is a liquid metal, far denser than water. It sinks under every other liquid, and light blocks float high on it.' }
   ];
   /* liquids: g = gravity multiplier (oil is lighter so it floats on water), v = thickness, c0/c1 = surface and deep colour, a = opacity, dl = how fast it darkens with depth, sg = light shafts, wg = surface ripples */
   var TG = LIQ.map(function (l) { return l.g; }), TV = LIQ.map(function (l) { return l.v; });
@@ -50,6 +55,9 @@
     platform: 'M3 16l18-6v5L3 21z', pad: 'M3 20h18M6 20l2-5h8l2 5M9 15l-1-3h8l-1 3',
     fan: 'M12 11a1 1 0 100 2 1 1 0 000-2zM12 10.5c0-4 4-5 5-3s-2 3-5 3zM13.5 12c4 0 5 4 3 5s-3-2-3-5zM12 13.5c0 4-4 5-5 3s2-3 5-3zM10.5 12c-4 0-5-4-3-5s3 2 3 5z',
     magnet: 'M6 4v9a6 6 0 0012 0V4h-4v9a2 2 0 01-4 0V4zM6 8h4M14 8h4', erase: 'M4 17l9-11 7 6-6 8H8zM8 20h12',
+    beachball: 'M4 12a8 8 0 1 0 16 0a8 8 0 1 0-16 0M12 4c-3 3-3 13 0 16M12 4c3 3 3 13 0 16M5 9h14M5 15h14', anvil: 'M3 7h18l-3 4h-4l1 5h2v3H7v-3h2l1-5H6z', icecube: 'M12 3l7 4v10l-7 4-7-4V7zM5 7l7 4 7-4M12 11v10',
+    conveyor: 'M6 8h12a4 4 0 010 8H6a4 4 0 010-8zM9 12h6M13 10l2 2-2 2', portal: 'M12 3c5 0 8 4 8 9s-3 9-8 9-8-4-8-9 3-9 8-9zM12 7c2.5 0 4 2 4 5s-1.5 5-4 5-4-2-4-5 1.5-5 4-5z',
+    freeze: 'M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9', clone: 'M8 8h11v11H8zM5 15V5h10',
     move: 'M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3', rotate: 'M20 12a8 8 0 11-2.6-5.9M20 4v4h-4',
     pause: 'M8 5v14M16 5v14', play: 'M8 5v14l11-7z', trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3', chat: 'M4 5h16v11H9l-5 4z',
     rain: 'M7 14a4 4 0 112-7.5A5 5 0 1118 14zM8 17l-1 3M12 17l-1 3M16 17l-1 3', drain: 'M12 4v10M8 11l4 4 4-4M5 19h14',
@@ -84,8 +92,8 @@
   var MAT = {}; MATS.forEach(function (m) { MAT[m.id] = m; });
   /* object menu and About board: names, a fact per block, and a physics note per item */
   var SHAPE = { box: 'box', plank: 'plank', ball: 'ball', tri: 'triangle', hex: 'hexagon', wheel: 'wheel', platform: 'ramp' };
-  var KINDN = { balloon: 'Balloon', tnt: 'TNT crate', rocket: 'Rocket', bomb: 'Bomb', wheelx: 'Paddle wheel', pad: 'Bounce pad', node: 'Initiator' };
-  var KFLAGS = { balloon: ['Lighter than air', 'Pops'], tnt: ['Explosive'], rocket: ['Thrust'], bomb: ['Explosive', 'Fuse'], wheelx: ['Spins'], pad: ['Bouncy'] };
+  var KINDN = { balloon: 'Balloon', tnt: 'TNT crate', rocket: 'Rocket', bomb: 'Bomb', wheelx: 'Paddle wheel', pad: 'Bounce pad', node: 'Initiator', beachball: 'Beach ball', anvil: 'Anvil', icecube: 'Ice cube', belt: 'Conveyor belt' };
+  var KFLAGS = { balloon: ['Lighter than air', 'Pops'], tnt: ['Explosive'], rocket: ['Thrust'], bomb: ['Explosive', 'Fuse'], wheelx: ['Spins'], pad: ['Bouncy'], beachball: ['Very bouncy', 'Floats'], anvil: ['Very heavy'], belt: ['Carries things', 'Tap with Grab to reverse'] };
   var FACT = {
     wood: 'Wood is full of tiny air-filled cells, which is why it is light. It burns because it is mostly cellulose and lignin.',
     stone: 'Rock is packed mineral crystal with almost no gaps, so even a small piece is heavy.',
@@ -107,14 +115,19 @@
     wheelx: 'A wheel on an axle turns a push into rotation. Water hitting the paddles transfers momentum to them and makes a torque (a turning force).',
     pad: 'This pad has a bounciness above 1, so things leave faster than they arrive. Real surfaces cannot do that unless something adds energy, like a spring.',
     platform: 'On a slope, gravity splits into a part along the slope (g sin \u03b8) and a part pressing into it (g cos \u03b8). Friction decides whether things slide down.',
-    node: 'An initiator block links cause and effect. A Toggle or Collision initiator sends a signal to a group number, and a Move initiator listens for it. That is how real machines work: a sensor triggers an actuator.'
+    node: 'An initiator block links cause and effect. A Toggle or Collision initiator sends a signal to a group number, and a Move initiator listens for it. That is how real machines work: a sensor triggers an actuator.',
+    beachball: 'A beach ball is a thin skin full of air, so it is very light for its size and floats high on water. The big, light shape means air drag slows it quickly, and the springy skin keeps most of its speed after a bounce.',
+    anvil: 'An anvil is a small, very dense lump of metal. Here it is made much denser than the Metal block so it hits hard. Drop it from high up: gravitational energy (m g h) turns into kinetic energy, so a heavier object lands with far more energy. The magnet pulls it too.',
+    icecube: 'Water molecules lock into an open crystal when they freeze, so ice is less dense than water and a cube floats with about 90% of it underwater. It has almost no friction, and lava melts it.',
+    belt: 'A conveyor carries things by moving its surface. Friction between the belt and the object drags the object along at about the belt speed. Tap a belt with Grab to reverse it.',
+    portal: 'Portals come from games, not real physics: they link two spots in space. What stays real is that the speed and direction are kept, so whatever goes in comes out moving the same way.'
   };
   var GRAV = [['Earth', 1], ['Moon', 0.165], ['Mars', 0.38], ['Jupiter', 2.5], ['Zero-G', 0], ['Upside down', -1]];
   var TABICO = { block: 'box', item: 'rocket', special: 'spring', liquid: 'water', tool: 'magnet', math: 'angle' }, DEFT = { block: 'box', item: 'wheel', special: 'rope', liquid: 'water', tool: 'drag', math: 'mangle' };
   var BAL = ['#ef4444', '#3b82f6', '#ec4899', '#facc15', '#22c55e', '#a855f7'];
 
   /* things that are not made of a chosen material, or have their own health: defaults by kind (anything else uses its material's health) */
-  var OBJ = { balloon: { cat: 'item', hp: 3 }, tnt: { cat: 'item', hp: 40 }, rocket: { cat: 'item', hp: 60 }, bomb: { cat: 'item', hp: 80 }, wheelx: { cat: 'item', hp: 150 }, pad: { cat: 'special', hp: 200 }, node: { cat: 'special', hp: 200 } };
+  var OBJ = { balloon: { cat: 'item', hp: 3 }, tnt: { cat: 'item', hp: 40 }, rocket: { cat: 'item', hp: 60 }, bomb: { cat: 'item', hp: 80 }, wheelx: { cat: 'item', hp: 150 }, pad: { cat: 'special', hp: 200 }, node: { cat: 'special', hp: 200 }, beachball: { cat: 'item', hp: 40 }, anvil: { cat: 'item', hp: 700 }, belt: { cat: 'special', hp: 200 } };
 
   /* every toolbar entry: id, name, category, toolbar group (g, the separators), hint line */
   var REG = [
@@ -127,6 +140,9 @@
     { id: 'tri', n: 'Triangle', cat: 'block', g: 1, tip: 'Tap to drop a triangle.' },
     { id: 'hex', n: 'Hexagon', cat: 'block', g: 1, tip: 'Tap to drop a hexagon.' },
     { id: 'wheel', n: 'Wheel', cat: 'item', g: 1, tip: 'Tap to drop a wheel, made of the material chosen below. Nail it to the wall or add a Motor and it spins.' },
+    { id: 'beachball', n: 'Beach ball', cat: 'item', g: 2, tip: 'Tap to drop a big, light beach ball. It is very bouncy and floats high on water.' },
+    { id: 'anvil', n: 'Anvil', cat: 'item', g: 2, tip: 'Tap to drop an anvil: small but very dense. Drop it from high up to see how much energy a heavy object has.' },
+    { id: 'icecube', n: 'Ice cube', cat: 'item', g: 2, tip: 'Tap to drop an ice cube. It floats, it is slippery, and lava melts it.' },
     { id: 'balloon', n: 'Balloon', cat: 'item', g: 2, tip: 'Tap to release a balloon. It is lighter than air, so it floats up. Tie a few to a box with rope and lift it.' },
     { id: 'tnt', n: 'TNT', cat: 'item', g: 2, tip: 'Tap to place a TNT crate. It blows up if a blast reaches it or it hits something hard. A fall from high up is enough.' },
     { id: 'rocket', n: 'Rocket', cat: 'item', g: 2, tip: 'Tap to place a rocket. It lights after half a second and pushes forward for a few seconds: thrust. Tilt it by dropping it on a ramp.' },
@@ -141,8 +157,10 @@
     { id: 'motor', n: 'Motor', cat: 'special', g: 4, tip: 'Tap an object to nail it at its center and spin it. Tap again to reverse, once more to stop.' },
     { id: 'platform', n: 'Ramp', cat: 'special', g: 5, tip: 'Drag to build a fixed ramp or platform from the material chosen below. Ice is slippery, rubber grips.' },
     { id: 'pad', n: 'Bounce pad', cat: 'special', g: 5, tip: 'Drag to build a bouncy pad. Things leave it faster than they hit it.' },
+    { id: 'conveyor', n: 'Conveyor', cat: 'special', g: 5, tip: 'Drag to build a conveyor belt. Things on top are carried along. Tap a belt with Grab to reverse it.' },
     { id: 'fan', n: 'Fan', cat: 'special', g: 6, tip: 'Drag to place a fan and aim it. It blows objects and liquids along the wind. Lighter things get pushed more.' },
     { id: 'node', n: 'Initiator', cat: 'special', g: 6, tip: 'Tap to place a fixed Initiator block, then pick Toggle, Collision or Move below. Open its Properties to link it to groups. Tap a Toggle with Grab to flip it.' },
+    { id: 'portal', n: 'Portal', cat: 'special', g: 6, tip: 'Tap to place a blue portal, tap again for the orange one. Anything that enters one comes out of the other, still moving the same way. Erase removes one.' },
     { id: 'magnet', n: 'Magnet', cat: 'tool', g: 6, tip: 'Hold it near metal things (Metal and Copper Block) to pull them toward you. Pick Push below to repel them instead: like poles push, unlike poles pull.' },
     { id: 'boom', n: 'Explosion', cat: 'tool', g: 6, tip: 'Tap anywhere for an instant explosion. Pick Small, Medium or Big below. The ring shows how far the blast reaches.' },
     { id: 'erase', n: 'Erase', cat: 'tool', g: 7, tip: 'Tap things (or drag across them) to delete them. Tap a rope, rod, spring, fan or faucet to remove it.' },
@@ -344,14 +362,14 @@
       '<div class="ph-grp"><button type="button" class="ph-b" data-pa="pause" id="phpa">' + ic('pause', 16) + '<span>Pause</span></button><button type="button" class="ph-b" data-pa="rewind">' + ic('rewind', 16) + '<span>Rewind</span></button><button type="button" class="ph-b" data-pa="rain" id="phrn">' + ic('rain', 16) + '<span>Rain</span></button>' +
       '<button type="button" class="ph-b" data-pa="drain">' + ic('drain', 16) + '<span>Drain</span></button><button type="button" class="ph-b" data-pa="clear">' + ic('trash', 16) + '<span>Clear</span></button></div></div>';
     h += '<div class="ph-try"><b>Scenes:</b><button type="button" class="ph-b" data-sc="tower">Box tower</button><button type="button" class="ph-b" data-sc="pendulum">Pendulum</button><button type="button" class="ph-b" data-sc="pool">Float or sink?</button>' +
-      '<button type="button" class="ph-b" data-sc="wheel">Water wheel</button><button type="button" class="ph-b" data-sc="lava">Lava lake</button><button type="button" class="ph-b" data-sc="lavawater">Lava and water</button><button type="button" class="ph-b" data-sc="acid">Acid test</button><button type="button" class="ph-b" data-sc="lift">Balloon lift</button><button type="button" class="ph-b" data-sc="ocean">Ocean</button><button type="button" class="ph-b" data-sc="door">Door switch</button><button type="button" class="ph-b" data-sc="elev">Elevator</button>' +
+      '<button type="button" class="ph-b" data-sc="wheel">Water wheel</button><button type="button" class="ph-b" data-sc="lava">Lava lake</button><button type="button" class="ph-b" data-sc="lavawater">Lava and water</button><button type="button" class="ph-b" data-sc="acid">Acid test</button><button type="button" class="ph-b" data-sc="layers">Liquid layers</button><button type="button" class="ph-b" data-sc="belts">Conveyor</button><button type="button" class="ph-b" data-sc="portals">Portals</button><button type="button" class="ph-b" data-sc="lift">Balloon lift</button><button type="button" class="ph-b" data-sc="ocean">Ocean</button><button type="button" class="ph-b" data-sc="door">Door switch</button><button type="button" class="ph-b" data-sc="elev">Elevator</button>' +
       '<button type="button" class="ph-b ph-ask" data-pa="ask">' + ic('chat', 16) + '<span>Ask Spectra</span></button></div></div>';
     return h;
   }
 
   function mount(root, opts) {
     unmount(); O = opts || {};
-    S = { root: root, tool: 'box', cat: 'block', snap: false, asnap: true, bsz: 1, mpol: 1, lk: null, rot: null, mvd: null, hv: null, rotHint: false, tlast: {}, sel: null, mt: null, tab: 'props', hold: null, held: false, pend: null, ptype: '', initType: 'toggle', adding: false, sig: {}, tap: null, mat: 'wood', fluid: 0, size: 28, grav: 1, speed: 1, paused: false, rain: false, W: 0, H: 0, dpr: 1, acc: 0, last: 0, shake: 0, fx: [], ropes: {}, walls: [], faucets: [], fans: [], line: null, grab: null, pid: null, pp: { x: 0, y: 0 }, pour: false, pourAcc: 0, frame: 0, tt: 0, full: 0, bg: '#f3f4f6', gridc: 'rgba(120,120,140,.18)' };
+    S = { root: root, tool: 'box', cat: 'block', snap: false, asnap: true, bsz: 1, mpol: 1, lk: null, rot: null, mvd: null, hv: null, rotHint: false, portals: [null, null], pnx: 0, bt: {}, tlast: {}, sel: null, mt: null, tab: 'props', hold: null, held: false, pend: null, ptype: '', initType: 'toggle', adding: false, sig: {}, tap: null, mat: 'wood', fluid: 0, size: 28, grav: 1, speed: 1, paused: false, rain: false, W: 0, H: 0, dpr: 1, acc: 0, last: 0, shake: 0, fx: [], ropes: {}, walls: [], faucets: [], fans: [], line: null, grab: null, pid: null, pp: { x: 0, y: 0 }, pour: false, pourAcc: 0, frame: 0, tt: 0, full: 0, bg: '#f3f4f6', gridc: 'rgba(120,120,140,.18)' };
     root.innerHTML = shellHtml();
     var s = S, wrap = root.querySelector('.ph-wrap');
     wrap.addEventListener('pointerdown', onKd); wrap.addEventListener('click', onClick); wrap.addEventListener('change', onChange); wrap.addEventListener('input', onChange);
@@ -388,6 +406,8 @@
       });
     });
     M.Events.on(s.eng, 'collisionStart', touchEv); M.Events.on(s.eng, 'collisionActive', touchEv);
+    var beltEv = function (ev) { ev.pairs.forEach(function (p) { var a = p.bodyA.parent || p.bodyA, b = p.bodyB.parent || p.bodyB; if (a.belt && !b.isStatic) s.bt[b.id] = [b, a]; else if (b.belt && !a.isStatic) s.bt[a.id] = [a, b]; }); };
+    M.Events.on(s.eng, 'collisionStart', beltEv); M.Events.on(s.eng, 'collisionActive', beltEv);
     s.cv.addEventListener('pointerdown', down); s.cv.addEventListener('pointermove', move); s.cv.addEventListener('pointerup', up); s.cv.addEventListener('pointercancel', up);
     s.cv.addEventListener('contextmenu', onCtx);
     s.cv.addEventListener('pointermove', function (e) { var q = S; if (q && q.cv && e.pointerType === 'mouse') q.hv = pos(e); }); s.cv.addEventListener('pointerleave', function () { if (S) S.hv = null; });
@@ -448,7 +468,7 @@
     else if (kind === 'hex') b = M.Bodies.polygon(x, y, 6, sz * 1.1, o);
     else if (kind === 'plank') b = M.Bodies.rectangle(x, y, sz * 5, Math.max(10, sz * 0.45), o);
     else b = M.Bodies.rectangle(x, y, sz * 2, sz * 2, o);
-    b.col = m.c; b.kind = kind; b.matId = m.id; return b;
+    b.col = m.c; b.kind = kind; b.matId = m.id; b.sz = sz; return b;
   }
   function place(kind, p) {
     if (full()) return; var b = addB(mk(kind, p.x, p.y, S.size, S.mat)); M.Body.setAngle(b, (rnd() - 0.5) * 0.4); return b;
@@ -468,6 +488,23 @@
     var r = Math.max(14, S.size * 0.8), b = addB(M.Bodies.circle(p.x, p.y, r, { density: 0.00008, restitution: 0.5, friction: 0.2, frictionAir: 0.03, sleepThreshold: Infinity }));
     b.col = BAL[(rnd() * BAL.length) | 0]; b.kind = 'balloon'; b.balloon = true; b.fa0 = 0.03;
   }
+  function mkBeachBall(p) {
+    if (full()) return;
+    var r = Math.max(22, S.size * 1.15), b = addB(M.Bodies.circle(p.x, p.y, r, { density: 0.00018, restitution: 0.88, friction: 0.25, frictionAir: 0.012, sleepThreshold: Infinity }));
+    b.col = '#f8fafc'; b.kind = 'beachball'; b.fa0 = 0.012; b.sz = S.size; M.Body.setAngle(b, rnd() * 6.28);
+  }
+  function mkAnvil(p) {
+    if (full()) return;
+    var k = Math.max(0.8, S.size / 28), v = [[-34, -14], [34, -14], [24, 16], [-24, 16]].map(function (a) { return { x: a[0] * k, y: a[1] * k }; }), o = { density: 0.014, friction: 0.5, restitution: 0.03, frictionAir: 0.01, sleepThreshold: Infinity }, b;
+    try { b = M.Bodies.fromVertices(p.x, p.y, [v], o); } catch (e) { b = null; }
+    if (!b || !b.position) b = M.Bodies.rectangle(p.x, p.y, 68 * k, 30 * k, o);
+    b.col = '#4b5563'; b.kind = 'anvil'; b.matId = 'metal'; b.ak = k; b.sz = S.size; addB(b); M.Body.setAngle(b, (rnd() - 0.5) * 0.2);
+  }
+  function mkIceCube(p) {
+    if (full()) return;
+    var h = Math.max(11, S.size * 0.6), b = addB(M.Bodies.rectangle(p.x, p.y, h * 2, h * 2, opts(MAT.ice, { chamfer: { radius: 4 } })));
+    b.col = '#bfe9ff'; b.kind = 'icecube'; b.matId = 'ice'; b.sz = S.size; M.Body.setAngle(b, (rnd() - 0.5) * 0.4);
+  }
   function mkRocket(p) {
     if (full()) return;
     var k = Math.max(0.6, S.size / 28), v = [[0, -30], [9, -12], [9, 24], [-9, 24], [-9, -12]].map(function (a) { return { x: a[0] * k, y: a[1] * k }; }), b;
@@ -476,9 +513,11 @@
     b.col = '#e5e7eb'; b.kind = 'rocket'; b.rk = { t: 600, burn: 2800, on: false }; b.rkk = k; addB(b);
   }
   function mkPlatform(a, b, kind) {
-    var m = MAT[S.mat] || MAT.wood, pad = kind === 'pad', len = Math.hypot(b.x - a.x, b.y - a.y);
-    var p = M.Bodies.rectangle((a.x + b.x) / 2, (a.y + b.y) / 2, len, pad ? 12 : 14, { isStatic: true, friction: pad ? 0.2 : m.f, frictionStatic: pad ? 0.5 : (m.fs || 0.5), restitution: pad ? 1.1 : m.r, angle: Math.atan2(b.y - a.y, b.x - a.x) });
-    p.col = pad ? '#22c55e' : m.c; p.kind = pad ? 'pad' : 'platform'; if (!pad) p.matId = m.id; addB(p); return p;
+    var m = MAT[S.mat] || MAT.wood, pad = kind === 'pad', belt = kind === 'conveyor', len = Math.hypot(b.x - a.x, b.y - a.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
+    var p = M.Bodies.rectangle((a.x + b.x) / 2, (a.y + b.y) / 2, len, pad ? 12 : belt ? 16 : 14, { isStatic: true, friction: pad ? 0.2 : belt ? 0.9 : m.f, frictionStatic: pad ? 0.5 : belt ? 1 : (m.fs || 0.5), restitution: pad ? 1.1 : belt ? 0.05 : m.r, angle: ang });
+    p.col = pad ? '#22c55e' : belt ? '#374151' : m.c; p.kind = pad ? 'pad' : belt ? 'belt' : 'platform'; if (!pad && !belt) p.matId = m.id;
+    if (belt) { p.belt = { dir: Math.cos(ang) >= 0 ? 1 : -1 }; p.bl = len; }   // dir 1 carries things along the way the belt was drawn, unless that points left (then the default is rightwards)
+    addB(p); return p;
   }
 
   /* liquids */
@@ -581,6 +620,7 @@
   }
   function eraseAt(p) {
     var i;
+    for (i = 0; i < 2; i++) if (S.portals[i] && Math.hypot(S.portals[i].x - p.x, S.portals[i].y - p.y) < 28) { S.portals[i] = null; return; }
     for (i = S.fans.length - 1; i >= 0; i--) if (Math.hypot(S.fans[i].x - p.x, S.fans[i].y - p.y) < 24) { S.fans.splice(i, 1); return; }
     for (i = S.faucets.length - 1; i >= 0; i--) if (Math.abs(S.faucets[i].x - 14 - p.x) < 26 && Math.abs(S.faucets[i].y - p.y) < 16) { S.faucets.splice(i, 1); return; }
     var b = bodyAt(p, false) || nodeAt(p, 12);
@@ -592,7 +632,7 @@
     var s = S;
     M.Composite.allConstraints(s.world).forEach(function (c) { M.Composite.remove(s.world, c); });
     M.Composite.allBodies(s.world).forEach(function (b) { if (!b.wall) { M.Composite.remove(s.world, b); b.gone = true; } });
-    s.fl.clear(); s.stat = {}; s.sig = {}; s.ropes = {}; s.fx = []; s.faucets = []; s.fans = []; s.frags = []; s.rocks = []; s.rockAt = {}; s.rk = {}; s.grab = null; s.line = null; s.pour = false; s.lk = null; s.rot = null; s.mvd = null; mathReset();
+    s.fl.clear(); s.stat = {}; s.sig = {}; s.ropes = {}; s.fx = []; s.faucets = []; s.fans = []; s.frags = []; s.rocks = []; s.rockAt = {}; s.rk = {}; s.grab = null; s.line = null; s.pour = false; s.lk = null; s.rot = null; s.mvd = null; s.portals = [null, null]; s.pnx = 0; s.bt = {}; mathReset();
   }
 
   /* ================= breakage, fire and melting (Phase 5) =================
@@ -870,6 +910,7 @@
     });
   }
   function flipToggles(b) {
+    if (b.belt) { b.belt.dir *= -1; toast('Belt reversed'); return; }
     var ii = b.props && b.props.inits, any = null; if (!ii) return;
     ii.forEach(function (i) { if (i.type === 'toggle') { i.on = !i.on; any = i; } });
     if (any) { toast(any.on ? 'Switch ON \u00b7 signal sent to group ' + any.to : 'Switch OFF'); if (S.sel === b) renderBoard(); }
@@ -1401,6 +1442,23 @@
       var ak = [['box', 'wood'], ['ball', 'rubber'], ['box', 'foam'], ['ball', 'metal'], ['box', 'stone'], ['hex', 'obsidian'], ['box', 'gold']], aq;
       for (aq = 0; aq < ak.length; aq++) addB(mk(ak[aq][0], x0 + pw * (aq + 1) / (ak.length + 1), H - 260 - (aq % 2) * 60, 14, ak[aq][1]));
       toast('Acid eats wood, rubber and foam. Metal, gold and obsidian are safe');
+    } else if (name === 'layers') {
+      pw = Math.min(360, W - 70); x0 = W / 2 - pw / 2; x1 = W / 2 + pw / 2;
+      mkPlatform({ x: x0, y: H - 190 }, { x: x0, y: H - 4 }); mkPlatform({ x: x1, y: H - 190 }, { x: x1, y: H - 4 });
+      fillRect(x0 + 8, H - 52, x1 - 8, H - 6, 6, true); fillRect(x0 + 8, H - 98, x1 - 8, H - 52, 4, true); fillRect(x0 + 8, H - 144, x1 - 8, H - 98, 0, true); fillRect(x0 + 8, H - 186, x1 - 8, H - 144, 1, true);
+      var ly2 = [['box', 'wood'], ['ball', 'stone'], ['hex', 'gold'], ['box', 'ice'], ['ball', 'rubber']], lq;
+      for (lq = 0; lq < ly2.length; lq++) addB(mk(ly2[lq][0], x0 + pw * (lq + 1) / (ly2.length + 1), H - 300 - (lq % 2) * 50, 13, ly2[lq][1]));
+      toast('Mercury, honey, water and oil sit in layers by density. Drop things in and see where each one stops');
+    } else if (name === 'belts') {
+      var cb1 = mkPlatform({ x: W * 0.08, y: H - 150 }, { x: W * 0.62, y: H - 150 }, 'conveyor'), cb2 = mkPlatform({ x: W * 0.78, y: H - 70 }, { x: W * 0.12, y: H - 70 }, 'conveyor');
+      if (cb2) cb2.belt.dir = 1;   // drawn right to left, so 1 carries things to the left
+      addB(mk('box', W * 0.14, H - 200, 16, 'wood')); addB(mk('ball', W * 0.24, H - 210, 14, 'metal')); addB(mk('hex', W * 0.34, H - 200, 14, 'rubber')); mkAnvil({ x: W * 0.46, y: H - 230 });
+      toast('Belts carry things along. The top belt goes right, the bottom one goes left. Tap a belt with Grab to reverse it');
+    } else if (name === 'portals') {
+      mkPlatform({ x: W * 0.92, y: H * 0.55 }, { x: W * 0.35, y: H - 12 });
+      s.portals = [{ x: W * 0.28, y: H - 30, fl: 1 }, { x: W * 0.7, y: H * 0.28, fl: 1 }]; s.pnx = 0;
+      for (i = 0; i < 3; i++) addB(mk('ball', W * 0.5 + i * 30, H * 0.12, 14, ['rubber', 'metal', 'wood'][i]));
+      toast('What rolls into the blue portal comes out of the orange one, still moving the same way');
     } else if (name === 'ocean') {
       var lvl = Math.round(H * 0.42), ob;
       fillRect(4, lvl, W - 4, H - 6, 0, true);
@@ -1430,8 +1488,65 @@
 
   /* ================= input ================= */
   function pos(e) { var r = S.cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
-  var INSTANT = { box: 1, ball: 1, tri: 1, hex: 1, plank: 1, wheel: 1, faucet: 1, bomb: 1, tnt: 1, balloon: 1, rocket: 1, boom: 1, motor: 1, pin: 1, node: 1 };   // tools that act the moment you press
+  var INSTANT = { box: 1, ball: 1, tri: 1, hex: 1, plank: 1, wheel: 1, faucet: 1, bomb: 1, tnt: 1, balloon: 1, rocket: 1, boom: 1, motor: 1, pin: 1, node: 1, beachball: 1, anvil: 1, icecube: 1, portal: 1 };   // tools that act the moment you press
   var NOHOLD = { water: 1, magnet: 1, erase: 1 };   // tools where holding means something else
+  /* ================= conveyor belts, portals, Clone and Freeze (Phase 8) ================= */
+  var BELT_SP = 1.1, PR = 24;   // a belt carries things 1.1 px per step (about 1.3 m/s); a portal is 24 px in radius
+  function beltStep() {   // things touching the top of a belt are slid along it (contacts come from the collision events, see boot)
+    var s = S, k, q, o, bl, ux, uy;
+    for (k in s.bt) {
+      q = s.bt[k]; o = q[0]; bl = q[1]; if (o.gone || bl.gone || o.isStatic || o.rope || o.mv || (s.lk && s.lk.b === o)) continue;
+      ux = Math.sin(bl.angle); uy = -Math.cos(bl.angle); if (uy > 0) { ux = -ux; uy = -uy; }   // the side of the belt that faces up
+      if ((o.position.x - bl.position.x) * ux + (o.position.y - bl.position.y) * uy <= 0) continue;
+      M.Body.translate(o, { x: Math.cos(bl.angle) * BELT_SP * bl.belt.dir, y: Math.sin(bl.angle) * BELT_SP * bl.belt.dir });
+    }
+    s.bt = {};
+  }
+  function mkPortal(p) {
+    var s = S, i = s.pnx, o = s.portals[1 - i], prev = s.portals[i];
+    if (o && Math.hypot(o.x - p.x, o.y - p.y) < 70) { toast('Place the portals further apart'); return; }
+    s.portals[i] = { x: p.x, y: p.y, fl: 1 }; s.pnx = 1 - i;
+    toast(prev ? (i ? 'Orange portal moved' : 'Blue portal moved') : i === 0 ? (o ? 'Blue portal placed: the pair is linked' : 'Blue portal placed. Tap again for the orange one') : (o ? 'Orange portal placed: the pair is linked' : 'Orange portal placed. Add a blue one too'));
+  }
+  function portalsStep(bodies) {   // anything whose centre reaches one portal appears at the other, moving the same way
+    var s = S, A = s.portals[0], B = s.portals[1], f = s.fl, d2 = PR * PR * 0.64;
+    if (!A || !B) return;
+    [[A, B], [B, A]].forEach(function (pr) {
+      var P = pr[0], Q = pr[1], i;
+      bodies.forEach(function (b) {
+        if (b.isStatic || b.wall || b.rope || b.gone || b.motorPin || b.mv || (s.lk && s.lk.b === b)) return;
+        var dx = b.position.x - P.x, dy = b.position.y - P.y; if (dx * dx + dy * dy > d2) return;
+        var vx = b.velocity.x, vy = b.velocity.y, sp = Math.hypot(vx, vy), ux = sp > 0.05 ? vx / sp : 0, uy = sp > 0.05 ? vy / sp : 1, off = PR + 6 + Math.min(rotR(b), 40) * 0.6;
+        M.Body.setPosition(b, { x: Q.x + ux * off, y: Q.y + uy * off }); P.fl = 1; Q.fl = 1;
+      });
+      if (f && f.n) for (i = 0; i < f.n; i++) {
+        var ex = f.x[i] - P.x, ey = f.y[i] - P.y; if (ex * ex + ey * ey > d2) continue;
+        var wx = f.vx[i], wy = f.vy[i], ws = Math.hypot(wx, wy), vx2 = ws > 30 ? wx / ws : 0, vy2 = ws > 30 ? wy / ws : 1;
+        f.x[i] = Q.x + vx2 * (PR + 5); f.y[i] = Q.y + vy2 * (PR + 5); f.ox[i] = f.x[i]; f.oy[i] = f.y[i]; f.sl[i] = 0; f.cm[i] = 0; f.gen[i] = 0; P.fl = 1; Q.fl = 1;
+      }
+    });
+  }
+  function toggleFreeze(b) {
+    if (!b || b.gone || b.wall || b.rope || b.rock || b.frag) return;
+    if (b.mv) { toast('An initiator is moving that one. Press Rewind first'); return; }
+    if (!b.frozen) {
+      if (b.isStatic) { toast('That one is already fixed in place'); return; }
+      b.frozen = true; M.Body.setStatic(b, true); toast('Frozen in place. Open the menu again to unfreeze');
+    } else {
+      b.frozen = false; M.Body.setStatic(b, false); M.Body.setVelocity(b, { x: 0, y: 0 }); M.Body.setAngularVelocity(b, 0); toast('Free again');
+    }
+  }
+  var CLONERS = { bomb: mkBomb, tnt: mkTnt, balloon: mkBalloon, rocket: mkRocket, beachball: mkBeachBall, anvil: mkAnvil, icecube: mkIceCube };
+  function cloneBody(b) {
+    var s = S; if (!b || b.gone || full()) return;
+    var k = b.kind, p = { x: Math.min(s.W - 30, b.position.x + 34), y: Math.max(30, b.position.y - 30) }, all = M.Composite.allBodies(s.world), n0 = all.length, n = null, sz0 = s.size;
+    if (k === 'box' || k === 'ball' || k === 'tri' || k === 'hex' || k === 'plank' || k === 'wheel') addB(mk(k, p.x, p.y, b.sz || sz0, b.matId));
+    else if (CLONERS[k]) { s.size = b.sz || sz0; CLONERS[k](p); s.size = sz0; }
+    else { toast('That one cannot be cloned. Build it again with its tool'); return; }
+    all = M.Composite.allBodies(s.world); if (all.length > n0) n = all[all.length - 1];
+    if (n) { M.Body.setAngle(n, b.angle); propsOf(n); n.props.groups = b.props && b.props.groups ? b.props.groups.slice() : []; toast('Cloned'); }
+  }
+
   /* ================= Move and Rotate tools (Phase 7) =================
      Move and Rotate hold their object still (s.lk): every step the object is put back on its spot and its speed is zeroed, so gravity and bumps do not carry it away.
      Nails (Nail and Motor) are fixed to a spot on the wall, so while you move or turn the object they follow it (pinSync). */
@@ -1456,6 +1571,7 @@
     var s = S, i, o = null;
     for (i = s.fans.length - 1; i >= 0 && !o; i--) if (Math.hypot(s.fans[i].x - p.x, s.fans[i].y - p.y) < 24) o = s.fans[i];
     for (i = s.faucets.length - 1; i >= 0 && !o; i--) if (Math.abs(s.faucets[i].x - 14 - p.x) < 26 && Math.abs(s.faucets[i].y - p.y) < 16) o = s.faucets[i];
+    for (i = 0; i < 2 && !o; i++) if (s.portals[i] && Math.hypot(s.portals[i].x - p.x, s.portals[i].y - p.y) < 28) o = s.portals[i];
     if (o) { s.mvd = { o: o, dx: o.x - p.x, dy: o.y - p.y }; s.cv.style.cursor = 'grabbing'; return; }
     var b = bodyAt(p, false); if (!movable(b)) return;
     s.lk = { b: b, dx: b.position.x - p.x, dy: b.position.y - p.y, x: b.position.x, y: b.position.y }; s.cv.style.cursor = 'grabbing';
@@ -1504,6 +1620,7 @@
   }
   function drawToolsUI(c) {
     var s = S, b, h, deg, t, w, ly;
+    M.Composite.allBodies(s.world).forEach(function (q) { if (q.frozen && !q.gone) outline(c, q, 'rgba(125,211,252,.95)'); });
     if (s.tool === 'move') {
       if (s.lk && !s.lk.b.gone) outline(c, s.lk.b, '#22c55e');
       if (s.mvd) { c.beginPath(); c.arc(s.mvd.o.x, s.mvd.o.y, 26, 0, 6.2832); c.strokeStyle = '#22c55e'; c.lineWidth = 2.5; c.setLineDash([6, 4]); c.stroke(); c.setLineDash([]); }
@@ -1542,12 +1659,16 @@
     else if (T === 'tnt') mkTnt(p);
     else if (T === 'balloon') mkBalloon(p);
     else if (T === 'rocket') mkRocket(p);
+    else if (T === 'beachball') mkBeachBall(p);
+    else if (T === 'anvil') mkAnvil(p);
+    else if (T === 'icecube') mkIceCube(p);
+    else if (T === 'portal') mkPortal(p);
     else if (T === 'boom') { var bz = BSZ[s.bsz] || BSZ[1]; boom(p.x, p.y, bz[0], bz[1]); }
     else if (T === 'erase') eraseAt(p);
     else if (T === 'node') { var nb = mkNode(p); if (nb) { openBoard(nb, 'props'); toast(NODEHINT[s.initType]); } }
     else if (T === 'motor') motorAt(p);
     else if (T === 'pin') { var t = targetAt(p); if (t) mkPin(t, p); else toast('Tap an object to nail it'); }
-    else if (T === 'rope' || T === 'rod' || T === 'spring' || T === 'glue' || T === 'platform' || T === 'pad' || T === 'fan') s.line = { a: p, ta: (T === 'platform' || T === 'pad' || T === 'fan') ? null : targetAt(p) };
+    else if (T === 'rope' || T === 'rod' || T === 'spring' || T === 'glue' || T === 'platform' || T === 'pad' || T === 'fan' || T === 'conveyor') s.line = { a: p, ta: (T === 'platform' || T === 'pad' || T === 'fan' || T === 'conveyor') ? null : targetAt(p) };
   }
   function down(e) {
     var s = S; if (!s || !s.eng) return;
@@ -1599,7 +1720,7 @@
       if (e.type !== 'pointercancel') {
         if (T === 'fan') mkFan(L.a, p);
         else if (Math.hypot(p.x - L.a.x, p.y - L.a.y) < 16) toast('Drag a longer line');
-        else if (T === 'platform' || T === 'pad') mkPlatform(L.a, p, T);
+        else if (T === 'platform' || T === 'pad' || T === 'conveyor') mkPlatform(L.a, p, T);
         else if (T === 'rope') mkRope(L.a, p, L.ta, targetAt(p), false);
         else if (T === 'glue') mkGlue(L.a, p, L.ta, targetAt(p));
         else mkLink(T, L.a, p, L.ta, targetAt(p));
@@ -1631,15 +1752,19 @@
       '<button type="button" class="ph-mi" role="menuitem" data-mn="props">' + ic('sliders', 17) + '<span>Properties</span></button>' +
       '<button type="button" class="ph-mi" role="menuitem" data-mn="about">' + ic('info', 17) + '<span>About</span></button>' +
       '<button type="button" class="ph-mi" role="menuitem" data-mn="ask">' + ic('chat', 17) + '<span>Ask Spectra</span></button>' +
+      '<button type="button" class="ph-mi" role="menuitem" data-mn="clone">' + ic('clone', 17) + '<span>Clone</span></button>' +
+      '<button type="button" class="ph-mi" role="menuitem" data-mn="freeze">' + ic('freeze', 17) + '<span>' + (b.frozen ? 'Unfreeze' : 'Freeze') + '</span></button>' +
       '<button type="button" class="ph-mi dg" role="menuitem" data-mn="del">' + ic('trash', 17) + '<span>Delete</span></button>';
     mn.hidden = false;
-    var w = 192, h = 4 * 40 + 46, x = Math.max(6, Math.min(p.x + 6, s.W - w - 6)), y = Math.max(6, Math.min(p.y + 6, s.H - h - 6)); mn.style.left = x + 'px'; mn.style.top = y + 'px';
+    var w = 192, h = 6 * 40 + 46, x = Math.max(6, Math.min(p.x + 6, s.W - w - 6)), y = Math.max(6, Math.min(p.y + 6, s.H - h - 6)); mn.style.left = x + 'px'; mn.style.top = y + 'px';
   }
   function closeMenu() { var s = S; if (!s) return; s.mt = null; var mn = $('#phmenu'); if (mn) mn.hidden = true; }
   function menuAct(a) {
     var s = S, b = s.mt; closeMenu(); if (!b || b.gone) return;
     if (a === 'props' || a === 'about') openBoard(b, a === 'about' ? 'about' : 'props');
     else if (a === 'ask') askAbout(b);
+    else if (a === 'clone') cloneBody(b);
+    else if (a === 'freeze') toggleFreeze(b);
     else if (a === 'del') { if (b === s.sel) closeBoard(); rm(b); }
   }
   function openBoard(b, tab) {
@@ -1651,11 +1776,11 @@
   function flagsOf(b) {
     var m = MAT[b.matId], fl = [];
     if (m) { if (m.flam) fl.push('Flammable'); if (m.mag) fl.push('Magnetic'); if (m.lava) fl.push('Lava-proof'); if (m.melts) fl.push('Melts'); if (m.acid) fl.push('Dissolves in acid'); if (m.smelt) fl.push('Melts slowly'); }
-    (KFLAGS[b.kind] || []).forEach(function (f) { fl.push(f); }); if (b.isStatic) fl.push('Fixed in place');
+    (KFLAGS[b.kind] || []).forEach(function (f) { fl.push(f); }); if (b.isStatic) fl.push(b.frozen ? 'Frozen' : 'Fixed in place');
     return fl;
   }
   function aboutHtml(b) {
-    var m = MAT[b.matId], h = '', ex = ABOUT[b.kind];
+    var m = b.kind === 'anvil' ? null : MAT[b.matId], h = '', ex = ABOUT[b.kind];
     if (m) {
       var kg = Math.round(m.d * 1e6), rel = m.d / 0.001, e2 = Math.round(m.r * m.r * 100);
       h += '<section class="ph-bs"><h4>What it is</h4><p class="ph-bn">' + esc(m.note) + '</p></section>';
@@ -1671,7 +1796,7 @@
     return h || '<p class="ph-bn">Not much to say about this one yet.</p>';
   }
   function askText(b) {
-    var m = MAT[b.matId], nm = nameOf(b).toLowerCase(), ex = ABOUT[b.kind];
+    var m = b.kind === 'anvil' ? null : MAT[b.matId], nm = nameOf(b).toLowerCase(), ex = ABOUT[b.kind];
     var t = 'Teach me the physics of an object from my sandbox: a ' + nm + '.';
     if (m) t += ' Its density is ' + Math.round(m.d * 1e6) + ' kg/m\u00b3 (water is 1000), its bounciness (coefficient of restitution) is ' + m.r.toFixed(2) + ' and its friction is ' + m.f.toFixed(2) + '. Explain whether it floats or sinks and why, what bounciness and friction mean using this object as the example, and what would happen if I dropped it in water, onto a ramp, or next to an explosion.';
     else if (ex) t += ' Explain the physics behind it: ' + ex;
@@ -1820,6 +1945,7 @@
     var s = S, f = s.fl, bodies = M.Composite.allBodies(s.world), acts = [], g = s.eng.gravity.y * s.eng.gravity.scale, i, k;
     s.tt += dt;
     if (s.lk) { if (s.lk.b.gone) s.lk = null; else lockTo(s.lk); }   // Move and Rotate hold their object still
+    beltStep();
     bodies.forEach(function (b) {
       if (b.wall || b.isStatic) return;
       b.frictionAir = (s.mth && s.mth.ideal && !b.balloon) ? 0 : (b.fa0 || 0.01);   // Ideal mode (Math tab): no air drag
@@ -1849,6 +1975,7 @@
         var acc = 0.0034 * (1 - d / 340), F = b.mass * acc * s.mpol; b.force.x += dx / d * F; b.force.y += dy / d * F; b.frictionAir = 0.04;
       });
     }
+    portalsStep(bodies);
     /* faucets and rain */
     s.faucets.forEach(function (fc) { fc.acc = (fc.acc || 0) + dt; while (fc.acc >= 38) { fc.acc -= 38; emit(fc.x + (rnd() - 0.5) * 3, fc.y + 6, (rnd() - 0.5) * 20, 150, fc.t); } });
     if (s.rain) { s.rainAcc = (s.rainAcc || 0) + dt; while (s.rainAcc >= 30) { s.rainAcc -= 30; emit(rnd() * s.W, 6, 0, 120, 0); } }
@@ -1975,6 +2102,26 @@
       if (b.kind === 'wheel') for (i = 1; i < 6; i++) { c.moveTo(p.x, p.y); c.lineTo(p.x + Math.cos(b.angle + i * 1.0472) * r * 0.9, p.y + Math.sin(b.angle + i * 1.0472) * r * 0.9); }
       c.lineWidth = 2; c.strokeStyle = 'rgba(0,0,0,.3)'; c.stroke();
       if (b.kind === 'wheel') { c.beginPath(); c.arc(p.x, p.y, r * 0.18, 0, 6.2832); c.fillStyle = 'rgba(0,0,0,.35)'; c.fill(); c.beginPath(); c.arc(p.x, p.y, r * 0.78, 0, 6.2832); c.lineWidth = 2; c.strokeStyle = 'rgba(0,0,0,.2)'; c.stroke(); }
+    }
+    if (b.kind === 'beachball') {
+      r = b.circleRadius; c.save(); c.translate(p.x, p.y); c.rotate(b.angle);
+      var BC = ['#ef4444', '#f8fafc', '#3b82f6', '#facc15', '#22c55e', '#f8fafc'];
+      for (i = 0; i < 6; i++) { c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, r, i * 1.0472, (i + 1) * 1.0472); c.closePath(); c.fillStyle = BC[i]; c.fill(); }
+      c.beginPath(); c.arc(0, 0, r * 0.14, 0, 6.2832); c.fillStyle = '#f8fafc'; c.fill(); c.beginPath(); c.arc(0, 0, r, 0, 6.2832); c.lineWidth = 2; c.strokeStyle = 'rgba(0,0,0,.35)'; c.stroke(); c.restore();
+      c.beginPath(); c.arc(p.x - r * 0.3, p.y - r * 0.35, r * 0.2, 0, 6.2832); c.fillStyle = 'rgba(255,255,255,.5)'; c.fill();
+    }
+    if (b.kind === 'anvil') {
+      var ak = b.ak || 1; c.save(); c.translate(p.x, p.y); c.rotate(b.angle); c.fillStyle = '#9ca3af'; c.fillRect(-34 * ak, -14 * ak, 68 * ak, 5 * ak); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(-20 * ak, 6 * ak, 40 * ak, 4 * ak); c.restore();
+    }
+    if (b.kind === 'icecube') {
+      var ih = (b.sz || 28) * 0.6; c.save(); c.translate(p.x, p.y); c.rotate(b.angle); c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 2; c.beginPath();
+      c.moveTo(-ih * 0.7, -ih * 0.15); c.lineTo(-ih * 0.15, -ih * 0.7); c.moveTo(-ih * 0.7, ih * 0.35); c.lineTo(ih * 0.35, -ih * 0.7); c.stroke(); c.restore();
+    }
+    if (b.belt) {
+      var bl2 = b.bl || 100, dr = b.belt.dir, off = (((S.tt * 0.132 * dr) % 22) + 22) % 22, xx; c.save(); c.translate(p.x, p.y); c.rotate(b.angle);
+      c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 2.2; c.beginPath();
+      for (xx = -bl2 / 2 + off; xx < bl2 / 2 - 14; xx += 22) { if (xx < -bl2 / 2 + 14) continue; c.moveTo(xx - 3 * dr, -4); c.lineTo(xx + 3 * dr, 0); c.lineTo(xx - 3 * dr, 4); }
+      c.stroke(); c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 2; c.beginPath(); c.arc(-bl2 / 2 + 8, 0, 6, 0, 6.2832); c.moveTo(bl2 / 2 - 2, 0); c.arc(bl2 / 2 - 8, 0, 6, 0, 6.2832); c.stroke(); c.restore();
     }
     if (b.balloon) {
       r = b.circleRadius; c.beginPath(); c.arc(p.x - r * 0.3, p.y - r * 0.35, r * 0.22, 0, 6.2832); c.fillStyle = 'rgba(255,255,255,.55)'; c.fill();
@@ -2147,6 +2294,14 @@
       c.save(); c.translate(fan.x, fan.y); c.rotate(fan.a); c.fillStyle = '#475569'; c.strokeStyle = '#1e293b'; c.lineWidth = 2; c.beginPath(); c.rect(-14, -20, 22, 40); c.fill(); c.stroke();
       c.rotate(s.tt * 0.03); c.fillStyle = '#cbd5e1'; for (var k = 0; k < 4; k++) { c.rotate(1.5708); c.beginPath(); c.ellipse(9, 0, 9, 3.4, 0, 0, 6.2832); c.fill(); } c.beginPath(); c.arc(0, 0, 3, 0, 6.2832); c.fillStyle = '#0f172a'; c.fill(); c.restore();
     });
+    s.portals.forEach(function (P, i) {
+      if (!P) return; var col = i ? '#fb923c' : '#38bdf8', col2 = i ? '#fed7aa' : '#bae6fd', fl = P.fl || 0, linked = s.portals[0] && s.portals[1];
+      c.save(); c.translate(P.x, P.y); c.beginPath(); c.arc(0, 0, PR, 0, 6.2832); c.fillStyle = 'rgba(8,12,24,.88)'; c.fill();
+      c.lineWidth = 4 + fl * 4; c.strokeStyle = col; c.setLineDash(linked ? [] : [6, 5]); c.stroke(); c.setLineDash([]);
+      c.rotate(s.tt * 0.004 * (i ? -1 : 1)); c.lineWidth = 2.5; c.strokeStyle = col2; c.beginPath(); c.arc(0, 0, PR - 7, 0, 2.2); c.stroke(); c.beginPath(); c.arc(0, 0, PR - 7, 3.14, 5.4); c.stroke();
+      if (fl > 0) { c.beginPath(); c.arc(0, 0, PR + 10 * fl, 0, 6.2832); c.lineWidth = 2; c.strokeStyle = col2; c.globalAlpha = fl * 0.7; c.stroke(); }
+      c.restore(); P.fl = Math.max(0, fl - 0.05);
+    });
     if (s.tool === 'magnet' && s.pid !== null) {
       c.beginPath(); c.arc(s.pp.x, s.pp.y, 340 * (0.9 + 0.1 * Math.sin(s.tt * 0.01)), 0, 6.2832); c.strokeStyle = s.mpol > 0 ? 'rgba(239,68,68,.22)' : 'rgba(59,130,246,.3)'; c.lineWidth = 2; c.setLineDash([6, 8]); c.stroke(); c.setLineDash([]);
       c.fillStyle = s.mpol > 0 ? '#ef4444' : '#3b82f6'; c.fillRect(s.pp.x - 12, s.pp.y - 8, 8, 16); c.fillStyle = '#e5e7eb'; c.fillRect(s.pp.x + 4, s.pp.y - 8, 8, 16);
@@ -2179,8 +2334,8 @@
     });
     if (s.line) {
       var L = s.line, T = s.tool;
-      c.beginPath(); c.moveTo(L.a.x, L.a.y); c.lineTo(s.pp.x, s.pp.y); c.lineWidth = (T === 'platform' || T === 'pad') ? 14 : 4;
-      c.strokeStyle = (T === 'platform' || T === 'pad') ? 'rgba(100,116,139,.5)' : T === 'spring' ? 'rgba(168,85,247,.7)' : T === 'glue' ? 'rgba(250,204,21,.8)' : T === 'fan' ? 'rgba(56,189,248,.7)' : 'rgba(180,120,60,.7)'; c.setLineDash((T === 'platform' || T === 'pad') ? [] : [6, 6]); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.moveTo(L.a.x, L.a.y); c.lineTo(s.pp.x, s.pp.y); c.lineWidth = (T === 'platform' || T === 'pad' || T === 'conveyor') ? 14 : 4;
+      c.strokeStyle = (T === 'platform' || T === 'pad' || T === 'conveyor') ? 'rgba(100,116,139,.5)' : T === 'spring' ? 'rgba(168,85,247,.7)' : T === 'glue' ? 'rgba(250,204,21,.8)' : T === 'fan' ? 'rgba(56,189,248,.7)' : 'rgba(180,120,60,.7)'; c.setLineDash((T === 'platform' || T === 'pad' || T === 'conveyor') ? [] : [6, 6]); c.stroke(); c.setLineDash([]);
       c.beginPath(); c.arc(L.a.x, L.a.y, L.ta ? 7 : 4, 0, 6.2832); c.fillStyle = L.ta ? '#22c55e' : '#94a3b8'; c.fill();
     }
     s.fx.forEach(function (f) {

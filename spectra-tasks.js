@@ -1,4 +1,4 @@
-/* Spectra Tasks v2 (glow-up batch 1: board view with drag and drop, weekly activity chart, search, sort, due today filter, quick due dates, reschedule missing, subject tints): the "My Tasks" dashboard inside Spectra Academics, saved in Supabase (table spectra_tasks, see supabase-spectra-tasks.sql) so it follows you on every device.
+/* Spectra Tasks v3 (icons instead of emojis, notes link chip, add() accepts note_id/note_title) (v2: glow-up batch 1: board view with drag and drop, weekly activity chart, search, sort, due today filter, quick due dates, reschedule missing, subject tints): the "My Tasks" dashboard inside Spectra Academics, saved in Supabase (table spectra_tasks, see supabase-spectra-tasks.sql) so it follows you on every device.
    Statuses: Pending, Ongoing, Completed are saved. MISSING is worked out by the page: not completed + due date already passed.
    Load this file AFTER spectra-academics.js. It needs the sidebar button #tk, the badge #tkc and the section #tasks (see spectra-academics.html).
    It wires itself (like the Lab), and uses window.SpectraAcad.toast when it exists.
@@ -76,11 +76,11 @@
   function says(c, total, dt) {
     var seed = dayNum(today()) + total + c.missing * 7 + c.completed * 3, left = c.pending + c.ongoing;
     var pick = function (a) { return a[Math.abs(seed) % a.length]; };
-    if (!total) return pick(['Your list is empty, bro. Time to add something \uD83D\uDE0E', 'Fresh start. Add your first task \uD83D\uDE80']);
-    if (c.missing) return pick([c.missing + ' missing, bro. Let\u2019s rescue them \uD83D\uDE2D', c.missing + ' slipped away. We can still catch up \uD83D\uDCAA']);
-    if (!left) return pick(['Everything is done!! Absolute W bro \uD83D\uDD25', 'Zero left. Go touch grass, you earned it \uD83C\uDF31']);
-    if (dt) return pick([dt + ' due today. You got this \uD83D\uDCAA', dt + ' for today, one at a time bro \uD83D\uDE24']);
-    return pick([left + ' on deck. One at a time bro \uD83D\uDE24', 'Steady progress wins. ' + left + ' to go \u2728']);
+    if (!total) return pick(['Your list is empty, bro. Time to add something', 'Fresh start. Add your first task']);
+    if (c.missing) return pick([c.missing + ' missing, bro. Let\u2019s rescue them', c.missing + ' slipped away. We can still catch up']);
+    if (!left) return pick(['Everything is done!! Absolute W bro', 'Zero left. Go touch grass, you earned it']);
+    if (dt) return pick([dt + ' due today. You got this', dt + ' for today, one at a time bro']);
+    return pick([left + ' on deck. One at a time bro', 'Steady progress wins. ' + left + ' to go \u2728']);
   }
 
   /* ---------- Supabase ---------- */
@@ -122,14 +122,20 @@
   function clean(o) {
     var title = String(o.title || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (!title) throw new Error('TITLE');
     var subs = (Array.isArray(o.subtasks) ? o.subtasks : []).map(function (s) { return { t: String(s.t || '').replace(/\s+/g, ' ').trim().slice(0, 100), d: !!s.d }; }).filter(function (s) { return s.t; }).slice(0, MAXS);
-    return {
+    var out = {
       title: title, subject: SUBJ.indexOf(o.subject) >= 0 ? o.subject : '', priority: PRI[o.priority] ? o.priority : 'medium',
       due: okDate(o.due) ? o.due : null, notes: String(o.notes || '').trim().slice(0, 600), subtasks: subs
     };
+    if (o.note_id) { out.note_id = String(o.note_id).slice(0, 64); out.note_title = String(o.note_title || '').replace(/\s+/g, ' ').trim().slice(0, 120); }   // only set when given, so editing a task never erases its note link
+    return out;
   }
   async function add(o) {
     var f = clean(o || {}); if (S.tasks.length >= MAXT) throw new Error('LIMIT');
     var sb = await auth(), r = await sb.from(TB).insert(f).select('*').single();
+    if (r.error && ('note_id' in f) && /note_id|note_title|column/i.test(r.error.message || '')) {   // the link columns need supabase-spectra-tasks-v2.sql: add the task without the link
+      var g = Object.assign({}, f); delete g.note_id; delete g.note_title; toast('Run supabase-spectra-tasks-v2.sql to link tasks to notes');
+      r = await sb.from(TB).insert(g).select('*').single();
+    }
     if (r.error) throw fail(r.error);
     r.data.subtasks = Array.isArray(r.data.subtasks) ? r.data.subtasks : [];
     S.tasks.unshift(r.data); S.loaded = true; badgeDraw(); if (S.open) draw();
@@ -162,9 +168,9 @@
   }
   var P = loadPrefs();
   var savePrefs = function () { try { localStorage.setItem(PK, JSON.stringify(P)); } catch (e) { } };
-  var SEMO = { 'Math': '\uD83E\uDDEE', 'General Sciences': '\uD83D\uDD2C', 'Social Studies': '\uD83C\uDF0D', 'Languages': '\uD83D\uDCD6', 'ICT/TVL': '\uD83D\uDCBB', 'General Knowledge': '\uD83D\uDCA1' };
+  var SICO = { 'Math': 'calc', 'General Sciences': 'flask', 'Social Studies': 'globe', 'Languages': 'book', 'ICT/TVL': 'code', 'General Knowledge': 'bulb' };
   var BORDER = ['missing', 'pending', 'ongoing', 'completed'];
-  Object.assign(ICO, { board: 'M4 4h5v16H4zM10.5 4h5v10h-5zM17 4h3v13h-3z', rows: 'M4 5h16v5H4zM4 14h16v5H4z', search: 'M11 4a7 7 0 105 12l4 4' });
+  Object.assign(ICO, { calc: 'M6 3h12a1 1 0 011 1v16a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01', flask: 'M9 3h6M10 3v6L4.5 18.5A2 2 0 006.3 21h11.4a2 2 0 001.8-2.5L14 9V3M7.5 15h9', globe: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9S9.5 5.5 12 3z', book: 'M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11', code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14', bulb: 'M12 3a6 6 0 00-3.5 10.9V17h7v-3.1A6 6 0 0012 3zM9.5 20h5', note: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5', board: 'M4 4h5v16H4zM10.5 4h5v10h-5zM17 4h3v13h-3z', rows: 'M4 5h16v5H4zM4 14h16v5H4z', search: 'M11 4a7 7 0 105 12l4 4' });
   var cmpPri = function (a, b) { return PW[a.priority] !== PW[b.priority] ? PW[a.priority] - PW[b.priority] : cmp(a, b); };
   var cmpNew = function (a, b) { return a.created_at < b.created_at ? 1 : -1; };
   var cmpAz = function (a, b) { return String(a.title).localeCompare(String(b.title)); };
@@ -213,7 +219,7 @@
   }
   function drawList() { var l = $('#tklist', root); if (l) l.innerHTML = listHtml(); }
   function emptyHtml() {
-    return '<div class="tk-em"><div class="tk-emi">\uD83C\uDF89</div><p>Wohoo! You\'re all caught up! Add a task to get started with your tasks.</p>' +
+    return '<div class="tk-em"><div class="tk-emi">' + ic('check') + '</div><p>Wohoo! You\'re all caught up! Add a task to get started with your tasks.</p>' +
       '<button class="tk-add" type="button" data-a="add"><i>' + ic('plus') + '</i>Add task</button></div>';
   }
   function rescBtn() { return '<button type="button" class="tk-resc" data-a="resc" title="Move every missing task to today">Reschedule to today</button>'; }
@@ -224,7 +230,7 @@
       return (S.f === 'all' || cat(t) === S.f) && (!S.sj || t.subject === S.sj) && (!S.td || (t.status !== 'completed' && t.due === td)) &&
         (!q || t.title.toLowerCase().indexOf(q) >= 0 || (t.notes || '').toLowerCase().indexOf(q) >= 0 || (t.subject || '').toLowerCase().indexOf(q) >= 0);
     });
-    if (!items.length) return '<div class="tk-none">' + (q ? 'No tasks match your search.' : 'Nothing here, bro \uD83D\uDC40') + '</div>';
+    if (!items.length) return '<div class="tk-none">' + (q ? 'No tasks match your search.' : 'Nothing here, bro') + '</div>';
     if (P.lay === 'board') return boardHtml(items);
     var h = '';
     if (S.f === 'all') {
@@ -243,7 +249,7 @@
     return '<div class="tk-brd" style="--cols:' + cols.length + '">' + cols.map(function (k) {
       var g = items.filter(function (t) { return cat(t) === k; }).sort(srt(k)), lim = k === 'completed' && !S.more ? 6 : g.length;
       return '<section class="tk-col" data-col="' + k + '" style="--kc:' + KIND[k].c + '"><h3 class="tk-gh"><i></i>' + KIND[k].n + '<em>' + g.length + '</em>' + (k === 'missing' && g.length ? rescBtn() : '') + '</h3><div class="tk-list">' +
-        (g.length ? g.slice(0, lim).map(card).join('') : '<div class="tk-cn">' + (k === 'completed' ? 'Nothing done yet' : k === 'missing' ? 'Nothing missing \uD83D\uDE0E' : 'Drop tasks here') + '</div>') + '</div>' +
+        (g.length ? g.slice(0, lim).map(card).join('') : '<div class="tk-cn">' + (k === 'completed' ? 'Nothing done yet' : k === 'missing' ? 'Nothing missing' : 'Drop tasks here') + '</div>') + '</div>' +
         (g.length > lim ? '<button class="tk-more" type="button" data-a="more">Show all ' + g.length + '</button>' : '') + '</section>';
     }).join('') + '</div>';
   }
@@ -251,10 +257,11 @@
     var k = cat(t), subs = t.subtasks || [], dn = subs.filter(function (s) { return s.d; }).length, di = dueInfo(t), open = !!S.exp[t.id], doneT = t.status === 'completed';
     var h = '<article class="tk-card k-' + k + '" data-id="' + esc(t.id) + '" style="--kc:' + KIND[k].c + ';--sc:' + (SC[t.subject] || KIND[k].c) + '"' + (P.lay === 'board' ? ' draggable="true"' : '') + '>' +
       '<button type="button" class="tk-ck" data-a="ck" aria-label="' + (doneT ? 'Mark as not done' : 'Mark as done') + '">' + ic('check') + '</button>' +
-      '<div class="tk-bd" data-a="edit" role="button" tabindex="0" aria-label="Edit task: ' + esc(t.title) + '"><div class="tk-tt"><span class="tk-se" aria-hidden="true">' + (SEMO[t.subject] || '\uD83D\uDCDD') + '</span>' + esc(t.title) + '</div><div class="tk-mt">' +
+      '<div class="tk-bd" data-a="edit" role="button" tabindex="0" aria-label="Edit task: ' + esc(t.title) + '"><div class="tk-tt"><span class="tk-se" aria-hidden="true">' + ic(SICO[t.subject] || 'note') + '</span>' + esc(t.title) + '</div><div class="tk-mt">' +
       '<u class="tk-k">' + KIND[k].n + '</u>' + (t.subject ? '<u class="tk-sj"><s style="background:' + (SC[t.subject] || '#64748b') + '"></s>' + esc(t.subject) + '</u>' : '') +
       '<u class="tk-pr" title="' + PRI[t.priority] + ' priority"><s style="background:' + PRC[t.priority] + '"></s>' + PRI[t.priority] + '</u>' +
-      (di ? '<u class="tk-du ' + di.cls + '">' + ic('cal') + esc(di.txt) + '</u>' : '') + '</div>' +
+      (di ? '<u class="tk-du ' + di.cls + '">' + ic('cal') + esc(di.txt) + '</u>' : '') +
+      (t.note_id ? '<u class="tk-nl" data-a="note" data-n="' + esc(t.note_id) + '" role="button" tabindex="0" title="Open the note">' + ic('note') + esc(String(t.note_title || 'Note').slice(0, 26)) + '</u>' : '') + '</div>' +
       (t.notes ? '<div class="tk-nt">' + esc(t.notes) + '</div>' : '') +
       (subs.length && !doneT ? '<div class="tk-pg"><i style="width:' + Math.round(dn / subs.length * 100) + '%"></i></div>' : '') + '</div><div class="tk-ac">' +
       (t.status === 'pending' ? '<button type="button" class="tk-go" data-a="start">' + ic('play') + 'Start</button>' : '') +
@@ -264,7 +271,7 @@
   }
   async function rescue() {
     var t0 = today(), ids = S.tasks.filter(function (t) { return cat(t) === 'missing'; }).map(function (t) { return t.id; });
-    if (!ids.length) return; toast('Moved ' + ids.length + (ids.length === 1 ? ' task' : ' tasks') + ' to today \uD83D\uDCAA');
+    if (!ids.length) return; toast('Moved ' + ids.length + (ids.length === 1 ? ' task' : ' tasks') + ' to today');
     await Promise.all(ids.map(function (id) { return patch(id, { due: t0 }); }));
   }
   function dropOn(id, k) {
@@ -284,7 +291,7 @@
       fx.appendChild(p); setTimeout((function (n) { return function () { n.remove(); }; })(p), 950);
     }
   }
-  var WIN = ['W bro, task done \uD83C\uDF89', 'Another one down \uD83D\uDD25', 'Look at you go \uD83D\uDE24', 'Done!! Big W \uD83D\uDCAA', 'Cooked that one \uD83C\uDF73'];
+  var WIN = ['W bro, task done', 'Another one down', 'Look at you go', 'Done!! Big W', 'Cooked that one'];
   function complete(id, from) {
     var t = byId(id); if (!t) return;
     burst(from); toast(WIN[Math.floor(Math.random() * WIN.length)]);
@@ -297,7 +304,7 @@
   function toggleSub(id, i, on, from) {
     var t = byId(id); if (!t || !t.subtasks[i]) return;
     var subs = t.subtasks.map(function (s, j) { return j === i ? { t: s.t, d: on } : s; }), all = subs.every(function (s) { return s.d; }), f = { subtasks: subs };
-    if (all) { f.status = 'completed'; f.completed_at = new Date().toISOString(); burst(from); toast('All subtasks done, task completed \uD83C\uDF89'); }
+    if (all) { f.status = 'completed'; f.completed_at = new Date().toISOString(); burst(from); toast('All subtasks done, task completed'); }
     else if (t.status === 'completed') { f.status = 'ongoing'; f.completed_at = null; }
     else if (on && t.status === 'pending') f.status = 'ongoing';
     patch(id, f);
@@ -347,7 +354,7 @@
         if (!ok) { e.busy = false; edDraw(); return; }
         if (t && t.status !== 'completed' && f.subtasks.length && f.subtasks.every(function (s) { return s.d; })) { complete(t.id, null); }
         toast('Task saved \u2705');
-      } else { await add(f); toast('Task added \uD83D\uDCDD'); }
+      } else { await add(f); toast('Task added'); }
       edClose();
     } catch (x) { toast(errMsg(x)); if (S.ed) { e.busy = false; edDraw(); } }
   }
@@ -377,6 +384,7 @@
     else if (k === 'dd' && S.ed) { var o = a.dataset.v; if (o === 'x') S.ed.due = ''; else { var dd = new Date(); dd.setDate(dd.getDate() + (+o)); S.ed.due = ymd(dd); } edDraw(); }
     else if (k === 'sj') { S.sj = S.sj === a.dataset.s ? '' : a.dataset.s; draw(); }
     else if (k === 'more') { S.more = true; draw(); }
+    else if (k === 'note') { if (window.SpectraNotes && window.SpectraNotes.openNote) { hide(); window.SpectraNotes.openNote(a.dataset.n); } else toast('Notes is not available here'); }
     else if (k === 'retry') load(true);
     else if (k === 'cancel') edClose();
     else if (k === 'save') edSave();
@@ -401,7 +409,7 @@
   async function quick(inp) {
     var v = inp.value.replace(/\s+/g, ' ').trim(); if (!v || inp.disabled) return;
     inp.disabled = true;
-    try { await add({ title: v }); inp.value = ''; toast('Task added \uD83D\uDCDD'); } catch (x) { toast(errMsg(x)); }
+    try { await add({ title: v }); inp.value = ''; toast('Task added'); } catch (x) { toast(errMsg(x)); }
     inp.disabled = false; inp.focus();
   }
   function onKey(e) {
@@ -409,6 +417,7 @@
     if (e.key === 'Enter' && t.id === 'tkq') { e.preventDefault(); quick(t); return; }
     if (e.key === 'Enter' && t.id === 'tksn') { e.preventDefault(); subAdd(); return; }
     if (e.key === 'Enter' && t.id === 'tkt') { e.preventDefault(); edSave(); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && t.classList && t.classList.contains('tk-nl')) { e.preventDefault(); t.click(); return; }
     if ((e.key === 'Enter' || e.key === ' ') && t.classList && t.classList.contains('tk-bd')) { e.preventDefault(); edOpen(t.closest('.tk-card').dataset.id); }
   }
 

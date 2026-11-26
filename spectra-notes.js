@@ -1,4 +1,4 @@
-/* Spectra Notes (v3 glow-up batch 1: colored cards + icons, grid/list/compact + sort, formatting toolbar, / slash menu, callouts, clickable checklists, templates, outline, zen mode, text size; needs supabase-spectra-notes-v3.sql for colors/icons) (v2 + tabs view): a notebook inside Spectra Academics, saved in Supabase (table spectra_notes, see supabase-spectra-notes.sql and supabase-spectra-notes-v2.sql) so it follows you on every device.
+/* Spectra Notes (v3 glow-up batch 1 + 3: icons instead of emojis, Spectra actions (summarize, simplify, expand, fix grammar, explain), flashcard and quiz hand-off, notes to My Tasks, SpectraNotes.openNote(id)) (batch 1: colored cards + icons, grid/list/compact + sort, formatting toolbar, / slash menu, callouts, clickable checklists, templates, outline, zen mode, text size; needs supabase-spectra-notes-v3.sql for colors/icons) (v2 + tabs view): a notebook inside Spectra Academics, saved in Supabase (table spectra_notes, see supabase-spectra-notes.sql and supabase-spectra-notes-v2.sql) so it follows you on every device.
    Tabs view: "Open in tabs view" in the note menu shows open notes in a tab bar (links, merges and new notes open as tabs). Browser-side only, no new SQL.
    v2 adds: Graph view, [[Back links]], Source mode, Find & Replace, Merge note with..., Add to my projects, Share (copy, .md, .txt, PDF, device share).
    Send to Spectra attaches the note as a .md file (host.toChatFile) and falls back to pasting the text.
@@ -30,7 +30,7 @@
   var H = null, root = null, btn = null, badge = null, mainEl = null;
   var S = {
     notes: [], loaded: false, busy: false, err: '', open: false, tab: 'all', cat: '', pf: '', q: '', id: null, mode: 'read',
-    menu: false, del: false, view: 'list', find: false, ov: null, gsel: null, gcats: false, tabsOn: false, tabs: [], pop: null, zen: false, slash: null
+    menu: false, del: false, view: 'list', find: false, ov: null, gsel: null, gcats: false, tabsOn: false, tabs: [], pop: null, zen: false, slash: null, ai: null, sel: null
   };
   var F = { q: '', r: '', cs: false };
   var dirty = {}, dirtyId = null, timer = null, TM = null, lkc = {}, selMem = null, G = null;
@@ -238,7 +238,7 @@
     if (!ns.length) return S.notes.length ? msgBox('Nothing here', S.q ? 'No notes match your search.' : 'No notes in this view yet.') : msgBox('No notes yet', 'Tap the three dots on any Spectra answer and choose <b>Add to notes</b>, or make your own with <b>New Note</b>.');
     return '<div class="nt-grid l-' + P.lay + '">' + ns.map(function (n, i) {
       var p = n.project && pn(n.project), td = todoStat(n.body);
-      return '<button type="button" class="nt-card' + (n.pinned ? ' pin' : '') + '" data-id="' + n.id + '" style="--nc:' + ncol(n) + ';--i:' + Math.min(i, 12) + '"><span class="nt-cbar"></span><span class="nt-ct"><span class="nt-ei">' + esc(n.icon || '\uD83D\uDCDD') + '</span><b>' + esc(n.title) + '</b>' + (n.pinned ? '<i data-ic="pin"></i>' : '') + (n.bookmarked ? '<i data-ic="bookmark"></i>' : '') + '</span><span class="nt-cs">' + (esc(snip(n.body).replace(/\[!(?:tip|note|important|warning)\]\s*/gi, '').replace(/\[[ xX]\]\s*/g, '')) || '<em>Empty note</em>') + '</span>' +
+      return '<button type="button" class="nt-card' + (n.pinned ? ' pin' : '') + '" data-id="' + n.id + '" style="--nc:' + ncol(n) + ';--i:' + Math.min(i, 12) + '"><span class="nt-cbar"></span><span class="nt-ct"><span class="nt-ei">' + nsvg(nic(n)) + '</span><b>' + esc(n.title) + '</b>' + (n.pinned ? '<i data-ic="pin"></i>' : '') + (n.bookmarked ? '<i data-ic="bookmark"></i>' : '') + '</span><span class="nt-cs">' + (esc(snip(n.body).replace(/\[!(?:tip|note|important|warning)\]\s*/gi, '').replace(/\[[ xX]\]\s*/g, '')) || '<em>Empty note</em>') + '</span>' +
         (td.t ? '<span class="nt-td"><span class="nt-tb2"><i style="width:' + Math.round(td.d / td.t * 100) + '%"></i></span><em>' + td.d + '/' + td.t + '</em></span>' : '') +
         '<span class="nt-cf"><span class="nt-tg"><u>' + esc(n.category) + '</u>' + (p ? '<u class="pj"><s style="--pc:' + esc(p.c || '#7c5cff') + '"></s>' + esc(p.n) + '</u>' : '') + '</span><small>' + fmt(n.updated_at) + '</small></span></button>';
     }).join('') + '</div>';
@@ -282,6 +282,7 @@
     h += '<div class="nt-seg">' + [['read', 'Read'], ['edit', 'Edit'], ['source', 'Source']].map(function (m) { return '<button type="button" data-m="' + m[0] + '" class="' + (S.mode === m[0] ? 'on' : '') + '">' + m[1] + '</button>'; }).join('') + '</div>';
     h += '<button type="button" class="nt-ib' + (n.pinned ? ' on' : '') + '" data-a="pin" aria-label="' + (n.pinned ? 'Unpin note' : 'Pin note') + '" title="' + (n.pinned ? 'Unpin note' : 'Pin note') + '"><i data-ic="pin"></i></button>';
     h += '<button type="button" class="nt-ib' + (n.bookmarked ? ' on' : '') + '" data-a="mark" aria-label="' + (n.bookmarked ? 'Remove bookmark' : 'Bookmark note') + '" title="' + (n.bookmarked ? 'Remove bookmark' : 'Bookmark note') + '"><i data-ic="bookmark"></i></button>';
+    h += '<span class="nt-mw nt-pw"><button type="button" class="nt-ib nt-ai2' + (S.pop === 'ai' ? ' on' : '') + '" data-a="ai" aria-label="Spectra actions" title="Ask Spectra to help with this note">' + nsvg('sparkle') + '</button>' + (S.pop === 'ai' ? aiMenu(n) : '') + '</span>';
     h += '<span class="nt-mw nt-pw"><button type="button" class="nt-ib nt-aa2' + (S.pop === 'typo' ? ' on' : '') + '" data-a="typo" aria-label="Text and reading options" title="Text size and zen mode">Aa</button>' + (S.pop === 'typo' ? typoMenu() : '') + '</span>';
     h += '<span class="nt-mw nt-pw"><button type="button" class="nt-ib' + (S.pop === 'out' ? ' on' : '') + '" data-a="out" aria-label="Outline" title="Outline">' + ic('outline') + '</button>' + (S.pop === 'out' ? outMenu(n) : '') + '</span>';
     h += '<span class="nt-mw"><button type="button" class="nt-ib" data-a="more" aria-label="More" aria-haspopup="menu"><i data-ic="dots"></i></button>';
@@ -292,7 +293,7 @@
     }
     h += '</span></header>';
     if (S.find && S.mode === 'edit') h += findHtml();
-    h += '<div class="nt-cover" style="--nc:' + ncol(n) + '"></div><div class="nt-tr"><span class="nt-mw nt-pw"><button type="button" class="nt-ic" data-a="sty" aria-label="Change icon and color" title="Icon and color">' + esc(n.icon || '\uD83D\uDCDD') + '</button>' + (S.pop === 'sty' ? styMenu(n) : '') + '</span>';
+    h += '<div class="nt-cover" style="--nc:' + ncol(n) + '"></div><div class="nt-tr" style="--nc:' + ncol(n) + '"><span class="nt-mw nt-pw"><button type="button" class="nt-ic" data-a="sty" aria-label="Change icon and color" title="Icon and color">' + nsvg(nic(n)) + '</button>' + (S.pop === 'sty' ? styMenu(n) : '') + '</span>';
     h += '<input class="nt-ti" id="ntt" maxlength="120" placeholder="Untitled note" aria-label="Note title" value="' + esc(n.title === 'Untitled note' && !n.body ? '' : n.title) + '"' + (rd ? ' readonly' : '') + '></div>';
     h += '<div class="nt-mt"><select id="ntc" aria-label="Category">' + cats.map(function (c) { return '<option' + (c === n.category ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>';
     if (pl.length || n.project) h += '<select id="ntp" aria-label="Project"><option value="">No project</option>' + pl.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === n.project ? ' selected' : '') + '>' + esc(p.n) + '</option>'; }).join('') + '</select>';
@@ -302,6 +303,7 @@
       h += '<textarea class="nt-tx" id="ntx" maxlength="' + MAXB + '" placeholder="Write your note here. Markdown works: **bold**, # headings, - lists, $math$. Link notes with [[Note Title]]." aria-label="Note text">' + esc(n.body) + '</textarea>';
     } else if (S.mode === 'source') h += srcHtml(n);
     else h += todoBar(n) + '<div class="nt-md ac-m a" id="ntm"></div>' + relHtml(n);
+    h += aiPanel(n);
     if (S.zen) h += '<button type="button" class="nt-zx" data-a="zen"><i>' + ic('zen') + '</i><span>Exit zen</span></button>';
     h += '<div class="nt-ft"><button type="button" class="nt-bt" data-a="send"><i data-ic="send"></i><span>Send to Spectra</span></button></div></div>';
     return h;
@@ -315,7 +317,7 @@
     gStop();
     var keepQ = document.activeElement && document.activeElement.id === 'ntq', pos = keepQ ? document.activeElement.selectionStart : 0;
     if (!n) S.zen = false; slashClose();
-    root.innerHTML = n ? editHtml(n) : listHtml(); paint(root); view(n);
+    root.innerHTML = n ? editHtml(n) : listHtml(); paint(root); view(n); aiPaint();
     if (n) {
       if (S.mode === 'read') { var m = $('#ntm'); if (m) { m.innerHTML = n.body.trim() ? H.md(n.body) : '<p class="nt-mu">Nothing here yet. Switch to Edit and start writing.</p>'; H.math(m); wikify(m); callouts(m); todos(m, n); } }
       else if (S.mode === 'edit') { var t = $('#ntx'); if (t) grow(t); if (S.find) fUpdate(); }
@@ -677,7 +679,7 @@
     root.classList.remove('gmode'); mainEl.classList.remove('noting'); btn.classList.remove('on');
   }
   function openNote(id, mode) {
-    flush(); gStop(); S.view = 'list'; S.id = id; tabAdd(id); S.mode = mode || 'read'; S.menu = false; S.del = false; S.find = false; ovClose(); draw(); if (root) root.scrollTop = 0;
+    S.ai = null; flush(); gStop(); S.view = 'list'; S.id = id; tabAdd(id); S.mode = mode || 'read'; S.menu = false; S.del = false; S.find = false; ovClose(); draw(); if (root) root.scrollTop = 0;
     if (S.mode === 'edit') { var t = $('#ntt'), n = byId(id); if (n && !n.body && t) t.focus(); else { var x = $('#ntx'); if (x) x.focus(); } }
   }
   async function newNote(title) {
@@ -719,7 +721,7 @@
   var FS = [14, 15, 16, 17, 19, 21];
   var EMO = ['\uD83D\uDCDD', '\uD83D\uDCDA', '\uD83E\uDDEA', '\uD83E\uDDEE', '\uD83C\uDF0D', '\uD83D\uDCA1', '\uD83C\uDFAF', '\uD83D\uDD25', '\u2B50', '\uD83D\uDCCC', '\uD83E\uDDE0', '\uD83D\uDCBB', '\uD83C\uDFA8', '\uD83C\uDFB5', '\uD83C\uDFDB\uFE0F', '\uD83D\uDD2C', '\uD83D\uDCD0', '\u270F\uFE0F', '\uD83D\uDCD6', '\uD83D\uDDC2\uFE0F', '\uD83D\uDE80', '\uD83C\uDF40', '\u2764\uFE0F', '\u2705'];
   var COLS = ['#7c5cff', '#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#a855f7', '#64748b'];
-  var CO = { tip: ['\uD83D\uDCA1', 'Tip', '#14b8a6'], note: ['\uD83D\uDCDD', 'Note', '#3b82f6'], important: ['\uD83D\uDCCC', 'Important', '#a855f7'], warning: ['\u26A0\uFE0F', 'Warning', '#f59e0b'] };
+  var CO = { tip: ['bulb', 'Tip', '#14b8a6'], note: ['pen', 'Note', '#3b82f6'], important: ['pin', 'Important', '#a855f7'], warning: ['alert', 'Warning', '#f59e0b'] };
   var CONAMES = ['tip', 'note', 'important', 'warning'];
   Object.assign(ICO, {
     bold: 'M7 5h6a3.5 3.5 0 010 7H7zM7 12h7a3.5 3.5 0 010 7H7z', italic: 'M14 5h-4M14 19h-4M15 5l-6 14',
@@ -759,7 +761,7 @@
   }
   function todoBar(n) {
     var s = todoStat(n.body); if (!s.t) return '';
-    return '<div class="nt-tp" id="nttp"><i style="width:' + Math.round(s.d / s.t * 100) + '%"></i><span>' + s.d + ' of ' + s.t + ' done' + (s.d === s.t ? ' \uD83C\uDF89' : '') + '</span></div>';
+    return '<div class="nt-tp" id="nttp"><i style="width:' + Math.round(s.d / s.t * 100) + '%"></i><span>' + s.d + ' of ' + s.t + ' done' + (s.d === s.t ? ' (all done)' : '') + '</span></div>';
   }
 
   /* ---------- sorting + layout bar ---------- */
@@ -778,15 +780,15 @@
 
   /* ---------- templates ---------- */
   var TPL = [
-    ['lecture', '\uD83C\uDF93', 'Lecture notes', 'Class notes with key ideas', '#7c5cff', function () { return '# Lecture Notes\n\n**Subject:** \n**Date:** ' + new Date().toLocaleDateString() + '\n**Topic:** \n\n## Key ideas\n- \n\n## Details\n> [!tip] Remember\n> \n\n## Questions\n- [ ] \n\n## Summary\n'; }],
-    ['cornell', '\uD83D\uDCD2', 'Cornell notes', 'Cues, notes and a summary', '#3b82f6', function () { return '# Cornell Notes\n\n**Topic:** \n**Date:** ' + new Date().toLocaleDateString() + '\n\n## Cues and questions\n- \n\n## Notes\n- \n\n## Summary\n> [!note] In my own words\n> \n'; }],
-    ['guide', '\uD83D\uDCDA', 'Study guide', 'Terms, concepts, practice', '#14b8a6', function () { return '# Study Guide\n\n## Key terms\n- **Term:** meaning\n\n## Main concepts\n1. \n\n## Formulas and rules\n> [!important] Must know\n> \n\n## Practice\n- [ ] Question 1\n- [ ] Question 2\n- [ ] Question 3\n'; }],
-    ['cheat', '\uD83E\uDDFE', 'Cheat sheet', 'One page of fast facts', '#f59e0b', function () { return '# Cheat Sheet\n\n| Item | Rule or formula |\n| --- | --- |\n|  |  |\n|  |  |\n\n> [!warning] Common mistakes\n> \n'; }],
-    ['lab', '\uD83E\uDDEA', 'Lab report', 'Aim, method, results', '#22c55e', function () { return '# Lab Report\n\n**Date:** ' + new Date().toLocaleDateString() + '\n\n## Aim\n\n## Materials\n- \n\n## Procedure\n1. \n\n## Observations\n| Trial | Result |\n| --- | --- |\n|  |  |\n\n## Conclusion\n'; }],
-    ['book', '\uD83D\uDCD6', 'Book summary', 'Chapters, quotes, thoughts', '#ec4899', function () { return '# Book Summary\n\n**Title:** \n**Author:** \n\n## Main idea\n\n## Chapter notes\n- \n\n## Favorite quote\n> \n\n## What I think\n'; }]
+    ['lecture', 'cap', 'Lecture notes', 'Class notes with key ideas', '#7c5cff', function () { return '# Lecture Notes\n\n**Subject:** \n**Date:** ' + new Date().toLocaleDateString() + '\n**Topic:** \n\n## Key ideas\n- \n\n## Details\n> [!tip] Remember\n> \n\n## Questions\n- [ ] \n\n## Summary\n'; }],
+    ['cornell', 'note', 'Cornell notes', 'Cues, notes and a summary', '#3b82f6', function () { return '# Cornell Notes\n\n**Topic:** \n**Date:** ' + new Date().toLocaleDateString() + '\n\n## Cues and questions\n- \n\n## Notes\n- \n\n## Summary\n> [!note] In my own words\n> \n'; }],
+    ['guide', 'stack', 'Study guide', 'Terms, concepts, practice', '#14b8a6', function () { return '# Study Guide\n\n## Key terms\n- **Term:** meaning\n\n## Main concepts\n1. \n\n## Formulas and rules\n> [!important] Must know\n> \n\n## Practice\n- [ ] Question 1\n- [ ] Question 2\n- [ ] Question 3\n'; }],
+    ['cheat', 'sheet', 'Cheat sheet', 'One page of fast facts', '#f59e0b', function () { return '# Cheat Sheet\n\n| Item | Rule or formula |\n| --- | --- |\n|  |  |\n|  |  |\n\n> [!warning] Common mistakes\n> \n'; }],
+    ['lab', 'flask', 'Lab report', 'Aim, method, results', '#22c55e', function () { return '# Lab Report\n\n**Date:** ' + new Date().toLocaleDateString() + '\n\n## Aim\n\n## Materials\n- \n\n## Procedure\n1. \n\n## Observations\n| Trial | Result |\n| --- | --- |\n|  |  |\n\n## Conclusion\n'; }],
+    ['book', 'book', 'Book summary', 'Chapters, quotes, thoughts', '#ec4899', function () { return '# Book Summary\n\n**Title:** \n**Author:** \n\n## Main idea\n\n## Chapter notes\n- \n\n## Favorite quote\n> \n\n## What I think\n'; }]
   ];
   function tplMenu() {
-    return '<div class="nt-mn nt-pp nt-tp2" role="menu">' + TPL.map(function (t) { return '<button type="button" role="menuitem" data-a="tplgo" data-k="' + t[0] + '"><span class="nt-ti2">' + t[1] + '</span><span><b>' + t[2] + '</b><small>' + t[3] + '</small></span></button>'; }).join('') + '</div>';
+    return '<div class="nt-mn nt-pp nt-tp2" role="menu">' + TPL.map(function (t) { return '<button type="button" role="menuitem" data-a="tplgo" data-k="' + t[0] + '"><span class="nt-ti2">' + nsvg(t[1]) + '</span><span><b>' + t[2] + '</b><small>' + t[3] + '</small></span></button>'; }).join('') + '</div>';
   }
   async function insertSafe(f) {   // colors and icons need supabase-spectra-notes-v3.sql; without it the note is still made
     try { return await insert(f); }
@@ -808,7 +810,7 @@
 
   /* ---------- style (icon + color), reading options, outline popovers ---------- */
   function styMenu(n) {
-    return '<div class="nt-mn nt-pp nt-sy" role="dialog" aria-label="Icon and color"><b>Icon</b><div class="nt-eg">' + EMO.map(function (e) { return '<button type="button" data-a="icon" data-v="' + e + '" class="' + (n.icon === e ? 'on' : '') + '">' + e + '</button>'; }).join('') + '</div>' +
+    return '<div class="nt-mn nt-pp nt-sy" role="dialog" aria-label="Icon and color"><b>Icon</b><div class="nt-eg">' + ICK.map(function (k) { return '<button type="button" data-a="icon" data-v="' + k + '" class="' + (nic(n) === k ? 'on' : '') + '" aria-label="Icon ' + k + '" title="' + k + '">' + nsvg(k) + '</button>'; }).join('') + '</div>' +
       '<b>Color</b><div class="nt-cg">' + COLS.map(function (c) { return '<button type="button" data-a="color" data-v="' + c + '" class="' + (n.color === c ? 'on' : '') + '" style="--c:' + c + '" aria-label="Color ' + c + '"></button>'; }).join('') + '</div>' +
       '<button type="button" class="nt-rs" data-a="stclr">Reset to default</button></div>';
   }
@@ -928,7 +930,7 @@
       var k = mm[1].toLowerCase(), c = CO[k], parts = mm[2].split('<br>'), title = '', body = mm[2];
       if (parts.length > 1 && parts[0].trim()) { title = parts[0].trim(); body = parts.slice(1).join('<br>'); }
       b.className = 'nt-co'; b.style.setProperty('--cc', c[2]);
-      b.innerHTML = '<div class="nt-coh"><span>' + c[0] + '</span><b>' + (title || c[1]) + '</b></div>' + (body.replace(/<br>/g, '').trim() ? '<div class="nt-cob">' + body + '</div>' : '');
+      b.innerHTML = '<div class="nt-coh"><span>' + nsvg(c[0]) + '</span><b>' + (title || c[1]) + '</b></div>' + (body.replace(/<br>/g, '').trim() ? '<div class="nt-cob">' + body + '</div>' : '');
     });
   }
   function toggleTodo(id, m, li) {
@@ -963,6 +965,18 @@
 
   /* one handler for every new button; returns true when it handled the click */
   function fmtAct(k, a, n) {
+    if (k === 'ai') { var x0 = $('#ntx'); S.sel = x0 && x0.selectionEnd > x0.selectionStart ? [x0.selectionStart, x0.selectionEnd] : null; S.pop = S.pop === 'ai' ? null : 'ai'; S.menu = false; draw(); return true; }
+    if (k === 'aigo' && n) {
+      var kk = a.dataset.k; S.pop = null;
+      if (kk === 'cards' || kk === 'quiz') { studyHand(n, kk); return true; }
+      if (kk.charAt(0) === 't') { draw(); mkTask(n, kk); return true; }
+      aiRun(kk, n); return true;
+    }
+    if (k === 'airep') { aiApply('rep'); return true; }
+    if (k === 'aiadd') { aiApply('add'); return true; }
+    if (k === 'aicopy') { if (S.ai && S.ai.text) { H.copy(S.ai.text); toast('Copied'); } return true; }
+    if (k === 'aiclose') { S.ai = null; draw(); return true; }
+    if (k === 'aiundo' && n && S.ai && S.ai.prev != null) { queue(n.id, { body: S.ai.prev }, true); S.ai = null; draw(); toast('Undone'); return true; }
     if (k === 'tpl') { S.pop = S.pop === 'tpl' ? null : 'tpl'; draw(); return true; }
     if (k === 'tplgo') { S.pop = null; draw(); makeTpl(a.dataset.k); return true; }
     if (k === 'lay') { P.lay = a.dataset.v; savePrefs(); draw(); return true; }
@@ -978,6 +992,103 @@
     if (k === 'fmt') { doFmt(a.dataset.f); return true; }
     if (k === 'slgo') { slashPick(+a.dataset.i); return true; }
     return false;
+  }
+
+
+  /* ================= Batch 3: icons instead of emojis, Spectra actions, My Tasks links ================= */
+  var NI = {
+    note: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5', stack: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5', flask: 'M9 3h6M10 3v6L4.5 18.5A2 2 0 006.3 21h11.4a2 2 0 001.8-2.5L14 9V3M7.5 15h9',
+    calc: 'M6 3h12a1 1 0 011 1v16a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01', globe: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9S9.5 5.5 12 3z',
+    bulb: 'M12 3a6 6 0 00-3.5 10.9V17h7v-3.1A6 6 0 0012 3zM9.5 20h5', target: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7a5 5 0 100 10 5 5 0 000-10zM12 11.5a.5.5 0 100 1 .5.5 0 000-1z',
+    flame: 'M12 3c1 3.5 5 5.5 5 10a5 5 0 01-10 0c0-2 1-3.4 2-4.4.2 1.6 1 2.6 2 2.8-.6-3.4-.4-5.4 1-8.4z', star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
+    pin: 'M9 4h6l-1 6 3 3H7l3-3zM12 13v8', brain: 'M9.5 4A3 3 0 006.6 6.2 3 3 0 004.5 9a3 3 0 001 2.2A3.2 3.2 0 007 16.5 3 3 0 0012 18V6a2 2 0 00-2.5-2zM14.5 4a3 3 0 012.9 2.2A3 3 0 0119.5 9a3 3 0 01-1 2.2 3.2 3.2 0 01-1.5 5.3A3 3 0 0112 18',
+    code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14', palette: 'M12 3a9 9 0 100 18c1.4 0 2-1 2-2 0-1.5-1-1.7-1-3 0-1 .8-2 2-2h2.5A3.5 3.5 0 0021 10.5C21 6.4 17 3 12 3zM7.5 11h.01M10 7.5h.01M14.5 7.5h.01',
+    music: 'M9 18V6l11-2v12M9 18a3 3 0 11-6 0 3 3 0 016 0zM20 16a3 3 0 11-6 0 3 3 0 016 0z', bank: 'M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18',
+    micro: 'M8 3h3l1 6H7zM9.5 9v4M6 21h12M7 17h5a5 5 0 005-5v-1M12 17v4', ruler: 'M3 17L17 3l4 4L7 21zM8 8l2 2M11 5l2 2M5 11l2 2M14 11l2 2', pen: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
+    book: 'M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11', folder: 'M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z',
+    rocket: 'M5 15c-1.5 1-2 4-2 6 2 0 5-.5 6-2M9 14l-3-3c1-4 4-7 11-8 .5 7-3 10-8 11zM15 9h.01', leaf: 'M5 19c0-8 5-14 15-15 0 10-6 15-14 15M5 19c2-5 6-8 10-9',
+    heart: 'M12 20s-8-5-8-11a4.5 4.5 0 018-2.5A4.5 4.5 0 0120 9c0 6-8 11-8 11z', check: 'M12 3a9 9 0 100 18 9 9 0 000-18zM8 12l3 3 5-6',
+    cap: 'M2 9l10-5 10 5-10 5zM6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5', sheet: 'M5 3h14v18H5zM9 8h6M9 12h6M9 16h4', alert: 'M12 3l10 18H2zM12 10v5M12 18h.01',
+    sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',
+    sum: 'M4 6h16M4 12h10M4 18h14', simple: 'M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7', expand: 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7',
+    quiz: 'M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.5a2.5 2.5 0 115 0c0 1.7-2.5 2-2.5 3.5M12 17h.01', task: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11', clock: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2'
+  };
+  function nsvg(k) { return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (NI[k] || NI.note) + '"/></svg>'; }
+  var ICK = ['note', 'stack', 'flask', 'calc', 'globe', 'bulb', 'target', 'flame', 'star', 'pin', 'brain', 'code', 'palette', 'music', 'bank', 'micro', 'ruler', 'pen', 'book', 'folder', 'rocket', 'leaf', 'heart', 'check'];
+  var LEGI = {}; EMO.forEach(function (e, i) { LEGI[e] = ICK[i]; });   // notes that already have an emoji icon keep a matching icon
+  function nic(n) { return ICK.indexOf(n.icon) >= 0 ? n.icon : (LEGI[n.icon] || 'note'); }
+
+  /* ---------- Spectra actions on a note ---------- */
+  var AIT = { summarize: 'Summary', simplify: 'Simplified', expand: 'Expanded', grammar: 'Grammar fixed', explain: 'Explanation' };
+  var AIIC = { summarize: 'sum', simplify: 'simple', expand: 'expand', grammar: 'pen', explain: 'bulb', cards: 'stack', quiz: 'quiz', t0: 'task', t1: 'clock', t3: 'clock', t7: 'clock' };
+  function aiMenu(n) {
+    var sel = !!S.sel;
+    var it = function (k, label, sub, dis) { return '<button type="button" role="menuitem" data-a="aigo" data-k="' + k + '"' + (dis ? ' disabled' : '') + '><span class="nt-ai-i">' + nsvg(AIIC[k]) + '</span><span><b>' + label + '</b><small>' + sub + '</small></span></button>'; };
+    return '<div class="nt-mn nt-pp nt-ai" role="menu"><div class="nt-ah">Spectra on ' + (sel ? 'your selection' : 'this note') + '</div>' +
+      it('summarize', 'Summarize', 'TL;DR and key points') + it('simplify', 'Simplify', 'Easier words, same facts') + it('expand', 'Expand', 'More detail and examples') + it('grammar', 'Fix grammar', 'Spelling and punctuation') + it('explain', 'Explain selection', sel ? 'Step by step' : 'Select some text first', !sel) +
+      '<div class="nt-sp"></div><div class="nt-ah">Study</div>' + it('cards', 'Make flashcards', 'Opens Spectra chat') + it('quiz', 'Make a quiz', 'Opens Spectra chat') +
+      '<div class="nt-sp"></div><div class="nt-ah">My Tasks</div>' + it('t0', 'Make a task', 'Checklist becomes subtasks') + it('t1', 'Review tomorrow', 'Task due in 1 day') + it('t3', 'Review in 3 days', 'Task due in 3 days') + it('t7', 'Review next week', 'Task due in 7 days') + '</div>';
+  }
+  async function aiCall(action, text, title) {
+    var sb = window.getSupabaseClient && window.getSupabaseClient(), s = sb && (await sb.auth.getSession()).data.session; if (!s) return null;
+    var C = window.SPECSOFT_CONFIG; if (!C) return null;
+    var r = await fetch(C.SUPABASE_URL + '/functions/v1/spectra-chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token, apikey: C.SUPABASE_ANON_KEY }, body: JSON.stringify({ mode: 'notes_ai', action: action, text: text, title: title }) });
+    return r.ok ? await r.json() : null;
+  }
+  async function aiRun(k, n) {
+    var sel = S.sel, text = sel ? String(n.body || '').slice(sel[0], sel[1]) : String(n.body || '');
+    if (text.trim().length < 4) { toast(sel ? 'Select a bit more text first' : 'This note is empty'); return; }
+    S.ai = { id: n.id, k: k, busy: true, text: '', sel: sel, src: text, prev: null }; S.sel = null; draw();
+    var el = $('#ntair'); if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    var r = null; try { r = await aiCall(k, text, n.title); } catch (e) { r = null; }
+    if (!S.ai || S.ai.id !== n.id || S.ai.k !== k || !S.ai.busy) return;   // the student moved on
+    if (r && r.text) { S.ai.busy = false; S.ai.text = r.text; } else { S.ai = null; toast('Spectra could not do that right now. Try again in a minute.'); }
+    draw(); el = $('#ntair'); if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  function aiApply(mode) {
+    var a = S.ai, n = S.id && byId(S.id); if (!a || !n || !a.text || a.busy) return;
+    var body = String(n.body || ''), txt = a.text.trim(), nb = body;
+    if (mode === 'rep') {
+      if (a.sel) {
+        var s0 = a.sel[0], e0 = a.sel[1];
+        if (body.slice(s0, e0) !== a.src) { s0 = body.indexOf(a.src); e0 = s0 + a.src.length; }
+        if (s0 < 0) { toast('That text changed, so I added it below instead'); mode = 'add'; } else nb = body.slice(0, s0) + txt + body.slice(e0);
+      } else nb = txt;
+    }
+    if (mode === 'add') nb = body + (body ? (/\n$/.test(body) ? '\n' : '\n\n') : '') + txt;
+    if (nb.length > MAXB) { toast('That would make the note too long'); return; }
+    S.ai = { id: n.id, k: a.k, done: true, prev: body }; queue(n.id, { body: nb }, true); draw();
+  }
+  function aiPanel(n) {
+    var a = S.ai; if (!a || a.id !== n.id) return '';
+    var head = '<div class="nt-aih"><span class="nt-aii">' + nsvg('sparkle') + '</span><b>Spectra: ' + AIT[a.k] + (a.sel ? ' (selection)' : '') + '</b><button type="button" class="nt-aix" data-a="aiclose" aria-label="Close">' + ic('x') + '</button></div>';
+    if (a.done) return '<section class="nt-air" id="ntair">' + head + '<div class="nt-aif"><span class="nt-aid">Applied to your note.</span><button type="button" class="nt-bt" data-a="aiundo">Undo</button><button type="button" class="nt-bt pri" data-a="aiclose">Done</button></div></section>';
+    if (a.busy) return '<section class="nt-air" id="ntair" aria-live="polite">' + head + '<div class="nt-aiw"><i></i><i></i><i></i><span>Spectra is working on it...</span></div></section>';
+    var main = a.k === 'summarize' || a.k === 'explain' ? 'add' : 'rep';
+    return '<section class="nt-air" id="ntair">' + head + '<div class="nt-aib ac-m a" id="ntaib"></div><div class="nt-aif">' +
+      '<button type="button" class="nt-bt' + (main === 'rep' ? ' pri' : '') + '" data-a="airep">' + (a.sel ? 'Replace selection' : 'Replace note') + '</button>' +
+      '<button type="button" class="nt-bt' + (main === 'add' ? ' pri' : '') + '" data-a="aiadd">Add below</button><button type="button" class="nt-bt" data-a="aicopy">Copy</button></div></section>';
+  }
+  function aiPaint() { var el = $('#ntaib'); if (el && S.ai && S.ai.text) { el.innerHTML = H.md(S.ai.text); H.math(el); } }
+  function studyHand(n, k) {
+    flush(); var nm = fname(n.title) + '.md', pr = k === 'cards' ? 'Make 10 flashcards from my note "' + n.title + '".' : 'Quiz me on my note "' + n.title + '" with 5 multiple-choice questions.';
+    if (H.toChatFile) { hide(); H.toChatFile(nm, noteText(n), pr); } else { hide(); H.toChat(pr + '\n\n' + n.body); }
+  }
+
+  /* ---------- Notes -> My Tasks ---------- */
+  async function mkTask(n, k) {
+    if (!window.SpectraTasks || !window.SpectraTasks.add) { toast('My Tasks is not available on this page'); return; }
+    var days = k === 't1' ? 1 : k === 't3' ? 3 : k === 't7' ? 7 : 0, due = '', subs = [];
+    if (days) { var d = new Date(); d.setDate(d.getDate() + days); due = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+    else eachTodo(n.body, function (i, m, c, ls) { if (m[2] === ' ' && subs.length < 20) { var t = ls[i].slice(m[0].length).replace(/\s+/g, ' ').trim(); if (t) subs.push({ t: t.slice(0, 100), d: false }); } });
+    try {
+      await window.SpectraTasks.add({ title: ((days ? 'Review: ' : 'Revise: ') + n.title).slice(0, 120), subject: CATS.indexOf(n.category) >= 0 ? n.category : '', priority: 'medium', due: due, notes: 'From your note "' + n.title + '"', subtasks: subs, note_id: n.id, note_title: n.title });
+      toast(days ? 'Review task added to My Tasks' : 'Task added to My Tasks' + (subs.length ? ' with ' + subs.length + ' subtasks' : ''));
+    } catch (e) { toast(e && e.message === 'LOGIN' ? 'Log in first to use My Tasks' : e && e.message === 'SETUP' ? 'My Tasks needs its database setup first' : e && e.message === 'LIMIT' ? 'Task limit reached. Delete some tasks first.' : 'Could not add the task'); }
+  }
+  function openById(id) {
+    show(); var t = 0;
+    (function w() { if (byId(id)) openNote(id, 'read'); else if (++t < 24) setTimeout(w, 250); else toast('That note is not available'); })();
   }
 
 
@@ -1111,5 +1222,5 @@
     setTimeout(function () { load(); }, 700);
   }
 
-  window.SpectraNotes = { init: init, addFromAnswer: addFromAnswer, open: show, close: hide };
+  window.SpectraNotes = { init: init, addFromAnswer: addFromAnswer, open: show, close: hide, openNote: openById };
 })();
