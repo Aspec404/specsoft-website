@@ -98,6 +98,28 @@ html[data-season="valentine"] body.light-mode {
     --ss-a: #be185d; --ss-b: #db2777; --ss-c: #9d174d;
 }
 
+/* ---- Thanksgiving: harvest brown + amber + maple red ---- */
+html[data-season="thanksgiving"] {
+    --bg-base: #120a05; --bg-card: #1b110a; --bg-card-hover: #251810;
+    --text-primary: #fbf1e3; --text-secondary: #c2a78d; --text-tertiary: #7a6249;
+    --border-subtle: #33200f; --border-hover: #5c3a1d;
+    --accent: #f08a2c; --accent-dim: rgba(240, 138, 44, 0.10); --accent-glow: rgba(240, 138, 44, 0.24); --accent-strong: rgba(240, 138, 44, 0.55);
+    --grid-line: rgba(242, 196, 109, 0.04); --grid-line-bright: rgba(192, 57, 43, 0.22);
+    --glow-color: rgba(240, 138, 44, 0.07); --ambient-glow: rgba(192, 57, 43, 0.16);
+    --code-bg: #0e0804; --code-header-bg: #170e07;
+    --ss-a: #f08a2c; --ss-b: #c0392b; --ss-c: #f2c46d;
+}
+html[data-season="thanksgiving"] body.light-mode {
+    --bg-base: #fbf3e4; --bg-card: #fffaf0; --bg-card-hover: #fdf0da;
+    --text-primary: #2e1a0b; --text-secondary: #75533a; --text-tertiary: #bda287;
+    --border-subtle: #f1dfc3; --border-hover: #e3c79d;
+    --accent: #a8470a; --accent-dim: rgba(168, 71, 10, 0.07); --accent-glow: rgba(168, 71, 10, 0.16); --accent-strong: rgba(168, 71, 10, 0.4);
+    --grid-line: rgba(168, 71, 10, 0.07); --grid-line-bright: rgba(154, 43, 29, 0.18);
+    --glow-color: rgba(168, 71, 10, 0.05); --ambient-glow: rgba(217, 164, 65, 0.16);
+    --code-bg: #fff7e8; --code-header-bg: #f9ead0;
+    --ss-a: #a8470a; --ss-b: #9a2b1d; --ss-c: #a16207;
+}
+
 /* ---------------------------------------------------------------------------
    2. SHARED POLISH (any season)
    --------------------------------------------------------------------------- */
@@ -227,6 +249,27 @@ body.light-mode .ss-beams { opacity: 0.35; }
     background: radial-gradient(circle at 8% 100%, rgba(255, 92, 138, 0.22), transparent 38%), radial-gradient(circle at 96% 0%, rgba(244, 114, 182, 0.18), transparent 36%);
 }
 
+/* harvest glow (thanksgiving): one soft layer, just breathes slowly */
+.ss-harvest { position: absolute; inset: 0; animation: ssHarvest 12s ease-in-out infinite alternate;
+    background: radial-gradient(ellipse 75% 42% at 50% 108%, rgba(240, 138, 44, 0.26), transparent 70%),
+                radial-gradient(circle at 93% 5%, rgba(242, 196, 109, 0.16), transparent 34%),
+                radial-gradient(circle at 3% 32%, rgba(192, 57, 43, 0.10), transparent 36%);
+}
+body.light-mode .ss-harvest { opacity: 0.6; }
+@keyframes ssHarvest { from { opacity: 0.72; } to { opacity: 1; } }
+
+/* leaf garland (thanksgiving): vine + little leaves that sway */
+.ss-garland { position: absolute; top: 0; left: 0; right: 0; height: 40px; }
+.ss-garland svg { position: absolute; inset: 0 0 auto 0; width: 100%; height: 22px; }
+.ss-garland i {
+    position: absolute; width: 11px; height: 11px; margin-left: -5px; background: var(--c);
+    border-radius: 0 100% 0 100%; transform: rotate(var(--r, 0deg)); transform-origin: 0 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28); animation: ssSway 4s ease-in-out infinite alternate;
+}
+.ss-garland i.is-big { width: 15px; height: 15px; margin-left: -7px; }
+body.light-mode .ss-garland i { box-shadow: 0 2px 4px rgba(90, 45, 10, 0.22); }
+@keyframes ssSway { from { transform: rotate(calc(var(--r, 0deg) - 12deg)); } to { transform: rotate(calc(var(--r, 0deg) + 12deg)); } }
+
 /* ---------------------------------------------------------------------------
    4. SMALL UI: greeting + effects switch
    --------------------------------------------------------------------------- */
@@ -250,7 +293,7 @@ body.light-mode .ss-beams { opacity: 0.35; }
 
 /* LITE MODE: seasons.js switches this on by itself if a page struggles (weak GPU / battery saver).
    The big full-screen animations stop first; particles are only reduced after that. */
-html.ss-lite .ss-fog, html.ss-lite .ss-moon, html.ss-lite .ss-spider, html.ss-lite .ambient-glow { animation: none !important; }
+html.ss-lite .ss-fog, html.ss-lite .ss-moon, html.ss-lite .ss-spider, html.ss-lite .ss-harvest, html.ss-lite .ss-garland i, html.ss-lite .ambient-glow { animation: none !important; }
 html.ss-lite .ss-fog-b { display: none; }
 
 /* ---------------------------------------------------------------------------

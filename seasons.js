@@ -52,6 +52,11 @@
             name: "Valentine's Day", emoji: '\uD83D\uDC98', blurb: 'Rose and blush tones with soft glows and hearts floating up.',
             greet: "Happy Valentine's Day!", back: ['heartglow'], front: [], fx: [{ t: 'hearts', n: 28 }],
             emojis: ['\uD83D\uDC98', '\uD83D\uDC96', '\uD83D\uDC9D', '\uD83D\uDC97', '\uD83D\uDC95', '\uD83D\uDC8C', '\uD83C\uDF39', '\uD83D\uDE0D', '\uD83E\uDD70', '\uD83D\uDE18', '\uD83D\uDC8B', '\uD83E\uDDF8']
+        },
+        thanksgiving: {
+            name: 'Thanksgiving', emoji: '\uD83E\uDD83', blurb: 'Warm harvest browns and amber, a golden glow, a leaf garland and autumn leaves drifting down.',
+            greet: 'Happy Thanksgiving! Grateful you are here.', back: ['harvest'], front: ['garland'], fx: [{ t: 'leaves', n: 38 }],
+            emojis: ['\uD83E\uDD83', '\uD83C\uDF42', '\uD83C\uDF41', '\uD83E\uDD67', '\uD83C\uDF3D', '\uD83C\uDF60', '\uD83E\uDDE1', '\uD83C\uDF3E', '\uD83C\uDF57', '\uD83E\uDD54', '\uD83D\uDE4F', '\uD83D\uDD6F\uFE0F', '\uD83C\uDF5E', '\uD83E\uDD55']
         }
     };
 
@@ -98,6 +103,17 @@
         return '<div class="ss-lights"><svg viewBox="0 0 1000 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + pts.join(' ') + '" fill="none" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/></svg>' + bulbs + '</div>';
     }
 
+    function garland() {
+        var n = Math.max(12, Math.min(40, Math.round(innerWidth / 48))), swags = Math.max(3, Math.round(n / 5));
+        var cols = ['#e8832a', '#c0392b', '#f2c46d', '#a8501f', '#d9a441'], pts = [], leaves = '';
+        for (var s = 0; s <= 120; s++) { var t = (s / 120 * swags) % 1; pts.push((s / 120 * 1000).toFixed(1) + ',' + (3 + 10 * Math.sin(Math.PI * (s === 120 ? 1 : t))).toFixed(2)); }
+        for (var i = 0; i < n; i++) {
+            var u = (i + 0.5) / n, tt = (u * swags) % 1, y = 3 + 10 * Math.sin(Math.PI * tt), big = i % 3 === 0;
+            leaves += '<i class="' + (big ? 'is-big' : '') + '" style="left:' + (u * 100).toFixed(2) + '%;top:' + (y + 1).toFixed(1) + 'px;--c:' + cols[i % cols.length] + ';--r:' + (((i * 37) % 70) - 35) + 'deg;animation-delay:-' + ((i * 0.57) % 4).toFixed(2) + 's"></i>';
+        }
+        return '<div class="ss-garland"><svg viewBox="0 0 1000 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + pts.join(' ') + '" fill="none" stroke="rgba(120,72,30,.75)" stroke-width="1.8"/></svg>' + leaves + '</div>';
+    }
+
     var LAYERS = {
         moon: function () { return '<div class="ss-moon"></div>'; },
         fog: function () { return '<div class="ss-fog ss-fog-a"></div><div class="ss-fog ss-fog-b"></div>'; },
@@ -106,7 +122,9 @@
         lights: lights,
         frost: function () { return '<div class="ss-frost"></div>'; },
         beams: function () { return '<div class="ss-beams"></div>'; },
-        heartglow: function () { return '<div class="ss-hearts-glow"></div>'; }
+        heartglow: function () { return '<div class="ss-hearts-glow"></div>'; },
+        harvest: function () { return '<div class="ss-harvest"></div>'; },
+        garland: garland
     };
 
     /* ------------------------------ canvas particle engine ------------------------------ */
@@ -136,6 +154,23 @@
         return (sprites[key] = c);
     }
 
+    function leafSprite(hex) {
+        var key = 'lf' + hex;
+        if (sprites[key]) return sprites[key];
+        var c = document.createElement('canvas'), g;
+        c.width = c.height = 64; g = c.getContext('2d');
+        g.translate(32, 32);
+        g.fillStyle = hex;
+        g.beginPath(); g.moveTo(0, -26); g.bezierCurveTo(23, -13, 23, 13, 0, 23); g.bezierCurveTo(-23, 13, -23, -13, 0, -26); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(255,255,255,0.13)';
+        g.beginPath(); g.moveTo(0, -26); g.bezierCurveTo(23, -13, 23, 13, 0, 23); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(60,25,5,0.38)'; g.lineWidth = 2; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(0, -20); g.lineTo(0, 30); g.stroke();
+        g.lineWidth = 1.3;
+        g.beginPath(); g.moveTo(0, -4); g.lineTo(10, -12); g.moveTo(0, -4); g.lineTo(-10, -12); g.moveTo(0, 8); g.lineTo(11, 0); g.moveTo(0, 8); g.lineTo(-11, 0); g.stroke();
+        return (sprites[key] = c);
+    }
+
     function budget() {
         var inten = { low: 0.45, normal: 1, high: 1.7 }[state.intensity] || 1;
         var area = Math.max(0.7, Math.min(1.15, (innerWidth * innerHeight) / (1920 * 1080)));
@@ -151,7 +186,8 @@
         embers: { d: ['#ff7a1a', '#ffb347', '#ff4d00', '#ffd08a'], l: ['#e8590c', '#c2410c', '#f08c00'] },
         snow: { d: ['#ffffff', '#e6f2ff'], l: ['#7fa8d6', '#9db8d8'] },
         party: { d: ['#f5c542', '#ffffff', '#818cf8', '#f472b6', '#34d399', '#22d3ee'], l: ['#a16207', '#4f46e5', '#db2777', '#059669', '#d97706'] },
-        hearts: { d: ['#ff5c8a', '#f472b6', '#ffd1dc', '#fb7185'], l: ['#be185d', '#db2777', '#e11d48'] }
+        hearts: { d: ['#ff5c8a', '#f472b6', '#ffd1dc', '#fb7185'], l: ['#be185d', '#db2777', '#e11d48'] },
+        leaves: { d: ['#e8832a', '#c0392b', '#f2c46d', '#a8501f', '#d9a441'], l: ['#b45309', '#9a2b1d', '#a16207', '#7c3f12', '#c2410c'] }
     };
     function colorFor(name) { return pick(PAL[name][isLight() ? 'l' : 'd']); }
 
@@ -312,7 +348,31 @@
         };
     }
 
-    var MAKE = { embers: Embers, bats: Bats, snow: Snow, confetti: Confetti, fireworks: Fireworks, hearts: Hearts };
+    function Leaves(base) {
+        var p = [];
+        function make(init) { return { x: rand(0, FX.w), y: init ? rand(0, FX.h) : -24, s: rand(14, 28), vy: rand(30, 72), ph: rand(0, 6.28), amp: rand(14, 38), rot: rand(0, 6.28), vr: rand(-1.6, 1.6), fl: rand(0, 6.28), a: rand(0.65, 0.95), c: colorFor('leaves') }; }
+        return {
+            update: function (dt) {
+                var target = Math.round(base * budget());
+                while (p.length < target) p.push(make(p.length < target * 0.9));
+                if (p.length > target) p.length = target;
+                var wind = Math.sin(FX.t * 0.12) * 22 + 10;
+                for (var i = 0; i < p.length; i++) {
+                    var l = p[i]; l.y += l.vy * dt; l.x += (Math.sin(FX.t * 0.8 + l.ph) * l.amp + wind) * dt; l.rot += l.vr * dt; l.fl += dt * 1.7;
+                    if (l.y > FX.h + 30) p[i] = make(false); else if (l.x > FX.w + 30) l.x = -30; else if (l.x < -30) l.x = FX.w + 30;
+                }
+            },
+            draw: function (g) {
+                for (var i = 0; i < p.length; i++) {
+                    var l = p[i]; g.save(); g.translate(l.x, l.y); g.rotate(l.rot); g.scale(0.55 + 0.45 * Math.abs(Math.cos(l.fl)), 1); g.globalAlpha = l.a;
+                    g.drawImage(leafSprite(l.c), -l.s / 2, -l.s / 2, l.s, l.s); g.restore();
+                }
+                g.globalAlpha = 1;
+            }
+        };
+    }
+
+    var MAKE = { embers: Embers, bats: Bats, snow: Snow, confetti: Confetti, fireworks: Fireworks, hearts: Hearts, leaves: Leaves };
 
     function sizeCanvas() {
         if (!FX.canvas) return;

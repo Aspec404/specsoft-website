@@ -163,3 +163,14 @@ select * from (values
     ('valentine', 'Valentine''s 2027', timestamptz '2027-02-10 00:00:00+08', timestamptz '2027-02-16 00:00:00+08')
 ) as v(theme, label, starts_at, ends_at)
 where not exists (select 1 from public.site_season_schedule);
+
+-- ---------- Thanksgiving (safe to re-run: each row is added only once) ----------
+-- 2026 Thanksgiving was Nov 26, so this one runs from now until Christmas takes over on Dec 1.
+-- 2027: Thanksgiving is Thursday Nov 25, the theme runs the week around it.
+insert into public.site_season_schedule (theme, label, starts_at, ends_at)
+select v.theme, v.label, v.starts_at, v.ends_at
+  from (values
+    ('thanksgiving', 'Thanksgiving 2026', timestamptz '2026-11-27 00:00:00+08', timestamptz '2026-12-01 00:00:00+08'),
+    ('thanksgiving', 'Thanksgiving 2027', timestamptz '2027-11-22 00:00:00+08', timestamptz '2027-11-29 00:00:00+08')
+  ) as v(theme, label, starts_at, ends_at)
+ where not exists (select 1 from public.site_season_schedule x where x.theme = v.theme and x.label = v.label);

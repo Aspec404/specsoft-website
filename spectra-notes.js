@@ -1,4 +1,4 @@
-/* Spectra Notes (v3 glow-up batch 1 + 3: icons instead of emojis, Spectra actions (summarize, simplify, expand, fix grammar, explain), flashcard and quiz hand-off, notes to My Tasks, SpectraNotes.openNote(id)) (batch 1: colored cards + icons, grid/list/compact + sort, formatting toolbar, / slash menu, callouts, clickable checklists, templates, outline, zen mode, text size; needs supabase-spectra-notes-v3.sql for colors/icons) (v2 + tabs view): a notebook inside Spectra Academics, saved in Supabase (table spectra_notes, see supabase-spectra-notes.sql and supabase-spectra-notes-v2.sql) so it follows you on every device.
+/* Spectra Notes (v3 glow-up batches 1, 2 and 3; batch 2 = tags, Trash with restore (30 days), Ctrl+K quick switcher, duplicate, recents; needs supabase-spectra-notes-v4.sql) (batch 1 + 3: icons instead of emojis, Spectra actions (summarize, simplify, expand, fix grammar, explain), flashcard and quiz hand-off, notes to My Tasks, SpectraNotes.openNote(id)) (batch 1: colored cards + icons, grid/list/compact + sort, formatting toolbar, / slash menu, callouts, clickable checklists, templates, outline, zen mode, text size; needs supabase-spectra-notes-v3.sql for colors/icons) (v2 + tabs view): a notebook inside Spectra Academics, saved in Supabase (table spectra_notes, see supabase-spectra-notes.sql and supabase-spectra-notes-v2.sql) so it follows you on every device.
    Tabs view: "Open in tabs view" in the note menu shows open notes in a tab bar (links, merges and new notes open as tabs). Browser-side only, no new SQL.
    v2 adds: Graph view, [[Back links]], Source mode, Find & Replace, Merge note with..., Add to my projects, Share (copy, .md, .txt, PDF, device share).
    Send to Spectra attaches the note as a .md file (host.toChatFile) and falls back to pasting the text.
@@ -12,7 +12,7 @@
   'use strict';
   var TB = 'spectra_notes', MAXN = 300, MAXB = 20000;
   var CATS = ['Math', 'General Sciences', 'Social Studies', 'Languages', 'ICT/TVL', 'General Knowledge'];
-  var TABS = [['all', 'All'], ['pin', 'Pinned'], ['mark', 'Bookmarked'], ['arch', 'Archived']];
+  var TABS = [['all', 'All'], ['pin', 'Pinned'], ['mark', 'Bookmarked'], ['arch', 'Archived'], ['trash', 'Trash']];
   var CATCOL = { 'Math': '#7c5cff', 'General Sciences': '#14b8a6', 'Social Studies': '#f59e0b', 'Languages': '#ec4899', 'ICT/TVL': '#3b82f6', 'General Knowledge': '#64748b' };
   var EXTRA = ['#ef4444', '#22c55e', '#06b6d4', '#a855f7'];
   var ICO = {   // small icons this file draws itself (the rest come from the page's data-ic set)
@@ -30,7 +30,7 @@
   var H = null, root = null, btn = null, badge = null, mainEl = null;
   var S = {
     notes: [], loaded: false, busy: false, err: '', open: false, tab: 'all', cat: '', pf: '', q: '', id: null, mode: 'read',
-    menu: false, del: false, view: 'list', find: false, ov: null, gsel: null, gcats: false, tabsOn: false, tabs: [], pop: null, zen: false, slash: null, ai: null, sel: null
+    menu: false, del: false, view: 'list', find: false, ov: null, gsel: null, gcats: false, tabsOn: false, tabs: [], pop: null, zen: false, slash: null, ai: null, sel: null, trash: [], tag: '', qk: null, kill: null, killAll: false, noTrash: false
   };
   var F = { q: '', r: '', cs: false };
   var dirty = {}, dirtyId = null, timer = null, TM = null, lkc = {}, selMem = null, G = null;
@@ -91,7 +91,7 @@
     try {
       var sb = await auth(), r = await sb.from(TB).select('*').order('updated_at', { ascending: false }).limit(MAXN);
       if (r.error) throw fail(r.error);
-      S.notes = r.data || []; S.loaded = true;
+      splitRows(r.data || []); S.loaded = true;
     } catch (e) { S.err = e.message || 'DB'; }
     S.busy = false; badgeDraw(); if (S.open) draw();
   }
@@ -125,8 +125,8 @@
       if (r.error) throw fail(r.error);
       var n = byId(id); if (n && r.data) n.updated_at = r.data.updated_at; sv('Saved');
     } catch (e) {
-      if (e && e.message === 'SETUP2' && ('color' in f || 'icon' in f)) {   // colors and icons need supabase-spectra-notes-v3.sql: drop them so the text still saves
-        delete f.color; delete f.icon; toast('Run supabase-spectra-notes-v3.sql to save colors and icons');
+      if (e && e.message === 'SETUP2' && ('color' in f || 'icon' in f || 'tags' in f)) {   // colors/icons need supabase-spectra-notes-v3.sql and tags need v4: drop them so the text still saves
+        toast('tags' in f ? 'Run supabase-spectra-notes-v4.sql to save tags' : 'Run supabase-spectra-notes-v3.sql to save colors and icons'); delete f.color; delete f.icon; delete f.tags;
         if (Object.keys(f).length) { if (!dirtyId) { dirty = f; dirtyId = id; flush(); } else dirty = Object.assign({}, f, dirty); } else sv('Saved');
         return;
       }
@@ -219,7 +219,8 @@
       if (S.tab === 'mark' && !n.bookmarked) return false;
       if (S.cat && n.category !== S.cat) return false;
       if (S.pf && n.project !== S.pf) return false;
-      return !q || n.title.toLowerCase().indexOf(q) >= 0 || (n.body || '').toLowerCase().indexOf(q) >= 0;
+      if (S.tag && (n.tags || []).indexOf(S.tag) < 0) return false;
+      return !q || n.title.toLowerCase().indexOf(q) >= 0 || (n.body || '').toLowerCase().indexOf(q) >= 0 || (n.tags || []).some(function (t) { return t.indexOf(q.replace(/^#/, '')) >= 0; });
     }).sort(sorter);
   }
   function badgeDraw(pulse) {
@@ -230,6 +231,7 @@
   }
   function msgBox(t, sub) { return '<div class="nt-em"><i data-ic="notes"></i><b>' + t + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>'; }
   function gridHtml() {
+    if (S.tab === 'trash') return trashHtml();
     if (S.busy && !S.loaded) return '<div class="nt-sk"><i></i><i></i><i></i></div>';
     if (S.err === 'LOGIN') return msgBox('Log in to see your notes', 'Your notes sync across all your devices.');
     if (S.err === 'SETUP') return msgBox('Notes need a one-time database setup', 'Run supabase-spectra-notes.sql in the Supabase SQL editor, then reload this page.');
@@ -240,19 +242,22 @@
       var p = n.project && pn(n.project), td = todoStat(n.body);
       return '<button type="button" class="nt-card' + (n.pinned ? ' pin' : '') + '" data-id="' + n.id + '" style="--nc:' + ncol(n) + ';--i:' + Math.min(i, 12) + '"><span class="nt-cbar"></span><span class="nt-ct"><span class="nt-ei">' + nsvg(nic(n)) + '</span><b>' + esc(n.title) + '</b>' + (n.pinned ? '<i data-ic="pin"></i>' : '') + (n.bookmarked ? '<i data-ic="bookmark"></i>' : '') + '</span><span class="nt-cs">' + (esc(snip(n.body).replace(/\[!(?:tip|note|important|warning)\]\s*/gi, '').replace(/\[[ xX]\]\s*/g, '')) || '<em>Empty note</em>') + '</span>' +
         (td.t ? '<span class="nt-td"><span class="nt-tb2"><i style="width:' + Math.round(td.d / td.t * 100) + '%"></i></span><em>' + td.d + '/' + td.t + '</em></span>' : '') +
-        '<span class="nt-cf"><span class="nt-tg"><u>' + esc(n.category) + '</u>' + (p ? '<u class="pj"><s style="--pc:' + esc(p.c || '#7c5cff') + '"></s>' + esc(p.n) + '</u>' : '') + '</span><small>' + fmt(n.updated_at) + '</small></span></button>';
+        '<span class="nt-cf"><span class="nt-tg"><u>' + esc(n.category) + '</u>' + (p ? '<u class="pj"><s style="--pc:' + esc(p.c || '#7c5cff') + '"></s>' + esc(p.n) + '</u>' : '') + tagChips(n) + '</span><small>' + fmt(n.updated_at) + '</small></span></button>';
     }).join('') + '</div>';
   }
   function drawGrid() { var g = $('#ntg'); if (!g) return; g.innerHTML = gridHtml(); paint(g); }
   function listHtml() {
+    TABS[4][1] = S.trash.length ? 'Trash (' + S.trash.length + ')' : 'Trash';
     var live = S.notes.filter(function (n) { return !n.archived; }), cnt = {}, pc = {};
     S.notes.forEach(function (n) { if (S.tab === 'arch' ? n.archived : !n.archived) { cnt[n.category] = (cnt[n.category] || 0) + 1; if (n.project) pc[n.project] = (pc[n.project] || 0) + 1; } });
-    var h = '<div class="nt-wrap">' + tabBar() + '<header class="nt-hd"><div><h2>Notes</h2><p>' + (S.loaded ? live.length + (live.length === 1 ? ' note' : ' notes') : '&nbsp;') + '</p></div><div class="nt-ha"><button type="button" class="nt-gb" data-a="graph" aria-label="Open graph view" title="Graph view">' + ic('graph') + '<span>Graph</span></button><span class="nt-mw nt-pw"><button type="button" class="nt-gb" data-a="tpl" aria-label="New note from a template" title="New from template">' + ic('tpl') + '<span>Templates</span></button>' + (S.pop === 'tpl' ? tplMenu() : '') + '</span><button type="button" class="nt-add" data-a="new"><i data-ic="plus"></i><span>New Note</span></button></div></header>';
+    var h = '<div class="nt-wrap' + (S.tab === 'trash' ? ' nt-intrash' : '') + '">' + tabBar() + '<header class="nt-hd"><div><h2>Notes</h2><p>' + (S.loaded ? live.length + (live.length === 1 ? ' note' : ' notes') : '&nbsp;') + '</p></div><div class="nt-ha"><button type="button" class="nt-gb" data-a="qk" aria-label="Jump to a note" title="Jump to a note (Ctrl+K)">' + nsvg('search') + '<span>Jump</span></button><button type="button" class="nt-gb" data-a="graph" aria-label="Open graph view" title="Graph view">' + ic('graph') + '<span>Graph</span></button><span class="nt-mw nt-pw"><button type="button" class="nt-gb" data-a="tpl" aria-label="New note from a template" title="New from template">' + ic('tpl') + '<span>Templates</span></button>' + (S.pop === 'tpl' ? tplMenu() : '') + '</span><button type="button" class="nt-add" data-a="new"><i data-ic="plus"></i><span>New Note</span></button></div></header>';
     h += '<label class="nt-s"><i data-ic="search"></i><input id="ntq" type="search" placeholder="Search notes" autocomplete="off" value="' + esc(S.q) + '"></label>';
+    h += recHtml();
     h += '<div class="nt-rowb"><div class="nt-tabs" role="tablist">' + TABS.map(function (t) { return '<button type="button" role="tab" class="' + (S.tab === t[0] ? 'on' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' + viewBar() + '</div>';
     h += '<div class="nt-cats"><button type="button" class="' + (S.cat ? '' : 'on') + '" data-cat="">All categories</button>' + CATS.filter(function (c) { return cnt[c] || S.cat === c; }).map(function (c) { return '<button type="button" class="' + (S.cat === c ? 'on' : '') + '" data-cat="' + esc(c) + '">' + esc(c) + '<em>' + (cnt[c] || 0) + '</em></button>'; }).join('') + '</div>';
     var pl = projs().filter(function (p) { return pc[p.id] || S.pf === p.id; });
     if (pl.length) h += '<div class="nt-cats nt-pcs"><button type="button" class="' + (S.pf ? '' : 'on') + '" data-pf="">All projects</button>' + pl.map(function (p) { return '<button type="button" class="' + (S.pf === p.id ? 'on' : '') + '" data-pf="' + esc(p.id) + '"><s style="--pc:' + esc(p.c || '#7c5cff') + '"></s>' + esc(p.n) + '<em>' + (pc[p.id] || 0) + '</em></button>'; }).join('') + '</div>';
+    h += tagRow();
     return h + '<div id="ntg">' + gridHtml() + '</div></div>';
   }
 
@@ -288,8 +293,8 @@
     h += '<span class="nt-mw"><button type="button" class="nt-ib" data-a="more" aria-label="More" aria-haspopup="menu"><i data-ic="dots"></i></button>';
     if (S.menu) {
       var mi = function (a, i, t, c, raw) { return '<button type="button" role="menuitem"' + (c ? ' class="' + c + '"' : '') + ' data-a="' + a + '"><i' + (raw ? '>' + ic(i) : ' data-ic="' + i + '">') + '</i><span>' + t + '</span></button>'; };
-      h += '<div class="nt-mn" role="menu">' + mi('rename', 'edit', 'Rename Note') + mi('toproj', 'folder', 'Add to my projects') + mi('merge', 'merge', 'Merge with...', '', 1) + mi('find', 'search', 'Find &amp; Replace') + mi('share', 'share', 'Share note', '', 1) + mi('ngraph', 'graph', 'Open in graph view', '', 1) + mi('tabsv', 'tabs', S.tabsOn ? 'Close tabs view' : 'Open in tabs view', '', 1) +
-        '<div class="nt-sp"></div>' + mi('arch', 'archive', n.archived ? 'Unarchive Note' : 'Archive Note') + mi('del', 'trash', S.del ? 'Tap again to delete' : 'Delete Note', 'dg') + '</div>';
+      h += '<div class="nt-mn" role="menu">' + mi('rename', 'edit', 'Rename Note') + mi('dup', 'copy', 'Duplicate Note') + mi('toproj', 'folder', 'Add to my projects') + mi('merge', 'merge', 'Merge with...', '', 1) + mi('find', 'search', 'Find &amp; Replace') + mi('share', 'share', 'Share note', '', 1) + mi('ngraph', 'graph', 'Open in graph view', '', 1) + mi('tabsv', 'tabs', S.tabsOn ? 'Close tabs view' : 'Open in tabs view', '', 1) +
+        '<div class="nt-sp"></div>' + mi('arch', 'archive', n.archived ? 'Unarchive Note' : 'Archive Note') + mi('del', 'trash', S.del ? 'Tap again to confirm' : (S.noTrash ? 'Delete Note' : 'Move to Trash'), 'dg') + '</div>';
     }
     h += '</span></header>';
     if (S.find && S.mode === 'edit') h += findHtml();
@@ -298,6 +303,7 @@
     h += '<div class="nt-mt"><select id="ntc" aria-label="Category">' + cats.map(function (c) { return '<option' + (c === n.category ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>';
     if (pl.length || n.project) h += '<select id="ntp" aria-label="Project"><option value="">No project</option>' + pl.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === n.project ? ' selected' : '') + '>' + esc(p.n) + '</option>'; }).join('') + '</select>';
     h += '<span>Edited ' + fmt(n.updated_at) + '</span><span id="ntwc">' + statTxt(n.body) + '</span></div>';
+    h += tagEd(n);
     if (S.mode === 'edit') {
       h += fmtBar();
       h += '<textarea class="nt-tx" id="ntx" maxlength="' + MAXB + '" placeholder="Write your note here. Markdown works: **bold**, # headings, - lists, $math$. Link notes with [[Note Title]]." aria-label="Note text">' + esc(n.body) + '</textarea>';
@@ -675,11 +681,11 @@
     draw();
   }
   function hide() {
-    if (!S.open) return; flush(); gStop(); ovClose(); slashClose(); S.open = false; S.menu = false; S.id = null; S.find = false; S.pop = null; S.zen = false;
+    if (!S.open) return; flush(); gStop(); ovClose(); slashClose(); qkClose(); S.open = false; S.menu = false; S.id = null; S.find = false; S.pop = null; S.zen = false;
     root.classList.remove('gmode'); mainEl.classList.remove('noting'); btn.classList.remove('on');
   }
   function openNote(id, mode) {
-    S.ai = null; flush(); gStop(); S.view = 'list'; S.id = id; tabAdd(id); S.mode = mode || 'read'; S.menu = false; S.del = false; S.find = false; ovClose(); draw(); if (root) root.scrollTop = 0;
+    recPush(id); S.ai = null; flush(); gStop(); S.view = 'list'; S.id = id; tabAdd(id); S.mode = mode || 'read'; S.menu = false; S.del = false; S.find = false; ovClose(); draw(); if (root) root.scrollTop = 0;
     if (S.mode === 'edit') { var t = $('#ntt'), n = byId(id); if (n && !n.body && t) t.focus(); else { var x = $('#ntx'); if (x) x.focus(); } }
   }
   async function newNote(title) {
@@ -694,13 +700,6 @@
   function followLink(name) {
     var t = tm()[String(name).trim().toLowerCase()];
     if (t) openNote(t.id, 'read'); else newNote(String(name).trim().slice(0, 120));
-  }
-  async function removeNote(id) {
-    try {
-      var sb = await auth(), r = await sb.from(TB).delete().eq('id', id); if (r.error) throw fail(r.error);
-      if (dirtyId === id) { dirty = {}; dirtyId = null; clearTimeout(timer); }
-      S.notes = S.notes.filter(function (n) { return n.id !== id; }); TM = null; S.id = dropTab(id); S.menu = false; S.del = false; badgeDraw(); draw(); toast('Note deleted');
-    } catch (e) { toast('Could not delete the note'); }
   }
   function setMode(m) {
     var t = $('#ntt'), n = S.id && byId(S.id);
@@ -793,7 +792,7 @@
   async function insertSafe(f) {   // colors and icons need supabase-spectra-notes-v3.sql; without it the note is still made
     try { return await insert(f); }
     catch (e) {
-      if (e && e.message === 'SETUP2' && ('color' in f || 'icon' in f)) { var g = Object.assign({}, f); delete g.color; delete g.icon; toast('Run supabase-spectra-notes-v3.sql to save note colors and icons'); return await insert(g); }
+      if (e && e.message === 'SETUP2' && ('color' in f || 'icon' in f || 'tags' in f)) { var g = Object.assign({}, f); delete g.color; delete g.icon; delete g.tags; toast('Run supabase-spectra-notes-v3.sql and v4.sql to save colors, icons and tags'); return await insert(g); }
       throw e;
     }
   }
@@ -816,8 +815,8 @@
   }
   function typoMenu() {
     return '<div class="nt-mn nt-pp nt-ty" role="menu"><div class="nt-tyr"><span>Text size</span><span class="nt-stp"><button type="button" data-a="fsd" aria-label="Smaller text"' + (P.fs <= 0 ? ' disabled' : '') + '>A\u2212</button><em>' + FS[P.fs] + '</em><button type="button" data-a="fsu" aria-label="Bigger text"' + (P.fs >= 5 ? ' disabled' : '') + '>A+</button></span></div>' +
-      '<button type="button" role="menuitemcheckbox" aria-checked="' + P.ser + '" data-a="ser"><span>Serif font</span><u class="nt-sw' + (P.ser ? ' on' : '') + '"></u></button>' +
-      '<button type="button" role="menuitemcheckbox" aria-checked="' + P.wide + '" data-a="wide"><span>Wide page</span><u class="nt-sw' + (P.wide ? ' on' : '') + '"></u></button>' +
+      '<button type="button" role="menuitemcheckbox" aria-checked="' + P.ser + '" data-a="ser"><span>Serif font</span><u class="nt-tsw' + (P.ser ? ' on' : '') + '"></u></button>' +
+      '<button type="button" role="menuitemcheckbox" aria-checked="' + P.wide + '" data-a="wide"><span>Wide page</span><u class="nt-tsw' + (P.wide ? ' on' : '') + '"></u></button>' +
       '<div class="nt-sp"></div><button type="button" role="menuitem" data-a="zen"><i>' + ic('zen') + '</i><span>Zen mode</span></button></div>';
   }
   function outMenu(n) {
@@ -965,6 +964,14 @@
 
   /* one handler for every new button; returns true when it handled the click */
   function fmtAct(k, a, n) {
+    if (k === 'qk') { qkOpen(); return true; }
+    if (k === 'recopen') { openNote(a.dataset.id, 'read'); return true; }
+    if (k === 'restore') { restoreNote(a.dataset.id); return true; }
+    if (k === 'killone') { killNote(a.dataset.id); return true; }
+    if (k === 'trashall') { emptyTrash(); return true; }
+    if (k === 'dup' && n) { dupNote(n); return true; }
+    if (k === 'tagrm' && n) { queue(n.id, { tags: (n.tags || []).filter(function (t) { return t !== a.dataset.t; }) }, true); draw(); return true; }
+    if (k === 'tagfilter') { S.tag = a.dataset.t; S.tab = 'all'; S.cat = ''; S.pf = ''; S.q = ''; flush(); S.id = null; draw(); return true; }
     if (k === 'ai') { var x0 = $('#ntx'); S.sel = x0 && x0.selectionEnd > x0.selectionStart ? [x0.selectionStart, x0.selectionEnd] : null; S.pop = S.pop === 'ai' ? null : 'ai'; S.menu = false; draw(); return true; }
     if (k === 'aigo' && n) {
       var kk = a.dataset.k; S.pop = null;
@@ -1092,6 +1099,162 @@
   }
 
 
+  /* ================= Batch 2: tags, Trash (30 days), quick switcher (Ctrl+K), duplicate, recents ================= */
+  var MAXTAGS = 12, RKEY = 'sa.notes.recent';
+  Object.assign(NI, { search: 'M11 4a7 7 0 100 14 7 7 0 000-14zM16 16l4.5 4.5', plus: 'M12 5v14M5 12h14', hash: 'M5 9h14M5 15h14M10 4L8 20M16 4l-2 16' });
+
+  /* the list only ever holds live notes; deleted ones wait in S.trash, so every other feature (graph, links, merge) ignores them */
+  function splitRows(rows) {
+    var cut = Date.now() - 30 * 864e5, old = [];
+    S.notes = []; S.trash = [];
+    rows.forEach(function (n) {
+      n.tags = Array.isArray(n.tags) ? n.tags : [];
+      if (n.deleted_at) { if (new Date(n.deleted_at).getTime() < cut) old.push(n.id); else S.trash.push(n); } else S.notes.push(n);
+    });
+    if (old.length) purgeRows(old);
+  }
+  async function purgeRows(ids) { try { var sb = await auth(); await sb.from(TB).delete().in('id', ids); } catch (e) { } }
+  async function removeNote(id) {
+    var n = byId(id); if (!n) return;
+    try {
+      var sb = await auth(), soft = false;
+      if (!S.noTrash) {
+        var r = await sb.from(TB).update({ deleted_at: new Date().toISOString() }).eq('id', id).select('*').single();
+        if (!r.error) { soft = true; Object.assign(n, r.data); }
+        else if (r.error.code === 'PGRST204' || r.error.code === '42703' || /deleted_at|column/i.test(r.error.message || '')) { S.noTrash = true; toast('Trash needs supabase-spectra-notes-v4.sql. Deleted for good this time.'); }
+        else throw fail(r.error);
+      }
+      if (!soft) { var d = await sb.from(TB).delete().eq('id', id); if (d.error) throw fail(d.error); }
+      if (dirtyId === id) { dirty = {}; dirtyId = null; clearTimeout(timer); }
+      S.notes = S.notes.filter(function (x) { return x.id !== id; }); if (soft) S.trash.unshift(n);
+      TM = null; S.id = dropTab(id); S.menu = false; S.del = false; badgeDraw(); draw(); toast(soft ? 'Moved to Trash' : 'Note deleted');
+    } catch (e) { toast('Could not delete the note'); }
+  }
+  function trashHtml() {
+    var q = S.q.trim().toLowerCase(), all = S.trash.length;
+    var t = S.trash.filter(function (n) { return !q || n.title.toLowerCase().indexOf(q) >= 0 || (n.body || '').toLowerCase().indexOf(q) >= 0; }).sort(function (a, b) { return new Date(b.deleted_at) - new Date(a.deleted_at); });
+    if (!all) return msgBox('Trash is empty', 'Notes you delete wait here for 30 days, then they are gone for good.');
+    if (!t.length) return msgBox('No deleted notes match', '');
+    return '<div class="nt-trh"><span>' + all + (all === 1 ? ' note' : ' notes') + ' in Trash. They are deleted for good after 30 days.</span><button type="button" class="nt-bt sm dg" data-a="trashall">' + (S.killAll ? 'Tap again to empty' : 'Empty Trash') + '</button></div><div class="nt-grid l-list">' + t.map(function (n) {
+      var left = Math.max(0, 30 - Math.floor((Date.now() - new Date(n.deleted_at).getTime()) / 864e5));
+      return '<div class="nt-trc" style="--nc:' + ncol(n) + '"><span class="nt-cbar"></span><span class="nt-ct"><span class="nt-ei">' + nsvg(nic(n)) + '</span><b>' + esc(n.title) + '</b></span><span class="nt-cs">' + (esc(snip(n.body)) || '<em>Empty note</em>') + '</span><span class="nt-cf"><small>' + left + (left === 1 ? ' day' : ' days') + ' left</small><span class="nt-tra"><button type="button" class="nt-bt sm" data-a="restore" data-id="' + n.id + '">Restore</button><button type="button" class="nt-bt sm dg" data-a="killone" data-id="' + n.id + '">' + (S.kill === n.id ? 'Tap again' : 'Delete forever') + '</button></span></span></div>';
+    }).join('') + '</div>';
+  }
+  async function restoreNote(id) {
+    var n = null; S.trash.forEach(function (x) { if (x.id === id) n = x; }); if (!n) return;
+    try {
+      var sb = await auth(), r = await sb.from(TB).update({ deleted_at: null }).eq('id', id).select('*').single(); if (r.error) throw fail(r.error);
+      Object.assign(n, r.data); n.tags = Array.isArray(n.tags) ? n.tags : [];
+      S.trash = S.trash.filter(function (x) { return x.id !== id; }); S.notes.unshift(n); TM = null; badgeDraw(); draw(); toast('Note restored');
+    } catch (e) { toast('Could not restore the note'); }
+  }
+  async function killNote(id) {
+    if (S.kill !== id) { S.kill = id; S.killAll = false; draw(); setTimeout(function () { if (S.kill === id) { S.kill = null; if (S.open && S.tab === 'trash') draw(); } }, 3000); return; }
+    S.kill = null;
+    try { var sb = await auth(), r = await sb.from(TB).delete().eq('id', id); if (r.error) throw fail(r.error); S.trash = S.trash.filter(function (x) { return x.id !== id; }); draw(); toast('Deleted for good'); }
+    catch (e) { toast('Could not delete the note'); }
+  }
+  async function emptyTrash() {
+    if (!S.killAll) { S.killAll = true; S.kill = null; draw(); setTimeout(function () { if (S.killAll) { S.killAll = false; if (S.open && S.tab === 'trash') draw(); } }, 3000); return; }
+    S.killAll = false; var ids = S.trash.map(function (x) { return x.id; }); if (!ids.length) return;
+    try { var sb = await auth(), r = await sb.from(TB).delete().in('id', ids); if (r.error) throw fail(r.error); S.trash = []; draw(); toast('Trash emptied'); }
+    catch (e) { toast('Could not empty the Trash'); }
+  }
+
+  /* ---------- tags ---------- */
+  function normTag(raw) { return String(raw || '').toLowerCase().replace(/^#+/, '').trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '').slice(0, 24); }
+  function allTags() { var c = {}; S.notes.forEach(function (n) { (n.tags || []).forEach(function (t) { c[t] = (c[t] || 0) + 1; }); }); return Object.keys(c).sort(function (a, b) { return c[b] - c[a] || a.localeCompare(b); }); }
+  function tagChips(n) { var t = n.tags || []; return t.slice(0, 2).map(function (x) { return '<u class="tg">#' + esc(x) + '</u>'; }).join('') + (t.length > 2 ? '<u class="tg">+' + (t.length - 2) + '</u>' : ''); }
+  function tagRow() {
+    var c = {}; S.notes.forEach(function (n) { if (S.tab === 'arch' ? n.archived : !n.archived) (n.tags || []).forEach(function (t) { c[t] = (c[t] || 0) + 1; }); });
+    var ks = Object.keys(c).sort(function (a, b) { return c[b] - c[a] || a.localeCompare(b); }).slice(0, 14); if (S.tag && ks.indexOf(S.tag) < 0) ks.push(S.tag);
+    if (!ks.length) return '';
+    return '<div class="nt-cats nt-tagr" aria-label="Tags"><button type="button" class="' + (S.tag ? '' : 'on') + '" data-tg="">All tags</button>' + ks.map(function (t) { return '<button type="button" class="' + (S.tag === t ? 'on' : '') + '" data-tg="' + esc(t) + '">#' + esc(t) + '<em>' + (c[t] || 0) + '</em></button>'; }).join('') + '</div>';
+  }
+  function tagEd(n) {
+    var cur = n.tags || [], sug = allTags().filter(function (t) { return cur.indexOf(t) < 0; }).slice(0, 20);
+    return '<div class="nt-tgr2" aria-label="Tags">' + cur.map(function (t) { return '<span class="nt-tgc"><button type="button" class="nt-tgo" data-a="tagfilter" data-t="' + esc(t) + '" title="Show notes tagged ' + esc(t) + '">#' + esc(t) + '</button><button type="button" class="nt-tgx" data-a="tagrm" data-t="' + esc(t) + '" aria-label="Remove tag ' + esc(t) + '">' + ic('x') + '</button></span>'; }).join('') +
+      (cur.length < MAXTAGS ? '<input id="nttag" class="nt-tgi" type="text" maxlength="24" placeholder="+ tag" autocomplete="off" aria-label="Add a tag" list="nttags">' : '') + '<datalist id="nttags">' + sug.map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist></div>';
+  }
+  function addTag(n, raw) {
+    var t = normTag(raw); if (!t) return false; var cur = n.tags || [];
+    if (cur.indexOf(t) >= 0) { toast('Already tagged #' + t); return false; }
+    if (cur.length >= MAXTAGS) { toast('Up to ' + MAXTAGS + ' tags per note'); return false; }
+    queue(n.id, { tags: cur.concat(t) }, true); return true;
+  }
+  function tagInput(n, el) { var v = el.value; if (!v.trim()) return; if (addTag(n, v)) { draw(); var i = $('#nttag'); if (i) i.focus(); } else el.value = ''; }
+
+  /* ---------- recents ---------- */
+  function recGet() { try { var a = JSON.parse(localStorage.getItem(RKEY) || '[]'); return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string'; }) : []; } catch (e) { return []; } }
+  function recPush(id) { try { var a = recGet().filter(function (x) { return x !== id; }); a.unshift(id); localStorage.setItem(RKEY, JSON.stringify(a.slice(0, 12))); } catch (e) { } }
+  function recHtml() {
+    if (S.tab === 'trash' || S.q.trim() || S.cat || S.pf || S.tag) return '';
+    var out = []; recGet().forEach(function (id) { var n = byId(id); if (n && !n.archived && out.length < 6) out.push(n); });
+    if (out.length < 2 || S.notes.length < 4) return '';
+    return '<div class="nt-rec" aria-label="Recent notes"><span class="nt-rcl">Recent</span>' + out.map(function (n) { return '<button type="button" class="nt-rc" data-a="recopen" data-id="' + n.id + '" style="--nc:' + ncol(n) + '"><i>' + nsvg(nic(n)) + '</i><span>' + esc(n.title) + '</span></button>'; }).join('') + '</div>';
+  }
+
+  /* ---------- duplicate ---------- */
+  async function dupNote(n) {
+    if (S.notes.length >= MAXN) { toast('Note limit reached (' + MAXN + '). Delete or archive some first.'); return; }
+    flush(); S.menu = false;
+    try {
+      var f = { title: (n.title + ' (copy)').slice(0, 120), body: n.body || '', category: n.category };
+      if (n.project) f.project = n.project; if (n.color) f.color = n.color; if (n.icon) f.icon = n.icon; if ((n.tags || []).length) f.tags = n.tags.slice();
+      var row = await insertSafe(f); row.tags = Array.isArray(row.tags) ? row.tags : [];
+      S.notes.unshift(row); TM = null; badgeDraw(); openNote(row.id, 'read'); toast('Note duplicated');
+    } catch (e) { toast(e.message === 'LIMIT' ? 'Note limit reached. Delete some first.' : 'Could not duplicate the note'); draw(); }
+  }
+
+  /* ---------- quick switcher (Ctrl+K) ---------- */
+  function qkList() {
+    var raw = (S.qk && S.qk.q || '').trim(), q = raw.toLowerCase().replace(/^#/, ''), res = [], exact = false;
+    if (!q) {
+      var seen = {}; recGet().forEach(function (id) { var n = byId(id); if (n && !seen[id]) { seen[id] = 1; res.push(n); } });
+      S.notes.slice().sort(function (a, b) { return new Date(b.updated_at) - new Date(a.updated_at); }).forEach(function (n) { if (!seen[n.id]) { seen[n.id] = 1; res.push(n); } });
+      return { items: res.slice(0, 8), create: '' };
+    }
+    S.notes.forEach(function (n) {
+      var t = n.title.toLowerCase(), sc = 0; if (t === q) { sc = 5; exact = true; } else if (t.indexOf(q) === 0) sc = 4; else if (t.indexOf(q) > 0) sc = 3;
+      else if ((n.tags || []).some(function (x) { return x.indexOf(q) >= 0; })) sc = 2; else if ((n.body || '').toLowerCase().indexOf(q) >= 0) sc = 1;
+      if (sc) res.push({ n: n, sc: sc });
+    });
+    res.sort(function (a, b) { return b.sc - a.sc || new Date(b.n.updated_at) - new Date(a.n.updated_at); });
+    return { items: res.slice(0, 8).map(function (x) { return x.n; }), create: (exact || /^#/.test(raw)) ? '' : raw.slice(0, 120) };
+  }
+  function qkDraw() {
+    var el = $('#ntqkl'); if (!el || !S.qk) return;
+    var L = qkList(); S.qk.L = L; var total = L.items.length + (L.create ? 1 : 0); if (S.qk.i >= total) S.qk.i = Math.max(0, total - 1);
+    el.innerHTML = L.items.map(function (x, i) { return '<button type="button" role="option" data-qk="' + i + '" class="' + (i === S.qk.i ? 'on' : '') + '" style="--nc:' + ncol(x) + '"><i>' + nsvg(nic(x)) + '</i><span><b>' + esc(x.title) + '</b><small>' + esc(x.category) + ((x.tags || []).length ? ' \u00B7 #' + x.tags.slice(0, 3).map(esc).join(' #') : '') + '</small></span></button>'; }).join('') +
+      (L.create ? '<button type="button" role="option" data-qk="' + L.items.length + '" class="nt-qkn' + (S.qk.i === L.items.length ? ' on' : '') + '"><i>' + nsvg('plus') + '</i><span><b>Create \u201C' + esc(L.create) + '\u201D</b><small>Start a new note</small></span></button>' : '') + (total ? '' : '<p class="nt-qke">No notes yet. Type a title to make one.</p>');
+    var on = el.querySelector('.on'); if (on) { var a = on.offsetTop, h = on.offsetHeight; if (a < el.scrollTop) el.scrollTop = a; else if (a + h > el.scrollTop + el.clientHeight) el.scrollTop = a + h - el.clientHeight; }
+  }
+  function qkClose() { var d = $('#ntqk'); if (d) d.remove(); S.qk = null; }
+  function qkPick(i) {
+    var L = S.qk && S.qk.L; if (!L) return; qkClose();
+    if (i < L.items.length) openNote(L.items[i].id, 'read'); else if (L.create) newNote(L.create);
+  }
+  function qkOpen() {
+    if (S.qk || !S.open) return;
+    var d = document.createElement('div'); d.id = 'ntqk'; d.className = 'nt-qk';
+    d.innerHTML = '<div class="nt-qkb" role="dialog" aria-modal="true" aria-label="Jump to a note"><div class="nt-qki"><i>' + nsvg('search') + '</i><input id="ntqki" type="text" placeholder="Jump to a note, or type #tag" autocomplete="off" aria-label="Jump to a note"><kbd>Esc</kbd></div><div class="nt-qkl" id="ntqkl" role="listbox"></div></div>';
+    document.body.appendChild(d); S.qk = { q: '', i: 0, L: null };
+    d.addEventListener('mousedown', function (e) { if (e.target === d) qkClose(); });
+    d.addEventListener('click', function (e) { var b = e.target.closest('[data-qk]'); if (b) qkPick(+b.dataset.qk); });
+    d.addEventListener('input', function (e) { if (S.qk && e.target.id === 'ntqki') { S.qk.q = e.target.value; S.qk.i = 0; qkDraw(); } });
+    d.addEventListener('keydown', function (e) {
+      if (!S.qk) return; e.stopPropagation();
+      var total = S.qk.L ? S.qk.L.items.length + (S.qk.L.create ? 1 : 0) : 0;
+      if (e.key === 'Escape' || ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K'))) { e.preventDefault(); qkClose(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); if (total) { S.qk.i = (S.qk.i + 1) % total; qkDraw(); } }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (total) { S.qk.i = (S.qk.i + total - 1) % total; qkDraw(); } }
+      else if (e.key === 'Enter') { e.preventDefault(); if (total) qkPick(S.qk.i); }
+      else if (e.key === 'Tab') e.preventDefault();
+    });
+    qkDraw(); var inp = $('#ntqki'); if (inp) inp.focus();
+  }
+
+
   /* ---------- events ---------- */
   function onClick(e) {
     var t = e.target;
@@ -1111,6 +1274,7 @@
     var mo = t.closest('[data-mo]'); if (mo && S.ov && S.ov.k === 'mopt' && !S.ov.busy) { S.ov.ai = mo.dataset.mo === 'ai'; renderOv(); return; }
     var card = t.closest('.nt-card'); if (card) { openNote(card.dataset.id, 'read'); return; }
     var tab = t.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; draw(); return; }
+    var tg = t.closest('[data-tg]'); if (tg) { S.tag = tg.dataset.tg; draw(); return; }
     var cat = t.closest('[data-cat]'); if (cat) { S.cat = cat.dataset.cat; draw(); return; }
     var pf = t.closest('[data-pf]'); if (pf) { S.pf = pf.dataset.pf; draw(); return; }
     var md = t.closest('[data-m]'); if (md) { if (md.dataset.m !== S.mode) setMode(md.dataset.m); return; }
@@ -1158,7 +1322,7 @@
     else if (k === 'frep') fRep();
     else if (k === 'frall') fRepAll();
     else if (n && k === 'arch') { var was = n.archived; queue(n.id, { archived: !was }, true); S.menu = false; S.id = was ? n.id : dropTab(n.id); badgeDraw(); draw(); toast(was ? 'Note restored' : 'Note archived'); }
-    else if (n && k === 'del') { if (!S.del) { S.del = true; draw(); setTimeout(function () { if (S.del) { S.del = false; if (S.menu) draw(); } }, 3000); } else removeNote(n.id); }
+    else if (n && k === 'del') { if (!S.del) { clearTimeout(S.delT); S.del = true; draw(); S.delT = setTimeout(function () { if (S.del) { S.del = false; if (S.menu) draw(); } }, 3000); } else removeNote(n.id); }
     else if (n && k === 'send') {
       flush(); var nm = fname(n.title) + '.md';
       if (H.toChatFile) { hide(); H.toChatFile(nm, noteText(n), 'Help me with my note "' + n.title + '".'); }
@@ -1176,6 +1340,7 @@
     else if (t.id === 'ntx') { grow(t); queue(n.id, { body: t.value }); wc(t.value); slashCheck(t); if (S.find) fUpdate(); }
   }
   function onChange(e) {
+    if (e.target.id === 'nttag') { var tn = S.id && byId(S.id); if (tn) tagInput(tn, e.target); return; }
     if (e.target.id === 'ntsort') { P.sort = e.target.value; savePrefs(); drawGrid(); return; }
     var n = S.id && byId(S.id); if (!n) return;
     if (e.target.id === 'ntc') queue(n.id, { category: e.target.value }, true);
@@ -1183,7 +1348,13 @@
   }
   function onKey(e) {
     if (!S.open) return;
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (S.qk) qkClose(); else qkOpen(); return; }
     var tx = e.target;
+    if (tx && tx.id === 'nttag') {
+      var nn = S.id && byId(S.id);
+      if (nn && (e.key === 'Enter' || e.key === ',')) { e.preventDefault(); tagInput(nn, tx); return; }
+      if (nn && e.key === 'Backspace' && !tx.value && (nn.tags || []).length) { e.preventDefault(); queue(nn.id, { tags: nn.tags.slice(0, -1) }, true); draw(); var ti = $('#nttag'); if (ti) ti.focus(); return; }
+    }
     if (S.slash && tx && tx.id === 'ntx') {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); var L = S.slash.items.length; S.slash.i = (S.slash.i + (e.key === 'ArrowDown' ? 1 : L - 1)) % L; slashDraw(); return; }
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); slashPick(S.slash.i); return; }
