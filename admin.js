@@ -497,7 +497,7 @@
         password_create: 'Admin password created', password_change: 'Admin password changed', password_reset: 'Admin password reset',
         panel_unlock: 'Console unlock', hub_hide: 'Hub visibility changed', sanction_details: 'Ban details updated',
         appeal_submit: 'Mistake report sent', appeal_resolve: 'Mistake report answered',
-        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', glitch_settings_set: 'Glitchware settings changed', glitch_launch: 'Glitchware launched', glitch_abort: 'Glitchware aborted', blackout_settings_set: 'Blackout settings changed', blackout_launch: 'Blackout launched', blackout_abort: 'Blackout aborted', kawaii_settings_set: 'Kawaii settings changed', kawaii_launch: 'Kawaii event launched', kawaii_abort: 'Kawaii event aborted', thethe_settings_set: 'tHE THE settings changed', thethe_launch: 'tHE THE event launched', thethe_abort: 'tHE THE event aborted', rain_settings_set: 'Rain settings changed', rain_launch: 'Rain event launched', rain_abort: 'Rain event aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted',
+        nuke_settings_set: 'Nuke event settings changed', nuke_launch: 'Nuke event launched', nuke_abort: 'Nuke event aborted', glitch_settings_set: 'Glitchware settings changed', glitch_launch: 'Glitchware launched', glitch_abort: 'Glitchware aborted', blackout_settings_set: 'Blackout settings changed', blackout_launch: 'Blackout launched', blackout_abort: 'Blackout aborted', kawaii_settings_set: 'Kawaii settings changed', kawaii_launch: 'Kawaii event launched', kawaii_abort: 'Kawaii event aborted', thethe_settings_set: 'tHE THE settings changed', thethe_launch: 'tHE THE event launched', thethe_abort: 'tHE THE event aborted', rain_settings_set: 'Rain settings changed', rain_launch: 'Rain event launched', rain_abort: 'Rain event aborted', seasons_set: 'Seasonal theme changed', seasons_schedule_save: 'Seasonal event saved', seasons_schedule_delete: 'Seasonal event deleted', turkey_set: 'Turkey hunt settings changed', turkey_reset: 'Turkey hunt restarted',
         case_assign: 'Case assigned', case_status: 'Case status changed', case_resolve: 'Case closed', case_note: 'Case note added'
     };
 
@@ -1222,6 +1222,17 @@
        ---------------------------------------------------------------------- */
     function seasonLocal(iso) { if (!iso) return ''; var d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }
 
+    var TK_ERR = { bad_pages: 'Hunt pages can only use letters, numbers, - and _ (1 to 30 pages).', bad_density: 'Turkeys per page must be 1 to 10.' };
+    // "index, Store, chats.html" -> ['index','store','chats']  (page = file name without .html, same keys as the Glitchware hunt)
+    function tkParsePages(str) {
+        var seen = {}, out = [];
+        String(str || '').split(/[\s,]+/).forEach(function (p) {
+            p = p.toLowerCase().replace(/\.html?$/, '').replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+            if (p && !seen[p]) { seen[p] = 1; out.push(p); }
+        });
+        return out;
+    }
+
     async function viewSeasons(root, token) {
         add(root, el('p', { class: 'ad-help', text: 'Loading...' }));
         var d = await rpc('admin_seasons_get');
@@ -1332,6 +1343,54 @@
         });
         if (!(d.schedule || []).length) list.appendChild(el('p', { class: 'ad-help', text: 'No events yet. Add one and it will switch on by itself in Automatic mode.' }));
         add(root, panel('Schedule', list, el('button', { type: 'button', class: 'ad-btn ad-btn--sm', text: 'Add event', onclick: function () { editEvent(null); } })));
+
+        // ---- turkey hunt (Thanksgiving): hidden turkeys on every hunt page + a leaderboard ----
+        var tk = await rpc('admin_turkey_get', {}, { quiet: true });
+        if (stale(token)) return;
+        if (!tk || tk.ok === false) {
+            add(root, panel('Turkey hunt', el('p', { class: 'ad-help', text: 'Could not load the turkey hunt. Is supabase-turkeys.sql installed?' })));
+            return;
+        }
+        var tks = tk.settings || {}, tkst = tk.stats || {};
+        var tkOn = el('input', { type: 'checkbox' }); tkOn.checked = tks.enabled !== false;
+        var tkPages = el('input', { class: 'ad-field', type: 'text', maxlength: '400', value: (tks.pages || []).join(', '), placeholder: 'index, chats, projects, store' });
+        var tkDen = el('input', { class: 'ad-field', type: 'number', min: '1', max: '10', value: String(tks.density || 4) });
+        var tkWhy = el('input', { class: 'ad-field', type: 'text', maxlength: '120', placeholder: 'Why? (optional, saved in the audit log)' });
+        var tkTotal = (tks.pages || []).length * (tks.density || 0);
+        var tkTop = el('div', { class: 'ad-list' });
+        (tk.top || []).forEach(function (u, n) {
+            tkTop.appendChild(el('div', { class: 'ad-row' }, el('div', { class: 'ad-row-main' },
+                el('div', { class: 'ad-row-title', text: '#' + (n + 1) + '  @' + u.username }),
+                el('div', { class: 'ad-row-sub', text: u.found + ' turkeys \u00B7 ' + u.points + ' points' }))));
+        });
+        if (!(tk.top || []).length) tkTop.appendChild(el('p', { class: 'ad-help', text: 'Nobody has caught a turkey in this hunt yet.' }));
+        add(root, panel('Turkey hunt', el('div', {},
+            el('div', { class: 'ad-row-sub', text: (tks.enabled === false ? 'The hunt is OFF. ' : 'Hidden turkeys appear on the hunt pages while the Thanksgiving theme is on. ') + tkTotal + ' turkeys in total \u00B7 ' + (tkst.hunters || 0) + ' hunters \u00B7 ' + (tkst.finds || 0) + ' caught \u00B7 hunt ' + (tks.hunt || '') + ' \u00B7 last changed ' + ago(tks.updated_at) }),
+            el('label', { class: 'ad-role-opt' }, tkOn, el('span', {}, el('b', { text: 'Hunt is on' }), el('br'), el('span', { class: 'ad-row-sub', text: 'Turn it off to hide every turkey and the leaderboard button right away (scores are kept).' }))),
+            field('Hunt pages', tkPages, 'File name without .html (index, chats, projects, store...). Only pages that load seasons.js work. Use commas.'),
+            field('Turkeys per page (1 to 10)', tkDen, 'Every 4th turkey on a page is golden (50 points), the others are 10.'),
+            field('Reason', tkWhy),
+            el('div', { style: 'margin-top:14px;display:flex;gap:8px;flex-wrap:wrap' },
+                el('button', { type: 'button', class: 'ad-btn', text: 'Save hunt settings', onclick: async function (e) {
+                    var pg = tkParsePages(tkPages.value), den = parseInt(tkDen.value, 10);
+                    if (!pg.length) { toast(TK_ERR.bad_pages, true); return; }
+                    if (!(den >= 1 && den <= 10)) { toast(TK_ERR.bad_density, true); return; }
+                    e.target.disabled = true;
+                    var r = await rpc('admin_turkey_set', { p_enabled: tkOn.checked, p_pages: pg, p_density: den, p_reason: tkWhy.value.trim() || null }, { quiet: true });
+                    e.target.disabled = false;
+                    if (r && r.ok) { toast('Turkey hunt saved. Visitors get it within a minute.'); again(); }
+                    else toast(TK_ERR[r && r.error] || ('Could not save' + (r && r.error ? ' (' + r.error + ')' : '') + '.'), true);
+                } }),
+                el('button', { type: 'button', class: 'ad-btn ad-btn--danger', text: 'Start a new hunt', onclick: function () {
+                    dialog({ title: 'Start a new turkey hunt?', body: el('p', { class: 'ad-help', text: 'Everybody starts again from 0 and the leaderboard is empty. Old catches are kept in the database, they just stop counting.' }),
+                        buttons: [{ text: 'Cancel' }, { text: 'Start new hunt', kind: 'danger', onClick: async function () {
+                            var r = await rpc('admin_turkey_reset', { p_reason: tkWhy.value.trim() || null }, { quiet: true });
+                            if (!(r && r.ok)) { toast('Could not start a new hunt' + (r && r.error ? ' (' + r.error + ')' : '') + '.', true); return false; }
+                            toast('New hunt started. The leaderboard is fresh.'); again();
+                        } }] });
+                } }))),
+            null));
+        add(root, panel('Top hunters', tkTop));
     }
 
     /* ----------------------------------------------------------------------

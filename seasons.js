@@ -529,10 +529,25 @@
         whenBody(function () {
             if (state.theme !== id) return;
             if (changed || mounted.id !== id) { mountLayers(id); setFavicon(id); setupToggle(id); greet(id); }
+            if (id === 'thanksgiving') loadTurkeys();
             syncFx();
         });
         if (changed) fire();
         scheduleEnd();
+    }
+
+    /* The THANKSGIVING TURKEY HUNT lives in turkey-hunt.js. It is only fetched while the Thanksgiving theme is on,
+       then it follows the theme by itself (it removes itself when the theme ends). */
+    var turkeyReq = false;
+    function loadTurkeys() {
+        if (turkeyReq || window.SpecTurkey) return;
+        turkeyReq = true;
+        try {
+            var tk = document.createElement('script');
+            tk.src = SELF ? SELF.replace(/seasons\.js(\?.*)?$/, 'turkey-hunt.js$1') : 'turkey-hunt.js';
+            tk.defer = true;
+            (document.head || root).appendChild(tk);
+        } catch (e) { /* ignore */ }
     }
 
     function fire() { try { window.dispatchEvent(new CustomEvent('specseason', { detail: { theme: state.theme } })); } catch (e) { /* old browser */ } }

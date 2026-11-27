@@ -1,0 +1,113 @@
+/* ==========================================================================
+   SPECSOFT® turkey-hunt.css  -  the Thanksgiving turkey hunt
+   Loaded by turkey-hunt.js only while the hunt is running. Uses the season's CSS variables,
+   so it matches dark and light mode by itself.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. THE HIDDEN TURKEYS
+   --------------------------------------------------------------------------- */
+#tk-box { position: absolute; left: 0; top: 0; width: 100%; z-index: 30; pointer-events: none; overflow: hidden; }
+
+.tk {
+    position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; padding: 0; border: 0; background: none; cursor: pointer;
+    pointer-events: auto; opacity: 0.5; transform: scale(0.92); transition: opacity 0.25s ease, transform 0.25s ease, filter 0.25s ease;
+    filter: saturate(0.7) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.tk svg { display: block; width: 100%; height: 100%; pointer-events: none; }
+.tk:hover, .tk:focus-visible, .tk.is-near { opacity: 1; transform: scale(1.12); filter: saturate(1) drop-shadow(0 0 8px var(--accent-glow, rgba(240, 138, 44, 0.5))); outline: none; animation: tkWiggle 0.7s ease-in-out infinite; }
+.tk:focus-visible { outline: 2px solid var(--accent, #f08a2c); outline-offset: 3px; border-radius: 8px; }
+
+/* the golden one shimmers a little, so a sharp eye can spot it */
+.tk--gold { width: 38px; height: 38px; margin: -19px 0 0 -19px; opacity: 0.62; filter: saturate(1) drop-shadow(0 0 7px rgba(246, 201, 69, 0.75)); animation: tkShimmer 2.8s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.tk--gold:hover, .tk--gold:focus-visible, .tk--gold.is-near { animation: tkWiggle 0.7s ease-in-out infinite; filter: drop-shadow(0 0 12px rgba(246, 201, 69, 0.95)); }
+
+.tk.is-got { animation: tkGobble 0.42s ease-out forwards; pointer-events: none; }
+.tk.is-gone { display: none; }
+.tk.is-shake { animation: tkNo 0.4s ease-in-out; }
+
+@keyframes tkWiggle { 0%, 100% { rotate: -9deg; } 50% { rotate: 9deg; } }
+@keyframes tkShimmer { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
+@keyframes tkGobble { 0% { transform: scale(1.12); opacity: 1; } 40% { transform: scale(1.5) rotate(-12deg); opacity: 1; } 100% { transform: scale(0.2) rotate(20deg); opacity: 0; } }
+@keyframes tkNo { 0%, 100% { translate: 0 0; } 25% { translate: -4px 0; } 75% { translate: 4px 0; } }
+
+.tk-pop {
+    position: absolute; z-index: 2; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap;
+    font: 700 14px/1 var(--font-mono, ui-monospace, monospace); color: var(--accent, #f08a2c); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 14px var(--accent-glow, rgba(240, 138, 44, 0.5));
+    animation: tkPop 1s ease-out forwards;
+}
+body.light-mode .tk-pop { text-shadow: 0 1px 6px rgba(255, 255, 255, 0.9); }
+@keyframes tkPop { 0% { opacity: 0; margin-top: 0; } 15% { opacity: 1; } 100% { opacity: 0; margin-top: -48px; } }
+
+/* ---------------------------------------------------------------------------
+   2. HUD BUTTON (bottom right) + TOAST
+   --------------------------------------------------------------------------- */
+.tk-hud {
+    position: fixed; right: 14px; bottom: 14px; z-index: 9996; display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 13px 0 10px;
+    background: var(--bg-card, #1b110a); color: var(--text-primary, #fbf1e3); border: 1px solid var(--border-hover, #5c3a1d); border-radius: 999px;
+    font: 700 12px/1 var(--font-mono, ui-monospace, monospace); letter-spacing: 0.04em; cursor: pointer; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.tk-hud:hover, .tk-hud:focus-visible { border-color: var(--accent, #f08a2c); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-glow, rgba(240, 138, 44, 0.4)); outline: none; }
+.tk-hud-ico { font-size: 17px; line-height: 1; }
+.tk-hud.is-done { border-color: #f6c945; color: #f6c945; }
+
+.tk-toast {
+    position: fixed; left: 50%; bottom: 70px; z-index: 9997; max-width: min(92vw, 380px); padding: 10px 16px; border-radius: 12px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    background: var(--bg-card, #1b110a); color: var(--text-primary, #fbf1e3); border: 1px solid var(--accent, #f08a2c); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4), 0 0 24px var(--accent-glow, rgba(240, 138, 44, 0.3));
+    font: 500 13px/1.35 var(--font-sans, system-ui); text-align: center; transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.tk-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------------------------------------------------------------------------
+   3. LEADERBOARD PANEL
+   --------------------------------------------------------------------------- */
+.tk-panel {
+    position: fixed; right: 14px; bottom: 60px; z-index: 9997; width: min(340px, calc(100vw - 28px)); max-height: min(70vh, 560px); display: none; flex-direction: column; padding: 14px 14px 12px;
+    background: var(--bg-card, #1b110a); color: var(--text-primary, #fbf1e3); border: 1px solid var(--accent, #f08a2c); border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 0 40px var(--accent-glow, rgba(240, 138, 44, 0.25));
+}
+.tk-panel.is-on { display: flex; animation: tkIn 0.25s ease-out; }
+@keyframes tkIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.tk-p-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font: 700 14px/1 var(--font-sans, system-ui); letter-spacing: 0.02em; }
+.tk-x { width: 26px; height: 26px; padding: 0; border: 1px solid var(--border-hover, #5c3a1d); border-radius: 50%; background: transparent; color: var(--text-secondary, #c2a78d); font-size: 16px; line-height: 1; cursor: pointer; }
+.tk-x:hover, .tk-x:focus-visible { color: var(--accent, #f08a2c); border-color: var(--accent, #f08a2c); outline: none; }
+
+.tk-me { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.tk-me-line { font: 600 13px/1.3 var(--font-sans, system-ui); }
+.tk-me-pts { font: 600 11.5px/1.3 var(--font-mono, ui-monospace, monospace); color: var(--accent, #f08a2c); letter-spacing: 0.04em; }
+
+.tk-bar { height: 7px; border-radius: 999px; background: var(--accent-dim, rgba(240, 138, 44, 0.12)); overflow: hidden; margin-bottom: 14px; }
+.tk-bar i { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--ss-b, #c0392b), var(--accent, #f08a2c), var(--ss-c, #f2c46d)); transition: width 0.5s ease; }
+
+.tk-sub { margin-bottom: 6px; font: 700 10.5px/1 var(--font-mono, ui-monospace, monospace); letter-spacing: 0.14em; color: var(--text-tertiary, #7a6249); }
+
+.tk-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 0; }
+.tk-row { display: grid; grid-template-columns: 34px 30px 1fr auto; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 10px; }
+.tk-row + .tk-row { margin-top: 2px; }
+.tk-row.is-me { background: var(--accent-dim, rgba(240, 138, 44, 0.12)); box-shadow: inset 0 0 0 1px var(--accent-strong, rgba(240, 138, 44, 0.5)); }
+.tk-rk { font: 700 13px/1 var(--font-mono, ui-monospace, monospace); color: var(--text-secondary, #c2a78d); text-align: center; }
+.tk-av { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; background: var(--border-subtle, #33200f); color: var(--text-primary, #fbf1e3); font: 700 13px/1 var(--font-sans, system-ui); }
+.tk-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tk-nm { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tk-nm b { font: 600 13px/1.2 var(--font-sans, system-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-nm small { font: 500 11px/1 var(--font-sans, system-ui); color: var(--text-tertiary, #7a6249); }
+.tk-pt { font: 700 12px/1 var(--font-mono, ui-monospace, monospace); color: var(--accent, #f08a2c); white-space: nowrap; }
+.tk-empty { padding: 14px 6px; text-align: center; font: 500 12.5px/1.4 var(--font-sans, system-ui); color: var(--text-secondary, #c2a78d); }
+.tk-foot { margin: 10px 2px 0; font: 500 11px/1.4 var(--font-sans, system-ui); color: var(--text-tertiary, #7a6249); }
+
+/* ---------------------------------------------------------------------------
+   4. PHONES + REDUCED MOTION
+   --------------------------------------------------------------------------- */
+@media (max-width: 850px) {
+    .tk-hud { bottom: 92px; right: 12px; }                  /* clears the floating bottom navigation */
+    .tk-panel { right: 12px; bottom: 138px; }
+    .tk-toast { bottom: 150px; }
+    .tk { width: 38px; height: 38px; margin: -19px 0 0 -19px; }      /* bigger fingers, bigger turkeys */
+    .tk--gold { width: 42px; height: 42px; margin: -21px 0 0 -21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .tk, .tk--gold, .tk:hover, .tk.is-near, .tk-pop, .tk-panel.is-on { animation: none !important; }
+    .tk, .tk-hud, .tk-toast, .tk-bar i { transition: none !important; }
+}
